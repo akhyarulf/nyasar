@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nyasar</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_maps">Peta</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_record">Record</string>
+    <string name="nav_history">Riwayat</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Home Screen -->
+    <string name="search_route">Cari route…</string>
+    <string name="no_routes">Belum ada route.\nImport file GPX untuk mulai.</string>
+    <string name="start_activity">MULAI AKTIVITAS</string>
+    <string name="continue_recording">LANJUTKAN</string>
+    <string name="recording_active">Recording sedang berjalan</string>
+    <string name="recording_paused">Recording dijeda</string>
+    <string name="gps_searching">Mencari sinyal GPS…</string>
+    <string name="gps_permission_needed">Izin lokasi belum diberikan.</string>
+
+    <!-- Recording Screen -->
+    <string name="recording_status_ready">SIAP</string>
+    <string name="recording_status_recording">● RECORDING</string>
+    <string name="recording_status_paused">❚❚ DIJEDA</string>
+    <string name="recording_status_auto_paused">❚❚ DIJEDA OTOMATIS</string>
+    <string name="recording_status_finished">SELESAI</string>
+    <string name="start_recording">MULAI REKAM</string>
+    <string name="pause_recording">Jeda</string>
+    <string name="resume_recording">LANJUTKAN</string>
+    <string name="stop_recording">SELESAIKAN</string>
+    <string name="pick_route">PILIH JALUR</string>
+    <string name="recording_time">Time</string>
+    <string name="recording_distance">Distance (km)</string>
+    <string name="recording_elevation_gain">Elevation gain (m)</string>
+    <string name="gps_weak">⚠ GPS LEMAH</string>
+    <string name="gps_lost">⚠ GPS HILANG</string>
+    <string name="storage_error">⚠ Gagal menyimpan data — storage penuh?</string>
+    <string name="recording_not_started">Recording belum bisa dimulai</string>
+    <string name="check_gps">Periksa izin lokasi dan pastikan GPS aktif, lalu coba lagi.</string>
+
+    <!-- Post Recording -->
+    <string name="review_activity">Review Aktivitas</string>
+    <string name="activity_title">Judul Aktivitas</string>
+    <string name="save_activity">Simpan Aktivitas</string>
+    <string name="discard_activity">Buang Aktivitas</string>
+    <string name="discard_confirm">Buang Aktivitas?</string>
+    <string name="discard_message">Aktivitas ini akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.</string>
+
+    <!-- Track & Maps -->
+    <string name="track_maps">Track &amp; Peta</string>
+    <string name="import_gpx">Import GPX</string>
+    <string name="draw_route">Gambar Rute</string>
+    <string name="no_tracks">Belum ada track. Import GPX atau gambar rute sendiri.</string>
+    <string name="no_search_results">Tidak ada track yang cocok.</string>
+    <string name="offline_maps">Peta Offline</string>
+    <string name="see_all">Lihat &gt;</string>
+    <string name="offline_count">%d area tersimpan</string>
+    <string name="no_offline_maps">Belum ada peta offline</string>
+    <string name="download_area_hint">Download area map untuk dipakai tanpa sinyal</string>
+    <string name="track_ready_offline">✓ Siap dipakai offline</string>
+    <string name="track_incomplete">Belum lengkap</string>
+    <string name="checking_status">Memeriksa status…</string>
+
+    <!-- Route Preview -->
+    <string name="route">Route</string>
+    <string name="waypoints">%d waypoint</string>
+    <string name="prepare_offline">Siapkan peta offline untuk area ini</string>
+    <string name="start_activity_btn">MULAI AKTIVITAS</string>
+    <string name="share_gpx">Export/Share GPX</string>
+    <string name="coordinate">Koordinat</string>
+    <string name="elevation">Elevation</string>
+
+    <!-- Navigation -->
+    <string name="distance_traveled">Jarak tempuh</string>
+    <string name="current_elevation">Elevasi saat ini</string>
+    <string name="elevation_gain">Elevation gain</string>
+    <string name="moving_time">Waktu bergerak</string>
+    <string name="speed">Kecepatan</string>
+    <string name="remaining_elevation">Sisa elevasi</string>
+    <string name="exit">Keluar</string>
+
+    <!-- History -->
+    <string name="history">Riwayat</string>
+    <string name="no_history">Belum ada aktivitas.\nMulai recording untuk melihat riwayat di sini.</string>
+    <string name="distance">Distance</string>
+    <string name="elev_gain">Elev Gain</string>
+    <string name="time">Time</string>
+
+    <!-- Activity Detail -->
+    <string name="activity">Aktivitas</string>
+    <string name="activity_not_found">Aktivitas tidak ditemukan.</string>
+    <string name="activity_load_error">Gagal memuat detail aktivitas.</string>
+    <string name="rename_activity">Ganti nama aktivitas</string>
+    <string name="delete_activity">Hapus aktivitas</string>
+    <string name="delete_confirm">Hapus aktivitas?</string>
+    <string name="delete_message">Aktivitas ini beserta data GPS yang tersimpan akan dihapus. Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="no_gps_points">Tidak ada titik GPS tersimpan untuk aktivitas ini.</string>
+    <string name="planned_vs_actual">Rencana vs Aktual</string>
+    <string name="planned_distance">Jarak rencana</string>
+    <string name="actual_distance">Jarak aktual</string>
+    <string name="elevation_profile">Elevation profile</string>
+    <string name="no_waypoints">Tidak ada waypoint yang dicatat selama aktivitas ini.</string>
+
+    <!-- Settings -->
+    <string name="settings">Pengaturan</string>
+    <string name="map_provider">Map provider</string>
+    <string name="map_provider_desc">Mesin peta (MapLibre) tidak berubah — ini hanya mengganti sumber tile/style.</string>
+    <string name="not_configured">Belum dikonfigurasi (API key kosong)</string>
+    <string name="gps_permission_active">Izin lokasi: aktif</string>
+    <string name="gps_permission_missing">Izin lokasi: belum diberikan — aktifkan di Pengaturan Sistem</string>
+    <string name="gps_permission_desc">Recording di background membutuhkan izin lokasi selalu diizinkan agar tidak berhenti saat layar mati.</string>
+    <string name="offline_maps_setting">Peta Offline</string>
+    <string name="offline_maps_desc">Lihat, kelola, dan hapus peta yang sudah didownload</string>
+    <string name="keep_screen_on">Jaga layar tetap menyala</string>
+    <string name="keep_screen_desc">Aktif saat recording berjalan, supaya jarak/waktu tetap terlihat</string>
+    <string name="auto_pause">Auto Pause</string>
+    <string name="auto_pause_desc">Jeda otomatis saat berhenti ~20 detik, lanjut otomatis saat mulai bergerak lagi</string>
+    <string name="speed_unit">Speed Unit</string>
+    <string name="speed_unit_desc">Digunakan di recording, activity, navigation, statistik, dan route info.</string>
+    <string name="appearance">APPEARANCE</string>
+    <string name="follow_system">Ikuti sistem</string>
+    <string name="light">Terang</string>
+    <string name="dark">Gelap</string>
+    <string name="cache">Cache</string>
+    <string name="cache_desc">file GPX hasil export sementara</string>
+    <string name="clear_cache">Hapus</string>
+    <string name="cache_permanent">Routes dan activity tersimpan permanen di penyimpanan aplikasi.</string>
+    <string name="about">Nyasar — outdoor navigation &amp; recording</string>
+    <string name="version">Versi %s</string>
+
+    <!-- Offline Maps -->
+    <string name="download_area">Download Area</string>
+    <string name="delete_map">Hapus peta offline?</string>
+    <string name="delete_map_message">\"%s\" (%s) akan dihapus dari penyimpanan. Tindakan ini tidak bisa dibatalkan.</string>
+    <string name="view_on_map">Lihat di Peta</string>
+    <string name="continue_download">Lanjut unduh</string>
+    <string name="downloading">Mengunduh…</string>
+
+    <!-- Waypoints -->
+    <string name="new_waypoint">Waypoint Baru</string>
+    <string name="edit_waypoint">Edit Waypoint</string>
+    <string name="waypoint_name">Nama Waypoint</string>
+    <string name="waypoint_note">Catatan</string>
+    <string name="save">Simpan</string>
+    <string name="cancel">Batal</string>
+
+    <!-- Common -->
+    <string name="ok">OK</string>
+    <string name="yes">Ya</string>
+    <string name="no">Tidak</string>
+    <string name="back">Kembali</string>
+    <string name="loading">Memuat…</string>
+    <string name="error">Error</string>
+    <string name="retry">Coba lagi</string>
+    <string name="no_data">Tidak ada data</string>
+
+    <!-- Permissions -->
+    <string name="permission_location">Izin lokasi diperlukan untuk menampilkan posisi Anda di peta.</string>
+    <string name="permission_notification">Izin notifikasi diperlukan untuk menampilkan status recording.</string>
+    <string name="permission_camera">Izin kamera diperlukan untuk mengambil foto.</string>
+
+    <!-- Share -->
+    <string name="share_activity">Bagikan Aktivitas</string>
+    <string name="share_via">Bagikan via</string>
+    <string name="saved_to_gallery">Tersimpan ke galeri!</string>
+    <string name="choose_background">Pilih Background</string>
+    <string name="background_gradient">Gradient</string>
+    <string name="background_route">Route</string>
+    <string name="background_plain">Plain</string>
+</resources>

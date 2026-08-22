@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -43,7 +44,7 @@ import java.io.FileOutputStream
  * Flow: pager shows card previews → user swipes to pick template →
  * taps "Bagikan" → Android share sheet (Intent.ACTION_SEND).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ShareCardScreen(
     activity: ActivityEntity,

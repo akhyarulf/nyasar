@@ -43,21 +43,49 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
     private val _uiState = MutableStateFlow(RoutePreviewUiState())
     val uiState: StateFlow<RoutePreviewUiState> = _uiState.asStateFlow()
 
+    // --- GPS state (mirrors HomeViewModel pattern) ---
+
     private val _currentLocation = MutableStateFlow<GpsFix?>(null)
     val currentLocation: StateFlow<GpsFix?> = _currentLocation.asStateFlow()
 
-    private val _followMode = MutableStateFlow(true)
+    private val _followMode = MutableStateFlow(false)
     val followMode: StateFlow<Boolean> = _followMode.asStateFlow()
 
-    // North-up vs heading-up (spec-adjacent UX: tapping recenter while
-    // already following toggles orientation instead of doing nothing --
-    // same pattern as Strava/Gaia GPS). Only meaningful while followMode is
-    // true; onUserPanned() below resets it off so a rotated camera never
-    // lingers after the user takes manual control.
     private val _rotateWithHeading = MutableStateFlow(false)
     val rotateWithHeading: StateFlow<Boolean> = _rotateWithHeading.asStateFlow()
 
     private var locationStarted = false
+
+    fun startLocationUpdatesIfPermitted() {
+        if (locationStarted) return
+        if (!locationRepository.hasLocationPermission()) return
+        locationStarted = true
+        viewModelScope.launch {
+            locationRepository.observeLocation().collect { fix ->
+                _currentLocation.value = fix
+            }
+        }
+    }
+
+    fun hasLocationPermission(): Boolean = locationRepository.hasLocationPermission()
+
+    /** Tap while NOT following -> snap back to user, follow ON.
+     *  Tap again while ALREADY following -> toggle heading-up/north-up. */
+    fun centerOnLocation() {
+        if (_followMode.value) {
+            _rotateWithHeading.value = !_rotateWithHeading.value
+        } else {
+            _followMode.value = true
+        }
+    }
+
+    /** Manual pan breaks follow mode. */
+    fun onUserPanned() {
+        _followMode.value = false
+        _rotateWithHeading.value = false
+    }
+
+    // --- Route data ---
 
     fun load(routeId: String) {
         viewModelScope.launch {
@@ -78,43 +106,5 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
                 gpxFilePath = route.localGpxFilePath
             )
         }
-    }
-
-    /** Called once from RoutePreviewScreen after permission is confirmed granted --
-     *  mirrors how NavigationViewModel/RecordingService each check
-     *  hasLocationPermission() before subscribing, so Route Preview never starts a
-     *  FusedLocationProviderClient request without permission. */
-    fun startLocationUpdatesIfPermitted() {
-        if (locationStarted) return
-        if (!locationRepository.hasLocationPermission()) return
-        locationStarted = true
-        viewModelScope.launch {
-            locationRepository.observeLocation().collect { fix ->
-                _currentLocation.value = fix
-            }
-        }
-    }
-
-    fun hasLocationPermission(): Boolean = locationRepository.hasLocationPermission()
-
-    /** GPS/recenter button (spec Section 12: "tombol center on location").
-     *  Tap while NOT following -> snap back to user, follow ON, north-up.
-     *  Tap again while ALREADY following -> toggle heading-up/north-up
-     *  instead of re-doing a no-op recenter. */
-    fun centerOnLocation() {
-        if (_followMode.value) {
-            _rotateWithHeading.value = !_rotateWithHeading.value
-        } else {
-            _followMode.value = true
-        }
-    }
-
-    /** Manual pan should break follow mode (spec Section 12: "manual pan tetap
-     *  memungkinkan") -- called by the map's drag-gesture callback. Also
-     *  drops heading-up so the next recenter starts from a known state
-     *  (north-up) rather than resuming mid-rotation. */
-    fun onUserPanned() {
-        _followMode.value = false
-        _rotateWithHeading.value = false
     }
 }

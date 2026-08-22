@@ -29,7 +29,6 @@ import com.nyasar.app.ui.components.ElevationProfile
 import com.nyasar.app.ui.components.NyasarMapView
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +44,14 @@ fun RoutePreviewScreen(
     LaunchedEffect(routeId) { viewModel.load(routeId) }
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // GPS state collection (mirrors HomeScreen pattern)
+    val currentLocation by viewModel.currentLocation.collectAsState()
+    val followMode by viewModel.followMode.collectAsState()
+    val rotateWithHeading by viewModel.rotateWithHeading.collectAsState()
+
+    // Start location updates once permission is granted
+    LaunchedEffect(Unit) { viewModel.startLocationUpdatesIfPermitted() }
 
     var selectedWaypoint by remember { mutableStateOf<GpxWaypoint?>(null) }
     // Highlight marker position when user scrubs the elevation chart
@@ -92,6 +99,11 @@ fun RoutePreviewScreen(
         ) {
             // Map — takes remaining space, buttons float inside this Box
             Box(Modifier.weight(1f).fillMaxWidth()) {
+                // Build user location LatLng for the map marker
+                val userLatLng = currentLocation?.let {
+                    LatLng(it.lat, it.lon)
+                }
+
                 NyasarMapView(
                     modifier = Modifier.fillMaxSize(),
                     provider = currentProvider,
@@ -101,7 +113,14 @@ fun RoutePreviewScreen(
                     highlightPoint = highlightLatLng,
                     onWaypointClick = { selectedWaypoint = it },
                     onMapReady = { mapInstance = it },
-                    onBearingChanged = { mapBearing = it }
+                    onBearingChanged = { mapBearing = it },
+                    // GPS user position + follow mode
+                    userLocation = userLatLng,
+                    userHeadingDeg = currentLocation?.bearingDeg,
+                    accuracyMeters = currentLocation?.accuracyMeters,
+                    followUser = followMode,
+                    rotateWithHeading = rotateWithHeading,
+                    onUserGesture = viewModel::onUserPanned
                 )
 
                 // Animate camera to follow highlight point when user scrubs elevation chart
@@ -162,25 +181,12 @@ fun RoutePreviewScreen(
                             )
                         }
                     }
-                    // Location button — centers map on the full route track
+                    // Location button — center on user GPS position + toggle heading
                     RoundIconButton(
-                        icon = Icons.Default.MyLocation,
-                        contentDescription = "Fokus ke rute",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        onClick = {
-                            mapInstance?.let { map ->
-                                val track = state.track
-                                if (track.isNotEmpty()) {
-                                    val bounds = LatLngBounds.from(
-                                        track.maxOf { it.lat },
-                                        track.maxOf { it.lon },
-                                        track.minOf { it.lat },
-                                        track.minOf { it.lon }
-                                    )
-                                    map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 48))
-                                }
-                            }
-                        }
+                        icon = if (rotateWithHeading) Icons.Default.Navigation else Icons.Default.MyLocation,
+                        contentDescription = if (rotateWithHeading) "Mode heading-up aktif — tap untuk north-up" else "Ke lokasi saya",
+                        tint = if (followMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        onClick = { viewModel.centerOnLocation() }
                     )
                 }
             }

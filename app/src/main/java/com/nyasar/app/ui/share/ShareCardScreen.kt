@@ -28,7 +28,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import android.graphics.Bitmap
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.map.providers.TileProviderFactory

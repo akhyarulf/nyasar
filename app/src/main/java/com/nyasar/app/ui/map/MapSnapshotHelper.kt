@@ -130,6 +130,11 @@ object MapSnapshotHelper {
             val options = MapSnapshotter.Options(widthPx, heightPx).apply {
                 withStyle(styleUrl)
                 withRegion(bounds)
+                // Workaround for MapLibre Native bug #2869 (affects SDK >=11.0.1):
+                // createScaledLogo() NPEs because the logo changed from PNG to SVG
+                // but the internal decoder doesn't handle SVG correctly.
+                // PR #2967 fixes this upstream — remove withLogo(false) after upgrading.
+                withLogo(false)
             }
 
             val snapshotter = MapSnapshotter(context, options)

@@ -30,7 +30,6 @@ fun SportFilterSheet(
     onDismiss: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    val topSports = listOf(SportType.TRAIL_RUN, SportType.HIKE)
     
     val filteredSports = remember(searchQuery) {
         if (searchQuery.isBlank()) {
@@ -103,33 +102,6 @@ fun SportFilterSheet(
                 singleLine = true
             )
             
-            // Your Top Sports section
-            if (searchQuery.isBlank()) {
-                Text(
-                    "Your Top Sports",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 12.dp)
-                )
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    topSports.forEach { sport ->
-                        TopSportItem(
-                            sport = sport,
-                            isSelected = sport == selectedSport,
-                            onClick = { onSelectSport(sport) }
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-            
             // Categorized sports list
             LazyColumn(
                 modifier = Modifier.heightIn(max = 400.dp)
@@ -154,64 +126,6 @@ fun SportFilterSheet(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun TopSportItem(
-    sport: SportType,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(8.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isSelected) Color(0xFFFC5200)
-                    else Color.White.copy(alpha = 0.1f)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                sport.icon,
-                contentDescription = sport.label,
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
-            )
-            
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFC5200)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        Text(
-            sport.label,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (isSelected) Color(0xFFFC5200) else Color.White
-        )
     }
 }
 

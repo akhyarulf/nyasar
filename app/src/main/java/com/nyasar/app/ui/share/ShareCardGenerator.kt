@@ -12,6 +12,8 @@ import android.graphics.Shader
 import android.graphics.Typeface
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.recording.ShareMetric
+import com.nyasar.app.recording.SportType
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -67,6 +69,22 @@ object ShareCardGenerator {
         return bmp
     }
 
+    // ── Helpers for sport-aware metric display ──
+
+    private fun sportMetric(a: ActivityEntity): ShareMetric =
+        SportType.fromString(a.sportType).primaryMetric
+
+    private fun formatPace(a: ActivityEntity): String {
+        if (a.distanceMeters <= 0) return "0:00 /km"
+        val paceMinPerKm = (a.elapsedTimeMs / 60000.0) / (a.distanceMeters / 1000.0)
+        val pm = paceMinPerKm.toInt()
+        val ps = ((paceMinPerKm - pm) * 60).toInt()
+        return "%d:%02d /km".format(pm, ps)
+    }
+
+    private fun formatElevGain(a: ActivityEntity): String =
+        a.elevationGainM?.let { "${it.roundToInt()} m" } ?: "0 m"
+
     // ── Template 1: Map — green gradient + grid + route + stats ──
 
     private fun drawMapTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>) {
@@ -95,12 +113,15 @@ object ShareCardGenerator {
         val y2 = barTop + 210f
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.elapsedTimeMs)
-        val gain = a.elevationGainM?.let { "\u2191 ${it.roundToInt()} m" } ?: ""
 
         c.drawText("Distance", 80f, y1, labelP); c.drawText(dist, 80f, y2, statP)
         c.drawText("Time", 420f, y1, labelP); c.drawText(dur, 420f, y2, statP)
-        if (gain.isNotEmpty()) {
-            c.drawText("Elev Gain", 720f, y1, labelP); c.drawText(gain, 720f, y2, statP)
+
+        if (sportMetric(a) == ShareMetric.PACE) {
+            c.drawText("Pace", 720f, y1, labelP); c.drawText(formatPace(a), 720f, y2, statP)
+        } else {
+            val gain = formatElevGain(a)
+            c.drawText("Elev Gain", 720f, y1, labelP); c.drawText("\u2191 $gain", 720f, y2, statP)
         }
 
         // Branding
@@ -120,7 +141,6 @@ object ShareCardGenerator {
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.elapsedTimeMs)
-        val gain = a.elevationGainM?.let { "\u2191 ${it.roundToInt()} m" } ?: ""
 
         c.drawText("Distance", cx - sm.measureText("Distance") / 2, CARD_H * 0.32f, sm)
         c.drawText(dist, cx - big.measureText(dist) / 2, CARD_H * 0.38f, big)
@@ -128,9 +148,14 @@ object ShareCardGenerator {
         c.drawText("Time", cx - sm.measureText("Time") / 2, CARD_H * 0.48f, sm)
         c.drawText(dur, cx - big.measureText(dur) / 2, CARD_H * 0.54f, big)
 
-        if (gain.isNotEmpty()) {
+        if (sportMetric(a) == ShareMetric.PACE) {
+            val pace = formatPace(a)
+            c.drawText("Pace", cx - sm.measureText("Pace") / 2, CARD_H * 0.64f, sm)
+            c.drawText(pace, cx - big.measureText(pace) / 2, CARD_H * 0.70f, big)
+        } else {
+            val gain = formatElevGain(a)
             c.drawText("Elev Gain", cx - sm.measureText("Elev Gain") / 2, CARD_H * 0.64f, sm)
-            c.drawText(gain, cx - big.measureText(gain) / 2, CARD_H * 0.70f, big)
+            c.drawText("\u2191 $gain", cx - big.measureText("\u2191 $gain") / 2, CARD_H * 0.70f, big)
         }
 
         // Small route at bottom
@@ -174,12 +199,15 @@ object ShareCardGenerator {
         val labelP = textPaint(26f, Typeface.DEFAULT, LIGHT)
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.elapsedTimeMs)
-        val gain = a.elevationGainM?.let { "\u2191 ${it.roundToInt()} m" } ?: ""
 
         c.drawText("Distance", 80f, sy + 70f, labelP); c.drawText(dist, 80f, sy + 120f, statP)
         c.drawText("Time", 440f, sy + 70f, labelP); c.drawText(dur, 440f, sy + 120f, statP)
-        if (gain.isNotEmpty()) {
-            c.drawText("Elev", 780f, sy + 70f, labelP); c.drawText(gain, 780f, sy + 120f, statP)
+
+        if (sportMetric(a) == ShareMetric.PACE) {
+            c.drawText("Pace", 780f, sy + 70f, labelP); c.drawText(formatPace(a), 780f, sy + 120f, statP)
+        } else {
+            val gain = formatElevGain(a)
+            c.drawText("Elev", 780f, sy + 70f, labelP); c.drawText("\u2191 $gain", 780f, sy + 120f, statP)
         }
 
         c.drawText("Nyasar", 80f, CARD_H - 80f, textPaint(32f, Typeface.DEFAULT, Color.parseColor("#66FFFFFF")))
@@ -223,28 +251,30 @@ object ShareCardGenerator {
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.elapsedTimeMs)
-        val gain = a.elevationGainM?.let { "${it.roundToInt()} m" } ?: "0 m"
-        val pace = if (a.distanceMeters > 0) {
-            val paceMinPerKm = (a.elapsedTimeMs / 60000.0) / (a.distanceMeters / 1000.0)
-            val pm = paceMinPerKm.toInt()
-            val ps = ((paceMinPerKm - pm) * 60).toInt()
-            "%d:%02d /km".format(pm, ps)
-        } else "0:00 /km"
-        val maxElev = a.elevationGainM?.let { "${it.roundToInt()} m" } ?: "0 m"
+        val gain = formatElevGain(a)
 
-        // Row 1
+        // Primary metric: PACE for Run/Trail Run/Walk, ELEVATION for Hike/Wheelchair
+        val primaryLabel: String
+        val primaryValue: String
+        if (sportMetric(a) == ShareMetric.PACE) {
+            primaryLabel = "Pace"
+            primaryValue = formatPace(a)
+        } else {
+            primaryLabel = "Elev Gain"
+            primaryValue = "\u2191 $gain"
+        }
+
+        // Row 1: Distance | Primary Metric | Duration
         c.drawText("Distance", col1 - lblP.measureText("Distance") / 2, row1, lblP)
         c.drawText(dist, col1 - valP.measureText(dist) / 2, row1 + 55f, valP)
-        c.drawText("Pace", col2 - lblP.measureText("Pace") / 2, row1, lblP)
-        c.drawText(pace, col2 - valP.measureText(pace) / 2, row1 + 55f, valP)
-        c.drawText("Max Elev", col3 - lblP.measureText("Max Elev") / 2, row1, lblP)
-        c.drawText(maxElev, col3 - valP.measureText(maxElev) / 2, row1 + 55f, valP)
+        c.drawText(primaryLabel, col2 - lblP.measureText(primaryLabel) / 2, row1, lblP)
+        c.drawText(primaryValue, col2 - valP.measureText(primaryValue) / 2, row1 + 55f, valP)
+        c.drawText("Duration", col3 - lblP.measureText("Duration") / 2, row1, lblP)
+        c.drawText(dur, col3 - valP.measureText(dur) / 2, row1 + 55f, valP)
 
-        // Row 2
-        c.drawText("Time", col1 - lblP.measureText("Time") / 2, row2, lblP)
-        c.drawText(dur, col1 - valP.measureText(dur) / 2, row2 + 55f, valP)
+        // Row 2: Elev Gain (always shown for elevation context)
         c.drawText("Elev Gain", col2 - lblP.measureText("Elev Gain") / 2, row2, lblP)
-        c.drawText(gain, col2 - valP.measureText(gain) / 2, row2 + 55f, valP)
+        c.drawText("\u2191 $gain", col2 - valP.measureText("\u2191 $gain") / 2, row2 + 55f, valP)
 
         c.drawText("Nyasar", CARD_W / 2f - lblP.measureText("Nyasar") / 2,
             CARD_H - 60f, textPaint(28f, Typeface.DEFAULT, LIGHT))

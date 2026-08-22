@@ -144,11 +144,19 @@ private fun ActivityCard(
                         }
                     }
                     Spacer(Modifier.width(10.dp))
-                    Text(
-                        formatDate(activity.startedAtEpochMs),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column {
+                        Text(
+                            SportType.fromString(activity.sportType).label,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            formatDate(activity.startedAtEpochMs),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Spacer(Modifier.weight(1f))
                     // Share button per card
                     IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {

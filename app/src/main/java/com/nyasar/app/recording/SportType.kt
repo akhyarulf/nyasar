@@ -6,7 +6,7 @@ import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.RunCircle
 import androidx.compose.material.icons.filled.Sports
 import androidx.compose.material.icons.filled.WheelchairPickup
-import androidx.compose.material.icons.filled.Walk
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -21,7 +21,7 @@ enum class SportType(
     // Foot Sports
     RUN("Run", Icons.Default.RunCircle, SportCategory.FOOT),
     TRAIL_RUN("Trail Run", Icons.Default.Hiking, SportCategory.FOOT),
-    WALK("Walk", Icons.Default.Walk, SportCategory.FOOT),
+    WALK("Walk", Icons.AutoMirrored.Filled.DirectionsWalk, SportCategory.FOOT),
     HIKE("Hike", Icons.Default.Hiking, SportCategory.FOOT),
     WHEELCHAIR("Wheelchair", Icons.Default.WheelchairPickup, SportCategory.FOOT),
     

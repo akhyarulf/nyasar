@@ -39,9 +39,7 @@ data class ActivityEntity(
 /** Nilai valid untuk [ActivityEntity.status].
  * Disimpan sebagai String di Room (bukan enum langsung) supaya migrasi skema
  * di masa depan lebih fleksibel, konsisten dengan tidak adanya TypeConverter
- * lain di project ini. */ Disimpan sebagai String di Room
- *  (bukan enum langsung) supaya migrasi skema di masa depan lebih fleksibel,
- *  konsisten dengan tidak adanya TypeConverter lain di project ini. */
+ * lain di project ini. */
 object ActivityStatus {
     const val RECORDING = "recording"
     const val PAUSED = "paused"

@@ -7,23 +7,20 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -39,12 +36,12 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * Share card screen for activities.
- * Allows users to:
- * - Preview the share card
- * - Choose background type (plain, gradient, route)
- * - Share as image
- * - Save to device
+ * Strava-like share activity screen with a HorizontalPager carousel of
+ * 6 free templates. All templates are immediately usable — no subscription
+ * or paywall of any kind.
+ *
+ * Flow: pager shows card previews → user swipes to pick template →
+ * taps "Bagikan" → Android share sheet (Intent.ACTION_SEND).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,27 +52,27 @@ fun ShareCardScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var selectedBackground by remember { mutableStateOf("gradient") }
-    var shareBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var isGenerating by remember { mutableStateOf(false) }
-    var showSaveSuccess by remember { mutableStateOf(false) }
+    val templates = ShareCardGenerator.TEMPLATES
 
-    // Generate bitmap when background changes
-    LaunchedEffect(selectedBackground) {
-        isGenerating = true
-        shareBitmap = withContext(Dispatchers.Default) {
-            ShareCardGenerator.generateShareCard(context, activity, trackPoints, selectedBackground)
+    // Pre-generate all bitmaps on first composition (on IO, not main)
+    var bitmaps by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
+    LaunchedEffect(activity.id, trackPoints.size) {
+        bitmaps = withContext(Dispatchers.Default) {
+            templates.associateWith { tpl ->
+                ShareCardGenerator.generate(activity, trackPoints, tpl)
+            }
         }
-        isGenerating = false
     }
+
+    val pagerState = rememberPagerState(pageCount = { templates.size })
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Bagikan Aktivitas") },
+                title = { Text("Share Activity") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
+                        Icon(Icons.Default.Close, contentDescription = "Tutup")
                     }
                 }
             )
@@ -84,182 +81,157 @@ fun ShareCardScreen(
         Column(
             Modifier
                 .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Preview
-            Card(
+            // Card carousel
+            HorizontalPager(
+                state = pagerState,
                 modifier = Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .aspectRatio(9f / 16f),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                shareBitmap?.let { bitmap ->
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Share Card Preview",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } ?: Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Gray)
+                    .padding(horizontal = 24.dp),
+                contentPadding = PaddingValues(horizontal = 0.dp),
+                pageSpacing = 16.dp
+            ) { page ->
+                val tpl = templates[page]
+                val bmp = bitmaps[tpl]
+                Card(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    if (isGenerating) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.Center)
-                        )
+                    if (bmp != null) {
+                        // For transparent templates, show checkerboard hint
+                        val isTransparent = tpl in listOf("stats", "route", "grid")
+                        Box(Modifier.fillMaxSize()) {
+                            if (isTransparent) {
+                                // Checkerboard background to indicate transparency
+                                Box(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0xFFCCCCCC))
+                                )
+                                // Draw checkerboard pattern
+                                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                                    val tileSize = 24.dp.toPx()
+                                    for (row in 0..(size.height / tileSize).toInt()) {
+                                        for (col in 0..(size.width / tileSize).toInt()) {
+                                            if ((row + col) % 2 == 0) {
+                                                drawRect(
+                                                    Color(0xFFAAAAAA),
+                                                    topLeft = androidx.compose.ui.geometry.Offset(
+                                                        col * tileSize, row * tileSize
+                                                    ),
+                                                    size = androidx.compose.ui.geometry.Size(tileSize, tileSize)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Image(
+                                bitmap = bmp.asImageBitmap(),
+                                contentDescription = ShareCardGenerator.templateLabel(tpl),
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                    } else {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(Color.Gray)
+                        ) {
+                            CircularProgressIndicator(
+                                Modifier.align(Alignment.Center).size(32.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
-
-            // Background options
-            Text("Pilih Background", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
-
+            // Dot indicators
             Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalArrangement = Arrangement.Center
             ) {
-                BackgroundOption(
-                    label = "Gradient",
-                    selected = selectedBackground == "gradient",
-                    onClick = { selectedBackground = "gradient" }
-                )
-                BackgroundOption(
-                    label = "Route",
-                    selected = selectedBackground == "route",
-                    onClick = { selectedBackground = "route" }
-                )
-                BackgroundOption(
-                    label = "Plain",
-                    selected = selectedBackground == "plain",
-                    onClick = { selectedBackground = "plain" }
-                )
+                templates.forEachIndexed { index, _ ->
+                    val isActive = pagerState.currentPage == index
+                    Box(
+                        Modifier
+                            .padding(horizontal = 4.dp)
+                            .size(if (isActive) 10.dp else 8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isActive) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                    )
+                }
             }
 
-            Spacer(Modifier.height(24.dp))
-
-            // Action buttons
+            // Share + Save buttons
             Button(
                 onClick = {
-                    shareBitmap?.let { bitmap ->
-                        scope.launch {
-                            shareImage(context, bitmap, activity.name)
-                        }
-                    }
+                    val tpl = templates[pagerState.currentPage]
+                    val bmp = bitmaps[tpl] ?: return@Button
+                    scope.launch { shareImage(context, bmp, activity.name) }
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = shareBitmap != null
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .height(56.dp),
+                enabled = bitmaps.isNotEmpty(),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(Icons.Default.Share, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Bagikan")
+                Text("Bagikan", style = MaterialTheme.typography.titleMedium)
             }
 
             Spacer(Modifier.height(12.dp))
 
             OutlinedButton(
                 onClick = {
-                    shareBitmap?.let { bitmap ->
-                        scope.launch {
-                            saveToGallery(context, bitmap, activity.name) { success ->
-                                showSaveSuccess = success
-                            }
-                        }
-                    }
+                    val tpl = templates[pagerState.currentPage]
+                    val bmp = bitmaps[tpl] ?: return@OutlinedButton
+                    scope.launch { saveToGallery(context, bmp, activity.name) }
                 },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                enabled = shareBitmap != null
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .height(48.dp),
+                enabled = bitmaps.isNotEmpty(),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Text("Simpan ke Galeri")
             }
 
-            if (showSaveSuccess) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Tersimpan ke galeri!",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
         }
-    }
-}
-
-@Composable
-private fun BackgroundOption(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .then(
-                    when (label) {
-                        "Gradient" -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFF5A7562), Color(0xFF3A5542))))
-                        "Route" -> Modifier.background(Color(0xFF5A7562))
-                        else -> Modifier.background(Color(0xFFE0E0E0))
-                    }
-                )
-                .then(
-                    if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                    else Modifier
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            if (selected) {
-                Icon(
-                    Icons.Default.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        )
     }
 }
 
 private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap, name: String) {
     withContext(Dispatchers.IO) {
         try {
-            val file = File(context.cacheDir, "share_$name.png")
+            val safeName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val file = File(context.cacheDir, "share_${safeName}_${System.currentTimeMillis()}.png")
             FileOutputStream(file).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
             }
-
             val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                file
+                context, "${context.packageName}.fileprovider", file
             )
-
             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                putExtra(android.content.Intent.EXTRA_TEXT, "Check out my activity: $name")
+                putExtra(android.content.Intent.EXTRA_TEXT, "Check out my activity: $name #Nyasar")
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-
             context.startActivity(android.content.Intent.createChooser(intent, "Bagikan via"))
         } catch (e: Exception) {
             e.printStackTrace()
@@ -268,47 +240,31 @@ private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap,
 }
 
 private suspend fun saveToGallery(
-    context: android.content.Context,
-    bitmap: Bitmap,
-    name: String,
-    onResult: (Boolean) -> Unit
+    context: android.content.Context, bitmap: Bitmap, name: String
 ) {
     withContext(Dispatchers.IO) {
         try {
-            val filename = "Nyasar_${name}_${System.currentTimeMillis()}.png"
-
+            val safeName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val filename = "Nyasar_${safeName}_${System.currentTimeMillis()}.png"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val contentValues = ContentValues().apply {
+                val cv = ContentValues().apply {
                     put(MediaStore.Images.Media.DISPLAY_NAME, filename)
                     put(MediaStore.Images.Media.MIME_TYPE, "image/png")
                     put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Nyasar")
                 }
-
-                val uri = context.contentResolver.insert(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    contentValues
-                )
-
-                uri?.let {
-                    context.contentResolver.openOutputStream(it)?.use { stream ->
-                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)?.let { uri ->
+                    context.contentResolver.openOutputStream(uri)?.use { s ->
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, s)
                     }
-                    onResult(true)
-                } ?: onResult(false)
-            } else {
-                val imagesDir = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_PICTURES
-                )
-                val imageFile = File(imagesDir, filename)
-
-                FileOutputStream(imageFile).use { stream ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
                 }
-                onResult(true)
+            } else {
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                FileOutputStream(File(dir, filename)).use { s ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, s)
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            onResult(false)
         }
     }
 }

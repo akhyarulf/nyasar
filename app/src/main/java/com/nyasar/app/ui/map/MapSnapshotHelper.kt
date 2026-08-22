@@ -10,22 +10,22 @@ import android.graphics.Paint
 import android.graphics.Shader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
-import org.maplibre.android.snapshotter.MapSnapshot
 import org.maplibre.android.snapshotter.MapSnapshotter
 import java.io.File
 import kotlin.coroutines.resume
-import kotlin.math.abs
 
 /**
  * Generates static map snapshot bitmaps for activity track thumbnails
  * and share card backgrounds, using MapLibre's MapSnapshotter API.
  *
- * Snapshots are cached to disk (one file per activity) so they are only
- * generated once and reused across scrolls and share operations.
+ * Snapshots are serialized via a Mutex so only one MapSnapshotter
+ * instance runs at a time — preventing concurrent GL context crashes.
+ * Results are cached to disk so repeated scrolls don't re-render.
  *
  * Falls back to a gradient+grid placeholder if:
  * - No network to load tiles (first-time, no cache)
@@ -41,6 +41,10 @@ object MapSnapshotHelper {
     private val FALLBACK_TOP = Color.parseColor("#5A7562")
     private val FALLBACK_BOT = Color.parseColor("#2A3A30")
     private val FALLBACK_GRID = Color.parseColor("#1AFFFFFF")
+
+    /** Serializes MapSnapshotter creation — only one at a time to avoid
+     *  concurrent GL context crashes. */
+    private val snapshotMutex = Mutex()
 
     /**
      * Get a cached snapshot or generate a new one.
@@ -60,13 +64,15 @@ object MapSnapshotHelper {
     ): Bitmap? {
         if (trackPoints.size < 2) return null
 
-        // Check disk cache first
+        // Check disk cache first (no lock needed — pure file read)
         val cached = loadFromDisk(context, activityId)
         if (cached != null) return cached
 
-        // Generate via MapSnapshotter (must run on UI thread)
-        val bitmap = withContext(Dispatchers.Main) {
-            generateSnapshot(context, trackPoints, widthPx, heightPx, styleUrl)
+        // Generate via MapSnapshotter — serialized through Mutex
+        val bitmap = snapshotMutex.withLock {
+            withContext(Dispatchers.Main) {
+                generateSnapshot(context, trackPoints, widthPx, heightPx, styleUrl)
+            }
         }
 
         // Save to disk cache
@@ -94,8 +100,10 @@ object MapSnapshotHelper {
         val cached = loadFromDisk(context, activityId)
         if (cached != null) return cached
 
-        val bitmap = withContext(Dispatchers.Main) {
-            generateSnapshot(context, trackPoints, widthPx, heightPx, styleUrl)
+        val bitmap = snapshotMutex.withLock {
+            withContext(Dispatchers.Main) {
+                generateSnapshot(context, trackPoints, widthPx, heightPx, styleUrl)
+            }
         }
 
         if (bitmap != null) {
@@ -128,11 +136,13 @@ object MapSnapshotHelper {
 
             suspendCancellableCoroutine { cont ->
                 cont.invokeOnCancellation {
-                    snapshotter.cancel()
+                    try { snapshotter.cancel() } catch (_: Exception) {}
                 }
 
                 snapshotter.start(object : MapSnapshotter.SnapshotReadyCallback {
-                    override fun onSnapshotReady(snapshot: MapSnapshot) {
+                    override fun onSnapshotReady(snapshot: org.maplibre.android.snapshotter.MapSnapshot) {
+                        // onSnapshotReady fires from MapSnapshotter's render thread.
+                        // Resume on Main to safely update Compose state.
                         if (cont.isActive) {
                             cont.resume(snapshot.bitmap)
                         }
@@ -156,9 +166,7 @@ object MapSnapshotHelper {
         val minLon = lons.min(); val maxLon = lons.max()
 
         // Convert padding from meters to approximate degrees
-        // 1 degree latitude ≈ 111,320 meters
         val latPad = BOUNDS_PADDING_METERS / 111_320.0
-        // 1 degree longitude varies with latitude — use midpoint for approximation
         val midLat = (minLat + maxLat) / 2.0
         val lonPad = BOUNDS_PADDING_METERS / (111_320.0 * Math.cos(Math.toRadians(midLat)))
 

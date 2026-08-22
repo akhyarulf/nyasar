@@ -38,8 +38,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.ui.map.MapSnapshotHelper
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -139,16 +137,18 @@ private fun ActivityCard(
     LaunchedEffect(activity.id, thumbnail) {
         val track = thumbnail ?: return@LaunchedEffect
         if (track.size < 2) return@LaunchedEffect
-        launch(Dispatchers.IO) {
-            mapSnapshot = MapSnapshotHelper.getOrGenerate(
-                context = context,
-                activityId = activity.id,
-                trackPoints = track,
-                widthPx = 1080,
-                heightPx = 640,
-                styleUrl = provider.styleUrl()
-            )
-        }
+        // MapSnapshotHelper.getOrGenerate() uses Mutex + withContext(Main) internally,
+        // so the call itself switches to Main for the snapshotter, then returns.
+        // We run from the LaunchedEffect scope (Main by default) and the result
+        // assignment happens safely on Main thread.
+        mapSnapshot = MapSnapshotHelper.getOrGenerate(
+            context = context,
+            activityId = activity.id,
+            trackPoints = track,
+            widthPx = 1080,
+            heightPx = 640,
+            styleUrl = provider.styleUrl()
+        )
     }
 
     Surface(

@@ -228,6 +228,7 @@ private fun NyasarNavHost(
         composable("history") {
             ActivityHistoryScreen(
                 onOpenActivity = { id -> navController.navigate("activity/$id") },
+                onShareActivity = { id -> navController.navigate("share-card/$id") },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -498,29 +499,15 @@ private fun NyasarNavHost(
                 }
             )
         }
-        // Share card screen
+        // Share card screen — loads real activity data from Room
         composable("share-card/{activityId}") { backStackEntry ->
             val activityId = backStackEntry.arguments?.getString("activityId") ?: return@composable
-            // Load activity data and navigate to share card screen
-            // This would typically load the activity from the database
-            // For now, we'll pass the activityId and let the screen handle loading
+            val shareViewModel: com.nyasar.app.ui.history.ActivityDetailViewModel = viewModel()
+            LaunchedEffect(activityId) { shareViewModel.load(activityId) }
+            val shareState by shareViewModel.uiState.collectAsState()
             com.nyasar.app.ui.share.ShareCardScreen(
-                activity = com.nyasar.app.data.db.ActivityEntity(
-                    id = activityId,
-                    routeId = null,
-                    name = "Activity",
-                    startedAtEpochMs = System.currentTimeMillis(),
-                    endedAtEpochMs = System.currentTimeMillis(),
-                    status = com.nyasar.app.data.db.ActivityStatus.COMPLETED,
-                    distanceMeters = 0.0,
-                    movingTimeMs = 0,
-                    elapsedTimeMs = 0,
-                    avgSpeedKmh = null,
-                    maxSpeedKmh = null,
-                    elevationGainM = null,
-                    elevationLossM = null
-                ),
-                trackPoints = emptyList(),
+                activity = shareState.activity ?: return@composable,
+                trackPoints = shareState.actualTrack,
                 onBack = { navController.popBackStack() }
             )
         }

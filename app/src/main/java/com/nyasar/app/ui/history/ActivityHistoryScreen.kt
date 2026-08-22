@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Hiking
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -28,6 +30,8 @@ import com.nyasar.app.data.db.ActivityEntity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -43,6 +47,7 @@ import kotlin.math.roundToInt
 fun ActivityHistoryScreen(
     viewModel: ActivityHistoryViewModel = viewModel(),
     onOpenActivity: (String) -> Unit,
+    onShareActivity: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -92,7 +97,8 @@ fun ActivityHistoryScreen(
                                     activity = activity,
                                     thumbnail = thumbnails[activity.id],
                                     onThumbnailNeeded = { viewModel.loadThumbnail(activity.id) },
-                                    onClick = { onOpenActivity(activity.id) }
+                                    onClick = { onOpenActivity(activity.id) },
+                                    onShare = { onShareActivity(activity.id) }
                                 )
                             }
                         }
@@ -108,7 +114,8 @@ private fun ActivityCard(
     activity: ActivityEntity,
     thumbnail: List<Pair<Double, Double>>?,
     onThumbnailNeeded: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onShare: () -> Unit
 ) {
     LaunchedEffect(activity.id) { onThumbnailNeeded() }
 
@@ -119,10 +126,7 @@ private fun ActivityCard(
     ) {
         Column {
             Column(Modifier.padding(16.dp)) {
-                // Header: icon + activity type context + date, same info
-                // the old row's date-only trailing text had, just given a
-                // clearer place to live (matches the reference's
-                // name/date header above the stats).
+                // Header: icon + activity type context + date
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(50),
@@ -144,13 +148,23 @@ private fun ActivityCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(Modifier.weight(1f))
+                    // Share button per card
+                    IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = "Bagikan",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(10.dp))
                 Text(activity.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
                 Spacer(Modifier.height(12.dp))
-                // 3-column stat row (spec ref layout: Distance / Elev Gain / Time)
+                // 3-column stat row
                 Row(Modifier.fillMaxWidth()) {
                     StatColumn(
                         label = "Distance",
@@ -170,13 +184,7 @@ private fun ActivityCard(
                 }
             }
 
-            // Route-shape thumbnail — drawn directly from the activity's
-            // own downsampled points (see ViewModel.loadThumbnail), not a
-            // static/fake image. No map tiles behind it (that would mean
-            // either a real MapLibre instance per card, too heavy for a
-            // scrolling list, or bundling map imagery) — a tinted panel
-            // with the track drawn on top reads clearly as "this
-            // activity's shape" without pretending to be a live map.
+            // Route-shape thumbnail with lightweight map-like background
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -190,9 +198,39 @@ private fun ActivityCard(
                             strokeWidth = 2.dp
                         )
                     }
-                    thumbnail.size < 2 -> { /* no track to draw (e.g. GPS never locked) — leave the tinted panel bare */ }
+                    thumbnail.size < 2 -> { /* no track to draw */ }
                     else -> {
-                        Canvas(Modifier.fillMaxSize().padding(16.dp)) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            val canvasWidth = size.width
+                            val canvasHeight = size.height
+
+                            // --- Lightweight map background ---
+                            // Draw a subtle grid pattern to suggest a map without
+                            // the cost of real map tiles in a scrolling list.
+                            val gridColor = Color(0x18000000) // very faint lines
+                            val gridSpacing = 40.dp.toPx()
+                            var gx = 0f
+                            while (gx <= canvasWidth) {
+                                drawLine(
+                                    gridColor,
+                                    Offset(gx, 0f),
+                                    Offset(gx, canvasHeight),
+                                    strokeWidth = 0.5.dp.toPx()
+                                )
+                                gx += gridSpacing
+                            }
+                            var gy = 0f
+                            while (gy <= canvasHeight) {
+                                drawLine(
+                                    gridColor,
+                                    Offset(0f, gy),
+                                    Offset(canvasWidth, gy),
+                                    strokeWidth = 0.5.dp.toPx()
+                                )
+                                gy += gridSpacing
+                            }
+
+                            // --- Route line with aspect-ratio preservation ---
                             val lons = thumbnail.map { it.first }
                             val lats = thumbnail.map { it.second }
                             val minLon = lons.min(); val maxLon = lons.max()
@@ -200,11 +238,28 @@ private fun ActivityCard(
                             val lonSpan = (maxLon - minLon).takeIf { it > 0.0 } ?: 1.0
                             val latSpan = (maxLat - minLat).takeIf { it > 0.0 } ?: 1.0
 
+                            // Preserve aspect ratio: use a single uniform scale
+                            // based on the limiting axis. Also correct for
+                            // longitude compression at latitude (cos(lat)).
+                            val cosLat = cos(Math.toRadians((minLat + maxLat) / 2.0)).toFloat()
+                            val lonDegWidth = (lonSpan * cosLat).toFloat()
+                            val latDegHeight = latSpan.toFloat()
+                            val maxDimen = maxOf(lonDegWidth, latDegHeight)
+
+                            // Target area: 80% of the smaller canvas dimension
+                            val targetSize = min(canvasWidth, canvasHeight) * 0.8f
+                            val scale = if (maxDimen > 0f) targetSize / maxDimen else 1f
+
+                            // Center offset
+                            val routeWidth = lonDegWidth * scale
+                            val routeHeight = latDegHeight * scale
+                            val offsetX = (canvasWidth - routeWidth) / 2f
+                            val offsetY = (canvasHeight - routeHeight) / 2f
+
                             val path = Path()
                             thumbnail.forEachIndexed { index, (lon, lat) ->
-                                // Flip Y: lat increases north but canvas Y increases downward.
-                                val x = ((lon - minLon) / lonSpan * size.width).toFloat()
-                                val y = (size.height - (lat - minLat) / latSpan * size.height).toFloat()
+                                val x = offsetX + ((lon - minLon).toFloat() * cosLat) * scale
+                                val y = offsetY + routeHeight - ((lat - minLat).toFloat() * scale)
                                 if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
                             }
                             drawPath(path, color = Color(0xFFFC5200), style = Stroke(width = 6f))

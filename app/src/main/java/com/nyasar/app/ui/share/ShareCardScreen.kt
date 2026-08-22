@@ -28,8 +28,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import android.graphics.Bitmap
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.map.providers.TileProviderFactory
+import com.nyasar.app.ui.map.MapSnapshotHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,12 +58,24 @@ fun ShareCardScreen(
     val scope = rememberCoroutineScope()
     val templates = ShareCardGenerator.TEMPLATES
 
-    // Pre-generate all bitmaps on first composition (on IO, not main)
+    // Pre-generate map snapshot + all bitmaps on first composition
     var bitmaps by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     LaunchedEffect(activity.id, trackPoints.size) {
+        // Generate map snapshot first (cached to disk)
+        val provider = TileProviderFactory.default()
+        val snapshot = withContext(Dispatchers.IO) {
+            MapSnapshotHelper.generateSync(
+                context = context,
+                activityId = activity.id,
+                trackPoints = trackPoints.map { it.lon to it.lat },
+                widthPx = 1080,
+                heightPx = 1248, // 65% of 1920
+                styleUrl = provider.styleUrl()
+            )
+        }
         bitmaps = withContext(Dispatchers.Default) {
             templates.associateWith { tpl ->
-                ShareCardGenerator.generate(activity, trackPoints, tpl)
+                ShareCardGenerator.generate(activity, trackPoints, tpl, mapSnapshot = snapshot)
             }
         }
     }

@@ -1,6 +1,5 @@
 package com.nyasar.app.ui.share
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -23,7 +22,7 @@ import kotlin.math.roundToInt
  * 6 template styles — all free, no subscription/paywall.
  *
  * Templates:
- *   "map"         — green gradient + faded map grid + route + stats at bottom
+ *   "map"         — real map snapshot (or gradient fallback) + route + stats at bottom
  *   "stats"       — transparent (checkerboard) + large centered stats + small route
  *   "dark_card"   — dark textured bg + inset map card + stats below
  *   "route"       — transparent bg + large centered route + stats at bottom
@@ -54,17 +53,22 @@ object ShareCardGenerator {
         else -> key
     }
 
-    fun generate(activity: ActivityEntity, track: List<TrackPoint>, template: String): Bitmap {
+    fun generate(
+        activity: ActivityEntity,
+        track: List<TrackPoint>,
+        template: String,
+        mapSnapshot: Bitmap? = null
+    ): Bitmap {
         val bmp = Bitmap.createBitmap(CARD_W, CARD_H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         when (template) {
-            "map" -> drawMapTemplate(c, activity, track)
+            "map" -> drawMapTemplate(c, activity, track, mapSnapshot)
             "stats" -> drawStatsTemplate(c, activity, track)
             "dark_card" -> drawDarkCardTemplate(c, activity, track)
             "route" -> drawRouteTemplate(c, activity, track)
             "grid" -> drawGridTemplate(c, activity)
             "minimal" -> drawMinimalTemplate(c, activity)
-            else -> drawMapTemplate(c, activity, track)
+            else -> drawMapTemplate(c, activity, track, mapSnapshot)
         }
         return bmp
     }
@@ -85,18 +89,23 @@ object ShareCardGenerator {
     private fun formatElevGain(a: ActivityEntity): String =
         a.elevationGainM?.let { "${it.roundToInt()} m" } ?: "0 m"
 
-    // ── Template 1: Map — green gradient + grid + route + stats ──
+    // ── Template 1: Map — real map snapshot + route + stats ──
 
-    private fun drawMapTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>) {
-        // Background gradient
-        fillGradient(c, PRIMARY, DARK)
+    private fun drawMapTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?) {
+        if (mapSnapshot != null) {
+            // Draw real map snapshot, scaled to fill the upper 65% of the card
+            val snapRect = RectF(0f, 0f, CARD_W.toFloat(), CARD_H * 0.65f)
+            c.drawBitmap(mapSnapshot, null, snapRect, null)
+        } else {
+            // Fallback: gradient + grid (no network or snapshot failed)
+            fillGradient(c, PRIMARY, DARK)
+            drawMapGrid(c, Color.parseColor("#1AFFFFFF"))
+        }
 
-        // Subtle map grid
-        drawMapGrid(c, Color.parseColor("#1AFFFFFF"))
-
-        // Route in upper 60%
+        // Route in upper area
         if (track.size >= 2) {
-            drawRouteProportional(c, track, 120f, 120f, CARD_W - 120f, CARD_H * 0.55f, 10f, ORANGE)
+            val routeBottom = if (mapSnapshot != null) CARD_H * 0.60f else CARD_H * 0.55f
+            drawRouteProportional(c, track, 120f, 120f, CARD_W - 120f, routeBottom, 10f, ORANGE)
         }
 
         // Stats bar at bottom
@@ -131,7 +140,6 @@ object ShareCardGenerator {
     // ── Template 2: Stats — transparent + large centered stats + small route ──
 
     private fun drawStatsTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>) {
-        // Transparent (leave blank / alpha 0 — checkerboard shown by caller)
         c.drawColor(Color.TRANSPARENT)
 
         val cx = CARD_W / 2f
@@ -158,7 +166,6 @@ object ShareCardGenerator {
             c.drawText("\u2191 $gain", cx - big.measureText("\u2191 $gain") / 2, CARD_H * 0.70f, big)
         }
 
-        // Small route at bottom
         if (track.size >= 2) {
             drawRouteProportional(c, track, 200f, CARD_H * 0.78f, CARD_W - 200f, CARD_H * 0.92f, 6f, ORANGE)
         }
@@ -172,7 +179,6 @@ object ShareCardGenerator {
     private fun drawDarkCardTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(DARK)
 
-        // Subtle diagonal stripes for texture
         val stripePaint = Paint().apply { color = Color.parseColor("#0DFFFFFF"); strokeWidth = 3f }
         var x = -CARD_H.toFloat()
         while (x < CARD_W + CARD_H) {
@@ -180,18 +186,15 @@ object ShareCardGenerator {
             x += 80f
         }
 
-        // Inset map card
         val cardRect = RectF(60f, 120f, CARD_W - 60f, CARD_H * 0.52f)
         val cardBg = Paint().apply { color = Color.parseColor("#E8E8E0"); style = Paint.Style.FILL }
         c.drawRoundRect(cardRect, 24f, 24f, cardBg)
 
-        // Route inside card
         if (track.size >= 2) {
             drawRouteProportional(c, track, cardRect.left + 40f, cardRect.top + 40f,
                 cardRect.right - 40f, cardRect.bottom - 40f, 8f, ORANGE)
         }
 
-        // Stats below card
         val sy = CARD_H * 0.58f
         c.drawText(a.name, 80f, sy, textPaint(56f, Typeface.DEFAULT_BOLD, WHITE))
 
@@ -222,7 +225,6 @@ object ShareCardGenerator {
             drawRouteProportional(c, track, 100f, CARD_H * 0.15f, CARD_W - 100f, CARD_H * 0.65f, 12f, ORANGE)
         }
 
-        // Stats at bottom
         val sy = CARD_H * 0.78f
         val statP = textPaint(52f, Typeface.DEFAULT_BOLD, WHITE)
         val labelP = textPaint(28f, Typeface.DEFAULT, LIGHT)
@@ -236,7 +238,7 @@ object ShareCardGenerator {
             CARD_H - 60f, textPaint(28f, Typeface.DEFAULT, LIGHT))
     }
 
-    // ── Template 5: Grid — transparent + 6-stat grid ──
+    // ── Template 5: Grid — transparent + stat grid ──
 
     private fun drawGridTemplate(c: Canvas, a: ActivityEntity) {
         c.drawColor(Color.TRANSPARENT)
@@ -253,7 +255,6 @@ object ShareCardGenerator {
         val dur = formatDuration(a.elapsedTimeMs)
         val gain = formatElevGain(a)
 
-        // Primary metric: PACE for Run/Trail Run/Walk, ELEVATION for Hike/Wheelchair
         val primaryLabel: String
         val primaryValue: String
         if (sportMetric(a) == ShareMetric.PACE) {
@@ -272,7 +273,7 @@ object ShareCardGenerator {
         c.drawText("Duration", col3 - lblP.measureText("Duration") / 2, row1, lblP)
         c.drawText(dur, col3 - valP.measureText(dur) / 2, row1 + 55f, valP)
 
-        // Row 2: Elev Gain (always shown for elevation context)
+        // Row 2: Elev Gain
         c.drawText("Elev Gain", col2 - lblP.measureText("Elev Gain") / 2, row2, lblP)
         c.drawText("\u2191 $gain", col2 - valP.measureText("\u2191 $gain") / 2, row2 + 55f, valP)
 

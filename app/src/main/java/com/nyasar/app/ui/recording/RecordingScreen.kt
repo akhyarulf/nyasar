@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.LocationSearching
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.recording.RecordingStatus
 import com.nyasar.app.recording.RecordingUiState
+import com.nyasar.app.recording.SportType
+import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.CameraFollowMode
 import com.nyasar.app.ui.components.CompassButton
 import com.nyasar.app.ui.components.NyasarMapView
@@ -131,6 +134,7 @@ fun RecordingScreen(
     var previewRouteId by remember { mutableStateOf(routeId) }
     var previewRouteName by remember { mutableStateOf<String?>(null) }
     var previewTrack by remember { mutableStateOf<List<com.nyasar.app.gpx.model.TrackPoint>>(emptyList()) }
+    var showSportFilterSheet by remember { mutableStateOf(false) }
     val pickerContext = androidx.compose.ui.platform.LocalContext.current
     val routeRepository = remember { com.nyasar.app.data.repository.RouteRepository(pickerContext) }
 
@@ -609,7 +613,10 @@ fun RecordingScreen(
                     onResume = viewModel::resumeRecording,
                     onStop = { showStopConfirm = true },
                     onAddRoute = onAddRoute,
-                    onClearRoute = { previewRouteId = null }
+                    onClearRoute = { previewRouteId = null },
+                selectedSportType = state.sportType,
+                onSportSelected = { type -> viewModel.selectSportType(type) },
+                onShowSportFilter = { showSportFilterSheet = true }
                 )
             }
         }
@@ -645,6 +652,17 @@ fun RecordingScreen(
                 }
             )
         }
+    }
+
+    if (showSportFilterSheet) {
+        SportFilterSheet(
+            selectedSport = SportType.fromString(state.sportType),
+            onSelectSport = { type ->
+                viewModel.selectSportType(type)
+                showSportFilterSheet = false
+            },
+            onDismiss = { showSportFilterSheet = false }
+        )
     }
 
     // P3J §6 fix: Stop used to end the recording immediately on a single
@@ -800,60 +818,121 @@ private fun RecordingControls(
     onResume: () -> Unit,
     onStop: () -> Unit,
     onAddRoute: () -> Unit,
-    onClearRoute: (() -> Unit)? = null
+    onClearRoute: (() -> Unit)? = null,
+    selectedSportType: String = "TRAIL_RUN",
+    onSportSelected: (com.nyasar.app.recording.SportType) -> Unit = {},
+    onShowSportFilter: () -> Unit = {}
 ) {
+    val sportType = com.nyasar.app.recording.SportType.fromString(selectedSportType)
+    
     when (status) {
         // Spec PART 3 STATE 1: exactly two labeled buttons, always both
         // visible regardless of whether a track is attached — "Pilih
         // Jalur" is how you attach one, not something that disappears
         // once you have. No Stop/Pause/Resume/third button here at all.
         RecordingStatus.IDLE -> {
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                routeName?.let {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+            // Three-column layout: Sport button | Start | Add Route
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Sport button (bottom-left)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable(onClick = onShowSportFilter)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFC5200).copy(alpha = 0.8f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.85f)
+                        Icon(
+                            sportType.icon,
+                            contentDescription = "Pilih Olahraga",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
                         )
-                        if (onClearRoute != null) {
-                            Spacer(Modifier.width(8.dp))
-                            IconButton(
-                                onClick = onClearRoute,
-                                modifier = Modifier.size(20.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Hapus rute",
-                                    tint = Color.White.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(16.dp)
-                                )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        sportType.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
+                
+                // Start button (center)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    routeName?.let {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
+                            if (onClearRoute != null) {
+                                Spacer(Modifier.width(8.dp))
+                                IconButton(
+                                    onClick = onClearRoute,
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Hapus rute",
+                                        tint = Color.White.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    FilledIconButton(
+                        onClick = onStart,
+                        modifier = Modifier.size(80.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFFFC5200))
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(36.dp))
+                    }
+                    Text(
+                        "MULAI REKAM",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
                 }
-                Button(
-                    onClick = onStart,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFC5200))
+                
+                // Add Route button (bottom-right)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable(onClick = onAddRoute)
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("MULAI REKAM", style = MaterialTheme.typography.titleMedium)
-                }
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(
-                    onClick = onAddRoute,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                ) {
-                    Icon(Icons.Default.Route, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("PILIH JALUR")
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Route,
+                            contentDescription = "Pilih Jalur",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Add Route",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
                 }
             }
         }

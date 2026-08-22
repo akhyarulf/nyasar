@@ -31,10 +31,15 @@ data class ActivityEntity(
     val avgSpeedKmh: Double?,
     val maxSpeedKmh: Double?,
     val elevationGainM: Double?,
-    val elevationLossM: Double?
+    val elevationLossM: Double?,
+    /** Jenis olahraga saat recording dimulai — lihat [com.nyasar.app.recording.SportType]. */
+    val sportType: String = "TRAIL_RUN"
 )
 
-/** Nilai valid untuk [ActivityEntity.status]. Disimpan sebagai String di Room
+/** Nilai valid untuk [ActivityEntity.status].
+ * Disimpan sebagai String di Room (bukan enum langsung) supaya migrasi skema
+ * di masa depan lebih fleksibel, konsisten dengan tidak adanya TypeConverter
+ * lain di project ini. */ Disimpan sebagai String di Room
  *  (bukan enum langsung) supaya migrasi skema di masa depan lebih fleksibel,
  *  konsisten dengan tidak adanya TypeConverter lain di project ini. */
 object ActivityStatus {

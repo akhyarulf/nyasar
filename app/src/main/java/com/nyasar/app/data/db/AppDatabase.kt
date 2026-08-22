@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [RouteEntity::class, ActivityEntity::class, ActivityPointEntity::class, WaypointEntity::class, ActivityPhotoEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,9 +32,10 @@ abstract class AppDatabase : RoomDatabase() {
                     // v3 -> v4 (P3E2): added waypoints table (user-created
                     // map waypoints, separate from GPX-parsed ones).
                     // v4 -> v5 (P3H): added activity_photos table.
+                    // v5 -> v6: added ActivityEntity.sportType.
                     // Still pre-release, so destructive migration remains
                     // acceptable — same reasoning as the v1->v2 comment.
-                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
+                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
                     .build().also { instance = it }
             }
     }

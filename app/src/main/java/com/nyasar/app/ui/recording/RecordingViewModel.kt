@@ -208,6 +208,10 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         ContextCompat.startForegroundService(getApplication(), intent)
     }
 
+    fun selectSportType(type: com.nyasar.app.recording.SportType) {
+        _uiState.value = _uiState.value.copy(sportType = type.name)
+    }
+
     fun pauseRecording() = sendAction(RecordingService.ACTION_PAUSE)
     fun resumeRecording() = sendAction(RecordingService.ACTION_RESUME)
     fun stopRecording() = sendAction(RecordingService.ACTION_STOP)

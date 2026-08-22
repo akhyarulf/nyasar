@@ -364,7 +364,8 @@ class RecordingService : Service() {
                         avgSpeedKmh = null,
                         maxSpeedKmh = null,
                         elevationGainM = null,
-                        elevationLossM = null
+                        elevationLossM = null,
+                        sportType = _state.value.sportType
                     )
                 )
                 true
@@ -813,6 +814,7 @@ class RecordingService : Service() {
 data class RecordingUiState(
     val activityId: String? = null,
     val status: RecordingStatus = RecordingStatus.IDLE,
+    val sportType: String = "TRAIL_RUN",
     val distanceMeters: Double = 0.0,
     val movingTimeMs: Long = 0,
     val elapsedTimeMs: Long = 0,

@@ -580,7 +580,7 @@ fun RecordingScreen(
                     Spacer(Modifier.height(20.dp))
                     HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
                     Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         BigStatBlock(formatDuration(state.movingTimeMs), "Moving time", compact = true)
                         BigStatBlock(
                             com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
@@ -590,6 +590,11 @@ fun RecordingScreen(
                         BigStatBlock(
                             com.nyasar.app.util.SpeedUtils.formatSpeed(state.avgSpeedKmh, speedUnit, 1),
                             "Avg speed",
+                            compact = true
+                        )
+                        BigStatBlock(
+                            com.nyasar.app.util.SpeedUtils.formatPace(state.avgSpeedKmh, speedUnit),
+                            "Pace",
                             compact = true
                         )
                     }

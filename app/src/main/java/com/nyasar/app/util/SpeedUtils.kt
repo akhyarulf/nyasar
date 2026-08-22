@@ -42,6 +42,24 @@ object SpeedUtils {
     }
 
     /**
+     * Format pace from speed (km/h or mph).
+     * Pace = minutes per distance unit (min/km or min/mi).
+     * @param speedKmh Speed in km/h (null or 0 → "-" for not moving)
+     * @param targetUnit "kmh" → min/km, "mph" → min/mi
+     * @return Formatted pace string like "5:30 /km" or "-" when stationary
+     */
+    fun formatPace(speedKmh: Double?, targetUnit: String): String {
+        if (speedKmh == null || speedKmh <= 0.0) return "-"
+        val speedInUnit = convertSpeed(speedKmh, targetUnit)
+        if (speedInUnit <= 0.0) return "-"
+        val minutesPerUnit = 60.0 / speedInUnit
+        val mins = minutesPerUnit.toInt()
+        val secs = ((minutesPerUnit - mins) * 60).toInt()
+        val unitLabel = if (targetUnit == "mph") "/mi" else "/km"
+        return "%d:%02d %s".format(mins, secs, unitLabel)
+    }
+
+    /**
      * Convert distance from kilometers to miles.
      * @param km Distance in kilometers
      * @return Distance in miles

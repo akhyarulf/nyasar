@@ -1,0 +1,301 @@
+package com.nyasar.app.ui.share
+
+import android.content.ContentValues
+import android.graphics.Bitmap
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
+import com.nyasar.app.data.db.ActivityEntity
+import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.map.providers.TileProviderFactory
+import com.nyasar.app.ui.map.MapSnapshotHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import com.nyasar.app.R
+import androidx.compose.ui.res.stringResource
+
+/**
+ * Strava-like share activity screen with a HorizontalPager carousel of
+ * 6 free templates. All templates are immediately usable — no subscription
+ * or paywall of any kind.
+ *
+ * Flow: pager shows card previews → user swipes to pick template →
+ * taps "Bagikan" → Android share sheet (Intent.ACTION_SEND).
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun ShareCardScreen(
+    activity: ActivityEntity,
+    trackPoints: List<TrackPoint>,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val templates = ShareCardGenerator.TEMPLATES
+
+    // Pre-generate map snapshot + all bitmaps on first composition
+    var bitmaps by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
+    LaunchedEffect(activity.id, trackPoints.size) {
+        // Generate map snapshot first (cached to disk)
+        val provider = TileProviderFactory.default()
+        val snapshotResult = withContext(Dispatchers.IO) {
+            MapSnapshotHelper.generateSync(
+                context = context,
+                activityId = activity.id,
+                trackPoints = trackPoints.map { it.lat to it.lon },
+                widthPx = 1080,
+                heightPx = 1344, // 70% of 1920
+                styleUrl = provider.styleUrl()
+            )
+        }
+        bitmaps = withContext(Dispatchers.Default) {
+            templates.associateWith { tpl ->
+                ShareCardGenerator.generate(
+                    activity, trackPoints, tpl,
+                    mapSnapshot = snapshotResult?.bitmap,
+                    mapBounds = snapshotResult?.bounds
+                )
+            }
+        }
+    }
+
+    val pagerState = rememberPagerState(pageCount = { templates.size })
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.share_activity)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close_cd2))
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        // Was a Column: pager (weight 1f) + dot row + 2 buttons all
+        // stacked, each eating vertical space from the card — plus 24dp
+        // side padding on the pager. Result: the preview only got whatever
+        // was left over after topbar+dots+buttons+spacers, nowhere near
+        // "fullscreen" despite that being the whole point of a share-card
+        // preview (Instagram/Strava-story style: the image IS the screen,
+        // controls float on top of it).
+        //
+        // Fix: Box instead of Column. Pager fills the entire body
+        // (fillMaxSize, no side padding — edge to edge), and dots+buttons
+        // become a bottom-anchored overlay with a scrim gradient so they
+        // stay legible over whatever the card's own colors are, without
+        // shrinking the card itself by a single pixel.
+        Box(Modifier.padding(padding).fillMaxSize()) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 0.dp),
+                pageSpacing = 0.dp
+            ) { page ->
+                val tpl = templates[page]
+                val bmp = bitmaps[tpl]
+                Box(Modifier.fillMaxSize()) {
+                    if (bmp != null) {
+                        // For transparent templates, show checkerboard hint
+                        val isTransparent = tpl in listOf("stats", "route", "grid")
+                        if (isTransparent) {
+                            // Checkerboard background to indicate transparency
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFFCCCCCC))
+                            )
+                            // Draw checkerboard pattern
+                            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                                val tileSize = 24.dp.toPx()
+                                for (row in 0..(size.height / tileSize).toInt()) {
+                                    for (col in 0..(size.width / tileSize).toInt()) {
+                                        if ((row + col) % 2 == 0) {
+                                            drawRect(
+                                                Color(0xFFAAAAAA),
+                                                topLeft = androidx.compose.ui.geometry.Offset(
+                                                    col * tileSize, row * tileSize
+                                                ),
+                                                size = androidx.compose.ui.geometry.Size(tileSize, tileSize)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = ShareCardGenerator.templateLabel(tpl),
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(Color.Black)
+                        ) {
+                            CircularProgressIndicator(
+                                Modifier.align(Alignment.Center).size(32.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Bottom overlay: dots + Share/Save, floating over the
+            // fullscreen preview instead of pushing it up. Scrim keeps
+            // them legible over light-colored template backgrounds.
+            Column(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))
+                        )
+                    )
+                    .padding(top = 32.dp, bottom = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    templates.forEachIndexed { index, _ ->
+                        val isActive = pagerState.currentPage == index
+                        Box(
+                            Modifier
+                                .padding(horizontal = 4.dp)
+                                .size(if (isActive) 10.dp else 8.dp)
+                                .clip(CircleShape)
+                                .background(if (isActive) Color.White else Color.White.copy(alpha = 0.4f))
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        val tpl = templates[pagerState.currentPage]
+                        val bmp = bitmaps[tpl] ?: return@Button
+                        scope.launch { shareImage(context, bmp, activity.name) }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .height(56.dp),
+                    enabled = bitmaps.isNotEmpty(),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.share_activity), style = MaterialTheme.typography.titleMedium)
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        val tpl = templates[pagerState.currentPage]
+                        val bmp = bitmaps[tpl] ?: return@OutlinedButton
+                        scope.launch { saveToGallery(context, bmp, activity.name) }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .height(48.dp),
+                    enabled = bitmaps.isNotEmpty(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(stringResource(R.string.save_to_gallery))
+                }
+            }
+        }
+    }
+}
+
+private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap, name: String) {
+    withContext(Dispatchers.IO) {
+        try {
+            val safeName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val file = File(context.cacheDir, "share_${safeName}_${System.currentTimeMillis()}.png")
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            val uri = FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file
+            )
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                putExtra(android.content.Intent.EXTRA_TEXT, "Check out my activity: $name #Nyasar")
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.share_via)))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+}
+
+private suspend fun saveToGallery(
+    context: android.content.Context, bitmap: Bitmap, name: String
+) {
+    withContext(Dispatchers.IO) {
+        try {
+            val safeName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val filename = "Nyasar_${safeName}_${System.currentTimeMillis()}.png"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val cv = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Nyasar")
+                }
+                context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)?.let { uri ->
+                    context.contentResolver.openOutputStream(uri)?.use { s ->
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, s)
+                    }
+                }
+            } else {
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                FileOutputStream(File(dir, filename)).use { s ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, s)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+}

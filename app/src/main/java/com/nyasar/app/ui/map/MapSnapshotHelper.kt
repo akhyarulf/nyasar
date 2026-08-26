@@ -46,8 +46,14 @@ data class MapSnapshotResult(
 object MapSnapshotHelper {
 
     private const val CACHE_DIR = "map_snapshots"
-    private const val CACHE_VERSION = 6 // bump: bounds now aspect-ratio-matched to widthPx:heightPx before MapSnapshotter — fixes route line misaligned from map tiles
-    private const val MIN_PADDING_METERS = 100.0
+    private const val CACHE_VERSION = 7 // bump: MIN_PADDING_METERS 100 -> 25 (100m floor dwarfed very short tracks, e.g. a ~20m recording rendered as a barely-visible speck in a ~220m-wide frame)
+    // 25m floor (was 100m) — 100m alone was already 5-10x wider than a
+    // typical very-short recording's own span (a few meters to a few tens
+    // of meters), so those tracks rendered as a tiny speck regardless of
+    // the *2.0 span-based scaling below. 25m still leaves enough breathing
+    // room that GPS jitter on a normal-length track doesn't clip at the
+    // frame edge.
+    private const val MIN_PADDING_METERS = 25.0
     private const val MAX_PADDING_METERS = 500.0
 
     // Gradient fallback colors

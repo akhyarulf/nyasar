@@ -38,7 +38,7 @@ object ShareCardGenerator {
 
     private val PRIMARY = Color.parseColor("#5A7562")
     private val DARK = Color.parseColor("#2A3A30")
-    private val TRACK_COLOR = Color.parseColor("#42A5F5")
+    private val TRACK_COLOR = Color.parseColor("#00C853") // green — matches actual track color in NyasarMapView & ActivityDetailScreen
     private val WHITE = Color.WHITE
     private val LIGHT = Color.parseColor("#CCCCCC")
     private val GRAY = Color.parseColor("#999999")
@@ -67,7 +67,7 @@ object ShareCardGenerator {
         when (template) {
             "map" -> drawMapTemplate(c, activity, track, mapSnapshot, mapBounds)
             "stats" -> drawStatsTemplate(c, activity, track)
-            "dark_card" -> drawDarkCardTemplate(c, activity, track)
+            "dark_card" -> drawDarkCardTemplate(c, activity, track, mapSnapshot, mapBounds)
             "route" -> drawRouteTemplate(c, activity, track)
             "grid" -> drawGridTemplate(c, activity)
             "minimal" -> drawMinimalTemplate(c, activity)
@@ -209,7 +209,7 @@ object ShareCardGenerator {
 
     // ── Template 3: Dark Card — dark textured bg + inset map card ──
 
-    private fun drawDarkCardTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>) {
+    private fun drawDarkCardTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?, mapBounds: LatLngBounds?) {
         c.drawColor(DARK)
 
         // Subtle diagonal stripes for texture
@@ -220,21 +220,86 @@ object ShareCardGenerator {
             x += 80f
         }
 
-        // Inset map card with gradient background
+        // Inset map card
         val cardRect = RectF(60f, 140f, CARD_W - 60f, CARD_H * 0.50f)
-        val cardBg = Paint().apply { style = Paint.Style.FILL }
-        val cardGradient = LinearGradient(
-            cardRect.left, cardRect.top, cardRect.left, cardRect.bottom,
-            intArrayOf(Color.parseColor("#E8E8E0"), Color.parseColor("#D0D0C8")),
-            floatArrayOf(0f, 1f),
-            Shader.TileMode.CLAMP
-        )
-        cardBg.shader = cardGradient
-        c.drawRoundRect(cardRect, 24f, 24f, cardBg)
 
-        if (track.size >= 2) {
-            drawRouteProportional(c, track, cardRect.left + 50f, cardRect.top + 50f,
-                cardRect.right - 50f, cardRect.bottom - 50f, 10f, TRACK_COLOR)
+        if (mapSnapshot != null) {
+            // Compute destRect: center-crop the bitmap into the card area
+            // preserving aspect ratio. MUST be computed first so the route
+            // overlay uses the same coordinate space as the bitmap.
+            val bmpW = mapSnapshot.width.toFloat()
+            val bmpH = mapSnapshot.height.toFloat()
+            val cardW = cardRect.width()
+            val cardH = cardRect.height()
+            val bmpAspect = bmpW / bmpH
+            val cardAspect = cardW / cardH
+            val destRect = if (bmpAspect > cardAspect) {
+                val scaledW = cardH * bmpAspect
+                val offsetX = (cardW - scaledW) / 2f
+                RectF(cardRect.left + offsetX, cardRect.top, cardRect.left + offsetX + scaledW, cardRect.bottom)
+            } else {
+                val scaledH = cardW / bmpAspect
+                val offsetY = (cardH - scaledH) / 2f
+                RectF(cardRect.left, cardRect.top + offsetY, cardRect.right, cardRect.top + offsetY + scaledH)
+            }
+
+            // Clip everything to the rounded card shape, then draw bitmap,
+            // gradient, and route all in the SAME destRect coordinate space.
+            c.save()
+            val clipPath = Path().apply { addRoundRect(cardRect, 24f, 24f, Path.Direction.CW) }
+            c.clipPath(clipPath)
+
+            c.drawBitmap(mapSnapshot, null, destRect, null)
+
+            // Dark gradient overlay at bottom of map for readability
+            val gradientH = cardRect.height() * 0.3f
+            val gradTop = cardRect.bottom - gradientH
+            val mapGradient = LinearGradient(
+                0f, gradTop, 0f, cardRect.bottom,
+                intArrayOf(Color.TRANSPARENT, Color.parseColor("#CC000000")),
+                floatArrayOf(0f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            c.drawRect(cardRect.left, gradTop, cardRect.right, cardRect.bottom,
+                Paint().apply { shader = mapGradient })
+
+            // Route overlay — MUST use destRect (same space as bitmap),
+            // NOT cardRect. When destRect differs from cardRect due to
+            // center-crop, using cardRect causes the route to shift.
+            if (track.size >= 2 && mapBounds != null) {
+                MapSnapshotHelper.drawTrackOnCanvas(
+                    canvas = c, trackPoints = track, bounds = mapBounds,
+                    canvasLeft = destRect.left, canvasTop = destRect.top,
+                    canvasRight = destRect.right, canvasBottom = destRect.bottom,
+                    strokeWidth = 10f, color = TRACK_COLOR
+                )
+            }
+
+            c.restore() // release clip
+
+            // Border around the card (not clipped — full stroke visible)
+            val borderPaint = Paint().apply {
+                color = Color.parseColor("#33FFFFFF")
+                style = Paint.Style.STROKE
+                strokeWidth = 2f
+                isAntiAlias = true
+            }
+            c.drawRoundRect(cardRect, 24f, 24f, borderPaint)
+        } else {
+            // Fallback: gradient + route when no snapshot
+            val cardBg = Paint().apply { style = Paint.Style.FILL }
+            val cardGradient = LinearGradient(
+                cardRect.left, cardRect.top, cardRect.left, cardRect.bottom,
+                intArrayOf(Color.parseColor("#E8E8E0"), Color.parseColor("#D0D0C8")),
+                floatArrayOf(0f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            cardBg.shader = cardGradient
+            c.drawRoundRect(cardRect, 24f, 24f, cardBg)
+            if (track.size >= 2) {
+                drawRouteProportional(c, track, cardRect.left + 50f, cardRect.top + 50f,
+                    cardRect.right - 50f, cardRect.bottom - 50f, 10f, TRACK_COLOR)
+            }
         }
 
         val sy = CARD_H * 0.56f

@@ -230,10 +230,12 @@ private fun ActivityCard(
             }
 
             // Route thumbnail — real map snapshot (fallback to grid)
+            // Aspect ratio matches the snapshot bitmap (1080×640) so
+            // ContentScale.FillBounds doesn't distort the map tiles.
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(220.dp)
+                    .aspectRatio(1080f / 640f)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 when {

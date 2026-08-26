@@ -420,29 +420,27 @@ fun NyasarMapView(
                     )
                 }
 
-                if (track.isNotEmpty()) {
-                    // Bug fix: a track with only one real point (or several
-                    // points that all round to the same coordinate — e.g. a
-                    // recording whose GPS never actually moved off the
-                    // world-view default before the camera bug was fixed)
-                    // produces a zero-width/zero-height LatLngBounds.
-                    // Asking the camera to fit padding into a bounds with no
-                    // span is what actually crashes here — LatLngBounds
-                    // itself only throws when NO points were included at
-                    // all (already guarded by isNotEmpty() above), so this
-                    // was a real, reachable crash the isNotEmpty() check
-                    // didn't cover, most likely to hit exactly on a
-                    // messed-up short recording's Activity Detail.
-                    val bounds = boundsOf(track)
-                    val hasRealSpan = bounds.latitudeSpan > 0.0005 || bounds.longitudeSpan > 0.0005
-                    if (hasRealSpan) {
-                        map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
-                    } else {
-                        map.moveCamera(CameraUpdateFactory.newLatLngZoom(bounds.center, 17.5))
+                // Camera positioning MUST happen after the view has its final
+                // layout dimensions — MapLibre uses the view's width/height to
+                // compute the camera position for newLatLngBounds. Inside a
+                // LazyColumn or any container with dynamic sizing, the style
+                // callback can fire before layout is complete, producing a
+                // distorted/"penyet" map. Wrapping in mapView.post {} defers
+                // the camera call to after the current layout pass finishes.
+                val applyCamera = Runnable {
+                    if (track.isNotEmpty()) {
+                        val bounds = boundsOf(track)
+                        val hasRealSpan = bounds.latitudeSpan > 0.0005 || bounds.longitudeSpan > 0.0005
+                        if (hasRealSpan) {
+                            map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
+                        } else {
+                            map.moveCamera(CameraUpdateFactory.newLatLngZoom(bounds.center, 17.5))
+                        }
+                    } else if (focusBounds != null) {
+                        map.moveCamera(CameraUpdateFactory.newLatLngBounds(focusBounds, 40))
                     }
-                } else if (focusBounds != null) {
-                    map.moveCamera(CameraUpdateFactory.newLatLngBounds(focusBounds, 40))
                 }
+                mapView.post(applyCamera)
 
                 // Native gesture detection (spec: "1 jari drag = PAN", "saat
                 // user menggeser/zoom manual -> Follow GPS harus OFF"). This

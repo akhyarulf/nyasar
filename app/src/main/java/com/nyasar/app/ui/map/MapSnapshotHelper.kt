@@ -46,7 +46,7 @@ data class MapSnapshotResult(
 object MapSnapshotHelper {
 
     private const val CACHE_DIR = "map_snapshots"
-    private const val CACHE_VERSION = 7 // bump: MIN_PADDING_METERS 100 -> 25 (100m floor dwarfed very short tracks, e.g. a ~20m recording rendered as a barely-visible speck in a ~220m-wide frame)
+    private const val CACHE_VERSION = 8 // bump: TRACK_COLOR green + verticalOffsetFraction for bottom gradient alignment
     // 25m floor (was 100m) — 100m alone was already 5-10x wider than a
     // typical very-short recording's own span (a few meters to a few tens
     // of meters), so those tracks rendered as a tiny speck regardless of
@@ -106,15 +106,16 @@ object MapSnapshotHelper {
         trackPoints: List<Pair<Double, Double>>, // Pair(lat, lon)
         widthPx: Int,
         heightPx: Int,
-        styleUrl: String
+        styleUrl: String,
+        verticalOffsetFraction: Double = 0.0
     ): MapSnapshotResult? {
         if (trackPoints.size < 2) return null
 
         val cached = loadFromDisk(context, activityId, widthPx, heightPx)
-        if (cached != null) return MapSnapshotResult(cached, computeBounds(trackPoints, widthPx, heightPx))
+        if (cached != null) return MapSnapshotResult(cached, computeBounds(trackPoints, widthPx, heightPx, verticalOffsetFraction))
 
         val result = withContext(Dispatchers.Main) {
-            generateSnapshot(context, trackPoints, widthPx, heightPx, styleUrl)
+            generateSnapshot(context, trackPoints, widthPx, heightPx, styleUrl, verticalOffsetFraction)
         }
 
         if (result != null) {
@@ -133,10 +134,11 @@ object MapSnapshotHelper {
         trackPoints: List<Pair<Double, Double>>, // Pair(lat, lon)
         widthPx: Int,
         heightPx: Int,
-        styleUrl: String
+        styleUrl: String,
+        verticalOffsetFraction: Double = 0.0
     ): MapSnapshotResult? {
         return try {
-            val bounds = computeBounds(trackPoints, widthPx, heightPx)
+            val bounds = computeBounds(trackPoints, widthPx, heightPx, verticalOffsetFraction)
 
             val options = MapSnapshotter.Options(widthPx, heightPx).apply {
                 withStyle(styleUrl)
@@ -188,9 +190,19 @@ object MapSnapshotHelper {
      * @param trackPoints List of Pair(lat, lon) — first=lat, second=lon
      * @param widthPx requested snapshot width in pixels
      * @param heightPx requested snapshot height in pixels
+     * @param verticalOffsetFraction Shifts the visible area upward by this
+     *   fraction of the total latitude span (0.0–0.5). Used when the bottom
+     *   portion of the bitmap will be covered by a gradient overlay, so the
+     *   track should appear centered in the VISIBLE area (top) rather than
+     *   the full bitmap. 0.05 shifts the center up by 5% of the span.
      * @return LatLngBounds with padding applied AND aspect-ratio-matched to widthPx:heightPx
      */
-    internal fun computeBounds(trackPoints: List<Pair<Double, Double>>, widthPx: Int, heightPx: Int): LatLngBounds {
+    internal fun computeBounds(
+        trackPoints: List<Pair<Double, Double>>,
+        widthPx: Int,
+        heightPx: Int,
+        verticalOffsetFraction: Double = 0.0
+    ): LatLngBounds {
         val lats = trackPoints.map { it.first }
         val lons = trackPoints.map { it.second }
         val minLat = lats.min(); val maxLat = lats.max()
@@ -238,6 +250,15 @@ object MapSnapshotHelper {
             val extraLatDeg = (extraLatSpanM / 2.0) / 111_320.0
             north += extraLatDeg
             south -= extraLatDeg
+        }
+
+        // Apply vertical offset: shift bounds upward so the track appears
+        // centered in the VISIBLE portion of the bitmap (top area that
+        // won't be covered by a gradient/stats overlay).
+        if (verticalOffsetFraction > 0.0) {
+            val offset = (north - south) * verticalOffsetFraction.coerceIn(0.0, 0.5)
+            north -= offset
+            south -= offset
         }
 
         return LatLngBounds.Builder()

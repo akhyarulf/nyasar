@@ -71,7 +71,12 @@ fun ShareCardScreen(
                 trackPoints = trackPoints.map { it.lat to it.lon },
                 widthPx = 1080,
                 heightPx = 1344, // 70% of 1920
-                styleUrl = provider.styleUrl()
+                styleUrl = provider.styleUrl(),
+                // Bottom ~30% of the map bitmap is covered by a dark gradient
+                // overlay for text readability. Shift the camera bounds upward
+                // so the track is centered in the visible (top) area instead
+                // of being biased toward the hidden bottom portion.
+                verticalOffsetFraction = 0.15
             )
         }
         bitmaps = withContext(Dispatchers.Default) {
@@ -118,7 +123,9 @@ fun ShareCardScreen(
                 val tpl = templates[page]
                 val bmp = bitmaps[tpl]
                 Card(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(9f / 16f),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     if (bmp != null) {
@@ -154,7 +161,7 @@ fun ShareCardScreen(
                                 bitmap = bmp.asImageBitmap(),
                                 contentDescription = ShareCardGenerator.templateLabel(tpl),
                                 modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.FillBounds
+                                contentScale = ContentScale.Fit
                             )
                         }
                     } else {

@@ -8,14 +8,17 @@ import androidx.lifecycle.viewModelScope
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.location.HeadingProvider
+import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.navigation.GpsFix
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.recording.RecordingService
 import com.nyasar.app.recording.RecordingServiceConnection
 import com.nyasar.app.recording.RecordingUiState
+import com.nyasar.app.recording.RecordingStatus
 import com.nyasar.app.ui.components.CameraFollowMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +41,20 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
 
     private val connection = RecordingServiceConnection(app)
     private val dao = AppDatabase.get(app).activityDao()
+    // Fix: before this, "recenter" on the pre-record (IDLE) screen was a
+    // no-op — RecordingViewModel had no GPS source of its own, only ever
+    // reading currentLat/currentLon from RecordingService's state, which
+    // stays null until the service is actually started (ACTION_START).
+    // Same pattern HomeViewModel already uses for its own "where am I"
+    // preview (see its class doc) — independent LocationRepository
+    // subscription, active only while IDLE. previewLocationJob is
+    // cancelled the moment recording actually starts, so this never runs
+    // as a second GPS source alongside RecordingService's own stream (the
+    // same one-source rule NavigationViewModel's class doc describes).
+    private val locationRepository = LocationRepository(app)
+    private var previewLocationJob: Job? = null
+    private val _previewLocation = MutableStateFlow<GpsFix?>(null)
+    val previewLocation: StateFlow<GpsFix?> = _previewLocation.asStateFlow()
 
     private val _uiState = MutableStateFlow(RecordingUiState())
     val uiState: StateFlow<RecordingUiState> = _uiState.asStateFlow()
@@ -110,6 +127,23 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Same pattern/name as HomeViewModel's function of the same name —
+     *  starts the pre-record GPS preview once, no-ops on repeat calls
+     *  (e.g. recomposition) or once a recording session has already
+     *  claimed the GPS stream (see the IDLE check in init{} above). */
+    fun startLocationUpdatesIfPermitted() {
+        if (previewLocationJob != null) return
+        if (_uiState.value.status != RecordingStatus.IDLE) return
+        if (!locationRepository.hasLocationPermission()) return
+        previewLocationJob = viewModelScope.launch {
+            locationRepository.observeLocation().collect { fix ->
+                _previewLocation.value = fix
+            }
+        }
+    }
+
+    fun hasLocationPermission(): Boolean = locationRepository.hasLocationPermission()
+
     // --- Map style / layer (same pattern as HomeViewModel) ---
 
     fun setStyleVariant(variant: StyleVariant) {
@@ -143,6 +177,15 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
                 svc?.state ?: flowOf(RecordingUiState())
             }.collect { state ->
                 _uiState.value = state
+                // Preview GPS is only for the pre-record screen; once a
+                // session actually starts (RECORDING or PAUSED — not just
+                // a bare status flip, so a resumed-from-recovery session
+                // stays off it too), stop it so RecordingService's own
+                // stream is the single GPS source from that point on.
+                if (state.status != RecordingStatus.IDLE) {
+                    previewLocationJob?.cancel()
+                    previewLocationJob = null
+                }
                 lastFix = state.currentLat?.let { lat ->
                     state.currentLon?.let { lon ->
                         GpsFix(

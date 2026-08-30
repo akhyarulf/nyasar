@@ -268,6 +268,13 @@ fun RecordingScreen(
         recoveryChecked = true
     }
 
+    // Permission was already requested app-wide in MainActivity (same
+    // comment/reasoning as HomeScreen's identical block); this just starts
+    // the pre-record GPS preview once it's actually granted.
+    LaunchedEffect(Unit) {
+        viewModel.startLocationUpdatesIfPermitted()
+    }
+
     LaunchedEffect(recoveryChecked, recoveryCandidate, state.status) {
         // Part 2 fix (BUG #2/#15 "Stop -> Start membuat session baru"): the
         // guard used to require state.status == IDLE specifically, which
@@ -346,9 +353,18 @@ fun RecordingScreen(
         )
     }
 
+    // Pre-record preview: RecordingService (state.currentLat/Lon) has no
+    // GPS fix at all until the user actually taps Start (ACTION_START).
+    // Before this, that meant recenter/"where am I" was dead on the SIAP
+    // screen — this falls back to the ViewModel's own preview subscription
+    // (same LocationRepository pattern HomeScreen already uses) so the
+    // very first fix on-screen isn't gated behind starting a recording.
+    // RecordingViewModel itself stops this the moment recording actually
+    // starts, so it's never a second GPS source alongside the service.
+    val previewLocation by viewModel.previewLocation.collectAsState()
     val userLatLng = if (state.currentLat != null && state.currentLon != null) {
         LatLng(state.currentLat!!, state.currentLon!!)
-    } else null
+    } else previewLocation?.let { LatLng(it.lat, it.lon) }
 
     // Camera/follow/orientation state (spec P3 §14-16, gap closed —
     // previously followUser was hardcoded true with no manual-pan escape,

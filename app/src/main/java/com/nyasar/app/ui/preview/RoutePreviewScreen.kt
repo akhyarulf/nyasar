@@ -35,7 +35,7 @@ import kotlin.math.roundToInt
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun RoutePreviewScreen(
     routeId: String,

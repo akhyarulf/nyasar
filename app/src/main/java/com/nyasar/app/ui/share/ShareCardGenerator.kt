@@ -38,7 +38,7 @@ object ShareCardGenerator {
 
     private val PRIMARY = Color.parseColor("#5A7562")
     private val DARK = Color.parseColor("#2A3A30")
-    private val TRACK_COLOR = Color.parseColor("#00C853") // green — matches actual track color in NyasarMapView & ActivityDetailScreen
+    private val TRACK_COLOR = Color.parseColor("#5A7562") // muted green — matches History List primary color
     private val WHITE = Color.WHITE
     private val LIGHT = Color.parseColor("#CCCCCC")
     private val GRAY = Color.parseColor("#999999")
@@ -200,7 +200,7 @@ object ShareCardGenerator {
         }
 
         if (track.size >= 2) {
-            drawRouteProportional(c, track, 200f, CARD_H * 0.78f, CARD_W - 200f, CARD_H * 0.92f, 6f, TRACK_COLOR)
+            drawRouteProportional(c, track, 200f, CARD_H * 0.78f, CARD_W - 200f, CARD_H * 0.92f, 10f, TRACK_COLOR)
         }
 
         c.drawText("Nyasar", cx - textPaint(28f, Typeface.DEFAULT, LIGHT).measureText("Nyasar") / 2,

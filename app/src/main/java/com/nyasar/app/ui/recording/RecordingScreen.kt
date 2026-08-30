@@ -398,14 +398,22 @@ fun RecordingScreen(
             }
         )
 
-        IconButton(
+        // Floating back/minimize button (Strava-style) with semi-transparent
+        // circular background and proper status bar inset.
+        Surface(
             onClick = onExit,
-            modifier = Modifier.align(Alignment.TopStart).padding(12.dp)
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(start = 16.dp, top = 12.dp),
+            shape = CircleShape,
+            color = Color.Black.copy(alpha = 0.6f)
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = stringResource(R.string.exit),
-                tint = Color.White
+                tint = Color.White,
+                modifier = Modifier.padding(10.dp)
             )
         }
 
@@ -629,13 +637,27 @@ fun RecordingScreen(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
+                // Strava-style: Distance as hero metric (center), Time left, Elevation right
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BigStatBlock(formatDuration(state.elapsedTimeMs), "Time", modifier = Modifier.weight(1f))
-                    BigStatBlock("%.2f".format(state.distanceMeters / 1000.0), "Distance (km)", modifier = Modifier.weight(1f))
-                    BigStatBlock(state.elevationGainM.roundToInt().toString(), "Elevation gain (m)", modifier = Modifier.weight(1f))
+                    BigStatBlock(
+                        formatDuration(state.elapsedTimeMs),
+                        "Time",
+                        modifier = Modifier.weight(1f)
+                    )
+                    BigStatBlock(
+                        "%.2f".format(state.distanceMeters / 1000.0),
+                        "Distance (km)",
+                        modifier = Modifier.weight(1.2f),
+                        isHero = true
+                    )
+                    BigStatBlock(
+                        state.elevationGainM.roundToInt().toString(),
+                        "Naik (m)",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 if (statsExpanded) {
@@ -906,6 +928,7 @@ private fun BigStatBlock(
     value: String,
     label: String,
     compact: Boolean = false,
+    isHero: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     // Clamp fontScale so 3 big stat numbers never overlap on narrow
@@ -924,7 +947,11 @@ private fun BigStatBlock(
         androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides clampedDensity) {
             Text(
                 value,
-                style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
+                style = when {
+                    isHero -> MaterialTheme.typography.headlineLarge
+                    compact -> MaterialTheme.typography.titleLarge
+                    else -> MaterialTheme.typography.headlineMedium
+                },
                 color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1182,5 +1209,5 @@ private fun formatDuration(ms: Long): String {
     val h = totalSeconds / 3600
     val m = (totalSeconds % 3600) / 60
     val s = totalSeconds % 60
-    return "%02d:%02d:%02d".format(h, m, s)
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
 }

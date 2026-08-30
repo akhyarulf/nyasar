@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.gpx.model.GpxWaypoint
@@ -194,16 +195,39 @@ fun RoutePreviewScreen(
                 }
             }
 
-            // Bottom info section — scrollable for responsive layout
-            Surface(tonalElevation = 2.dp) {
+            // Bottom info section — scrollable for responsive layout.
+            // ROOT CAUSE FIX (map squeezed to a sliver at narrow widths,
+            // e.g. 320dp): this Surface previously had no height cap, so
+            // whenever its content grew taller than expected (e.g. the
+            // stats Row below wrapping badly), the Column above gave this
+            // unweighted section however much height it asked for and the
+            // map's Box(weight(1f)) got squeezed down to whatever was left
+            // — sometimes almost nothing. Capping this section's height to
+            // a fraction of the screen guarantees the map always keeps a
+            // reasonable minimum share of the vertical space regardless of
+            // how tall the stats/chart content below gets.
+            val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
+            Surface(
+                tonalElevation = 2.dp,
+                modifier = Modifier.heightIn(max = screenHeightDp * 0.55f)
+            ) {
                 Column(
                     Modifier
                         .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
-                    // Stats row
-                    Row(
+                    // Stats row — FlowRow instead of Row: at narrow widths
+                    // (e.g. 320dp) a plain Row can't fit 5 stats, so instead
+                    // of wrapping to a new line as whole items it used to
+                    // squeeze every single Text down until words inside
+                    // wrapped individually ("m tertinggi" broke onto its own
+                    // stacked lines), ballooning this section's height.
+                    // FlowRow wraps whole Stat items onto additional lines
+                    // as a unit, which is both readable and bounded in
+                    // height regardless of screen width.
+                    FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Stat("%.1f km".format(state.distanceKm))

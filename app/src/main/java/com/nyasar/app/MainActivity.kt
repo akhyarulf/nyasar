@@ -169,9 +169,8 @@ private fun NyasarNavHost(
     var recordingActive by remember { mutableStateOf(false) }
     val isRecordingRoute = currentRoute?.startsWith("recording?") == true
     val showBottomBar = when {
-        // On a recording route: hide bar only while recording is actually active
-        // (to avoid overlapping the Pause button), show it once recording stops.
-        isRecordingRoute -> !recordingActive
+        // On a recording route: always hide to maximize map readability.
+        isRecordingRoute -> false
         // On main tabs (Home, Library, History, Settings): always show.
         // On sub-screens (preview, activity detail, etc.): show if registered.
         currentRoute != null -> com.nyasar.app.ui.components.shouldShowBottomBar(currentRoute)

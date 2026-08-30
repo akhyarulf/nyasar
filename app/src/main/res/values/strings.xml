@@ -33,7 +33,7 @@
     <string name="pick_route">PILIH JALUR</string>
     <string name="recording_time">Time</string>
     <string name="recording_distance">Distance (km)</string>
-    <string name="recording_elevation_gain">Elevation gain (m)</string>
+    <string name="recording_elevation_gain">Naik (m)</string>
     <string name="gps_weak">⚠ GPS LEMAH</string>
     <string name="gps_lost">⚠ GPS HILANG</string>
     <string name="storage_error">⚠ Gagal menyimpan data — storage penuh?</string>
@@ -75,7 +75,7 @@
     <!-- Navigation -->
     <string name="distance_traveled">Jarak tempuh</string>
     <string name="current_elevation">Elevasi saat ini</string>
-    <string name="elevation_gain">Elevation gain</string>
+    <string name="elevation_gain">Naik</string>
     <string name="moving_time">Waktu bergerak</string>
     <string name="speed">Kecepatan</string>
     <string name="remaining_elevation">Sisa elevasi</string>
@@ -322,12 +322,12 @@
     <string name="route_planned">Rencana rute</string>
     <string name="track_actual">Jejak aktual</string>
     <string name="stat_distance">Jarak</string>
-    <string name="stat_moving_time">Waktu bergerak</string>
+    <string name="stat_moving_time">Bergerak</string>
     <string name="stat_total_time">Waktu total</string>
-    <string name="stat_avg_speed">Kecepatan rata-rata</string>
-    <string name="stat_max_speed">Kecepatan maksimum</string>
-    <string name="stat_elev_loss">Elevation loss</string>
-    <string name="stat_highest_point">Titik tertinggi</string>
+    <string name="stat_avg_speed">Rata-rata</string>
+    <string name="stat_max_speed">Maksimum</string>
+    <string name="stat_elev_loss">Turun</string>
+    <string name="stat_highest_point">Puncak</string>
     <string name="stat_lowest_point">Titik terendah</string>
     <string name="stat_gps_points">Titik GPS</string>
 

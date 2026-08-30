@@ -9,9 +9,11 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 
 /** The 4 routes the bottom bar is allowed to appear on (spec PART 1:
  *  "Tab bar HANYA muncul di 4 screen utama"). "start-activity" here means
@@ -106,7 +108,7 @@ fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modi
                 selected = isSelected,
                 onClick = { if (!isSelected) onTabSelected(tab.route) },
                 icon = { Icon(tab.icon, contentDescription = tab.label) },
-                label = { Text(tab.label) }
+                label = { Text(tab.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) }
             )
         }
     }

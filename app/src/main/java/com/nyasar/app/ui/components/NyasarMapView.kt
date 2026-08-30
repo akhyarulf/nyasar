@@ -196,8 +196,21 @@ fun NyasarMapView(
                 if (style.getImage("nyasar-heading-arrow") == null) {
                     style.addImage("nyasar-heading-arrow", headingArrowBitmap())
                 }
-                // Track line
+                // Note: MapLibre Android SDK does not support custom font
+                // registration via style.addFont(). The textFont references
+                // below will silently fall back to the style's default fonts.
+                // To use Inter on-map, the font must be baked into the
+                // map style's sprite/font stack at the tile-server level.
+                // Track line (planned route = blue, actual/recorded = green)
+                // When there's no planned route but actualTrack has data,
+                // the caller passes actualTrack via the `track` param —
+                // detect this and route it to the green actual-track layer
+                // so it never shows up in blue.
                 val lineString = LineString.fromLngLats(track.map { Point.fromLngLat(it.lon, it.lat) })
+                // When there's a planned route, track goes in blue (#42A5F5);
+                // when there's no planned route, track is actual walked path —
+                // shown in the same muted green (#5A7562) everywhere.
+                val trackColor = if (track.isNotEmpty() && actualTrack.isEmpty()) "#5A7562" else "#42A5F5"
                 val trackSource = style.getSourceAs<GeoJsonSource>(SOURCE_TRACK)
                 if (trackSource != null) {
                     trackSource.setGeoJson(lineString)
@@ -205,7 +218,7 @@ fun NyasarMapView(
                     style.addSource(GeoJsonSource(SOURCE_TRACK, lineString))
                     style.addLayer(
                         LineLayer(LAYER_TRACK, SOURCE_TRACK).withProperties(
-                            PropertyFactory.lineColor("#42A5F5"),
+                            PropertyFactory.lineColor(trackColor),
                             PropertyFactory.lineWidth(4f),
                             PropertyFactory.lineCap("round"),
                             PropertyFactory.lineJoin("round")
@@ -225,7 +238,7 @@ fun NyasarMapView(
                     style.addSource(GeoJsonSource(SOURCE_ACTUAL_TRACK, actualLine))
                     style.addLayer(
                         LineLayer(LAYER_ACTUAL_TRACK, SOURCE_ACTUAL_TRACK).withProperties(
-                            PropertyFactory.lineColor("#00C853"),
+                            PropertyFactory.lineColor("#5A7562"),
                             PropertyFactory.lineWidth(5f),
                             PropertyFactory.lineCap("round"),
                             PropertyFactory.lineJoin("round")
@@ -267,21 +280,31 @@ fun NyasarMapView(
                         wp.description?.let { addStringProperty(PROP_WP_DESCRIPTION, it) }
                     }
                 }
-                val wpSource = style.getSourceAs<GeoJsonSource>(SOURCE_WAYPOINTS)
-                if (wpSource != null) {
-                    wpSource.setGeoJson(FeatureCollection.fromFeatures(features))
-                } else {
-                    style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
-                    style.addLayer(
-                        SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
-                            PropertyFactory.iconImage("marker-15"),
-                            PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.textField("{$PROP_WP_NAME}"),
-                            PropertyFactory.textSize(11f),
-                            PropertyFactory.textOffset(arrayOf(0f, 1.2f))
-                        )
+                // Always recreate source + layer so text properties stay fresh
+                // across style reloads (provider/styleVariant change).
+                try { style.removeLayer(LAYER_WAYPOINTS) } catch (_: Exception) {}
+                try { style.removeSource(SOURCE_WAYPOINTS) } catch (_: Exception) {}
+                style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
+                style.addLayer(
+                    SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
+                        PropertyFactory.iconImage("marker-15"),
+                        PropertyFactory.iconAllowOverlap(true),
+                        // Professional text styling: Inter-SemiBold 12sp, anchored
+                        // below icon with white text halo for contrast on topo maps.
+                        PropertyFactory.textField("{$PROP_WP_NAME}"),
+                        PropertyFactory.textSize(12f),
+                        PropertyFactory.textFont(arrayOf("Inter-SemiBold")),
+                        PropertyFactory.textColor("#1A1A1A"),
+                        PropertyFactory.textHaloColor("#FFFFFF"),
+                        PropertyFactory.textHaloWidth(2f),
+                        PropertyFactory.textHaloBlur(0.5f),
+                        PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
+                        PropertyFactory.textAnchor("top"),
+                        PropertyFactory.textMaxWidth(8f),
+                        PropertyFactory.textAllowOverlap(false),
+                        PropertyFactory.textOptional(false)
                     )
-                }
+                )
 
                 // User-created waypoints (spec P3E2) — own source/layer, one
                 // colored pin bitmap per category (registered once, keyed by
@@ -300,34 +323,44 @@ fun NyasarMapView(
                         addStringProperty(PROP_UWP_CATEGORY, wp.category)
                     }
                 }
-                val userWpSource = style.getSourceAs<GeoJsonSource>(SOURCE_USER_WAYPOINTS)
-                if (userWpSource != null) {
-                    userWpSource.setGeoJson(FeatureCollection.fromFeatures(userWpFeatures))
-                } else {
-                    style.addSource(GeoJsonSource(SOURCE_USER_WAYPOINTS, FeatureCollection.fromFeatures(userWpFeatures)))
-                    val iconMatchStops = com.nyasar.app.data.db.WaypointCategory.entries.flatMap { cat ->
-                        listOf(
-                            org.maplibre.android.style.expressions.Expression.literal(cat.name),
-                            org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${cat.name}")
-                        )
-                    }.toTypedArray()
-                    style.addLayer(
-                        SymbolLayer(LAYER_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS).withProperties(
-                            PropertyFactory.iconImage(
-                                org.maplibre.android.style.expressions.Expression.match(
-                                    org.maplibre.android.style.expressions.Expression.get(PROP_UWP_CATEGORY),
-                                    org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${com.nyasar.app.data.db.WaypointCategory.CUSTOM.name}"),
-                                    *iconMatchStops
-                                )
-                            ),
-                            PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.iconSize(1f),
-                            PropertyFactory.textField("{$PROP_WP_NAME}"),
-                            PropertyFactory.textSize(11f),
-                            PropertyFactory.textOffset(arrayOf(0f, 1.4f))
-                        )
+                // Always recreate source + layer so text properties stay fresh
+                // across style reloads (provider/styleVariant change).
+                try { style.removeLayer(LAYER_USER_WAYPOINTS) } catch (_: Exception) {}
+                try { style.removeSource(SOURCE_USER_WAYPOINTS) } catch (_: Exception) {}
+                style.addSource(GeoJsonSource(SOURCE_USER_WAYPOINTS, FeatureCollection.fromFeatures(userWpFeatures)))
+                val iconMatchStops = com.nyasar.app.data.db.WaypointCategory.entries.flatMap { cat ->
+                    listOf(
+                        org.maplibre.android.style.expressions.Expression.literal(cat.name),
+                        org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${cat.name}")
                     )
-                }
+                }.toTypedArray()
+                style.addLayer(
+                    SymbolLayer(LAYER_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS).withProperties(
+                        PropertyFactory.iconImage(
+                            org.maplibre.android.style.expressions.Expression.match(
+                                org.maplibre.android.style.expressions.Expression.get(PROP_UWP_CATEGORY),
+                                org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${com.nyasar.app.data.db.WaypointCategory.CUSTOM.name}"),
+                                *iconMatchStops
+                            )
+                        ),
+                        PropertyFactory.iconAllowOverlap(true),
+                        PropertyFactory.iconSize(1f),
+                        // Professional text styling: Inter-Medium 12sp, anchored
+                        // below icon with white halo for legibility on any map style.
+                        PropertyFactory.textField("{$PROP_WP_NAME}"),
+                        PropertyFactory.textSize(12f),
+                        PropertyFactory.textFont(arrayOf("Inter-Medium")),
+                        PropertyFactory.textColor("#2D2D2D"),
+                        PropertyFactory.textHaloColor("#FFFFFF"),
+                        PropertyFactory.textHaloWidth(2f),
+                        PropertyFactory.textHaloBlur(0.5f),
+                        PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
+                        PropertyFactory.textAnchor("top"),
+                        PropertyFactory.textMaxWidth(8f),
+                        PropertyFactory.textAllowOverlap(false),
+                        PropertyFactory.textOptional(false)
+                    )
+                )
 
                 // User location marker (spec section 6/22): a soft halo behind a
                 // solid dot, drawn as its own source/layers so position updates

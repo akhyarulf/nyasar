@@ -456,35 +456,20 @@ private fun ActivityDetailContent(
     speedUnit: String = "kmh"
 ) {
     var scrubbedPoint by remember { mutableStateOf<ElevationPoint?>(null) }
+    var showSplits by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+    val mapHeightDp = (screenHeightDp * 0.35f).coerceIn(100f, 180f).dp
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         if (actualTrack.isNotEmpty() || plannedTrack.isNotEmpty()) {
-            // and overlay the actual walked track via `actualTrack` (green)
-            // — the same second-line mechanism live recording already uses.
-            // Route-less recordings (no plannedTrack) keep the old
-            // single-line look: actualTrack drawn as `track` so it isn't
-            // shown twice in the same color for no reason.
             NyasarMapView(
-                modifier = Modifier.fillMaxWidth().height(260.dp),
+                modifier = Modifier.fillMaxWidth().height(mapHeightDp),
                 provider = provider,
                 track = if (plannedTrack.isNotEmpty()) plannedTrack else actualTrack,
                 actualTrack = if (plannedTrack.isNotEmpty()) actualTrack else emptyList(),
                 highlightPoint = scrubbedPoint?.let { org.maplibre.android.geometry.LatLng(it.lat, it.lon) },
-                // P3E3 fix #2: waypoints dropped during this recording
-                // session, shown on the same map as the actual track —
-                // previously ActivityDetail never queried waypoints at
-                // all, so a hiker's own trail markers vanished from view
-                // the moment they left Home.
                 userWaypoints = waypointsDuringActivity,
-                // This fix's one focus: tap a marker → open its detail.
-                // Uses the same onUserWaypointClick callback + LAYER_USER_
-                // WAYPOINTS hit-testing NyasarMapView already implements for
-                // HomeScreen's live map — no map-engine change needed here,
-                // just wiring the existing callback through. queryRendered
-                // Features hit-testing only fires on an actual tap on the
-                // marker, so 1-finger pan and pinch zoom (which never reach
-                // addOnMapClickListener) are unaffected — see NyasarMapView.
                 onUserWaypointClick = { id ->
                     waypointsDuringActivity.firstOrNull { it.id == id }?.let(onWaypointTap)
                 }
@@ -508,29 +493,21 @@ private fun ActivityDetailContent(
         }
 
         Column(
-            Modifier.fillMaxWidth().padding(16.dp)
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Header date/start time (spec P3F §2 "HEADER: Date, Start time
-            // jika tersedia"). activity.name is already the TopAppBar title,
-            // so this only adds the when — startedAtEpochMs always exists
-            // (set when recording begins, never null), unlike endedAtEpochMs.
             Text(
                 formatActivityDateTime(activity.startedAtEpochMs),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(6.dp))
 
             StatsGrid(activity, actualTrack.size, highestElevationM, lowestElevationM, speedUnit)
 
-            // Planned vs Actual (spec P3F §4) — distance only, see
-            // ActivityDetailViewModel for why elevation isn't compared here.
-            // Hidden entirely when there's no route, per spec: "jika tidak
-            // ada planned route, sembunyikan bagian comparison."
             if (plannedDistanceMeters != null) {
-                Spacer(Modifier.height(24.dp))
-                Text(stringResource(R.string.planned_vs_actual), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.planned_vs_actual), style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
                 PlannedVsActualRow(
                     plannedDistanceMeters = plannedDistanceMeters,
                     actualDistanceMeters = activity.distanceMeters
@@ -541,27 +518,34 @@ private fun ActivityDetailContent(
                 ElevationStats.toElevationProfile(elevationProfile)
             }
             if (elevationPoints.size >= 2) {
-                Spacer(Modifier.height(24.dp))
-                Text(stringResource(R.string.elevation_profile), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.elevation_profile), style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
                 ElevationProfile(
                     points = elevationPoints,
-                    modifier = Modifier.fillMaxWidth().height(140.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp),
                     onPointSelected = { _, point -> scrubbedPoint = point }
                 )
             }
 
-            // Splits per-km table — only shown if activity >= 1 km
             if (rawPoints.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
-                Text(stringResource(R.string.splits), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                SplitsTable(points = rawPoints)
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.material3.TextButton(
+                    onClick = { showSplits = !showSplits },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        if (showSplits) stringResource(R.string.splits) + " ▲" else stringResource(R.string.splits) + " ▼",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+                if (showSplits) {
+                    SplitsTable(points = rawPoints)
+                }
             }
 
-            // Share GPX button — moved from top bar to below elevation profile
             if (rawPoints.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = { onShareGpx(activity, rawPoints, waypointsDuringActivity) },
                     modifier = Modifier.fillMaxWidth()
@@ -576,10 +560,10 @@ private fun ActivityDetailContent(
             // above — a marker on a 260dp map is easy to miss/mis-tap, the
             // list makes them scannable and gives each one a readable name.
             if (waypointsDuringActivity.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
                     "Waypoint (${waypointsDuringActivity.size})",
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleSmall
                 )
                 Spacer(Modifier.height(8.dp))
                 waypointsDuringActivity.forEach { wp ->
@@ -590,8 +574,8 @@ private fun ActivityDetailContent(
                 // tampilkan empty state ringan") — previously this section
                 // simply didn't render at all when empty, giving no
                 // indication waypoints were even a feature of the app.
-                Spacer(Modifier.height(24.dp))
-                Text(stringResource(R.string.waypoint_label), style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.waypoint_label), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     stringResource(R.string.no_waypoints_recorded),
@@ -603,12 +587,13 @@ private fun ActivityDetailContent(
             // P3H: Photos section — spec §20 places this after Waypoints,
             // before Export/Share (Export/Share is the TopAppBar action,
             // already above; nothing else to reorder here).
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
             PhotosSection(
                 photos = photos,
                 onAddClick = onAddPhotoClick,
                 onPhotoClick = onPhotoClick
             )
+            Spacer(Modifier.height(80.dp))
         }
     }
 }
@@ -617,11 +602,11 @@ private fun ActivityDetailContent(
 private fun PlannedVsActualRow(plannedDistanceMeters: Double, actualDistanceMeters: Double) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Column(Modifier.weight(1f)) {
-            Text("%.2f km".format(plannedDistanceMeters / 1000.0), style = MaterialTheme.typography.titleLarge)
-            Text(stringResource(R.string.planned_distance), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("%.2f km".format(plannedDistanceMeters / 1000.0), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.planned_distance), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Column(Modifier.weight(1f)) {
-            Text("%.2f km".format(actualDistanceMeters / 1000.0), style = MaterialTheme.typography.titleLarge)
+            Text("%.2f km".format(actualDistanceMeters / 1000.0), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.actual_distance), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -637,7 +622,7 @@ private fun TrackLegend() {
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         LegendItem(color = androidx.compose.ui.graphics.Color(0xFF42A5F5), label = stringResource(R.string.route_planned))
-        LegendItem(color = androidx.compose.ui.graphics.Color(0xFF00C853), label = stringResource(R.string.track_actual))
+        LegendItem(color = androidx.compose.ui.graphics.Color(0xFF5A7562), label = stringResource(R.string.track_actual))
     }
 }
 
@@ -711,13 +696,16 @@ private fun StatsGrid(
         if (pointCount > 0) add(context.getString(R.string.stat_gps_points) to "$pointCount")
     }
 
-    Column {
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
         rows.chunked(2).forEach { pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 36.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 pair.forEach { (label, value) ->
-                    Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                        Text(value, style = MaterialTheme.typography.titleLarge)
-                        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f)) {
+                        Text(value, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))

@@ -225,7 +225,46 @@ private fun NyasarNavHost(
                 NyasarBottomBar(
                     currentRoute = currentRoute,
                     onTabSelected = { route ->
-                        if (route != currentRoute) {
+                        // BUG FIX ("selalu balik ke Home / Record kehilangan
+                        // state pas ditinggal-balik lagi"): the standard
+                        // popUpTo(start){saveState=true}+restoreState=true
+                        // pattern below keys saved state off the exact route
+                        // STRING passed to navigate(). Record's tab entry is
+                        // the static "recording?autoStart=false", but the
+                        // recording screen actually running underneath can
+                        // be any of several route strings depending on how
+                        // it was entered (recording?routeId=X&autoStart=Y,
+                        // etc — see NyasarBottomBar's own comment on why
+                        // isSelected there needed prefix-matching for this
+                        // same reason). Navigating that fixed string creates
+                        // a *new* recording instance matching the
+                        // registered template with routeId defaulted to
+                        // null, instead of resuming the one already on the
+                        // back stack — every tab-away-then-back wiped
+                        // whatever route/state Record had.
+                        //
+                        // Fix: if a recording destination is already
+                        // running (currentRoute or anything on the back
+                        // stack starts with "recording?"), popBackStack to
+                        // it directly instead of navigating a fresh route
+                        // string. Only fall through to a normal navigate()
+                        // when there's genuinely no recording instance to
+                        // return to yet.
+                        if (route.startsWith("recording?")) {
+                            val poppedToRecording = navController.popBackStack(
+                                route = "recording?routeId={routeId}&autoStart={autoStart}",
+                                inclusive = false
+                            )
+                            if (!poppedToRecording) {
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        } else if (route != currentRoute) {
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true

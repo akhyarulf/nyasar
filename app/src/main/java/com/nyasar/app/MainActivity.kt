@@ -13,6 +13,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.EaseInCubic
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -264,19 +268,36 @@ private fun NyasarNavHost(
                 animationSpec = tween(slideAnimationDuration)
             ) + fadeOut(animationSpec = tween(slideAnimationDuration / 2)) }
         ) {
-        // Tab routes: cross-fade (not slide) for bottom-nav tab switching.
-        // Was 150ms — shorter than a cross-fade needs to actually read as
-        // a transition (a fade that quick lands closer to a flicker/hard
-        // cut than a smooth change, which is what "kerasa lompat lompat
-        // pas pindah tab" was reporting). 220ms — still snappy, but enough
-        // for the fade to actually be visible frame-to-frame.
+        // Tab routes: cross-fade WITH a small vertical settle (not slide,
+        // and not fade-only). The previous fade-only version was still
+        // reported as feeling like a jump cut even at 220ms — a pure
+        // opacity transition has no motion for the eye to follow, so two
+        // completely different, static-in-place screens crossfading reads
+        // as a cut the instant the fade finishes, no matter how long the
+        // fade itself takes. Adding a small vertical offset (16dp) gives
+        // the eye an actual movement to track, which is what makes a
+        // transition read as "smooth" rather than "jump-cut", while
+        // staying subtle enough not to look like a full slide-navigation
+        // push (this is a same-level tab switch, not drilling into a
+        // screen). EaseOutCubic on enter / EaseInCubic on exit gives the
+        // incoming screen a gentle deceleration instead of a linear pace.
         val tabFadeDuration = 220
+        val tabEnter = fadeIn(animationSpec = tween(tabFadeDuration)) +
+            slideInVertically(
+                initialOffsetY = { it / 24 },
+                animationSpec = tween(tabFadeDuration, easing = EaseOutCubic)
+            )
+        val tabExit = fadeOut(animationSpec = tween(tabFadeDuration)) +
+            slideOutVertically(
+                targetOffsetY = { -it / 24 },
+                animationSpec = tween(tabFadeDuration, easing = EaseInCubic)
+            )
         composable(
             "home",
-            enterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            exitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            popExitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) }
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
         ) {
             HomeScreen(
                 pendingImportUri = pendingImportUri,
@@ -293,10 +314,10 @@ private fun NyasarNavHost(
         }
         composable(
             "history",
-            enterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            exitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            popExitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) }
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
         ) {
             val scope = androidx.compose.runtime.rememberCoroutineScope()
             val context = androidx.compose.ui.platform.LocalContext.current
@@ -400,10 +421,10 @@ private fun NyasarNavHost(
                 navArgument("routeId") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("autoStart") { type = NavType.BoolType; defaultValue = true }
             ),
-            enterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            exitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            popExitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) }
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
         ) { backStackEntry ->
             val routeId = backStackEntry.arguments?.getString("routeId")
             val autoStart = backStackEntry.arguments?.getBoolean("autoStart") ?: true
@@ -483,10 +504,10 @@ private fun NyasarNavHost(
         }
         composable(
             "settings",
-            enterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            exitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            popExitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) }
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
         ) {
             SettingsScreen(
                 onOpenOfflineMaps = { navController.navigate("offline-maps") },
@@ -495,10 +516,10 @@ private fun NyasarNavHost(
         }
         composable(
             "track-and-maps",
-            enterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            exitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },
-            popExitTransition = { fadeOut(animationSpec = tween(tabFadeDuration)) }
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
         ) {
             TrackAndMapsScreen(
                 onOpenRoute = { routeId -> navController.navigate("preview/$routeId") },

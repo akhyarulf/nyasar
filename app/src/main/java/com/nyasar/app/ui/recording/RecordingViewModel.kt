@@ -137,7 +137,24 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         if (!locationRepository.hasLocationPermission()) return
         previewLocationJob = viewModelScope.launch {
             locationRepository.observeLocation().collect { fix ->
-                _previewLocation.value = fix
+                // Bug: camera defaults to follow-user (FOLLOW_NORTH_UP) on
+                // this screen, and NyasarMapView's animateCamera runs on
+                // every fix with no accuracy gate — so the first several
+                // fixes off a cold GPS lock (which can be off by hundreds
+                // of meters before the radio settles) each yanked the
+                // camera to a wildly different spot, animated smoothly
+                // each time but landing somewhere new every time, reading
+                // as a jump cut rather than "no animation" (the animation
+                // itself was never the problem). RecordingEngine's own
+                // recording-acceptance filter is 100m (P3I) — deliberately
+                // tighter here (30m) since this only gates *camera
+                // movement*, not whether a fix is kept, and early
+                // GPS_PROVIDER fixes indoors/near buildings routinely land
+                // in the 100-500m range, which is still a visible jump for
+                // a map that's supposed to be centered on the user.
+                if (fix.accuracyMeters <= 30f) {
+                    _previewLocation.value = fix
+                }
             }
         }
     }

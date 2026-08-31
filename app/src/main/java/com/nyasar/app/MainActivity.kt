@@ -264,8 +264,13 @@ private fun NyasarNavHost(
                 animationSpec = tween(slideAnimationDuration)
             ) + fadeOut(animationSpec = tween(slideAnimationDuration / 2)) }
         ) {
-        // Tab routes: cross-fade (not slide) for bottom-nav tab switching
-        val tabFadeDuration = 150
+        // Tab routes: cross-fade (not slide) for bottom-nav tab switching.
+        // Was 150ms — shorter than a cross-fade needs to actually read as
+        // a transition (a fade that quick lands closer to a flicker/hard
+        // cut than a smooth change, which is what "kerasa lompat lompat
+        // pas pindah tab" was reporting). 220ms — still snappy, but enough
+        // for the fade to actually be visible frame-to-frame.
+        val tabFadeDuration = 220
         composable(
             "home",
             enterTransition = { fadeIn(animationSpec = tween(tabFadeDuration)) },

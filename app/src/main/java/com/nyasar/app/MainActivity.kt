@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Box
@@ -172,6 +173,41 @@ private fun NyasarNavHost(
     // hoisting recording state to this level.
     var recordingActive by remember { mutableStateOf(false) }
     val isRecordingRoute = currentRoute?.startsWith("recording?") == true
+    // Fix ("keluar dari Record selalu balik ke Home, meski masuknya dari
+    // Library/History/dst"): Record's own onExit just does a plain
+    // popBackStack(), which pops to whatever's still on the stack — and
+    // every tab entry (including the one you were on right before tapping
+    // Record) uses popUpTo(start){saveState=true}, which REMOVES that tab
+    // from the back stack (saveState only preserves its scroll/UI state
+    // for restoreState to pick back up later, it doesn't leave the entry
+    // itself in place). So by the time you're inside Record, the stack
+    // has nothing from Library left to pop back to — it falls through to
+    // "home", the start destination, regardless of which tab you actually
+    // came from.
+    //
+    // Fix: remember the last main-tab route seen (only updates while
+    // *not* on a recording route, so it always holds "the tab you were on
+    // right before Record", never overwritten by Record itself). Record's
+    // onExit below navigates back to that tab explicitly, using the exact
+    // same popUpTo/saveState/restoreState pattern onTabSelected already
+    // uses for every other tab switch — this is still "switch tabs", not
+    // a new kind of navigation, so it stays consistent with how tab state
+    // (scroll position etc.) is preserved everywhere else.
+    var lastTabRoute by rememberSaveable { mutableStateOf("home") }
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != null && !isRecordingRoute && currentRoute in BOTTOM_BAR_ROUTES) {
+            lastTabRoute = currentRoute
+        }
+    }
+    val exitRecordingToLastTab: () -> Unit = {
+        navController.navigate(lastTabRoute) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
     val showBottomBar = when {
         // On a recording route: always hide to maximize map readability.
         isRecordingRoute -> false
@@ -473,7 +509,7 @@ private fun NyasarNavHost(
             RecordingScreen(
                 routeId = routeId,
                 autoStart = autoStart,
-                onExit = { navController.popBackStack() },
+                onExit = exitRecordingToLastTab,
                 // Navigate to the dedicated route picker screen
                 // (separated from Library's TrackAndMapsScreen).
                 onAddRoute = { navController.navigate("route-picker") },

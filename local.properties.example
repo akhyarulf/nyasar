@@ -1,4 +1,5 @@
 # Copy this file to local.properties (which is gitignored) and fill in:
 sdk.dir=/path/to/Android/sdk
 
-# No API key needed — OpenFreeMap is the only map provider and requires none.
+# Get a free key at https://cloud.maptiler.com/account/keys/
+MAPTILER_API_KEY=your_maptiler_key_here

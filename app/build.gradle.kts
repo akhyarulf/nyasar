@@ -1,3 +1,4 @@
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -15,6 +16,19 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0-p0"
+
+        // MapTiler API key is injected via local.properties -> BuildConfig,
+        // never hardcoded and never committed.
+        val localProps = Properties()
+        val localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) {
+            localProps.load(localPropsFile.inputStream())
+        }
+        buildConfigField(
+            "String",
+            "MAPTILER_API_KEY",
+            "\"${localProps.getProperty("MAPTILER_API_KEY", "")}\""
+        )
     }
 
     buildTypes {
@@ -68,8 +82,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // MapLibre GL Native SDK for Android — the map engine.
-    // Provider (currently OpenFreeMap; others can be added later) is
-    // injected as a style URL, MapLibre itself has no vendor lock-in.
+    // Provider (MapTiler / OpenFreeMap / other) is injected as a style URL,
+    // MapLibre itself has no vendor lock-in.
     implementation("org.maplibre.gl:android-sdk:12.0.1")
 
     // Room — local storage for imported GPX/routes/waypoints/settings

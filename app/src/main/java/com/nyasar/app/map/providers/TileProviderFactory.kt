@@ -24,15 +24,9 @@ object TileProviderFactory {
         providers.firstOrNull { it.id == id && it.isConfigured() }
             ?: fallback()
 
-    /** Default provider — OpenFreeMap (dark style, matches the look the
-     *  user asked for: "warna dari peta gw disamain kayak strava"). No API
-     *  key needed either, which is a bonus, not the reason for the switch.
-     *  Falls back to MapTiler, then to any configured provider, same
-     *  safety net the previous MapTiler-first default had. */
+    /** Default provider on first install, per current requirements: MapTiler. */
     fun default(): TileProvider =
-        providers.firstOrNull { it.id == "openfreemap" && it.isConfigured() }
-            ?: providers.firstOrNull { it.id == "maptiler" && it.isConfigured() }
-            ?: fallback()
+        providers.firstOrNull { it.id == "maptiler" && it.isConfigured() } ?: fallback()
 
     /** If the preferred provider isn't configured (e.g. no API key set), degrade gracefully. */
     private fun fallback(): TileProvider =

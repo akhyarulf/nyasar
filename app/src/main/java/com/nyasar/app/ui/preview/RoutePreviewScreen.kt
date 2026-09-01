@@ -65,7 +65,7 @@ fun RoutePreviewScreen(
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }
     var showLayerMenu by remember { mutableStateOf(false) }
-    var currentStyleVariant by remember { mutableStateOf(StyleVariant.TOPO) }
+    var currentStyleVariant by remember { mutableStateOf(StyleVariant.OUTDOOR) }
     var currentProvider by remember { mutableStateOf(state.provider) }
 
     Scaffold(

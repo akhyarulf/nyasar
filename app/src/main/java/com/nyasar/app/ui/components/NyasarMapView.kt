@@ -74,7 +74,7 @@ fun NyasarMapView(
     provider: TileProvider,
     /** Standard/Satellite/Terrain (spec P3 §11). Resolved through the same
      *  [TileProvider] abstraction — no provider-specific branching here. */
-    styleVariant: StyleVariant = StyleVariant.TOPO,
+    styleVariant: StyleVariant = StyleVariant.OUTDOOR,
     track: List<TrackPoint>,
     /** The track actually walked so far (recording), drawn as a second line in
      *  a different color from [track] (the planned route). Updates on every

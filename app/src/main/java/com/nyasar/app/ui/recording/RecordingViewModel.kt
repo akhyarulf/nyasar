@@ -87,7 +87,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     val cameraMode: StateFlow<CameraFollowMode> = _cameraMode.asStateFlow()
 
     // --- Map style / layer variant ---
-    private val _styleVariant = MutableStateFlow(StyleVariant.TOPO)
+    private val _styleVariant = MutableStateFlow(StyleVariant.OUTDOOR)
     val styleVariant: StateFlow<StyleVariant> = _styleVariant.asStateFlow()
 
     val followMode: StateFlow<Boolean> = _cameraMode

@@ -240,6 +240,9 @@
 
     <!-- Share -->
     <string name="save_to_gallery">Save to Gallery</string>
+    <string name="saved_to_gallery_success">Saved to Gallery</string>
+    <string name="saved_to_gallery_failed">Failed to save to Gallery</string>
+    <string name="share_failed">Failed to open share menu</string>
 
     <!-- Draw Route -->
     <string name="route_name_hint">Route name</string>

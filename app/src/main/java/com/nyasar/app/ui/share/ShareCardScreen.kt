@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -206,7 +207,18 @@ fun ShareCardScreen(
                 onClick = {
                     val tpl = templates[pagerState.currentPage]
                     val bmp = bitmaps[tpl] ?: return@Button
-                    scope.launch { shareImage(context, bmp, activity.name) }
+                    scope.launch {
+                        val ok = shareImage(context, bmp, activity.name)
+                        // Bug fix: this silently did nothing on failure
+                        // before (share sheet just never opened, no error,
+                        // no indication anything was wrong) — only show a
+                        // Toast on failure since a successful share already
+                        // has its own visible confirmation, the system
+                        // chooser sheet opening.
+                        if (!ok) {
+                            Toast.makeText(context, context.getString(R.string.share_failed), Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -226,7 +238,15 @@ fun ShareCardScreen(
                 onClick = {
                     val tpl = templates[pagerState.currentPage]
                     val bmp = bitmaps[tpl] ?: return@OutlinedButton
-                    scope.launch { saveToGallery(context, bmp, activity.name) }
+                    scope.launch {
+                        val ok = saveToGallery(context, bmp, activity.name)
+                        // Bug fix: saved successfully but gave no feedback
+                        // at all — no toast, no snackbar, nothing — so the
+                        // user had no way to tell it worked short of
+                        // opening their gallery app to check.
+                        val messageRes = if (ok) R.string.saved_to_gallery_success else R.string.saved_to_gallery_failed
+                        Toast.makeText(context, context.getString(messageRes), Toast.LENGTH_SHORT).show()
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -243,8 +263,8 @@ fun ShareCardScreen(
     }
 }
 
-private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap, name: String) {
-    withContext(Dispatchers.IO) {
+private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap, name: String): Boolean {
+    return withContext(Dispatchers.IO) {
         try {
             val safeName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
             val file = File(context.cacheDir, "share_${safeName}_${System.currentTimeMillis()}.png")
@@ -260,17 +280,29 @@ private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap,
                 putExtra(android.content.Intent.EXTRA_TEXT, "Check out my activity: $name #Nyasar")
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.share_via)))
+            val chooser = android.content.Intent.createChooser(intent, context.getString(R.string.share_via))
+            // Bug fix: context here can be a non-Activity context depending
+            // on how LocalContext.current resolves in this composition —
+            // startActivity() on ACTION_CHOOSER from a non-Activity context
+            // requires FLAG_ACTIVITY_NEW_TASK or it silently throws
+            // (caught below, but previously swallowed with only
+            // e.printStackTrace() — invisible to the user, which is
+            // exactly "tombol gaada lanjutannya": the chooser sheet simply
+            // never opened, no crash, no error shown, nothing).
+            chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+            true
         } catch (e: Exception) {
             e.printStackTrace()
+            false
         }
     }
 }
 
 private suspend fun saveToGallery(
     context: android.content.Context, bitmap: Bitmap, name: String
-) {
-    withContext(Dispatchers.IO) {
+): Boolean {
+    return withContext(Dispatchers.IO) {
         try {
             val safeName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
             val filename = "Nyasar_${safeName}_${System.currentTimeMillis()}.png"
@@ -280,19 +312,21 @@ private suspend fun saveToGallery(
                     put(MediaStore.Images.Media.MIME_TYPE, "image/png")
                     put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Nyasar")
                 }
-                context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)?.let { uri ->
-                    context.contentResolver.openOutputStream(uri)?.use { s ->
-                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, s)
-                    }
-                }
+                val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
+                    ?: return@withContext false
+                context.contentResolver.openOutputStream(uri)?.use { s ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, s)
+                } ?: return@withContext false
             } else {
                 val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
                 FileOutputStream(File(dir, filename)).use { s ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, s)
                 }
             }
+            true
         } catch (e: Exception) {
             e.printStackTrace()
+            false
         }
     }
 }

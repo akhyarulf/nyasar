@@ -242,6 +242,9 @@
 
     <!-- Share -->
     <string name="save_to_gallery">Simpan ke Galeri</string>
+    <string name="saved_to_gallery_success">Tersimpan ke Galeri</string>
+    <string name="saved_to_gallery_failed">Gagal menyimpan ke Galeri</string>
+    <string name="share_failed">Gagal membuka menu bagikan</string>
 
     <!-- Draw Route -->
     <string name="route_name_hint">Nama rute</string>

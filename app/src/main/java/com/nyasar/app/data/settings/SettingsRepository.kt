@@ -39,7 +39,7 @@ class SettingsRepository(private val context: Context) {
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
-            providerId = prefs[Keys.PROVIDER_ID] ?: "maptiler",
+            providerId = prefs[Keys.PROVIDER_ID] ?: "openfreemap",
             themeMode = prefs[Keys.THEME_MODE] ?: "system",
             languageMode = prefs[Keys.LANGUAGE_MODE] ?: "system",
             keepScreenOnWhileRecording = prefs[Keys.KEEP_SCREEN_ON] ?: true,

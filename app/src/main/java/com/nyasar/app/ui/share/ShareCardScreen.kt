@@ -83,7 +83,7 @@ fun ShareCardScreen(
         bitmaps = withContext(Dispatchers.Default) {
             templates.associateWith { tpl ->
                 ShareCardGenerator.generate(
-                    activity, trackPoints, tpl,
+                    context, activity, trackPoints, tpl,
                     mapSnapshot = snapshotResult?.bitmap,
                     mapBounds = snapshotResult?.bounds
                 )

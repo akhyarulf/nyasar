@@ -13,7 +13,8 @@ import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
  * for offline use, via MapLibre's built-in OfflineManager. This is what
  * makes "download area before you go" (spec section 10) work regardless
  * of which provider is active — MapLibre's offline database keys regions
- * by style URL, so nothing here special-cases MapTiler vs. OpenFreeMap.
+ * by style URL, so nothing here needs to special-case any particular
+ * provider.
  *
  * Downloaded regions live in MapLibre's own local database (ambient +
  * offline tile cache) — no separate storage system to maintain, and

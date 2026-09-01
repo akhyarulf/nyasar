@@ -9,6 +9,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
+import androidx.core.content.res.ResourcesCompat
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.recording.ShareMetric
@@ -56,6 +57,7 @@ object ShareCardGenerator {
     }
 
     fun generate(
+        context: android.content.Context,
         activity: ActivityEntity,
         track: List<TrackPoint>,
         template: String,
@@ -65,13 +67,13 @@ object ShareCardGenerator {
         val bmp = Bitmap.createBitmap(CARD_W, CARD_H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         when (template) {
-            "map" -> drawMapTemplate(c, activity, track, mapSnapshot, mapBounds)
-            "stats" -> drawStatsTemplate(c, activity, track)
-            "dark_card" -> drawDarkCardTemplate(c, activity, track, mapSnapshot, mapBounds)
-            "route" -> drawRouteTemplate(c, activity, track)
-            "grid" -> drawGridTemplate(c, activity)
-            "minimal" -> drawMinimalTemplate(c, activity)
-            else -> drawMapTemplate(c, activity, track, mapSnapshot, mapBounds)
+            "map" -> drawMapTemplate(c, context, activity, track, mapSnapshot, mapBounds)
+            "stats" -> drawStatsTemplate(c, context, activity, track)
+            "dark_card" -> drawDarkCardTemplate(c, context, activity, track, mapSnapshot, mapBounds)
+            "route" -> drawRouteTemplate(c, context, activity, track)
+            "grid" -> drawGridTemplate(c, context, activity)
+            "minimal" -> drawMinimalTemplate(c, context, activity)
+            else -> drawMapTemplate(c, context, activity, track, mapSnapshot, mapBounds)
         }
         return bmp
     }
@@ -94,7 +96,7 @@ object ShareCardGenerator {
 
     // ── Template 1: Map — real map snapshot + route + stats ──
 
-    private fun drawMapTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?, mapBounds: LatLngBounds?) {
+    private fun drawMapTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?, mapBounds: LatLngBounds?) {
         // snapTop: where the map area starts (0). snapBottom: where the map ends.
         val snapTop = 0f
         val snapBottom = CARD_H * 0.70f
@@ -143,11 +145,11 @@ object ShareCardGenerator {
         val barPaint = Paint().apply { color = Color.parseColor("#99000000"); style = Paint.Style.FILL }
         c.drawRoundRect(RectF(40f, barTop, CARD_W - 40f, CARD_H - 120f), 28f, 28f, barPaint)
 
-        val nameP = textPaint(56f, Typeface.DEFAULT_BOLD, WHITE)
+        val nameP = textPaint(56f, interBold(ctx), WHITE)
         c.drawText(a.name, 80f, barTop + 72f, nameP)
 
-        val statP = textPaint(46f, Typeface.DEFAULT_BOLD, WHITE)
-        val labelP = textPaint(26f, Typeface.DEFAULT, LIGHT)
+        val statP = textPaint(46f, interBold(ctx), WHITE)
+        val labelP = textPaint(26f, interRegular(ctx), LIGHT)
         val y1 = barTop + 140f
         val y2 = barTop + 188f
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
@@ -164,7 +166,7 @@ object ShareCardGenerator {
         }
 
         // Branding
-        c.drawText("Nyasar", 80f, CARD_H - 50f, textPaint(30f, Typeface.DEFAULT, Color.parseColor("#88FFFFFF")))
+        c.drawText("Nyasar", 80f, CARD_H - 50f, textPaint(30f, interRegular(ctx), Color.parseColor("#88FFFFFF")))
     }
 
     // Legacy formatDuration kept for templates that still reference it;
@@ -172,13 +174,13 @@ object ShareCardGenerator {
 
     // ── Template 2: Stats — transparent + large centered stats + small route ──
 
-    private fun drawStatsTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>) {
+    private fun drawStatsTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
 
         val cx = CARD_W / 2f
-        val big = textPaint(120f, Typeface.DEFAULT_BOLD, WHITE)
-        val med = textPaint(48f, Typeface.DEFAULT, WHITE)
-        val sm = textPaint(32f, Typeface.DEFAULT, LIGHT)
+        val big = textPaint(120f, interBold(ctx), WHITE)
+        val med = textPaint(48f, interRegular(ctx), WHITE)
+        val sm = textPaint(32f, interRegular(ctx), LIGHT)
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
@@ -203,13 +205,13 @@ object ShareCardGenerator {
             drawRouteProportional(c, track, 200f, CARD_H * 0.78f, CARD_W - 200f, CARD_H * 0.92f, 10f, TRACK_COLOR)
         }
 
-        c.drawText("Nyasar", cx - textPaint(28f, Typeface.DEFAULT, LIGHT).measureText("Nyasar") / 2,
-            CARD_H - 60f, textPaint(28f, Typeface.DEFAULT, LIGHT))
+        c.drawText("Nyasar", cx - textPaint(28f, interRegular(ctx), LIGHT).measureText("Nyasar") / 2,
+            CARD_H - 60f, textPaint(28f, interRegular(ctx), LIGHT))
     }
 
     // ── Template 3: Dark Card — dark textured bg + inset map card ──
 
-    private fun drawDarkCardTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?, mapBounds: LatLngBounds?) {
+    private fun drawDarkCardTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?, mapBounds: LatLngBounds?) {
         c.drawColor(DARK)
 
         // Subtle diagonal stripes for texture
@@ -303,10 +305,10 @@ object ShareCardGenerator {
         }
 
         val sy = CARD_H * 0.56f
-        c.drawText(a.name, 80f, sy, textPaint(54f, Typeface.DEFAULT_BOLD, WHITE))
+        c.drawText(a.name, 80f, sy, textPaint(54f, interBold(ctx), WHITE))
 
-        val statP = textPaint(44f, Typeface.DEFAULT_BOLD, WHITE)
-        val labelP = textPaint(26f, Typeface.DEFAULT, LIGHT)
+        val statP = textPaint(44f, interBold(ctx), WHITE)
+        val labelP = textPaint(26f, interRegular(ctx), LIGHT)
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
@@ -320,12 +322,12 @@ object ShareCardGenerator {
             c.drawText("Elev Gain", 780f, sy + 70f, labelP); c.drawText("\u2191 $gain", 780f, sy + 120f, statP)
         }
 
-        c.drawText("Nyasar", 80f, CARD_H - 80f, textPaint(30f, Typeface.DEFAULT, Color.parseColor("#66FFFFFF")))
+        c.drawText("Nyasar", 80f, CARD_H - 80f, textPaint(30f, interRegular(ctx), Color.parseColor("#66FFFFFF")))
     }
 
     // ── Template 4: Route — transparent + large centered route ──
 
-    private fun drawRouteTemplate(c: Canvas, a: ActivityEntity, track: List<TrackPoint>) {
+    private fun drawRouteTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
 
         if (track.size >= 2) {
@@ -333,21 +335,21 @@ object ShareCardGenerator {
         }
 
         val sy = CARD_H * 0.75f
-        val statP = textPaint(52f, Typeface.DEFAULT_BOLD, WHITE)
-        val labelP = textPaint(28f, Typeface.DEFAULT, LIGHT)
+        val statP = textPaint(52f, interBold(ctx), WHITE)
+        val labelP = textPaint(28f, interRegular(ctx), LIGHT)
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
         c.drawText("Distance", 80f, sy, labelP); c.drawText(dist, 80f, sy + 55f, statP)
         c.drawText("Time", 500f, sy, labelP); c.drawText(dur, 500f, sy + 55f, statP)
 
-        c.drawText("Nyasar", CARD_W / 2f - textPaint(28f, Typeface.DEFAULT, LIGHT).measureText("Nyasar") / 2,
-            CARD_H - 60f, textPaint(28f, Typeface.DEFAULT, LIGHT))
+        c.drawText("Nyasar", CARD_W / 2f - textPaint(28f, interRegular(ctx), LIGHT).measureText("Nyasar") / 2,
+            CARD_H - 60f, textPaint(28f, interRegular(ctx), LIGHT))
     }
 
     // ── Template 5: Grid — transparent + stat grid ──
 
-    private fun drawGridTemplate(c: Canvas, a: ActivityEntity) {
+    private fun drawGridTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity) {
         c.drawColor(Color.TRANSPARENT)
 
         val col1 = CARD_W * 0.17f
@@ -355,8 +357,8 @@ object ShareCardGenerator {
         val col3 = CARD_W * 0.83f
         val row1 = CARD_H * 0.33f
         val row2 = CARD_H * 0.52f
-        val valP = textPaint(54f, Typeface.DEFAULT_BOLD, WHITE)
-        val lblP = textPaint(26f, Typeface.DEFAULT, LIGHT)
+        val valP = textPaint(54f, interBold(ctx), WHITE)
+        val lblP = textPaint(26f, interRegular(ctx), LIGHT)
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
@@ -391,31 +393,31 @@ object ShareCardGenerator {
         c.drawText("${pointCount(a)}", col3 - valP.measureText("${pointCount(a)}") / 2, row2 + 52f, valP)
 
         c.drawText("Nyasar", CARD_W / 2f - lblP.measureText("Nyasar") / 2,
-            CARD_H - 60f, textPaint(28f, Typeface.DEFAULT, LIGHT))
+            CARD_H - 60f, textPaint(28f, interRegular(ctx), LIGHT))
     }
 
     // ── Template 6: Minimal — solid green + name + big distance ──
 
-    private fun drawMinimalTemplate(c: Canvas, a: ActivityEntity) {
+    private fun drawMinimalTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity) {
         fillGradient(c, PRIMARY, Color.parseColor("#1A2A20"))
 
         val cx = CARD_W / 2f
-        c.drawText(a.name, cx - textPaint(48f, Typeface.DEFAULT_BOLD, WHITE).measureText(a.name) / 2,
-            CARD_H * 0.36f, textPaint(48f, Typeface.DEFAULT_BOLD, WHITE))
+        c.drawText(a.name, cx - textPaint(48f, interBold(ctx), WHITE).measureText(a.name) / 2,
+            CARD_H * 0.36f, textPaint(48f, interBold(ctx), WHITE))
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
-        c.drawText(dist, cx - textPaint(140f, Typeface.DEFAULT_BOLD, WHITE).measureText(dist) / 2,
-            CARD_H * 0.50f, textPaint(140f, Typeface.DEFAULT_BOLD, WHITE))
+        c.drawText(dist, cx - textPaint(140f, interBold(ctx), WHITE).measureText(dist) / 2,
+            CARD_H * 0.50f, textPaint(140f, interBold(ctx), WHITE))
 
-        c.drawText("Distance", cx - textPaint(32f, Typeface.DEFAULT, LIGHT).measureText("Distance") / 2,
-            CARD_H * 0.55f, textPaint(32f, Typeface.DEFAULT, LIGHT))
+        c.drawText("Distance", cx - textPaint(32f, interRegular(ctx), LIGHT).measureText("Distance") / 2,
+            CARD_H * 0.55f, textPaint(32f, interRegular(ctx), LIGHT))
 
         val dur = formatDuration(a.movingTimeMs)
-        c.drawText(dur, cx - textPaint(64f, Typeface.DEFAULT_BOLD, WHITE).measureText(dur) / 2,
-            CARD_H * 0.66f, textPaint(64f, Typeface.DEFAULT_BOLD, WHITE))
+        c.drawText(dur, cx - textPaint(64f, interBold(ctx), WHITE).measureText(dur) / 2,
+            CARD_H * 0.66f, textPaint(64f, interBold(ctx), WHITE))
 
-        c.drawText("Nyasar", cx - textPaint(28f, Typeface.DEFAULT, Color.parseColor("#88FFFFFF")).measureText("Nyasar") / 2,
-            CARD_H - 80f, textPaint(28f, Typeface.DEFAULT, Color.parseColor("#88FFFFFF")))
+        c.drawText("Nyasar", cx - textPaint(28f, interRegular(ctx), Color.parseColor("#88FFFFFF")).measureText("Nyasar") / 2,
+            CARD_H - 80f, textPaint(28f, interRegular(ctx), Color.parseColor("#88FFFFFF")))
     }
 
     // ── Helpers ──
@@ -475,6 +477,21 @@ object ShareCardGenerator {
             floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
         c.drawPaint(Paint().apply { shader = g })
     }
+
+    /**
+     * Inter typefaces for native Canvas text rendering.
+     * Loaded ON via ResourcesCompat.getFont and cached — never re-read per render.
+     */
+    private fun interRegular(context: android.content.Context): Typeface =
+        _interRegular ?: ResourcesCompat.getFont(context, com.nyasar.app.R.font.inter_regular)
+            ?.also { _interRegular = it } ?: Typeface.DEFAULT
+
+    private fun interBold(context: android.content.Context): Typeface =
+        _interBold ?: ResourcesCompat.getFont(context, com.nyasar.app.R.font.inter_bold)
+            ?.also { _interBold = it } ?: Typeface.DEFAULT_BOLD
+
+    private var _interRegular: Typeface? = null
+    private var _interBold: Typeface? = null
 
     private fun textPaint(size: Float, typeface: Typeface, color: Int) = Paint().apply {
         textSize = size; this.typeface = typeface; this.color = color; isAntiAlias = true

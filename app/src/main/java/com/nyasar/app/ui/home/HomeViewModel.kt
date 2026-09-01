@@ -58,7 +58,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val _provider = MutableStateFlow<TileProvider>(TileProviderFactory.default())
     val provider: StateFlow<TileProvider> = _provider.asStateFlow()
 
-    private val _styleVariant = MutableStateFlow(StyleVariant.OUTDOOR)
+    private val _styleVariant = MutableStateFlow(StyleVariant.TOPO)
     val styleVariant: StateFlow<StyleVariant> = _styleVariant.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")

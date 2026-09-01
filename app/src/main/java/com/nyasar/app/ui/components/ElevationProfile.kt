@@ -28,6 +28,9 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.res.ResourcesCompat
+import android.graphics.Typeface
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -72,6 +75,11 @@ fun ElevationProfile(
     val labelColor = Color(0xFF999999)
     val tooltipBg = Color(0xFF1E1E1E)
     val tooltipText = Color(0xFFE0E0E0)
+
+    val context = LocalContext.current
+    val interTypeface: Typeface = remember {
+        ResourcesCompat.getFont(context, R.font.inter_regular) ?: Typeface.DEFAULT
+    }
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -123,6 +131,7 @@ fun ElevationProfile(
                 textSize = 20f
                 isAntiAlias = true
                 textAlign = android.graphics.Paint.Align.RIGHT
+                typeface = interTypeface
             }
 
             for (i in 0..yLabelCount) {
@@ -165,6 +174,7 @@ fun ElevationProfile(
                 textSize = 20f
                 isAntiAlias = true
                 textAlign = android.graphics.Paint.Align.CENTER
+                typeface = interTypeface
             }
             for (i in 0..xLabelCount) {
                 val fraction = i.toFloat() / xLabelCount

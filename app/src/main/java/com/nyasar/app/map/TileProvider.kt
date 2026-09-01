@@ -4,13 +4,13 @@ package com.nyasar.app.map
  * Abstraction over "where map tiles/styles come from".
  *
  * The navigation engine, off-route detection, GPX parsing, and storage
- * layers NEVER reference MapTiler (or any provider) directly. They only
- * ever see a lat/lon track and a GPS position. The map layer is the only
- * place a provider name appears, and it is reached exclusively through
- * this interface + [TileProviderFactory].
+ * layers NEVER reference a specific provider directly. They only ever see
+ * a lat/lon track and a GPS position. The map layer is the only place a
+ * provider name appears, and it is reached exclusively through this
+ * interface + [TileProviderFactory].
  *
- * To add a new provider (OpenFreeMap, MapTiler, a future self-hosted
- * tileserver, etc.) implement this interface and register it in
+ * To add a new provider (a paid API, a future self-hosted tileserver,
+ * etc.) implement this interface and register it in
  * [TileProviderFactory]. Nothing else in the app needs to change.
  */
 interface TileProvider {

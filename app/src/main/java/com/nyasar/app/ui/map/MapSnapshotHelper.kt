@@ -46,7 +46,7 @@ data class MapSnapshotResult(
 object MapSnapshotHelper {
 
     private const val CACHE_DIR = "map_snapshots"
-    private const val CACHE_VERSION = 8 // bump: TRACK_COLOR green + verticalOffsetFraction for bottom gradient alignment
+    private const val CACHE_VERSION = 9 // bump: removed verticalOffsetFraction from Share Card map request — it was cropping the visible route toward the gradient edge instead of showing the full route like List History does
     // 25m floor (was 100m) — 100m alone was already 5-10x wider than a
     // typical very-short recording's own span (a few meters to a few tens
     // of meters), so those tracks rendered as a tiny speck regardless of

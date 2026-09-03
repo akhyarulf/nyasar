@@ -72,12 +72,18 @@ fun ShareCardScreen(
                 trackPoints = trackPoints.map { it.lat to it.lon },
                 widthPx = 1080,
                 heightPx = 1344, // 70% of 1920
-                styleUrl = provider.styleUrl(),
-                // Bottom ~30% of the map bitmap is covered by a dark gradient
-                // overlay for text readability. Shift the camera bounds upward
-                // so the track is centered in the visible (top) area instead
-                // of being biased toward the hidden bottom portion.
-                verticalOffsetFraction = 0.15
+                styleUrl = provider.styleUrl()
+                // NOTE: verticalOffsetFraction removed — it was shifting the
+                // visible camera area upward by 15%, which pushed the
+                // bottom end of longer routes toward/under the map's edge
+                // and made the route look "cropped" compared to List
+                // History's snapshot (which uses no offset at all, at a
+                // different 1080x640 aspect ratio). The dark gradient at
+                // the bottom of this template is for text legibility only
+                // and doesn't need the whole route composition sacrificed
+                // to avoid it — computeBounds() already fits the full
+                // route with padding for this card's own aspect ratio,
+                // same as it does for List History.
             )
         }
         bitmaps = withContext(Dispatchers.Default) {

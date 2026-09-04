@@ -106,7 +106,7 @@ fun HomeScreen(
     val editingWaypoint by waypointViewModel.editingWaypoint.collectAsState()
 
     var showRoutesSheet by remember { mutableStateOf(false) }
-    var showLayerMenu by remember { mutableStateOf(false) }
+    var showBasemapSheet by remember { mutableStateOf(false) }
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }
 
@@ -336,26 +336,7 @@ fun HomeScreen(
         ) {
             Box {
                 RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
-                    showLayerMenu = true
-                }
-                DropdownMenu(expanded = showLayerMenu, onDismissRequest = { showLayerMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.layer_standard)) },
-                        onClick = { viewModel.setStyleVariant(StyleVariant.OUTDOOR); showLayerMenu = false }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.layer_satellite)) },
-                        onClick = { viewModel.setStyleVariant(StyleVariant.SATELLITE); showLayerMenu = false }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.layer_terrain)) },
-                        onClick = { viewModel.setStyleVariant(StyleVariant.TOPO); showLayerMenu = false }
-                    )
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.change_provider, provider.displayName)) },
-                        onClick = { viewModel.cycleLayer(); showLayerMenu = false }
-                    )
+                    showBasemapSheet = true
                 }
             }
             RoundIconButton(
@@ -421,6 +402,17 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showBasemapSheet) {
+        com.nyasar.app.ui.components.BasemapPickerSheet(
+            selectedVariant = styleVariant,
+            onSelect = { variant ->
+                viewModel.setStyleVariant(variant)
+                showBasemapSheet = false
+            },
+            onDismiss = { showBasemapSheet = false }
+        )
     }
 
     if (showRoutesSheet) {

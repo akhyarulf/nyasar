@@ -220,6 +220,7 @@
 
     <!-- Settings section headers -->
     <string name="map_section">MAP</string>
+    <string name="map_types_title">Map Types</string>
     <string name="gps_section">GPS</string>
     <string name="recording_section">RECORDING</string>
     <string name="offline_section">OFFLINE</string>

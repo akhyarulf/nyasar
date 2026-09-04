@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.gpx.model.GpxWaypoint
 import com.nyasar.app.map.StyleVariant
-import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.ui.components.CompassButton
 import com.nyasar.app.ui.components.ElevationProfile
@@ -64,7 +63,7 @@ fun RoutePreviewScreen(
     // Map controls state
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }
-    var showLayerMenu by remember { mutableStateOf(false) }
+    var showBasemapSheet by remember { mutableStateOf(false) }
     var currentStyleVariant by remember { mutableStateOf(StyleVariant.OUTDOOR) }
     var currentProvider by remember { mutableStateOf(state.provider) }
 
@@ -155,35 +154,9 @@ fun RoutePreviewScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Layer button
-                    Box {
-                        RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
-                            showLayerMenu = true
-                        }
-                        DropdownMenu(expanded = showLayerMenu, onDismissRequest = { showLayerMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.layer_standard)) },
-                                onClick = { currentStyleVariant = StyleVariant.OUTDOOR; showLayerMenu = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.layer_satellite)) },
-                                onClick = { currentStyleVariant = StyleVariant.SATELLITE; showLayerMenu = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.layer_terrain)) },
-                                onClick = { currentStyleVariant = StyleVariant.TOPO; showLayerMenu = false }
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.change_provider, currentProvider.displayName)) },
-                                onClick = {
-                                    val providers = TileProviderFactory.all()
-                                    val idx = providers.indexOf(currentProvider)
-                                    currentProvider = providers[(idx + 1) % providers.size]
-                                    showLayerMenu = false
-                                }
-                            )
-                        }
+                    // Layer button — opens Strava-style basemap grid sheet
+                    RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
+                        showBasemapSheet = true
                     }
                     // Location button — center on user GPS position + toggle heading
                     RoundIconButton(
@@ -302,6 +275,17 @@ fun RoutePreviewScreen(
 
     selectedWaypoint?.let { wp ->
         WaypointDetailSheet(waypoint = wp, onDismiss = { selectedWaypoint = null })
+    }
+
+    if (showBasemapSheet) {
+        com.nyasar.app.ui.components.BasemapPickerSheet(
+            selectedVariant = currentStyleVariant,
+            onSelect = { variant ->
+                currentStyleVariant = variant
+                showBasemapSheet = false
+            },
+            onDismiss = { showBasemapSheet = false }
+        )
     }
 }
 

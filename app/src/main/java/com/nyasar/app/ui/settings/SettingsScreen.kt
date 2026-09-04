@@ -53,49 +53,10 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Text(stringResource(R.string.map_section), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(4.dp))
-            Text(stringResource(R.string.map_provider), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.map_provider_desc),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(8.dp))
-
-            viewModel.availableProviders.forEach { provider ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = provider.id == current.providerId,
-                            onClick = { viewModel.selectProvider(provider.id) }
-                        )
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = provider.id == current.providerId,
-                        onClick = { viewModel.selectProvider(provider.id) },
-                        enabled = provider.isConfigured()
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column {
-                        Text(provider.displayName)
-                        if (!provider.isConfigured()) {
-                            Text(
-                                stringResource(R.string.not_configured),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(24.dp))
+            // NOTE: "Map provider" picker intentionally removed from Settings —
+            // basemap selection now lives in the in-map BasemapPickerSheet
+            // (Strava-style grid). The persisted providerId state in
+            // SettingsRepository is untouched: map screens still read it.
 
             Text(stringResource(R.string.gps_section), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))

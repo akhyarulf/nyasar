@@ -115,7 +115,7 @@ fun RecordingScreen(
     // of this function for why.
     var showStopConfirm by remember { mutableStateOf(false) }
     var showNotMovingFromStop by remember { mutableStateOf(false) }
-    var showLayerMenu by remember { mutableStateOf(false) }
+    var showBasemapSheet by remember { mutableStateOf(false) }
     val styleVariant by viewModel.styleVariant.collectAsState()
     val provider = remember { TileProviderFactory.default() }
     val userWaypoints by waypointViewModel.waypoints.collectAsState()
@@ -486,8 +486,8 @@ fun RecordingScreen(
                 .padding(top = 12.dp, end = 12.dp)
         )
 
-        // Layer switcher — same pattern as HomeScreen: DropdownMenu with
-        // style variant + provider cycle, positioned above the recenter button.
+        // Layer switcher — same pattern as HomeScreen: opens the Strava-style
+        // BasemapPickerSheet (grid with thumbnails), positioned above the recenter button.
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -500,32 +500,13 @@ fun RecordingScreen(
                 shadowElevation = 2.dp,
                 modifier = Modifier.size(48.dp)
             ) {
-                IconButton(onClick = { showLayerMenu = true }) {
+                IconButton(onClick = { showBasemapSheet = true }) {
                     Icon(
                         Icons.Default.Layers,
                         contentDescription = stringResource(R.string.map_layer_cd),
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
-            DropdownMenu(expanded = showLayerMenu, onDismissRequest = { showLayerMenu = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.layer_standard)) },
-                    onClick = { viewModel.setStyleVariant(StyleVariant.OUTDOOR); showLayerMenu = false }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.layer_satellite)) },
-                    onClick = { viewModel.setStyleVariant(StyleVariant.SATELLITE); showLayerMenu = false }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.layer_terrain)) },
-                    onClick = { viewModel.setStyleVariant(StyleVariant.TOPO); showLayerMenu = false }
-                )
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.change_provider, provider.displayName)) },
-                    onClick = { viewModel.cycleLayer(); showLayerMenu = false }
-                )
             }
         }
 
@@ -761,6 +742,17 @@ fun RecordingScreen(
                 showSportFilterSheet = false
             },
             onDismiss = { showSportFilterSheet = false }
+        )
+    }
+
+    if (showBasemapSheet) {
+        com.nyasar.app.ui.components.BasemapPickerSheet(
+            selectedVariant = styleVariant,
+            onSelect = { variant ->
+                viewModel.setStyleVariant(variant)
+                showBasemapSheet = false
+            },
+            onDismiss = { showBasemapSheet = false }
         )
     }
 

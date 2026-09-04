@@ -2,6 +2,19 @@ package com.nyasar.app.ui.recording
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,6 +23,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -378,8 +393,14 @@ fun RecordingScreen(
     // Same fix as NavigationScreen: measure the stat bar's real height
     // instead of guessing a fixed dp offset for the buttons above it.
     val density = androidx.compose.ui.platform.LocalDensity.current
-    var statBarHeight by remember { mutableStateOf(180.dp) }
-    val bottomClearance = statBarHeight + 12.dp
+    var statBarHeightTarget by remember { mutableStateOf(180.dp) }
+    // Animate so the floating map buttons glide in sync with the stats
+    // panel's expand/collapse instead of jumping between positions.
+    val bottomClearance = animateDpAsState(
+        targetValue = statBarHeightTarget + 12.dp,
+        animationSpec = tween(260, easing = FastOutSlowInEasing),
+        label = "bottomClearance"
+    ).value
 
     Box(Modifier.fillMaxSize()) {
         NyasarMapView(
@@ -595,38 +616,67 @@ fun RecordingScreen(
             }
         }
 
-        // Strava-style stat card (spec: dark solid panel, not theme-adaptive
-        // surface) — big 3-column primary stats (Time/Distance/Elevation
-        // gain), expand affordance top-right, secondary stats (moving-time-
-        // only vs speed) folded into the expanded state instead of always
-        // shown, keeping the collapsed card matching the reference design.
+        // ===== Strava-style recording panel (redesign) =====
+        // Two animated states driven by [statsExpanded]:
+        //  • Collapsed — compact rounded card floating over the map (drag
+        //    handle, sport header, primary stat row, controls); the map
+        //    stays dominant (reference screenshot 2).
+        //  • Expanded — tall Strava record-screen panel: giant timer, hero
+        //    distance, elevation pair, split pace (reference screenshot 1)
+        //    with the controls pinned underneath.
+        // Height changes animate (animateContentSize), sections fade/slide,
+        // the REC dot pulses, and every color is a MaterialTheme token so
+        // light/dark both render correctly.
         var statsExpanded by remember { mutableStateOf(false) }
+        val sportLabel = SportType.fromString(state.sportType).label
+        val currentElevationM = state.recordedTrack.lastOrNull()?.elevationM
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                // Bug fix: card had no bottom safe-area padding at all, so
-                // the last stat row (and the controls below it) got cut off
-                // by the system navigation bar on devices with a gesture
-                // bar/nav buttons — visible in the reported screenshot as
-                // "Elevation gain (m)" being sliced off at the bottom edge.
-                // Compass/Recenter already had .safeDrawingPadding(); this
-                // card just never got the same treatment.
+                // Bottom safe-area padding so the controls are never cut
+                // off by the gesture bar / nav buttons.
                 .navigationBarsPadding()
                 .onSizeChanged { size ->
-                    statBarHeight = with(density) { size.height.toDp() }
+                    statBarHeightTarget = with(density) { size.height.toDp() }
                 },
-            // Theme-aware: follows MaterialTheme (light/dark) instead of
-            // a hardcoded dark surface that stayed black in light mode.
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
             color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shadowElevation = 8.dp
         ) {
-            Column(Modifier.padding(20.dp)) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .animateContentSize(animationSpec = tween(260, easing = FastOutSlowInEasing))
+                    .padding(start = 20.dp, end = 20.dp, bottom = 20.dp)
+            ) {
+                // Drag handle — tapping it toggles the panel too.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 10.dp, bottom = 2.dp)
+                        .width(40.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
+                        .clickable { statsExpanded = !statsExpanded }
+                )
+                // Sport header + expand/collapse toggle — the whole row is
+                // tappable, like Strava's sheet header.
                 Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { statsExpanded = !statsExpanded }
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Text(
+                        sportLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     IconButton(onClick = { statsExpanded = !statsExpanded }) {
                         Icon(
                             if (statsExpanded) Icons.Default.CloseFullscreen else Icons.Default.OpenInFull,
@@ -635,8 +685,13 @@ fun RecordingScreen(
                         )
                     }
                 }
-                Spacer(Modifier.height(4.dp))
-                // Strava-style: Distance as hero metric (center), Time left, Elevation right
+                // --- Collapsed stats: compact 3-column primary row ---
+                AnimatedVisibility(
+                    visible = !statsExpanded,
+                    enter = fadeIn(tween(220)) + expandVertically(tween(260)),
+                    exit = fadeOut(tween(160)) + shrinkVertically(tween(220))
+                ) {
+                // Distance as hero metric (center), Time left, Elevation right
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -658,35 +713,92 @@ fun RecordingScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                }
 
-                if (statsExpanded) {
-                    Spacer(Modifier.height(20.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        BigStatBlock(formatDuration(state.movingTimeMs), stringResource(R.string.recording_stat_moving_time), compact = true, modifier = Modifier.weight(1f))
-                        BigStatBlock(
-                            com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
-                            stringResource(R.string.recording_stat_speed),
-                            compact = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        BigStatBlock(
-                            com.nyasar.app.util.SpeedUtils.formatSpeed(state.avgSpeedKmh, speedUnit, 1),
-                            stringResource(R.string.recording_stat_avg_speed),
-                            compact = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        BigStatBlock(
-                            com.nyasar.app.util.SpeedUtils.formatPace(state.avgSpeedKmh, speedUnit),
-                            stringResource(R.string.pace),
-                            compact = true,
-                            modifier = Modifier.weight(1f)
-                        )
+                // --- Expanded stats (Strava record-screen style): giant
+                // timer, hero distance, elevation pair, split pace, then
+                // the secondary 4-up strip. Scrolls if it outgrows very
+                // short screens; giant numbers step down one size below
+                // 360dp so "00:00:00" never overflows.
+                AnimatedVisibility(
+                    visible = statsExpanded,
+                    enter = fadeIn(tween(220)) + expandVertically(tween(260)),
+                    exit = fadeOut(tween(160)) + shrinkVertically(tween(220))
+                ) {
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        val narrow = maxWidth < 360.dp
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 430.dp)
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Spacer(Modifier.height(4.dp))
+                            BigStatBlock(
+                                formatDuration(state.elapsedTimeMs),
+                                "Time",
+                                valueStyle = if (narrow) MaterialTheme.typography.displaySmall else MaterialTheme.typography.displayMedium,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(20.dp))
+                            BigStatBlock(
+                                "%.2f".format(state.distanceMeters / 1000.0),
+                                "Distance (km)",
+                                valueStyle = if (narrow) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displayLarge,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(24.dp))
+                            Row(Modifier.fillMaxWidth()) {
+                                BigStatBlock(
+                                    state.elevationGainM.roundToInt().toString(),
+                                    "Naik (m)",
+                                    valueStyle = MaterialTheme.typography.headlineMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                BigStatBlock(
+                                    currentElevationM?.roundToInt()?.toString() ?: "-",
+                                    "Elevation (m)",
+                                    valueStyle = MaterialTheme.typography.headlineMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Spacer(Modifier.height(16.dp))
+                            BigStatBlock(
+                                com.nyasar.app.util.SpeedUtils.formatPace(state.currentSpeedKmh, speedUnit),
+                                "Split avg. (/km)",
+                                valueStyle = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(20.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Spacer(Modifier.height(16.dp))
+                            Row(Modifier.fillMaxWidth()) {
+                                BigStatBlock(formatDuration(state.movingTimeMs), stringResource(R.string.recording_stat_moving_time), compact = true, modifier = Modifier.weight(1f))
+                                BigStatBlock(
+                                    com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
+                                    stringResource(R.string.recording_stat_speed),
+                                    compact = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                BigStatBlock(
+                                    com.nyasar.app.util.SpeedUtils.formatSpeed(state.avgSpeedKmh, speedUnit, 1),
+                                    stringResource(R.string.recording_stat_avg_speed),
+                                    compact = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                BigStatBlock(
+                                    com.nyasar.app.util.SpeedUtils.formatPace(state.avgSpeedKmh, speedUnit),
+                                    stringResource(R.string.pace),
+                                    compact = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
                 RecordingControls(
                     status = effectiveStatus,
                     routeName = previewRouteName,
@@ -925,12 +1037,45 @@ private fun StatusChip(status: RecordingStatus, isAutoPaused: Boolean = false, g
         status == RecordingStatus.PAUSED -> MaterialTheme.colorScheme.error to "❚❚ DIJEDA"
         else -> MaterialTheme.colorScheme.outline to "SELESAI"
     }
-    Text(
-        label,
-        color = color,
+    // RECORDING pulses its dot (Strava-style "live" cue); other states
+    // stay static.
+    val pulsing = status == RecordingStatus.RECORDING
+    val pulseAlpha = if (pulsing) {
+        rememberInfiniteTransition(label = "recPulse").animateFloat(
+            initialValue = 1f,
+            targetValue = 0.35f,
+            animationSpec = infiniteRepeatable(tween(750), RepeatMode.Reverse),
+            label = "recDotAlpha"
+        ).value
+    } else {
+        1f
+    }
+    Row(
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-        style = MaterialTheme.typography.labelLarge
-    )
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (pulsing) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .graphicsLayer { alpha = pulseAlpha }
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                label.removePrefix("● "),
+                color = color,
+                style = MaterialTheme.typography.labelLarge
+            )
+        } else {
+            Text(
+                label,
+                color = color,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
 }
 
 @Composable
@@ -939,6 +1084,7 @@ private fun BigStatBlock(
     label: String,
     compact: Boolean = false,
     isHero: Boolean = false,
+    valueStyle: androidx.compose.ui.text.TextStyle? = null,
     modifier: Modifier = Modifier
 ) {
     // Clamp fontScale so 3 big stat numbers never overlap on narrow
@@ -957,7 +1103,7 @@ private fun BigStatBlock(
         androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides clampedDensity) {
             Text(
                 value,
-                style = when {
+                style = valueStyle ?: when {
                     isHero -> MaterialTheme.typography.headlineLarge
                     compact -> MaterialTheme.typography.titleLarge
                     else -> MaterialTheme.typography.headlineMedium
@@ -1219,5 +1365,7 @@ private fun formatDuration(ms: Long): String {
     val h = totalSeconds / 3600
     val m = (totalSeconds % 3600) / 60
     val s = totalSeconds % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
+    // Always HH:MM:SS (Strava-style) so the giant timer never reflows its
+    // width mid-recording when the hour digit first appears.
+    return "%02d:%02d:%02d".format(h, m, s)
 }

@@ -616,8 +616,10 @@ fun RecordingScreen(
                 .onSizeChanged { size ->
                     statBarHeight = with(density) { size.height.toDp() }
                 },
-            color = Color(0xFF16181A),
-            contentColor = Color.White
+            // Theme-aware: follows MaterialTheme (light/dark) instead of
+            // a hardcoded dark surface that stayed black in light mode.
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         ) {
             Column(Modifier.padding(20.dp)) {
                 Row(
@@ -629,7 +631,7 @@ fun RecordingScreen(
                         Icon(
                             if (statsExpanded) Icons.Default.CloseFullscreen else Icons.Default.OpenInFull,
                             contentDescription = if (statsExpanded) stringResource(R.string.collapse_stats_cd) else stringResource(R.string.expand_stats_cd),
-                            tint = Color.White.copy(alpha = 0.7f)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -659,7 +661,7 @@ fun RecordingScreen(
 
                 if (statsExpanded) {
                     Spacer(Modifier.height(20.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         BigStatBlock(formatDuration(state.movingTimeMs), stringResource(R.string.recording_stat_moving_time), compact = true, modifier = Modifier.weight(1f))
@@ -910,7 +912,7 @@ private fun StatusChip(status: RecordingStatus, isAutoPaused: Boolean = false, g
     // it affects whether new points are even being recorded accurately.
     val (color, label) = when {
         gpsHealth == com.nyasar.app.recording.GpsHealth.LOST -> MaterialTheme.colorScheme.error to "⚠ GPS HILANG"
-        gpsHealth == com.nyasar.app.recording.GpsHealth.WEAK -> Color(0xFFF9A825) to "⚠ GPS LEMAH"
+        gpsHealth == com.nyasar.app.recording.GpsHealth.WEAK -> MaterialTheme.colorScheme.error to "⚠ GPS LEMAH"
         // Part 5 cosmetic fix: "MEMULAI…" implied recording was already in
         // progress/starting up, even while the user was still sitting on
         // the two-button IDLE screen having tapped nothing yet — genuinely
@@ -918,9 +920,9 @@ private fun StatusChip(status: RecordingStatus, isAutoPaused: Boolean = false, g
         // actually true at this point: idle and ready for the user's next
         // action, no process running behind the scenes.
         status == RecordingStatus.IDLE -> MaterialTheme.colorScheme.outline to "SIAP"
-        status == RecordingStatus.RECORDING -> Color(0xFF2E7D32) to "● RECORDING"
-        status == RecordingStatus.PAUSED && isAutoPaused -> Color(0xFFF9A825) to "❚❚ DIJEDA OTOMATIS"
-        status == RecordingStatus.PAUSED -> Color(0xFFF9A825) to "❚❚ DIJEDA"
+        status == RecordingStatus.RECORDING -> MaterialTheme.colorScheme.primary to "● RECORDING"
+        status == RecordingStatus.PAUSED && isAutoPaused -> MaterialTheme.colorScheme.error to "❚❚ DIJEDA OTOMATIS"
+        status == RecordingStatus.PAUSED -> MaterialTheme.colorScheme.error to "❚❚ DIJEDA"
         else -> MaterialTheme.colorScheme.outline to "SELESAI"
     }
     Text(
@@ -960,7 +962,7 @@ private fun BigStatBlock(
                     compact -> MaterialTheme.typography.titleLarge
                     else -> MaterialTheme.typography.headlineMedium
                 },
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -969,7 +971,7 @@ private fun BigStatBlock(
         Text(
             label,
             style = MaterialTheme.typography.labelMedium,
-            color = Color.White.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -1019,7 +1021,7 @@ private fun RecordingControls(
                         Icon(
                             sportType.icon,
                             contentDescription = stringResource(R.string.select_sport_cd),
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -1027,7 +1029,7 @@ private fun RecordingControls(
                     Text(
                         sportType.label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 
@@ -1043,7 +1045,7 @@ private fun RecordingControls(
                             Text(
                                 it,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1056,7 +1058,7 @@ private fun RecordingControls(
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = stringResource(R.string.delete_route_cd),
-                                        tint = Color.White.copy(alpha = 0.6f),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -1073,7 +1075,7 @@ private fun RecordingControls(
                     Text(
                         stringResource(R.string.start_recording),
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 
@@ -1086,13 +1088,13 @@ private fun RecordingControls(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.1f)),
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Route,
                             contentDescription = stringResource(R.string.pick_route_cd),
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -1100,7 +1102,7 @@ private fun RecordingControls(
                     Text(
                         stringResource(R.string.add_route_label),
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1137,8 +1139,8 @@ private fun RecordingControls(
                     onClick = onStop,
                     modifier = Modifier.weight(1f).height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White.copy(alpha = 0.12f),
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 ) {
                     Icon(Icons.Default.Stop, contentDescription = null)
@@ -1164,7 +1166,7 @@ private fun RecordingControls(
 @Composable
 private fun RecordingSummaryOverlay(summary: RecordingUiState, onBack: () -> Unit) {
     val elevations = remember(summary.recordedTrack) { summary.recordedTrack.mapNotNull { it.elevationM } }
-    Surface(Modifier.fillMaxSize(), color = Color(0xFF16181A), contentColor = Color.White) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface) {
         Column(
             Modifier.fillMaxSize().padding(24.dp).verticalScrollCompat(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -1204,7 +1206,7 @@ private fun SummaryRow(label: String, value: String) {
     ) {
         Text(value, style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(2.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.6f))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

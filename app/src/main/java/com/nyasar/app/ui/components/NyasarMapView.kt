@@ -196,7 +196,7 @@ fun NyasarMapView(
             // ("kompas ketutup") — and it's redundant with our own compass
             // UI everywhere it would show up anyway.
             map.uiSettings.isCompassEnabled = false
-            map.setStyle(provider.styleUrlFor(basemap ?: styleVariant.toBasemapEntry())) { style ->
+            map.setStyle(provider.styleUrlFor(basemap ?: styleVariant.toBasemapEntry(), context)) { style ->
                 if (style.getImage("nyasar-heading-arrow") == null) {
                     style.addImage("nyasar-heading-arrow", headingArrowBitmap())
                 }

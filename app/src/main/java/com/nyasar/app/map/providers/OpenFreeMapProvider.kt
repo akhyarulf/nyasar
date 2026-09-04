@@ -1,5 +1,6 @@
 package com.nyasar.app.map.providers
 
+import android.content.Context
 import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.TileProvider
@@ -24,7 +25,11 @@ class OpenFreeMapProvider : TileProvider {
         return "https://tiles.openfreemap.org/styles/liberty"
     }
 
-    override fun styleUrlFor(entry: BasemapEntry): String {
-        return entry.styleUrl ?: RasterStyleJson.build(entry)
+    override fun styleUrlFor(entry: BasemapEntry, context: Context?): String {
+        return when {
+            entry.styleUrl != null -> entry.styleUrl
+            entry.assetPath != null && context != null -> RasterStyleJson.build(entry, context)
+            else -> RasterStyleJson.build(entry)
+        }
     }
 }

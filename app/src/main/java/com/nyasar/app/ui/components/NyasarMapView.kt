@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import com.nyasar.app.gpx.model.GpxWaypoint
 import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.TileProvider
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -75,6 +76,9 @@ fun NyasarMapView(
     /** Standard/Satellite/Terrain (spec P3 §11). Resolved through the same
      *  [TileProvider] abstraction — no provider-specific branching here. */
     styleVariant: StyleVariant = StyleVariant.OUTDOOR,
+    /** Extended GPX Studio-style basemap selection; takes precedence over
+     *  [styleVariant] when set. */
+    basemap: BasemapEntry? = null,
     track: List<TrackPoint>,
     /** The track actually walked so far (recording), drawn as a second line in
      *  a different color from [track] (the planned route). Updates on every
@@ -181,7 +185,7 @@ fun NyasarMapView(
     // first composition's focusBounds value is applied once inside this
     // effect and never again after — see the one-shot effect further below
     // for handling subsequent focusBounds changes intentionally.
-    LaunchedEffect(provider.id, styleVariant, track, waypoints, userWaypoints) {
+    LaunchedEffect(provider.id, styleVariant, basemap, track, waypoints, userWaypoints) {
         mapView.getMapAsync { map ->
             // MapLibre's own built-in compass widget is separate from our
             // Compose CompassButton (NavigationScreen/RecordingScreen) and
@@ -192,7 +196,7 @@ fun NyasarMapView(
             // ("kompas ketutup") — and it's redundant with our own compass
             // UI everywhere it would show up anyway.
             map.uiSettings.isCompassEnabled = false
-            map.setStyle(provider.styleUrl(styleVariant)) { style ->
+            map.setStyle(provider.styleUrlFor(basemap ?: styleVariant.toBasemapEntry())) { style ->
                 if (style.getImage("nyasar-heading-arrow") == null) {
                     style.addImage("nyasar-heading-arrow", headingArrowBitmap())
                 }

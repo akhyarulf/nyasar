@@ -1,6 +1,7 @@
 package com.nyasar.app.map.providers
 
 import com.nyasar.app.BuildConfig
+import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.TileProvider
 
@@ -29,5 +30,12 @@ class MapTilerProvider(
             StyleVariant.TOPO -> "topo-v2"
         }
         return "https://api.maptiler.com/maps/$styleId/style.json?key=$apiKey"
+    }
+
+    override fun styleUrlFor(entry: BasemapEntry): String {
+        // Keyless catalog entries bypass the key-locked provider entirely
+        // so the full GPX Studio-style list works even without a MapTiler
+        // key. Only the legacy 3-variant mapping uses MapTiler styles.
+        return entry.styleUrl ?: RasterStyleJson.build(entry)
     }
 }

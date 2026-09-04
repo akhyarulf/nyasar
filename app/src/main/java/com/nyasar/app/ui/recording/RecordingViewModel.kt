@@ -10,6 +10,7 @@ import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.location.HeadingProvider
 import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.navigation.GpsFix
+import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.recording.RecordingService
@@ -90,6 +91,10 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     private val _styleVariant = MutableStateFlow(StyleVariant.OUTDOOR)
     val styleVariant: StateFlow<StyleVariant> = _styleVariant.asStateFlow()
 
+    /** Extended GPX Studio-style basemap selection (null = legacy variant). */
+    private val _basemap = MutableStateFlow<BasemapEntry?>(null)
+    val basemap: StateFlow<BasemapEntry?> = _basemap.asStateFlow()
+
     val followMode: StateFlow<Boolean> = _cameraMode
         .map { it != CameraFollowMode.FREE }
         .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
@@ -165,6 +170,11 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setStyleVariant(variant: StyleVariant) {
         _styleVariant.value = variant
+        _basemap.value = null // back to the legacy variant pipeline
+    }
+
+    fun setBasemap(entry: BasemapEntry) {
+        _basemap.value = entry
     }
 
     fun cycleLayer() {
@@ -174,6 +184,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
             StyleVariant.SATELLITE -> StyleVariant.TOPO
             StyleVariant.TOPO -> StyleVariant.OUTDOOR
         }
+        _basemap.value = null
     }
 
     private fun resolveDisplayHeading(): Float? {

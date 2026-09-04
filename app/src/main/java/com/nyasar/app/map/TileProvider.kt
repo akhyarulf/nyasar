@@ -30,6 +30,15 @@ interface TileProvider {
      */
     fun styleUrl(variant: StyleVariant = StyleVariant.OUTDOOR): String
 
+    /**
+     * Resolve a specific entry from the extended basemap catalog
+     * ([BasemapEntry]) to a MapLibre-ready style URL — either the entry's
+     * vector style JSON or a generated inline raster style. Default impl
+     * maps legacy variants; providers override to support the full list.
+     */
+    fun styleUrlFor(entry: BasemapEntry): String =
+        entry.styleUrl ?: styleUrl(StyleVariant.OUTDOOR)
+
     /** Whether this provider currently has the credentials/config needed to work. */
     fun isConfigured(): Boolean
 
@@ -45,5 +54,12 @@ interface TileProvider {
 enum class StyleVariant {
     OUTDOOR,
     SATELLITE,
-    TOPO
+    TOPO;
+
+    /** Legacy default mapping into the extended basemap catalog. */
+    fun toBasemapEntry(): BasemapEntry = when (this) {
+        OUTDOOR -> BasemapEntry.LIBERTY_TOPO
+        SATELLITE -> BasemapEntry.ESRI_SATELLITE
+        TOPO -> BasemapEntry.OPEN_TOPO_RASTER
+    }
 }

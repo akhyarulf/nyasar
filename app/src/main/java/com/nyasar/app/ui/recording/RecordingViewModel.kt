@@ -10,6 +10,7 @@ import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.location.HeadingProvider
 import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.navigation.GpsFix
+import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.recording.RecordingService
@@ -89,6 +90,15 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     // --- Map style / layer variant ---
     private val _styleVariant = MutableStateFlow(StyleVariant.OUTDOOR)
     val styleVariant: StateFlow<StyleVariant> = _styleVariant.asStateFlow()
+
+    // Basemap picker (9-entry World catalog) — same non-persisted pattern
+    // as HomeViewModel.selectedBasemap; see that file's comment.
+    private val _selectedBasemap = MutableStateFlow(BasemapEntry.LIBERTY_TOPO)
+    val selectedBasemap: StateFlow<BasemapEntry> = _selectedBasemap.asStateFlow()
+
+    fun setBasemap(entry: BasemapEntry) {
+        _selectedBasemap.value = entry
+    }
 
     val followMode: StateFlow<Boolean> = _cameraMode
         .map { it != CameraFollowMode.FREE }

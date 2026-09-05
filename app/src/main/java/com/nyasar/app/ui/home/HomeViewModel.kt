@@ -8,6 +8,7 @@ import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.gpx.GpxParseException
 import com.nyasar.app.location.LocationRepository
+import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.TileProvider
 import com.nyasar.app.map.providers.TileProviderFactory
@@ -60,6 +61,19 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _styleVariant = MutableStateFlow(StyleVariant.OUTDOOR)
     val styleVariant: StateFlow<StyleVariant> = _styleVariant.asStateFlow()
+
+    // Basemap picker (9-entry World catalog) — same non-persisted,
+    // in-memory pattern _styleVariant above already used (resets to the
+    // default on process restart); this doesn't add a new persistence
+    // mechanism, just a second selection of the same shape. LIBERTY_TOPO
+    // matches BasemapEntry.fromId(null)'s own fallback, so an unset
+    // selection here and an unset persisted id elsewhere agree.
+    private val _selectedBasemap = MutableStateFlow(BasemapEntry.LIBERTY_TOPO)
+    val selectedBasemap: StateFlow<BasemapEntry> = _selectedBasemap.asStateFlow()
+
+    fun setBasemap(entry: BasemapEntry) {
+        _selectedBasemap.value = entry
+    }
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()

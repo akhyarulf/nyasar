@@ -65,6 +65,11 @@ fun RoutePreviewScreen(
     var mapBearing by remember { mutableStateOf(0f) }
     var showBasemapSheet by remember { mutableStateOf(false) }
     var currentStyleVariant by remember { mutableStateOf(StyleVariant.OUTDOOR) }
+    // Basemap picker (9-entry World catalog) — same local-remember pattern
+    // currentStyleVariant above already used for this screen (not a
+    // ViewModel field, matches how this screen already held its map-style
+    // choice as plain Compose state rather than in RoutePreviewViewModel).
+    var currentBasemap by remember { mutableStateOf(com.nyasar.app.map.BasemapEntry.LIBERTY_TOPO) }
     var currentProvider by remember { mutableStateOf(state.provider) }
 
     Scaffold(
@@ -111,6 +116,7 @@ fun RoutePreviewScreen(
                     modifier = Modifier.fillMaxSize(),
                     provider = currentProvider,
                     styleVariant = currentStyleVariant,
+                    basemapEntry = currentBasemap,
                     track = state.track,
                     waypoints = state.waypoints,
                     highlightPoint = highlightLatLng,
@@ -279,9 +285,9 @@ fun RoutePreviewScreen(
 
     if (showBasemapSheet) {
         com.nyasar.app.ui.components.BasemapPickerSheet(
-            selectedVariant = currentStyleVariant,
-            onSelect = { variant ->
-                currentStyleVariant = variant
+            selected = currentBasemap,
+            onSelect = { entry ->
+                currentBasemap = entry
                 showBasemapSheet = false
             },
             onDismiss = { showBasemapSheet = false }

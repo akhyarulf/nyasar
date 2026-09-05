@@ -81,6 +81,7 @@ fun HomeScreen(
     val rotateWithHeading by viewModel.rotateWithHeading.collectAsState()
     val provider by viewModel.provider.collectAsState()
     val styleVariant by viewModel.styleVariant.collectAsState()
+    val selectedBasemap by viewModel.selectedBasemap.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
     // Task 4 gap (P3 audit): recovery was previously only checked once the
@@ -169,6 +170,7 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             provider = provider,
             styleVariant = styleVariant,
+            basemapEntry = selectedBasemap,
             track = emptyList(),
             waypoints = emptyList(),
             userWaypoints = userWaypoints,
@@ -406,9 +408,9 @@ fun HomeScreen(
 
     if (showBasemapSheet) {
         com.nyasar.app.ui.components.BasemapPickerSheet(
-            selectedVariant = styleVariant,
-            onSelect = { variant ->
-                viewModel.setStyleVariant(variant)
+            selected = selectedBasemap,
+            onSelect = { entry ->
+                viewModel.setBasemap(entry)
                 showBasemapSheet = false
             },
             onDismiss = { showBasemapSheet = false }

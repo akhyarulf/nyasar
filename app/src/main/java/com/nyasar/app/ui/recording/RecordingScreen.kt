@@ -117,6 +117,7 @@ fun RecordingScreen(
     var showNotMovingFromStop by remember { mutableStateOf(false) }
     var showBasemapSheet by remember { mutableStateOf(false) }
     val styleVariant by viewModel.styleVariant.collectAsState()
+    val selectedBasemap by viewModel.selectedBasemap.collectAsState()
     val provider = remember { TileProviderFactory.default() }
     val userWaypoints by waypointViewModel.waypoints.collectAsState()
     val pendingWaypointTap by waypointViewModel.pendingTap.collectAsState()
@@ -386,6 +387,7 @@ fun RecordingScreen(
             modifier = Modifier.fillMaxSize(),
             provider = provider,
             styleVariant = styleVariant,
+            basemapEntry = selectedBasemap,
             // PART 4 fix: previously this only showed the picked GPX line
             // while IDLE, then went empty the moment recording started —
             // based on a mistaken assumption that actualTrack (the live
@@ -747,9 +749,9 @@ fun RecordingScreen(
 
     if (showBasemapSheet) {
         com.nyasar.app.ui.components.BasemapPickerSheet(
-            selectedVariant = styleVariant,
-            onSelect = { variant ->
-                viewModel.setStyleVariant(variant)
+            selected = selectedBasemap,
+            onSelect = { entry ->
+                viewModel.setBasemap(entry)
                 showBasemapSheet = false
             },
             onDismiss = { showBasemapSheet = false }

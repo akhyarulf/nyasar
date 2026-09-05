@@ -414,6 +414,17 @@ object MapSnapshotHelper {
         } else null
     }
 
+    private fun saveToDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int, bitmap: Bitmap) {
+        try {
+            val file = cacheFile(context, activityId, widthPx, heightPx)
+            file.outputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("MapSnapshotHelper", "Cache write failed: ${e.message}")
+        }
+    }
+
     /**
      * Real map preview for the basemap picker (BasemapPickerSheet) — NOT
      * a duplicate snapshot system: reuses this exact object's disk cache

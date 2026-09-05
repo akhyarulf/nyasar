@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.gpx.model.GpxWaypoint
-import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.ui.components.CompassButton
@@ -66,7 +65,6 @@ fun RoutePreviewScreen(
     var mapBearing by remember { mutableStateOf(0f) }
     var showBasemapSheet by remember { mutableStateOf(false) }
     var currentStyleVariant by remember { mutableStateOf(StyleVariant.OUTDOOR) }
-    var currentBasemap by remember { mutableStateOf<BasemapEntry?>(null) }
     var currentProvider by remember { mutableStateOf(state.provider) }
 
     Scaffold(
@@ -113,7 +111,6 @@ fun RoutePreviewScreen(
                     modifier = Modifier.fillMaxSize(),
                     provider = currentProvider,
                     styleVariant = currentStyleVariant,
-                    basemap = currentBasemap,
                     track = state.track,
                     waypoints = state.waypoints,
                     highlightPoint = highlightLatLng,
@@ -282,10 +279,9 @@ fun RoutePreviewScreen(
 
     if (showBasemapSheet) {
         com.nyasar.app.ui.components.BasemapPickerSheet(
-            selectedBasemap = currentBasemap,
             selectedVariant = currentStyleVariant,
-            onSelect = { entry ->
-                currentBasemap = entry
+            onSelect = { variant ->
+                currentStyleVariant = variant
                 showBasemapSheet = false
             },
             onDismiss = { showBasemapSheet = false }

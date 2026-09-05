@@ -2,19 +2,6 @@ package com.nyasar.app.ui.recording
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,7 +10,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -46,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -132,7 +117,6 @@ fun RecordingScreen(
     var showNotMovingFromStop by remember { mutableStateOf(false) }
     var showBasemapSheet by remember { mutableStateOf(false) }
     val styleVariant by viewModel.styleVariant.collectAsState()
-    val basemap by viewModel.basemap.collectAsState()
     val provider = remember { TileProviderFactory.default() }
     val userWaypoints by waypointViewModel.waypoints.collectAsState()
     val pendingWaypointTap by waypointViewModel.pendingTap.collectAsState()
@@ -394,21 +378,14 @@ fun RecordingScreen(
     // Same fix as NavigationScreen: measure the stat bar's real height
     // instead of guessing a fixed dp offset for the buttons above it.
     val density = androidx.compose.ui.platform.LocalDensity.current
-    var statBarHeightTarget by remember { mutableStateOf(180.dp) }
-    // Animate so the floating map buttons glide in sync with the stats
-    // panel's expand/collapse instead of jumping between positions.
-    val bottomClearance = animateDpAsState(
-        targetValue = statBarHeightTarget + 12.dp,
-        animationSpec = tween(260, easing = FastOutSlowInEasing),
-        label = "bottomClearance"
-    ).value
+    var statBarHeight by remember { mutableStateOf(180.dp) }
+    val bottomClearance = statBarHeight + 12.dp
 
     Box(Modifier.fillMaxSize()) {
         NyasarMapView(
             modifier = Modifier.fillMaxSize(),
             provider = provider,
             styleVariant = styleVariant,
-            basemap = basemap,
             // PART 4 fix: previously this only showed the picked GPX line
             // while IDLE, then went empty the moment recording started —
             // based on a mistaken assumption that actualTrack (the live
@@ -618,82 +595,46 @@ fun RecordingScreen(
             }
         }
 
-        // ===== Strava-style recording panel (redesign) =====
-        // Two animated states driven by [statsExpanded]:
-        //  • Collapsed — compact rounded card floating over the map (drag
-        //    handle, sport header, primary stat row, controls); the map
-        //    stays dominant (reference screenshot 2).
-        //  • Expanded — tall Strava record-screen panel: giant timer, hero
-        //    distance, elevation pair, split pace (reference screenshot 1)
-        //    with the controls pinned underneath.
-        // Height changes animate (animateContentSize), sections fade/slide,
-        // the REC dot pulses, and every color is a MaterialTheme token so
-        // light/dark both render correctly.
+        // Strava-style stat card (spec: dark solid panel, not theme-adaptive
+        // surface) — big 3-column primary stats (Time/Distance/Elevation
+        // gain), expand affordance top-right, secondary stats (moving-time-
+        // only vs speed) folded into the expanded state instead of always
+        // shown, keeping the collapsed card matching the reference design.
         var statsExpanded by remember { mutableStateOf(false) }
-        val sportLabel = SportType.fromString(state.sportType).label
-        val currentElevationM = state.recordedTrack.lastOrNull()?.elevationM
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                // Bottom safe-area padding so the controls are never cut
-                // off by the gesture bar / nav buttons.
+                // Bug fix: card had no bottom safe-area padding at all, so
+                // the last stat row (and the controls below it) got cut off
+                // by the system navigation bar on devices with a gesture
+                // bar/nav buttons — visible in the reported screenshot as
+                // "Elevation gain (m)" being sliced off at the bottom edge.
+                // Compass/Recenter already had .safeDrawingPadding(); this
+                // card just never got the same treatment.
                 .navigationBarsPadding()
                 .onSizeChanged { size ->
-                    statBarHeightTarget = with(density) { size.height.toDp() }
+                    statBarHeight = with(density) { size.height.toDp() }
                 },
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shadowElevation = 8.dp
+            color = Color(0xFF16181A),
+            contentColor = Color.White
         ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .animateContentSize(animationSpec = tween(260, easing = FastOutSlowInEasing))
-                    .padding(start = 20.dp, end = 20.dp, bottom = 20.dp)
-            ) {
-                // Drag handle — tapping it toggles the panel too.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(top = 10.dp, bottom = 2.dp)
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.outlineVariant)
-                        .clickable { statsExpanded = !statsExpanded }
-                )
-                // Sport header + expand/collapse toggle — the whole row is
-                // tappable, like Strava's sheet header.
+            Column(Modifier.padding(20.dp)) {
                 Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { statsExpanded = !statsExpanded }
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        sportLabel,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
                     IconButton(onClick = { statsExpanded = !statsExpanded }) {
                         Icon(
                             if (statsExpanded) Icons.Default.CloseFullscreen else Icons.Default.OpenInFull,
                             contentDescription = if (statsExpanded) stringResource(R.string.collapse_stats_cd) else stringResource(R.string.expand_stats_cd),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = Color.White.copy(alpha = 0.7f)
                         )
                     }
                 }
-                // --- Collapsed stats: compact 3-column primary row ---
-                AnimatedVisibility(
-                    visible = !statsExpanded,
-                    enter = fadeIn(tween(220)) + expandVertically(tween(260)),
-                    exit = fadeOut(tween(160)) + shrinkVertically(tween(220))
-                ) {
-                // Distance as hero metric (center), Time left, Elevation right
+                Spacer(Modifier.height(4.dp))
+                // Strava-style: Distance as hero metric (center), Time left, Elevation right
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -715,92 +656,35 @@ fun RecordingScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
-                }
 
-                // --- Expanded stats (Strava record-screen style): giant
-                // timer, hero distance, elevation pair, split pace, then
-                // the secondary 4-up strip. Scrolls if it outgrows very
-                // short screens; giant numbers step down one size below
-                // 360dp so "00:00:00" never overflows.
-                AnimatedVisibility(
-                    visible = statsExpanded,
-                    enter = fadeIn(tween(220)) + expandVertically(tween(260)),
-                    exit = fadeOut(tween(160)) + shrinkVertically(tween(220))
-                ) {
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        val narrow = maxWidth < 360.dp
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 430.dp)
-                                .verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Spacer(Modifier.height(4.dp))
-                            BigStatBlock(
-                                formatDuration(state.elapsedTimeMs),
-                                "Time",
-                                valueStyle = if (narrow) MaterialTheme.typography.displaySmall else MaterialTheme.typography.displayMedium,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(20.dp))
-                            BigStatBlock(
-                                "%.2f".format(state.distanceMeters / 1000.0),
-                                "Distance (km)",
-                                valueStyle = if (narrow) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displayLarge,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(24.dp))
-                            Row(Modifier.fillMaxWidth()) {
-                                BigStatBlock(
-                                    state.elevationGainM.roundToInt().toString(),
-                                    "Naik (m)",
-                                    valueStyle = MaterialTheme.typography.headlineMedium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                BigStatBlock(
-                                    currentElevationM?.roundToInt()?.toString() ?: "-",
-                                    "Elevation (m)",
-                                    valueStyle = MaterialTheme.typography.headlineMedium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Spacer(Modifier.height(16.dp))
-                            BigStatBlock(
-                                com.nyasar.app.util.SpeedUtils.formatPace(state.currentSpeedKmh, speedUnit),
-                                "Split avg. (/km)",
-                                valueStyle = MaterialTheme.typography.headlineSmall,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(20.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            Spacer(Modifier.height(16.dp))
-                            Row(Modifier.fillMaxWidth()) {
-                                BigStatBlock(formatDuration(state.movingTimeMs), stringResource(R.string.recording_stat_moving_time), compact = true, modifier = Modifier.weight(1f))
-                                BigStatBlock(
-                                    com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
-                                    stringResource(R.string.recording_stat_speed),
-                                    compact = true,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                BigStatBlock(
-                                    com.nyasar.app.util.SpeedUtils.formatSpeed(state.avgSpeedKmh, speedUnit, 1),
-                                    stringResource(R.string.recording_stat_avg_speed),
-                                    compact = true,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                BigStatBlock(
-                                    com.nyasar.app.util.SpeedUtils.formatPace(state.avgSpeedKmh, speedUnit),
-                                    stringResource(R.string.pace),
-                                    compact = true,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
+                if (statsExpanded) {
+                    Spacer(Modifier.height(20.dp))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        BigStatBlock(formatDuration(state.movingTimeMs), stringResource(R.string.recording_stat_moving_time), compact = true, modifier = Modifier.weight(1f))
+                        BigStatBlock(
+                            com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
+                            stringResource(R.string.recording_stat_speed),
+                            compact = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        BigStatBlock(
+                            com.nyasar.app.util.SpeedUtils.formatSpeed(state.avgSpeedKmh, speedUnit, 1),
+                            stringResource(R.string.recording_stat_avg_speed),
+                            compact = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        BigStatBlock(
+                            com.nyasar.app.util.SpeedUtils.formatPace(state.avgSpeedKmh, speedUnit),
+                            stringResource(R.string.pace),
+                            compact = true,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(24.dp))
                 RecordingControls(
                     status = effectiveStatus,
                     routeName = previewRouteName,
@@ -863,10 +747,9 @@ fun RecordingScreen(
 
     if (showBasemapSheet) {
         com.nyasar.app.ui.components.BasemapPickerSheet(
-            selectedBasemap = basemap,
             selectedVariant = styleVariant,
-            onSelect = { entry ->
-                viewModel.setBasemap(entry)
+            onSelect = { variant ->
+                viewModel.setStyleVariant(variant)
                 showBasemapSheet = false
             },
             onDismiss = { showBasemapSheet = false }
@@ -1027,7 +910,7 @@ private fun StatusChip(status: RecordingStatus, isAutoPaused: Boolean = false, g
     // it affects whether new points are even being recorded accurately.
     val (color, label) = when {
         gpsHealth == com.nyasar.app.recording.GpsHealth.LOST -> MaterialTheme.colorScheme.error to "⚠ GPS HILANG"
-        gpsHealth == com.nyasar.app.recording.GpsHealth.WEAK -> MaterialTheme.colorScheme.error to "⚠ GPS LEMAH"
+        gpsHealth == com.nyasar.app.recording.GpsHealth.WEAK -> Color(0xFFF9A825) to "⚠ GPS LEMAH"
         // Part 5 cosmetic fix: "MEMULAI…" implied recording was already in
         // progress/starting up, even while the user was still sitting on
         // the two-button IDLE screen having tapped nothing yet — genuinely
@@ -1035,50 +918,17 @@ private fun StatusChip(status: RecordingStatus, isAutoPaused: Boolean = false, g
         // actually true at this point: idle and ready for the user's next
         // action, no process running behind the scenes.
         status == RecordingStatus.IDLE -> MaterialTheme.colorScheme.outline to "SIAP"
-        status == RecordingStatus.RECORDING -> MaterialTheme.colorScheme.primary to "● RECORDING"
-        status == RecordingStatus.PAUSED && isAutoPaused -> MaterialTheme.colorScheme.error to "❚❚ DIJEDA OTOMATIS"
-        status == RecordingStatus.PAUSED -> MaterialTheme.colorScheme.error to "❚❚ DIJEDA"
+        status == RecordingStatus.RECORDING -> Color(0xFF2E7D32) to "● RECORDING"
+        status == RecordingStatus.PAUSED && isAutoPaused -> Color(0xFFF9A825) to "❚❚ DIJEDA OTOMATIS"
+        status == RecordingStatus.PAUSED -> Color(0xFFF9A825) to "❚❚ DIJEDA"
         else -> MaterialTheme.colorScheme.outline to "SELESAI"
     }
-    // RECORDING pulses its dot (Strava-style "live" cue); other states
-    // stay static.
-    val pulsing = status == RecordingStatus.RECORDING
-    val pulseAlpha = if (pulsing) {
-        rememberInfiniteTransition(label = "recPulse").animateFloat(
-            initialValue = 1f,
-            targetValue = 0.35f,
-            animationSpec = infiniteRepeatable(tween(750), RepeatMode.Reverse),
-            label = "recDotAlpha"
-        ).value
-    } else {
-        1f
-    }
-    Row(
+    Text(
+        label,
+        color = color,
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (pulsing) {
-            Box(
-                Modifier
-                    .size(8.dp)
-                    .graphicsLayer { alpha = pulseAlpha }
-                    .clip(CircleShape)
-                    .background(color)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                label.removePrefix("● "),
-                color = color,
-                style = MaterialTheme.typography.labelLarge
-            )
-        } else {
-            Text(
-                label,
-                color = color,
-                style = MaterialTheme.typography.labelLarge
-            )
-        }
-    }
+        style = MaterialTheme.typography.labelLarge
+    )
 }
 
 @Composable
@@ -1087,7 +937,6 @@ private fun BigStatBlock(
     label: String,
     compact: Boolean = false,
     isHero: Boolean = false,
-    valueStyle: androidx.compose.ui.text.TextStyle? = null,
     modifier: Modifier = Modifier
 ) {
     // Clamp fontScale so 3 big stat numbers never overlap on narrow
@@ -1106,12 +955,12 @@ private fun BigStatBlock(
         androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides clampedDensity) {
             Text(
                 value,
-                style = valueStyle ?: when {
+                style = when {
                     isHero -> MaterialTheme.typography.headlineLarge
                     compact -> MaterialTheme.typography.titleLarge
                     else -> MaterialTheme.typography.headlineMedium
                 },
-                color = MaterialTheme.colorScheme.onSurface,
+                color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1120,7 +969,7 @@ private fun BigStatBlock(
         Text(
             label,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Color.White.copy(alpha = 0.6f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -1170,7 +1019,7 @@ private fun RecordingControls(
                         Icon(
                             sportType.icon,
                             contentDescription = stringResource(R.string.select_sport_cd),
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            tint = Color.White,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -1178,7 +1027,7 @@ private fun RecordingControls(
                     Text(
                         sportType.label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color.White.copy(alpha = 0.8f)
                     )
                 }
                 
@@ -1194,7 +1043,7 @@ private fun RecordingControls(
                             Text(
                                 it,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                                color = Color.White.copy(alpha = 0.85f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1207,7 +1056,7 @@ private fun RecordingControls(
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = stringResource(R.string.delete_route_cd),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = Color.White.copy(alpha = 0.6f),
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -1224,7 +1073,7 @@ private fun RecordingControls(
                     Text(
                         stringResource(R.string.start_recording),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color.White.copy(alpha = 0.8f)
                     )
                 }
                 
@@ -1237,13 +1086,13 @@ private fun RecordingControls(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .background(Color.White.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Route,
                             contentDescription = stringResource(R.string.pick_route_cd),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = Color.White,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -1251,7 +1100,7 @@ private fun RecordingControls(
                     Text(
                         stringResource(R.string.add_route_label),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color.White.copy(alpha = 0.8f)
                     )
                 }
             }
@@ -1288,8 +1137,8 @@ private fun RecordingControls(
                     onClick = onStop,
                     modifier = Modifier.weight(1f).height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        containerColor = Color.White.copy(alpha = 0.12f),
+                        contentColor = Color.White
                     )
                 ) {
                     Icon(Icons.Default.Stop, contentDescription = null)
@@ -1315,7 +1164,7 @@ private fun RecordingControls(
 @Composable
 private fun RecordingSummaryOverlay(summary: RecordingUiState, onBack: () -> Unit) {
     val elevations = remember(summary.recordedTrack) { summary.recordedTrack.mapNotNull { it.elevationM } }
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface) {
+    Surface(Modifier.fillMaxSize(), color = Color(0xFF16181A), contentColor = Color.White) {
         Column(
             Modifier.fillMaxSize().padding(24.dp).verticalScrollCompat(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -1355,7 +1204,7 @@ private fun SummaryRow(label: String, value: String) {
     ) {
         Text(value, style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(2.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.6f))
     }
 }
 
@@ -1368,7 +1217,5 @@ private fun formatDuration(ms: Long): String {
     val h = totalSeconds / 3600
     val m = (totalSeconds % 3600) / 60
     val s = totalSeconds % 60
-    // Always HH:MM:SS (Strava-style) so the giant timer never reflows its
-    // width mid-recording when the hour digit first appears.
-    return "%02d:%02d:%02d".format(h, m, s)
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
 }

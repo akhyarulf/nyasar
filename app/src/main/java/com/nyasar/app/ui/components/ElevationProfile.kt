@@ -71,12 +71,10 @@ fun ElevationProfile(
 
     val lineColor = MaterialTheme.colorScheme.primary
     val fillColor = lineColor.copy(alpha = 0.2f)
-    // Theme-aware chart chrome: follows light/dark instead of hardcoded
-    // dark-mode grays that vanished against light surfaces.
-    val gridColor = MaterialTheme.colorScheme.outlineVariant
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val tooltipBg = MaterialTheme.colorScheme.surfaceVariant
-    val tooltipText = MaterialTheme.colorScheme.onSurfaceVariant
+    val gridColor = Color(0xFF444444)
+    val labelColor = Color(0xFF999999)
+    val tooltipBg = Color(0xFF1E1E1E)
+    val tooltipText = Color(0xFFE0E0E0)
 
     val context = LocalContext.current
     val interTypeface: Typeface = remember {

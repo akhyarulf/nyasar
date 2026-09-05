@@ -221,17 +221,6 @@
     <!-- Settings section headers -->
     <string name="map_section">MAP</string>
     <string name="map_types_title">Map Types</string>
-    <string name="basemap_section_world">World</string>
-    <string name="basemap_section_belgium">Belgium</string>
-    <string name="basemap_section_bulgaria">Bulgaria</string>
-    <string name="basemap_section_finland">Finland</string>
-    <string name="basemap_section_france">France</string>
-    <string name="basemap_section_new_zealand">New Zealand</string>
-    <string name="basemap_section_norway">Norway</string>
-    <string name="basemap_section_spain">Spain</string>
-    <string name="basemap_section_switzerland">Switzerland</string>
-    <string name="basemap_section_united_kingdom">United Kingdom</string>
-    <string name="basemap_section_united_states">United States</string>
     <string name="gps_section">GPS</string>
     <string name="recording_section">RECORDING</string>
     <string name="offline_section">OFFLINE</string>

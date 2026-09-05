@@ -1,7 +1,5 @@
 package com.nyasar.app.map
 
-import android.content.Context
-
 /**
  * Abstraction over "where map tiles/styles come from".
  *
@@ -32,26 +30,6 @@ interface TileProvider {
      */
     fun styleUrl(variant: StyleVariant = StyleVariant.OUTDOOR): String
 
-    /**
-     * Resolve a specific entry from the GPX Studio basemap catalog
-     * ([BasemapEntry]) to a MapLibre-ready style URI:
-     *  - vector entry with a hosted style URL -> that URL
-     *  - vector entry bundling GPX Studio's own style JSON in app assets
-     *    (IGN France) -> inline data-URI style ([RasterStyleJson])
-     *  - raster entry -> generated inline raster style ([RasterStyleJson])
-     *
-     * [context] is only needed for asset-backed entries; passing null for
-     * those falls back to a plain raster build.
-     */
-    fun styleUrlFor(entry: BasemapEntry, context: Context? = null): String = when {
-        entry.styleUrl != null -> entry.styleUrl
-        entry.assetPath != null && context != null ->
-            com.nyasar.app.map.providers.RasterStyleJson.build(entry, context)
-        entry.assetPath != null ->
-            com.nyasar.app.map.providers.RasterStyleJson.build(entry)
-        else -> styleUrl(StyleVariant.OUTDOOR)
-    }
-
     /** Whether this provider currently has the credentials/config needed to work. */
     fun isConfigured(): Boolean
 
@@ -67,14 +45,5 @@ interface TileProvider {
 enum class StyleVariant {
     OUTDOOR,
     SATELLITE,
-    TOPO;
-
-    /** Legacy default mapping into the GPX Studio basemap catalog. */
-    fun toBasemapEntry(): BasemapEntry = when (this) {
-        OUTDOOR -> BasemapEntry.LIBERTY_TOPO
-        SATELLITE -> BasemapEntry.ESRI_SATELLITE
-        TOPO -> BasemapEntry.OPEN_TOPO_MAP
-    }
+    TOPO
 }
-
-

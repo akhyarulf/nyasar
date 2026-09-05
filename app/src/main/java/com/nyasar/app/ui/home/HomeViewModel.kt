@@ -8,7 +8,6 @@ import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.gpx.GpxParseException
 import com.nyasar.app.location.LocationRepository
-import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.TileProvider
 import com.nyasar.app.map.providers.TileProviderFactory
@@ -61,10 +60,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _styleVariant = MutableStateFlow(StyleVariant.OUTDOOR)
     val styleVariant: StateFlow<StyleVariant> = _styleVariant.asStateFlow()
-
-    /** Extended GPX Studio-style basemap selection (null = legacy variant). */
-    private val _basemap = MutableStateFlow<BasemapEntry?>(null)
-    val basemap: StateFlow<BasemapEntry?> = _basemap.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -126,11 +121,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setStyleVariant(variant: StyleVariant) {
         _styleVariant.value = variant
-        _basemap.value = null // back to the legacy variant pipeline
-    }
-
-    fun setBasemap(entry: BasemapEntry) {
-        _basemap.value = entry
     }
 
     fun setSearchQuery(query: String) {

@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.recording.SportCategory
@@ -48,8 +49,8 @@ fun SportFilterSheet(
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface
+        containerColor = Color(0xFF1A1D20),
+        contentColor = Color.White
     ) {
         Column(
             modifier = Modifier
@@ -73,7 +74,7 @@ fun SportFilterSheet(
                     Icon(
                         Icons.Default.Close,
                         contentDescription = stringResource(R.string.close_cd2),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = Color.White.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -85,20 +86,20 @@ fun SportFilterSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text(stringResource(R.string.search), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                placeholder = { Text(stringResource(R.string.search), color = Color.White.copy(alpha = 0.5f)) },
                 leadingIcon = { 
                     Icon(
                         Icons.Default.Search, 
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = Color.White.copy(alpha = 0.5f)
                     ) 
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
                 ),
                 singleLine = true
             )
@@ -146,7 +147,7 @@ private fun SportListItem(
         Icon(
             sport.icon,
             contentDescription = sport.label,
-            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
             modifier = Modifier.size(24.dp)
         )
         
@@ -155,7 +156,7 @@ private fun SportListItem(
         Text(
             sport.label,
             style = MaterialTheme.typography.bodyLarge,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
             modifier = Modifier.weight(1f)
         )
         

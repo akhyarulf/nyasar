@@ -414,14 +414,67 @@ object MapSnapshotHelper {
         } else null
     }
 
-    private fun saveToDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int, bitmap: Bitmap) {
-        try {
-            val file = cacheFile(context, activityId, widthPx, heightPx)
-            file.outputStream().use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+    /**
+     * Real map preview for the basemap picker (BasemapPickerSheet) — NOT
+     * a duplicate snapshot system: reuses this exact object's disk cache
+     * (cacheFile/loadFromDisk/saveToDisk) and the same MapSnapshotter
+     * machinery as generateSync above, just with a fixed representative
+     * region instead of one derived from an activity's track points (the
+     * picker has no track to derive bounds from). [styleUrl] is always
+     * one of this app's own real per-provider URLs from
+     * TileProvider.styleUrlFor/BasemapEntry — never anything under
+     * styles.gpx.studio — so this renders each basemap's genuine upstream
+     * tiles/style, the same source the full map uses, just at thumbnail
+     * size and for a fixed area instead of the user's current viewport.
+     *
+     * Cache key is the catalog entry's own id (passed in as [cacheKey]),
+     * not an activity id — one cached thumbnail per basemap entry, shared
+     * across every screen that opens the picker, invalidated only by
+     * [CACHE_VERSION] like every other cached snapshot here.
+     */
+    suspend fun generateBasemapPreview(
+        context: Context,
+        cacheKey: String,
+        styleUrl: String,
+        widthPx: Int,
+        heightPx: Int
+    ): Bitmap? {
+        val cached = loadFromDisk(context, cacheKey, widthPx, heightPx)
+        if (cached != null) return cached
+
+        // Slopes of Gunung Lawu — has enough hillshade/contour/vegetation
+        // variety that a viewer can actually tell the 9 styles apart (a
+        // flat plain would look nearly identical across several of them),
+        // and it's thematically the app's own reference hike rather than
+        // an arbitrary coordinate.
+        val bounds = LatLngBounds.Builder()
+            .include(LatLng(-7.66, 111.13))
+            .include(LatLng(-7.58, 111.22))
+            .build()
+
+        val bitmap = withContext(Dispatchers.Main) {
+            try {
+                val options = MapSnapshotter.Options(widthPx, heightPx).apply {
+                    withStyle(styleUrl)
+                    withRegion(bounds)
+                    withAttribution(false)
+                }
+                val snapshotter = MapSnapshotter(context, options)
+                suspendCancellableCoroutine<Bitmap?> { cont ->
+                    cont.invokeOnCancellation { snapshotter.cancel() }
+                    snapshotter.start(object : MapSnapshotter.SnapshotReadyCallback {
+                        override fun onSnapshotReady(snapshot: MapSnapshot) {
+                            if (cont.isActive) cont.resume(snapshot.bitmap)
+                        }
+                    })
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("MapSnapshotHelper", "Basemap preview failed for $cacheKey: ${e.message}")
+                null
             }
-        } catch (e: Exception) {
-            android.util.Log.w("MapSnapshotHelper", "Cache write failed: ${e.message}")
         }
+
+        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it) }
+        return bitmap
     }
 }

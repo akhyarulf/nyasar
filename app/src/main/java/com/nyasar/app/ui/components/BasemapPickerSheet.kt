@@ -2,6 +2,8 @@ package com.nyasar.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +29,11 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,9 +42,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.map.BasemapEntry
+import com.nyasar.app.map.providers.TileProviderFactory
+import com.nyasar.app.ui.map.MapSnapshotHelper
 
 /**
  * Basemap picker — bottom sheet with a grid of all 9 World [BasemapEntry]
@@ -138,21 +152,74 @@ private fun Modifier.heightForRows(itemCount: Int): Modifier {
 }
 
 /**
- * Procedural thumbnail. Entries that correspond conceptually to the three
- * original StyleVariant scenes reuse that exact art; the rest share a
- * flatter "generic map style" treatment distinguished by a per-entry tint
- * and a small icon (globe for the plain OSM-family styles, a layered-lines
- * glyph for the others) so all 9 tiles are visually distinct at a glance
- * without six new illustrations.
+ * Real map preview per entry (P3J follow-up: was purely procedural Canvas
+ * art, which is why it never visually matched any reference screenshot —
+ * it was never meant to be a map, just a colored placeholder). Now backed
+ * by [com.nyasar.app.ui.map.MapSnapshotHelper.generateBasemapPreview],
+ * which renders each entry's own real upstream style/tiles (the exact
+ * same [TileProvider.styleUrlFor] URL the actual map uses) via MapLibre's
+ * own snapshotter — no gpx.studio involved, no live network required at
+ * grid-render time beyond the one-shot snapshot itself, and it's disk
+ * cached (one file per entry) so switching sheets/screens doesn't
+ * re-fetch. Falls back to a flat tinted placeholder only while the
+ * snapshot is loading or if it fails outright (offline, upstream down).
  */
 @Composable
 private fun BasemapThumbnail(entry: BasemapEntry, modifier: Modifier = Modifier) {
-    when (entry) {
-        BasemapEntry.LIBERTY_TOPO -> OutdoorScene(modifier)
-        BasemapEntry.LIBERTY_SATELLITE -> SatelliteScene(modifier)
-        BasemapEntry.OSM_TOPO -> TerrainScene(modifier)
-        else -> GenericScene(entry, modifier)
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    var bitmap by remember(entry) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var failed by remember(entry) { mutableStateOf(false) }
+
+    LaunchedEffect(entry) {
+        bitmap = null
+        failed = false
+        val sizePx = with(density) { 200.dp.roundToPx() }
+        val styleUrl = try {
+            entryStyleUrl(entry, context)
+        } catch (e: Exception) {
+            null
+        }
+        if (styleUrl == null) {
+            failed = true
+            return@LaunchedEffect
+        }
+        val result = MapSnapshotHelper.generateBasemapPreview(
+            context = context,
+            cacheKey = "basemap_${entry.gpxKey}",
+            styleUrl = styleUrl,
+            widthPx = sizePx,
+            heightPx = sizePx
+        )
+        if (result != null) bitmap = result else failed = true
     }
+
+    Box(modifier.fillMaxSize()) {
+        val bmp = bitmap
+        when {
+            bmp != null -> Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            failed -> GenericScene(entry, Modifier.fillMaxSize())
+            else -> Box(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+        }
+    }
+}
+
+/** Same resolution TileProvider.styleUrlFor uses for the real map — kept
+ *  as a tiny local wrapper only so this file doesn't need to carry a
+ *  TileProvider instance just to call one function on it. */
+private fun entryStyleUrl(entry: BasemapEntry, context: android.content.Context): String {
+    val provider = TileProviderFactory.default()
+    return provider.styleUrlFor(entry, context)
 }
 
 @Composable

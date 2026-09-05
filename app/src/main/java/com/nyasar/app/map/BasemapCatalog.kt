@@ -40,33 +40,42 @@ enum class BasemapEntry(
 ) {
     // ===================== World (basemapTree.world order) =====================
 
-    // 'libertyTopo' = https://styles.gpx.studio/liberty-topo.json
-    // (OpenFreeMap "liberty" + GPX Studio's contours/hillshading sources)
+    // 'libertyTopo' = liberty-topo.json from gpxstudio/styles (GitHub).
+    // Bug fix: this previously pointed at https://styles.gpx.studio/...,
+    // a domain that never actually resolves — the real files are hosted
+    // on GitHub, never on a styles.gpx.studio subdomain. Every "vector"
+    // basemap below was silently 404ing before this fix (raster
+    // basemaps — OSM_STANDARD, OPEN_TOPO_MAP, etc. below — were never
+    // affected, since those don't go through gpx.studio's hosting at
+    // all).
+    // Style itself: OpenFreeMap "liberty" + contours/hillshading sources
+    // served from tiles.gpx.studio (confirmed straight from the style
+    // JSON's own "sources" block — contours_m/contours_ft/hillshading).
     LIBERTY_TOPO(
         "libertyTopo", "Liberty Topo",
-        styleUrl = "https://styles.gpx.studio/liberty-topo.json",
+        styleUrl = "https://raw.githubusercontent.com/gpxstudio/styles/main/liberty-topo.json",
         rasterUrl = null, maxZoom = 14,
-        attribution = "OpenMapTiles / OpenStreetMap"
+        attribution = "Mapterhorn / OpenMapTiles / OpenStreetMap contributors"
     ),
     LIBERTY_SATELLITE(
         "libertySatellite", "Liberty Satellite",
-        styleUrl = "https://styles.gpx.studio/liberty-satellite.json",
+        styleUrl = "https://raw.githubusercontent.com/gpxstudio/styles/main/liberty-satellite.json",
         rasterUrl = null, maxZoom = 14,
-        attribution = "OpenMapTiles / OpenStreetMap"
+        attribution = "OpenMapTiles / OpenStreetMap contributors / MapTiler"
     ),
     // 'osm' = "OpenMapTiles OSM" in GPX Studio
     OSM(
         "osm", "OpenMapTiles OSM",
-        styleUrl = "https://styles.gpx.studio/osm.json",
+        styleUrl = "https://raw.githubusercontent.com/gpxstudio/styles/main/osm.json",
         rasterUrl = null, maxZoom = 14,
-        attribution = "OpenMapTiles / OpenStreetMap"
+        attribution = "OpenMapTiles / OpenStreetMap contributors"
     ),
     // 'osmTopo' = "OpenMapTiles OSM Topo" in GPX Studio
     OSM_TOPO(
         "osmTopo", "OpenMapTiles OSM Topo",
-        styleUrl = "https://styles.gpx.studio/osm-topo.json",
+        styleUrl = "https://raw.githubusercontent.com/gpxstudio/styles/main/osm-topo.json",
         rasterUrl = null, maxZoom = 14,
-        attribution = "OpenMapTiles / OpenStreetMap"
+        attribution = "MapTiler / OpenMapTiles / OpenStreetMap contributors"
     ),
     ESRI_SATELLITE(
         "esriSatellite", "Esri Satellite",
@@ -96,7 +105,7 @@ enum class BasemapEntry(
         styleUrl = null,
         rasterUrl = "https://maps.refuges.info/hiking/{z}/{x}/{y}.png",
         maxZoom = 18,
-        attribution = "(C) Hiking/mri / OpenStreetMap"
+        attribution = "OpenHikingMap / OpenStreetMap contributors"
     ),
     CYCLOSM(
         "cyclOSM", "CyclOSM",
@@ -109,7 +118,7 @@ enum class BasemapEntry(
         "utagawaVTT", "UtagawaMTB",
         styleUrl = "https://maps.utagawavtt.com/styles/utagawavtt/style.json",
         rasterUrl = null, maxZoom = 14,
-        attribution = "UtagawaVTT / OpenStreetMap"
+        attribution = "OpenMapTiles / OpenStreetMap contributors"
     ),
 
     // ===================== Countries (basemapTree.countries order) =====================

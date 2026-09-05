@@ -47,6 +47,22 @@ object MapSnapshotHelper {
 
     private const val CACHE_DIR = "map_snapshots"
     private const val CACHE_VERSION = 9 // bump: removed verticalOffsetFraction from Share Card map request — it was cropping the visible route toward the gradient edge instead of showing the full route like List History does
+
+    // P3K audit fix: basemap picker thumbnails (generateBasemapPreview)
+    // were sharing CACHE_VERSION with activity-track snapshots above,
+    // even though the two are unrelated. That meant a stale/failed
+    // basemap thumbnail (e.g. all 4 raster entries falling back to the
+    // same generic placeholder while offline, or from a since-fixed
+    // RasterStyleJson bug) could sit on disk under
+    // "basemap_<gpxKey>_<w>x<h>_v9.png" forever — nothing would ever
+    // invalidate it, since bumping CACHE_VERSION for an unrelated
+    // activity-thumbnail fix would silently also "fix" (by accident,
+    // or not at all) basemap previews with no relation to that change.
+    // A basemap-specific version lets this cache be invalidated
+    // independently, and bumping it here (9 -> 10) explicitly discards
+    // every previously-cached basemap thumbnail once, forcing a fresh
+    // MapSnapshotter fetch per entry using each entry's own real style.
+    private const val BASEMAP_PREVIEW_CACHE_VERSION = 10
     // 25m floor (was 100m) — 100m alone was already 5-10x wider than a
     // typical very-short recording's own span (a few meters to a few tens
     // of meters), so those tracks rendered as a tiny speck regardless of
@@ -399,11 +415,16 @@ object MapSnapshotHelper {
         return dir
     }
 
-    private fun cacheFile(context: Context, activityId: String, widthPx: Int, heightPx: Int): File =
-        File(cacheDir(context), "${activityId}_${widthPx}x${heightPx}_v${CACHE_VERSION}.png")
+    // version defaults to the shared CACHE_VERSION for every existing
+    // caller (activity-track thumbnails, share cards) — behavior for
+    // those callers is unchanged. generateBasemapPreview below is the
+    // only caller that passes BASEMAP_PREVIEW_CACHE_VERSION explicitly,
+    // so basemap thumbnails invalidate independently of everything else.
+    private fun cacheFile(context: Context, activityId: String, widthPx: Int, heightPx: Int, version: Int = CACHE_VERSION): File =
+        File(cacheDir(context), "${activityId}_${widthPx}x${heightPx}_v${version}.png")
 
-    private fun loadFromDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int): Bitmap? {
-        val file = cacheFile(context, activityId, widthPx, heightPx)
+    private fun loadFromDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int, version: Int = CACHE_VERSION): Bitmap? {
+        val file = cacheFile(context, activityId, widthPx, heightPx, version)
         return if (file.exists()) {
             try {
                 BitmapFactory.decodeFile(file.absolutePath)
@@ -414,9 +435,9 @@ object MapSnapshotHelper {
         } else null
     }
 
-    private fun saveToDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int, bitmap: Bitmap) {
+    private fun saveToDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int, bitmap: Bitmap, version: Int = CACHE_VERSION) {
         try {
-            val file = cacheFile(context, activityId, widthPx, heightPx)
+            val file = cacheFile(context, activityId, widthPx, heightPx, version)
             file.outputStream().use { out ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
             }
@@ -440,8 +461,19 @@ object MapSnapshotHelper {
      *
      * Cache key is the catalog entry's own id (passed in as [cacheKey]),
      * not an activity id — one cached thumbnail per basemap entry, shared
-     * across every screen that opens the picker, invalidated only by
-     * [CACHE_VERSION] like every other cached snapshot here.
+     * across every screen that opens the picker.
+     *
+     * P3K audit fix: this previously called loadFromDisk/saveToDisk with
+     * no version argument, which defaulted to the shared [CACHE_VERSION]
+     * — the same version counter used for unrelated activity-track
+     * thumbnails. That meant a stale basemap thumbnail (e.g. captured
+     * while offline, when every raster entry fails identically and the
+     * caller falls back to the same generic placeholder) could never be
+     * invalidated except by an activity-thumbnail-motivated version bump
+     * that had nothing to do with basemaps. Now pinned to
+     * [BASEMAP_PREVIEW_CACHE_VERSION], bumped independently, so a bad
+     * cached basemap thumbnail is invalidated deliberately rather than
+     * by accident (or never).
      */
     suspend fun generateBasemapPreview(
         context: Context,
@@ -450,7 +482,7 @@ object MapSnapshotHelper {
         widthPx: Int,
         heightPx: Int
     ): Bitmap? {
-        val cached = loadFromDisk(context, cacheKey, widthPx, heightPx)
+        val cached = loadFromDisk(context, cacheKey, widthPx, heightPx, BASEMAP_PREVIEW_CACHE_VERSION)
         if (cached != null) return cached
 
         // Slopes of Gunung Lawu — has enough hillshade/contour/vegetation
@@ -485,7 +517,28 @@ object MapSnapshotHelper {
             }
         }
 
-        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it) }
+        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it, BASEMAP_PREVIEW_CACHE_VERSION) }
         return bitmap
+    }
+
+    /**
+     * One-time cleanup: deletes any on-disk basemap-picker thumbnail
+     * cached under an older [BASEMAP_PREVIEW_CACHE_VERSION] (or the old
+     * shared-CACHE_VERSION scheme this replaces), so a stale/wrong
+     * thumbnail from before this fix can never be served again even if a
+     * caller somehow still holds an old cache key. Safe to call
+     * repeatedly — it only touches files matching the "basemap_" prefix,
+     * never activity-track or share-card snapshots. Call once at app
+     * startup or from BasemapPickerSheet's first composition.
+     */
+    fun purgeStaleBasemapPreviews(context: Context) {
+        try {
+            val dir = cacheDir(context)
+            val currentSuffix = "_v${BASEMAP_PREVIEW_CACHE_VERSION}.png"
+            dir.listFiles { f -> f.name.startsWith("basemap_") && !f.name.endsWith(currentSuffix) }
+                ?.forEach { it.delete() }
+        } catch (e: Exception) {
+            android.util.Log.w("MapSnapshotHelper", "Stale basemap preview purge failed: ${e.message}")
+        }
     }
 }

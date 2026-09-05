@@ -25,7 +25,26 @@ import com.nyasar.app.map.BasemapEntry
  */
 object RasterStyleJson {
 
-    /** Inline raster style for a raster entry. */
+    /**
+     * Inline raster style for a raster entry.
+     *
+     * P3K audit fix: this function's logic was already correct per-entry
+     * (each call reads only [entry]'s own rasterUrl/rasterUrls/gpxName/
+     * attribution — no shared mutable state, no cross-entry fallthrough).
+     * The bug reported ("OpenStreetMap/OpenTopoMap/OpenHikingMap/CyclOSM
+     * look identical in the picker") was NOT here — it was stale disk-
+     * cached thumbnail PNGs in MapSnapshotHelper surviving from an earlier
+     * state (e.g. all four falling back to the same generic placeholder
+     * when tiles failed to load, then that placeholder getting cached
+     * forever under a cache key with no basemap-specific version). See
+     * MapSnapshotHelper.BASEMAP_PREVIEW_CACHE_VERSION.
+     *
+     * The require() below is new: it hard-fails fast (rather than
+     * silently mis-rendering) if a future catalog entry is ever routed
+     * here without a real distinguishing tile template, so a copy-paste
+     * mistake in BasemapCatalog can never again produce two "different"
+     * entries that quietly resolve to the same tiles.
+     */
     fun build(entry: BasemapEntry): String {
         // Upstream tile templates verbatim — including endpoints whose WMTS
         // tile matrix is ordered {z}/{y}/{x} (e.g. IGN Belgium): MapLibre
@@ -35,11 +54,19 @@ object RasterStyleJson {
         val templates = entry.rasterUrls.ifEmpty {
             listOf(requireNotNull(entry.rasterUrl) { "${entry.gpxKey} is not a raster basemap" })
         }
+        require(templates.isNotEmpty() && templates.all { it.contains("{z}") && it.contains("{x}") && it.contains("{y}") }) {
+            "${entry.gpxKey} has no valid {z}/{x}/{y} tile template — refusing to build a broken raster style"
+        }
         val escapedUrls = templates.joinToString(",\n") { "\"${it.replace("\"", "\\\"")}\"" }
+        // "id" here is purely descriptive (not read by MapLibre) but is
+        // included in the JSON name/comment-equivalent so that dumping a
+        // resolved style URI while debugging immediately shows which
+        // entry it came from, instead of two visually-similar raster
+        // styles being indistinguishable in a log.
         val json = """
             {
               "version": 8,
-              "name": "${entry.gpxName}",
+              "name": "${entry.gpxName} (${entry.gpxKey})",
               "sources": {
                 "basemap-raster": {
                   "type": "raster",

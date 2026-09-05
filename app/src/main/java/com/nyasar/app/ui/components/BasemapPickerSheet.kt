@@ -86,6 +86,16 @@ fun BasemapPickerSheet(
     onSelect: (BasemapEntry) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val purgeContext = LocalContext.current
+    // P3K audit fix: one-time purge of any basemap thumbnail cached under
+    // a stale version, so a wrong/identical-looking PNG left over from
+    // before the RasterStyleJson/MapSnapshotHelper cache-key fix can
+    // never be served again, even on a device that already had bad
+    // thumbnails on disk. Cheap (single directory listing) and safe to
+    // run every time the sheet opens.
+    LaunchedEffect(Unit) {
+        MapSnapshotHelper.purgeStaleBasemapPreviews(purgeContext)
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
@@ -185,9 +195,18 @@ private fun BasemapThumbnail(entry: BasemapEntry, modifier: Modifier = Modifier)
             failed = true
             return@LaunchedEffect
         }
+        // P3K audit fix: cache key now folds in the entry's own source
+        // fingerprint (its real tile template / style URL, not just its
+        // gpxKey) so that if two entries ever ended up with the same
+        // gpxKey by mistake, or one entry's rasterUrl changes later, they
+        // can never collide on — or reuse — the same cached thumbnail
+        // file. Actual invalidation is still driven by
+        // MapSnapshotHelper.BASEMAP_PREVIEW_CACHE_VERSION; this is a
+        // second, independent safeguard against key collisions.
+        val sourceFingerprint = styleUrl.hashCode().toUInt().toString(16)
         val result = MapSnapshotHelper.generateBasemapPreview(
             context = context,
-            cacheKey = "basemap_${entry.gpxKey}",
+            cacheKey = "basemap_${entry.gpxKey}_$sourceFingerprint",
             styleUrl = styleUrl,
             widthPx = sizePx,
             heightPx = sizePx

@@ -68,17 +68,29 @@ fun styleUrlFor(entry: BasemapEntry, context: Context? = null): String = when {
         com.nyasar.app.map.providers.RasterStyleJson.build(entry, context)
     entry.assetPath != null ->
         com.nyasar.app.map.providers.RasterStyleJson.build(entry)
-    // P3I audit fix: explicit branch for entries whose only real source
-    // IS the default provider's style (currently just OSM_TOPO — see its
-    // requiresMapTilerKey doc). Previously this went through the same
-    // catch-all `else` as OSM (now fixed above with its own OpenFreeMap
-    // styleUrl), which is what made OSM and OSM_TOPO render identical
-    // tiles despite being meant to look different. Named explicitly here
-    // so it's a deliberate choice, not indistinguishable from an
-    // unconfigured/placeholder entry falling through by accident.
+    // P3K audit fix — THE root cause of "OpenStreetMap/OpenTopoMap/
+    // OpenHikingMap/CyclOSM look identical in the picker": these 4
+    // entries are plain raster (rasterUrl/rasterUrls set, styleUrl=null,
+    // assetPath=null, requiresMapTilerKey=false), so NONE of the branches
+    // above or below ever matched them. They fell all the way through to
+    // the catch-all `else -> styleUrl(StyleVariant.OUTDOOR)` at the
+    // bottom — the SAME shared default-provider style for all four,
+    // regardless of each entry's own distinct rasterUrl/rasterUrls. That
+    // silent fallthrough, not RasterStyleJson.build() itself (which was
+    // already correct per-entry), is why they rendered identically.
+    // isRaster is true exactly when rasterUrl or rasterUrls is set, so
+    // this branch now explicitly routes every plain-raster entry to its
+    // own inline style built from its own tile template.
+    entry.isRaster ->
+        com.nyasar.app.map.providers.RasterStyleJson.build(entry)
+    // Explicit branch for entries whose only real source IS the default
+    // provider's style (currently just OSM_TOPO — see its
+    // requiresMapTilerKey doc). Named explicitly here so it's a
+    // deliberate choice, not indistinguishable from an unconfigured/
+    // placeholder entry falling through by accident.
     entry.requiresMapTilerKey -> styleUrl(StyleVariant.TOPO)
     // Defensive fallback only — no current catalog entry reaches this
-    // (every entry above either has styleUrl, assetPath, or
+    // (every entry above either has styleUrl, assetPath, isRaster, or
     // requiresMapTilerKey set). Kept so a future entry added without one
     // of those degrades to *something* renderable instead of crashing,
     // rather than being relied upon as the normal path for any entry.

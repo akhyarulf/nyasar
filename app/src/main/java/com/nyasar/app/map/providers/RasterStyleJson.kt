@@ -45,7 +45,32 @@ object RasterStyleJson {
      * mistake in BasemapCatalog can never again produce two "different"
      * entries that quietly resolve to the same tiles.
      */
-    fun build(entry: BasemapEntry): String {
+    fun build(entry: BasemapEntry): String = toDataUri(buildJson(entry))
+
+    /**
+     * Same style as [build], but returns the raw JSON string instead of a
+     * `data:` URI.
+     *
+     * P3K audit fix (round 2 — the REAL fix for "OpenStreetMap/OpenTopoMap/
+     * OpenHikingMap/CyclOSM/Liberty Satellite thumbnails stay stuck on the
+     * generic placeholder / never render"): [build]'s `data:application/
+     * json;base64` URI works fine through MapLibreMap.setStyle() (that's
+     * how NyasarMapView renders the live map with these exact styles), but
+     * MapSnapshotter.Options.withStyle(String) uses a different, narrower
+     * style-loading path — it is documented/deprecated in favor of
+     * withStyleBuilder(Style.Builder), and local/inline styles for the
+     * snapshotter are meant to go through Style.Builder().fromJson(...),
+     * not a data: URI. That's exactly why the live map never had this
+     * problem (different code path) while every basemap-picker thumbnail
+     * built from an inline style here failed identically — it was never a
+     * per-entry tile/URL bug, it was the snapshotter's style-loading path
+     * silently rejecting data: URIs and calling onSnapshotError.
+     * MapSnapshotHelper.generateBasemapPreview uses THIS function with
+     * Style.Builder().fromJson(json) instead of the data: URI from
+     * [build]. NyasarMapView keeps using [build] unchanged since its
+     * setStyle() path was never broken.
+     */
+    fun buildJson(entry: BasemapEntry): String {
         // Upstream tile templates verbatim — including endpoints whose WMTS
         // tile matrix is ordered {z}/{y}/{x} (e.g. IGN Belgium): MapLibre
         // substitutes the placeholders literally, no rewriting wanted.
@@ -81,17 +106,25 @@ object RasterStyleJson {
               ]
             }
         """.trimIndent()
-        return toDataUri(json)
+        return json
     }
 
     /**
      * Inline vector style for a bundled-vector entry (IGN France
-     * plan/topo/satellite).
+     * plan/topo/satellite). Unchanged behavior — still returns a data:
+     * URI, still used by NyasarMapView via TileProvider.styleUrlFor.
      */
-    fun build(entry: BasemapEntry, context: Context): String {
-        if (entry.assetPath == null) return build(entry)
-        val json = context.assets.open(entry.assetPath).bufferedReader().use { it.readText() }
-        return toDataUri(json)
+    fun build(entry: BasemapEntry, context: Context): String = toDataUri(buildJson(entry, context))
+
+    /**
+     * Same asset-based inline vector style as [build]'s two-arg overload,
+     * but raw JSON (no data: URI) — the MapSnapshotHelper counterpart to
+     * [buildJson] above, needed for the same reason (Liberty Satellite was
+     * one of the entries stuck on the generic placeholder thumbnail).
+     */
+    fun buildJson(entry: BasemapEntry, context: Context): String {
+        if (entry.assetPath == null) return buildJson(entry)
+        return context.assets.open(entry.assetPath).bufferedReader().use { it.readText() }
     }
 
     /**
@@ -116,7 +149,15 @@ object RasterStyleJson {
      *     TileJSON") — the source-layer names referenced below ("water",
      *     "parks", ...) resolve against this OpenMapTiles-schema tileset.
      */
-    fun libertySatelliteStyle(imageryUrl: String? = null): String {
+    fun libertySatelliteStyle(imageryUrl: String? = null): String = toDataUri(libertySatelliteStyleJson(imageryUrl))
+
+    /**
+     * Raw-JSON counterpart to [libertySatelliteStyle], for the same reason
+     * as [buildJson] above — MapSnapshotHelper needs Style.Builder().
+     * fromJson(...) via withStyleBuilder(), not a data: URI, or Liberty
+     * Satellite's thumbnail keeps hitting onSnapshotError.
+     */
+    fun libertySatelliteStyleJson(imageryUrl: String? = null): String {
         val imagerySource = if (imageryUrl.isNullOrBlank()) {
             """
             "imagery": {
@@ -212,7 +253,7 @@ object RasterStyleJson {
               ]
             }
         """.trimIndent()
-        return toDataUri(json)
+        return json
     }
 
     private fun toDataUri(json: String): String {

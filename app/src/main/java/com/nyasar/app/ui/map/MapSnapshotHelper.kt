@@ -499,7 +499,33 @@ object MapSnapshotHelper {
         val bitmap = withContext(Dispatchers.Main) {
             try {
                 val options = MapSnapshotter.Options(widthPx, heightPx).apply {
-                    withStyle(styleUrl)
+                    // P3K audit fix (the actual root cause of every inline-
+                    // style basemap thumbnail — OpenStreetMap, OpenTopoMap,
+                    // OpenHikingMap, CyclOSM, Liberty Satellite — staying
+                    // stuck on the generic placeholder): withStyle(String)
+                    // on MapSnapshotter.Options is deprecated and, per
+                    // MapLibre's own docs/examples, local/inline styles for
+                    // the snapshotter must go through withStyleBuilder(
+                    // Style.Builder().fromJson(...)) — a data: base64 URI
+                    // through withStyle() is accepted by the LIVE map's
+                    // MapLibreMap.setStyle() (a different loader) but was
+                    // silently failing here, hitting onSnapshotError for
+                    // every one of these entries and NEVER for entries
+                    // using a real remote styleUrl (Liberty Topo,
+                    // OpenMapTiles OSM, OpenMapTiles OSM Topo, UtagawaMTB —
+                    // which is exactly the split Sea observed). Remote
+                    // http(s) styleUrls keep using withStyle() below
+                    // unchanged since that path was never broken for them.
+                    val dataUriPrefix = "data:application/json;base64,"
+                    if (styleUrl.startsWith(dataUriPrefix)) {
+                        val json = String(
+                            android.util.Base64.decode(styleUrl.removePrefix(dataUriPrefix), android.util.Base64.DEFAULT),
+                            Charsets.UTF_8
+                        )
+                        withStyleJson(json)
+                    } else {
+                        withStyle(styleUrl)
+                    }
                     withRegion(bounds)
                     withAttribution(false)
                 }

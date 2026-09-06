@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="exports" path="exports/" />
+    <files-path name="routes" path="routes/" />
+    <!-- P3H: camera capture target + gallery-picked copies. Never the
+         user's original Gallery file — Nyasar only ever writes its own
+         copy here (see PhotoStorageManager), so exposing this whole
+         subtree via FileProvider can't leak/let us touch anything the
+         user didn't hand to this app. -->
+    <files-path name="activity_photos" path="activity_photos/" />
+</paths>

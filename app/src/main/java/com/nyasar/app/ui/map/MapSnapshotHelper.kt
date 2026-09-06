@@ -12,6 +12,7 @@ import android.graphics.Shader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
@@ -503,13 +504,47 @@ object MapSnapshotHelper {
                     withAttribution(false)
                 }
                 val snapshotter = MapSnapshotter(context, options)
-                suspendCancellableCoroutine<Bitmap?> { cont ->
-                    cont.invokeOnCancellation { snapshotter.cancel() }
-                    snapshotter.start(object : MapSnapshotter.SnapshotReadyCallback {
-                        override fun onSnapshotReady(snapshot: MapSnapshot) {
-                            if (cont.isActive) cont.resume(snapshot.bitmap)
-                        }
-                    })
+                // P3K audit fix: THIS was why OpenStreetMap/OpenTopoMap/
+                // OpenHikingMap/CyclOSM thumbnails spun forever even with
+                // network on and airplane mode off. MapSnapshotter.start()
+                // has two callbacks — onSnapshotReady AND onSnapshotError
+                // (MapSnapshotter.ErrorHandler) — but only onSnapshotReady
+                // was wired up. When an inline raster style fails to
+                // resolve/load for any reason (slow/unreachable upstream,
+                // a style the native renderer rejects, etc.), MapLibre
+                // calls onSnapshotError, never onSnapshotReady — so the
+                // suspendCancellableCoroutine below was never resumed and
+                // just hung indefinitely, with nothing logged, which is
+                // exactly "spinner spins forever, no error, no timeout."
+                // OpenMapTiles OSM Topo / UtagawaMTB never hit this because
+                // they use a long-proven remote styleUrl, not one of these
+                // brand-new inline RasterStyleJson.build() styles.
+                //
+                // Fix has two independent layers so a hang can't happen
+                // again even if a future MapLibre version's error callback
+                // is itself unreliable for some failure mode:
+                //  1. onSnapshotError now resumes the coroutine with null
+                //     instead of leaving it hanging.
+                //  2. withTimeoutOrNull wraps the whole thing as a hard
+                //     backstop — if neither callback ever fires (e.g. a
+                //     completely stalled network call inside MapLibre's
+                //     native layer), this still returns null instead of
+                //     blocking the picker sheet forever.
+                withTimeoutOrNull(15_000) {
+                    suspendCancellableCoroutine<Bitmap?> { cont ->
+                        cont.invokeOnCancellation { snapshotter.cancel() }
+                        snapshotter.start(
+                            object : MapSnapshotter.SnapshotReadyCallback {
+                                override fun onSnapshotReady(snapshot: MapSnapshot) {
+                                    if (cont.isActive) cont.resume(snapshot.bitmap)
+                                }
+                            },
+                            MapSnapshotter.ErrorHandler { error ->
+                                android.util.Log.w("MapSnapshotHelper", "Snapshot error for $cacheKey: $error")
+                                if (cont.isActive) cont.resume(null)
+                            }
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.w("MapSnapshotHelper", "Basemap preview failed for $cacheKey: ${e.message}")

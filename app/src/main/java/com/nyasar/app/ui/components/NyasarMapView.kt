@@ -205,7 +205,26 @@ fun NyasarMapView(
             // UI everywhere it would show up anyway.
             map.uiSettings.isCompassEnabled = false
             val styleUri = basemapEntry?.let { provider.styleUrlFor(it, context) } ?: provider.styleUrl(styleVariant)
+            // TEMP DEBUG (P3K basemap-not-switching investigation): visible
+            // on-screen signal so this can be verified without adb/Logcat —
+            // remove once the "peta gak berubah" report is resolved. Shows
+            // whether this LaunchedEffect re-ran at all when basemapEntry
+            // changed, and what URI it resolved to (first ~60 chars, since
+            // data: URIs are long) — and separately whether setStyle's own
+            // completion callback below ever fires for that URI.
+            android.widget.Toast.makeText(
+                context,
+                "setStyle() called: ${basemapEntry?.gpxKey} -> ${styleUri.take(60)}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
             map.setStyle(styleUri) { style ->
+                // TEMP DEBUG — see note above; confirms the style actually
+                // finished loading (not just that setStyle was called).
+                android.widget.Toast.makeText(
+                    context,
+                    "setStyle() COMPLETED for: ${basemapEntry?.gpxKey}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
                 if (style.getImage("nyasar-heading-arrow") == null) {
                     style.addImage("nyasar-heading-arrow", headingArrowBitmap())
                 }

@@ -169,10 +169,20 @@ object RasterStyleJson {
             """
         } else {
             val escaped = imageryUrl.replace("\"", "\\\"")
+            // Fix: this JSON is built inside a Kotlin triple-quoted
+            // string, where \" is NOT an escape sequence — it's two
+            // literal characters, backslash then quote. So the line
+            // below used to emit "tiles": [\"https://...\"] with actual
+            // backslashes IN the JSON, which is invalid JSON syntax
+            // (unescaped-in-context backslash) and made this whole
+            // "imagery" source fail to parse — exactly why satellite
+            // imagery never rendered even after the tileset ID/endpoint
+            // fixes above got the URL itself right. Plain "$escaped"
+            // (no backslashes) is correct here.
             """
             "imagery": {
               "type": "raster",
-              "tiles": [\"$escaped\"],
+              "tiles": ["$escaped"],
               "tileSize": 256,
               "attribution": ""
             }

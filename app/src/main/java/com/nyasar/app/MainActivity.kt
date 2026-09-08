@@ -37,9 +37,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.splashscreen.installSplashScreen
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.first
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -88,7 +88,7 @@ class MainActivity : AppCompatActivity() {
         // and hooks the splash's show/hide lifecycle. The splash's
         // background/icon come from that theme — no custom layout, no
         // separate activity.
-        val splashScreen = androidx.core.splashscreen.SplashScreen.installSplashScreen(this)
+        val splashScreen = installSplashScreen(this)
         // Keep the splash on-screen until the first DataStore settings
         // emission resolves [splashSettingsReady] (the documented pattern
         // for "loading in-app settings from local disk asynchronously") —
@@ -120,11 +120,9 @@ class MainActivity : AppCompatActivity() {
             // DataStore) releases the launch splash screen — the app's
             // first drawn frame then already carries the user's real
             // light/dark theme. See splashSettingsReady in onCreate.
-            LaunchedEffect(settingsRepository) {
-                settingsRepository.settings.first()
-                splashSettingsReady = true
+            LaunchedEffect(Unit) {
+                settingsRepository.settings.collect { splashSettingsReady = true }
             }
-
             // Apply language override from settings.
             // Skip while settings is still null (DataStore hasn't loaded yet) —
             // otherwise the fallback "system" locale would differ from the

@@ -205,26 +205,40 @@ fun NyasarMapView(
             // UI everywhere it would show up anyway.
             map.uiSettings.isCompassEnabled = false
             val styleUri = basemapEntry?.let { provider.styleUrlFor(it, context) } ?: provider.styleUrl(styleVariant)
-            // TEMP DEBUG (P3K basemap-not-switching investigation): visible
-            // on-screen signal so this can be verified without adb/Logcat —
-            // remove once the "peta gak berubah" report is resolved. Shows
-            // whether this LaunchedEffect re-ran at all when basemapEntry
-            // changed, and what URI it resolved to (first ~60 chars, since
-            // data: URIs are long) — and separately whether setStyle's own
-            // completion callback below ever fires for that URI.
-            android.widget.Toast.makeText(
-                context,
-                "setStyle() called: ${basemapEntry?.gpxKey} -> ${styleUri.take(60)}",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            map.setStyle(styleUri) { style ->
-                // TEMP DEBUG — see note above; confirms the style actually
-                // finished loading (not just that setStyle was called).
-                android.widget.Toast.makeText(
-                    context,
-                    "setStyle() COMPLETED for: ${basemapEntry?.gpxKey}",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
+            // P3K audit fix (root cause of "peta gak berubah" — the map's
+            // OWN setStyle, not just MapSnapshotter, had the same problem):
+            // map.setStyle(String) resolves through Style.Builder().
+            // fromUri(uri) internally — that path never reliably completes
+            // for a data:application/json;base64 URI (it's meant for real
+            // URLs/asset paths), so for every entry using an inline style
+            // (OpenStreetMap, OpenTopoMap, OpenHikingMap, CyclOSM, Liberty
+            // Satellite) this LaunchedEffect *did* re-run and *did* call
+            // setStyle every time basemapEntry changed, but the load never
+            // finished — no crash, no visible error, the style callback
+            // below just never fired, so the live map silently kept
+            // whatever style was already loaded. Confirmed on-device with
+            // a temporary debug Toast in both branches: the "called" toast
+            // fired for all 9 entries, the "completed" toast only fired
+            // for the 4 using a real remote styleUrl. Same underlying
+            // MapLibre quirk as the MapSnapshotter fix above, same
+            // resolution: detect the data: URI, decode it back to raw
+            // JSON, and load it via Style.Builder().fromJson(json) —
+            // fromJson is the API MapLibre actually documents for
+            // in-memory/inline styles. Non-data-URI entries (remote
+            // styleUrl, or a plain http(s) URL/asset URI) keep using
+            // fromUri exactly as before, since that path was never broken
+            // for them.
+            val dataUriPrefix = "data:application/json;base64,"
+            val styleBuilder = if (styleUri.startsWith(dataUriPrefix)) {
+                val json = String(
+                    android.util.Base64.decode(styleUri.removePrefix(dataUriPrefix), android.util.Base64.DEFAULT),
+                    Charsets.UTF_8
+                )
+                org.maplibre.android.maps.Style.Builder().fromJson(json)
+            } else {
+                org.maplibre.android.maps.Style.Builder().fromUri(styleUri)
+            }
+            map.setStyle(styleBuilder) { style ->
                 if (style.getImage("nyasar-heading-arrow") == null) {
                     style.addImage("nyasar-heading-arrow", headingArrowBitmap())
                 }

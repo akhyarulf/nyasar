@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -84,6 +87,11 @@ import com.nyasar.app.ui.map.MapSnapshotHelper
 fun BasemapPickerSheet(
     selected: BasemapEntry,
     onSelect: (BasemapEntry) -> Unit,
+    /** Waymarked Trails overlays (spec: GPX Studio reference "Overlays"
+     *  section) — defaults keep every existing call site working
+     *  unchanged (no overlays shown/togglable) until a screen opts in. */
+    activeOverlays: Set<com.nyasar.app.map.OverlayLayer> = emptySet(),
+    onToggleOverlay: (com.nyasar.app.map.OverlayLayer) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val purgeContext = LocalContext.current
@@ -146,6 +154,35 @@ fun BasemapPickerSheet(
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+            Text("Overlays", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Waymarked Trails",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            com.nyasar.app.map.OverlayLayer.entries.forEach { overlay ->
+                val checked = overlay in activeOverlays
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onToggleOverlay(overlay) }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.Checkbox(
+                        checked = checked,
+                        onCheckedChange = { onToggleOverlay(overlay) }
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(overlay.displayName, style = MaterialTheme.typography.bodyLarge)
                 }
             }
         }

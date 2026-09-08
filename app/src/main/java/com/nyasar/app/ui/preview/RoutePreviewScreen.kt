@@ -71,6 +71,11 @@ fun RoutePreviewScreen(
     // choice as plain Compose state rather than in RoutePreviewViewModel).
     var currentBasemap by remember { mutableStateOf(com.nyasar.app.map.BasemapEntry.LIBERTY_TOPO) }
     var currentProvider by remember { mutableStateOf(state.provider) }
+    // Waymarked Trails overlays — separate concept from basemap (spec:
+    // GPX Studio's reference "Overlays" section, checkboxes not radio,
+    // multiple can be active together). Same plain-Compose-state pattern
+    // as currentBasemap right above, not a ViewModel field.
+    var activeOverlays by remember { mutableStateOf(setOf<com.nyasar.app.map.OverlayLayer>()) }
 
     Scaffold(
         topBar = {
@@ -117,6 +122,7 @@ fun RoutePreviewScreen(
                     provider = currentProvider,
                     styleVariant = currentStyleVariant,
                     basemapEntry = currentBasemap,
+                    activeOverlays = activeOverlays,
                     track = state.track,
                     waypoints = state.waypoints,
                     highlightPoint = highlightLatLng,
@@ -289,6 +295,10 @@ fun RoutePreviewScreen(
             onSelect = { entry ->
                 currentBasemap = entry
                 showBasemapSheet = false
+            },
+            activeOverlays = activeOverlays,
+            onToggleOverlay = { overlay ->
+                activeOverlays = if (overlay in activeOverlays) activeOverlays - overlay else activeOverlays + overlay
             },
             onDismiss = { showBasemapSheet = false }
         )

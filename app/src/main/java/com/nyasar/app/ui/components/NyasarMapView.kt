@@ -87,6 +87,14 @@ fun NyasarMapView(
      *  which. Null (the default) preserves every existing call site's
      *  behavior exactly as before this param was added. */
     basemapEntry: com.nyasar.app.map.BasemapEntry? = null,
+    /** Waymarked Trails overlay layers (Hiking/Cycling/MTB), on top of
+     *  whichever basemap is active. Deliberately kept OUT of the giant
+     *  style-setup LaunchedEffect below (which fully reloads the style
+     *  via setStyle on every key change) — toggling an overlay checkbox
+     *  must not reset/re-fetch the entire basemap. Applied in its own
+     *  effect further down instead, using getStyle() to add/remove just
+     *  these sources/layers on the currently-loaded style. */
+    activeOverlays: Set<com.nyasar.app.map.OverlayLayer> = emptySet(),
     track: List<TrackPoint>,
     /** The track actually walked so far (recording), drawn as a second line in
      *  a different color from [track] (the planned route). Updates on every
@@ -181,6 +189,61 @@ fun NyasarMapView(
             mapView.onPause()
             mapView.onStop()
             mapView.onDestroy()
+        }
+    }
+
+    // Waymarked Trails overlay toggle — see the parameter doc on
+    // [activeOverlays] for why this is a separate effect from the big
+    // style-setup one below. getStyle() (not setStyle()) so this never
+    // touches the base map's own sources/layers; only adds/removes the
+    // 3 possible overlay source+layer pairs. Runs on every re-composition
+    // where activeOverlays changed AND whenever basemapEntry/styleVariant
+    // changes too (a fresh setStyle() call wipes ALL sources/layers,
+    // overlays included, so they need to be re-applied after any full
+    // style reload — keying on those here as well, not just
+    // activeOverlays, is what makes overlays survive a basemap switch
+    // instead of silently disappearing the next time the user picks a
+    // different basemap).
+    LaunchedEffect(activeOverlays, basemapEntry, provider.id, styleVariant) {
+        mapView.getMapAsync { map ->
+            map.getStyle { style ->
+                com.nyasar.app.map.OverlayLayer.entries.forEach { overlay ->
+                    val sourceId = "nyasar-overlay-${overlay.id}-source"
+                    val layerId = "nyasar-overlay-${overlay.id}-layer"
+                    val shouldBeOn = overlay in activeOverlays
+                    val isOn = style.getLayer(layerId) != null
+                    if (shouldBeOn && !isOn) {
+                        if (style.getSourceAs<org.maplibre.android.style.sources.RasterSource>(sourceId) == null) {
+                            style.addSource(
+                                org.maplibre.android.style.sources.RasterSource(
+                                    sourceId,
+                                    org.maplibre.android.style.sources.TileSet("tilejson", overlay.rasterUrl).apply {
+                                        setMaxZoom(overlay.maxZoom)
+                                        setAttribution(overlay.attribution)
+                                    },
+                                    256
+                                )
+                            )
+                        }
+                        // Overlay must sit above the basemap but below
+                        // Nyasar's own route/track/waypoint/user layers —
+                        // insert right above the basemap's own bottom
+                        // layer (index 0) rather than appending at the
+                        // very top, so a route line drawn on the map is
+                        // never hidden underneath a trail overlay.
+                        val bottomLayerId = style.layers.firstOrNull()?.id
+                        val overlayLayer = org.maplibre.android.style.layers.RasterLayer(layerId, sourceId)
+                        if (bottomLayerId != null) {
+                            style.addLayerAbove(overlayLayer, bottomLayerId)
+                        } else {
+                            style.addLayer(overlayLayer)
+                        }
+                    } else if (!shouldBeOn && isOn) {
+                        try { style.removeLayer(layerId) } catch (_: Exception) {}
+                        try { style.removeSource(sourceId) } catch (_: Exception) {}
+                    }
+                }
+            }
         }
     }
 

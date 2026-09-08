@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash screen icon (windowSplashScreenAnimatedIcon).
+
+     Layer 1: pale circle filling the whole icon canvas. The splash icon
+     is circle-masked on Android 12+ (same geometry as adaptive icons:
+     only the inner circle of the canvas is visible), and the compat
+     library renders the drawable unmasked on pre-12 — building the pale
+     disk INTO the drawable makes both paths look identical.
+
+     Layer 2: the launcher's adaptive-icon foreground PNG
+     (mipmap-*/ic_launcher_foreground.png) at full canvas. That PNG
+     follows adaptive-icon layout rules (artwork occupies the center
+     third, transparent surround), so at full-canvas scale the artwork
+     lands exactly where it does on the launcher icon — same size, same
+     position, on the same pale color. Launcher -> splash reads as one
+     continuous icon rather than a resized re-render. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/splash_icon_backdrop" />
+        </shape>
+    </item>
+    <item android:drawable="@mipmap/ic_launcher_foreground" />
+</layer-list>

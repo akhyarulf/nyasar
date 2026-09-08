@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash window background: the SAME pale cream as the adaptive
+         icon background (drawable/ic_launcher_background.xml, #E6EBE5)
+         so the launcher -> splash -> app sequence never shifts color.
+         values-night overrides ONLY this color (dark surface matching
+         the app's dark theme, Theme.kt DarkColors.background). -->
+    <color name="splash_window_background">#E6EBE5</color>
+
+    <!-- Backdrop circle behind the splash icon artwork. Deliberately NOT
+         overridden in night mode: the logo artwork (gray mountains,
+         compass, green pin) was drawn against this pale background, so it
+         keeps its natural backdrop in both themes — mirroring the Home
+         logo badge and the launcher icon itself. -->
+    <color name="splash_icon_backdrop">#E6EBE5</color>
+
+    <!-- Launch-safe window background for Theme.Nyasar's first frames,
+         before the splash theme is applied and before Compose can read
+         the user's theme setting (DataStore loads async). Pale neutral =
+         the brand backdrop; for dark-mode users it's far less jarring
+         than the previous hardcoded white. -->
+    <color name="nyasar_window_background">#E6EBE5</color>
+</resources>

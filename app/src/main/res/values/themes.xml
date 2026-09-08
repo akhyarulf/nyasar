@@ -1,6 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Theme.Nyasar: the theme the app content runs under. It's also
+         what the process boots with BEFORE any settings are read
+         (DataStore can't have loaded yet), so everything on it must be
+         launch-safe and theme-independent:
+           - status bar transparent (the app draws edge-to-edge headers
+             immediately; Home fills under the status bar).
+           - windowBackground pale #E6EBE5 instead of the old hardcoded
+             #FFFFFF: the process may cold-start into EITHER light or dark
+             (splash theme re-applies before the splash is shown, and the
+             Compose theme switches per user setting once DataStore loads)
+             — a pale neutral avoids a jarring white flash for dark-mode
+             users during that first frame(s), while staying harmonious
+             with the brand's pale backdrop in light mode. -->
     <style name="Theme.Nyasar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:statusBarColor">#00000000</item>
+        <item name="android:windowBackground">@color/nyasar_window_background</item>
+    </style>
+
+    <!-- Official AndroidX SplashScreen setup (developer.android.com/
+         develop/ui/views/launch/splash-screen):
+           - Theme.SplashScreen parent with windowSplashScreenBackground
+             (single opaque color — day/night handled by the compat
+             library through the values-night color override),
+           - windowSplashScreenAnimatedIcon = the Nyasar logo layer-list
+             (pale disk + launcher foreground PNG),
+           - postSplashScreenTheme hands over to Theme.Nyasar so zero
+             app styling changes after the splash exits.
+
+         MainActivity must call SplashScreen.installSplashScreen(this)
+         BEFORE super.onCreate() for the theme swap to take effect. -->
+    <style name="Theme.Nyasar.Splash" parent="Theme.SplashScreen">
+        <item name="android:windowSplashScreenBackground">@color/splash_window_background</item>
+        <item name="windowSplashScreenBackground">@color/splash_window_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenAnimationDuration">400</item>
+        <item name="postSplashScreenTheme">@style/Theme.Nyasar</item>
     </style>
 </resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark-mode splash background: matches the app's dark theme surface
+         (Theme.kt DarkColors background #1A1C19), so the splash -> Home
+         transition stays dark -> dark while the icon keeps its pale
+         backdrop circle (see values/colors.xml notes). Also applied to the
+         starter theme's pre-splash window background for the same reason. -->
+    <color name="splash_window_background">#1A1C19</color>
+    <color name="nyasar_window_background">#1A1C19</color>
+</resources>

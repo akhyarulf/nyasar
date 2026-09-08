@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
 import androidx.navigation.NavHostController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -69,7 +71,39 @@ class MainActivity : AppCompatActivity() {
 
     private var pendingImportUri by mutableStateOf<Uri?>(null)
 
+    /** False until the first DataStore settings emission. While false, the
+     *  splash screen is held on-screen via the official OnPreDraw
+     *  suspension (keepOnScreenCondition) — so the splash never hands off
+     *  to the app before the user's actual theme (light/dark) is known,
+     *  making the splash -> app transition theme-consistent instead of
+     *  flashing the system-default theme for a frame or two. */
+    @Volatile
+    private var splashSettingsReady = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Official Android 12+ SplashScreen API through the compat library
+        // (developer.android.com/develop/ui/views/launch/splash-screen).
+        // MUST run before super.onCreate(): it swaps this activity's theme
+        // from Theme.Nyasar.Splash to postSplashScreenTheme (Theme.Nyasar)
+        // and hooks the splash's show/hide lifecycle. The splash's
+        // background/icon come from that theme — no custom layout, no
+        // separate activity.
+        val splashScreen = androidx.core.splashscreen.SplashScreen.installSplashScreen(this)
+        // Keep the splash on-screen until the first DataStore settings
+        // emission resolves [splashSettingsReady] (the documented pattern
+        // for "loading in-app settings from local disk asynchronously") —
+        // so the app's first DRAWN frame already carries the user's real
+        // light/dark theme instead of flashing the system default. The
+        // lifecycleScope fallback below is a defensive release valve: if
+        // anything pathological ever delays that emission, the splash is
+        // dropped after 2.5s anyway so the app can never get stuck behind
+        // it (remaining frames then follow system theme — the same
+        // pre-splashscreen behavior).
+        splashScreen.setKeepOnScreenCondition { !splashSettingsReady }
+        lifecycleScope.launch {
+            kotlinx.coroutines.delay(2_500)
+            splashSettingsReady = true
+        }
         super.onCreate(savedInstanceState)
         pendingImportUri = extractGpxUriFromIntent(intent)
 
@@ -81,6 +115,15 @@ class MainActivity : AppCompatActivity() {
                 com.nyasar.app.data.settings.SettingsRepository(applicationContext)
             }
             val settings by settingsRepository.settings.collectAsState(initial = null)
+
+            // First settings emission (theme language/mode loaded from
+            // DataStore) releases the launch splash screen — the app's
+            // first drawn frame then already carries the user's real
+            // light/dark theme. See splashSettingsReady in onCreate.
+            LaunchedEffect(settingsRepository) {
+                settingsRepository.settings.first()
+                splashSettingsReady = true
+            }
 
             // Apply language override from settings.
             // Skip while settings is still null (DataStore hasn't loaded yet) —

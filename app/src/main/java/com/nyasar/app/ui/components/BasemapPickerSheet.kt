@@ -7,25 +7,27 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,39 +51,48 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.map.BasemapEntry
+import com.nyasar.app.map.OverlayLayer
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.ui.map.MapSnapshotHelper
 
 /**
- * Basemap picker — bottom sheet with a grid of all 9 World [BasemapEntry]
- * catalog entries (Liberty Topo, Liberty Satellite, OpenMapTiles OSM,
- * OpenMapTiles OSM Topo, OpenStreetMap, OpenTopoMap, OpenHikingMap,
- * CyclOSM, UtagawaMTB) — country variants were removed from the catalog
- * entirely (BasemapCatalog.kt), not merely hidden here, so there is
- * nothing left to filter out.
+ * Basemap + overlay picker — bottom sheet with two horizontally-scrollable
+ * rows, one per section, styled to match (spec: reference Strava screenshot
+ * — "Map Types" row shows exactly 4 tiles on screen at once with the rest
+ * reachable by swipe; "Overlays" uses the identical tile layout/sizing,
+ * just with however many entries it actually has rather than being padded
+ * out to 4). Both rows share one tile-width formula computed from the
+ * sheet's actual content width (BoxWithConstraints) so "exactly 4 fit" is
+ * true on any screen size, not just the reference device's.
  *
- * Previously this sheet only chose between the 3 legacy [StyleVariant]s
- * (Outdoor/Satellite/Terrain resolved via the active TileProvider); the
- * catalog's 9 [BasemapEntry] values existed as pure data with no picker UI
- * anywhere in the app. This is that missing UI — callers now hold a
- * [BasemapEntry] selection instead of a StyleVariant (see HomeViewModel /
- * RecordingViewModel / RoutePreviewScreen for the per-screen state; each
- * pattern mirrors exactly how they already held the old StyleVariant, no
- * new persistence mechanism introduced).
+ * Basemaps: all 9 World [BasemapEntry] catalog entries (Liberty Topo,
+ * Liberty Satellite, OpenMapTiles OSM, OpenMapTiles OSM Topo,
+ * OpenStreetMap, OpenTopoMap, OpenHikingMap, CyclOSM, UtagawaMTB) —
+ * country variants were removed from the catalog entirely
+ * (BasemapCatalog.kt), not merely hidden here.
  *
- * Thumbnails: still procedural Canvas art (zero network, zero bundled
- * assets) — 3 of the 9 entries reuse the original hand-drawn scenes (they
- * map naturally: Liberty Topo≈Outdoor, Liberty Satellite≈Satellite,
- * OpenMapTiles OSM Topo≈Terrain), the other 6 get a simpler shared
- * treatment (a flat tint + a small distinguishing icon/motif) rather than
- * six more bespoke illustrations — keeps the picker genuinely showing 9
- * *distinct* choices without a disproportionate amount of hand-drawn art
- * for entries the user hasn't seen yet.
+ * Overlays: the 3 Waymarked Trails layers (Hiking, Cycling, MTB) — was
+ * previously a vertical checkbox list; now the same tile shape as
+ * basemaps (icon tile + label, selection shown as a border + check badge
+ * rather than a Material Checkbox) so the two sections read as one
+ * consistent picker UI rather than two different UI languages on the same
+ * sheet.
+ *
+ * Thumbnails: real map previews backed by
+ * [com.nyasar.app.ui.map.MapSnapshotHelper.generateBasemapPreview] (each
+ * entry's own real upstream style/tiles via MapLibre's snapshotter, disk
+ * cached). Overlay tiles use a plain Material icon per layer instead —
+ * Waymarked Trails' tile endpoints are transparent line overlays, not
+ * standalone basemaps, so a snapshot of one alone renders as a mostly
+ * empty image; an icon says what the layer *is* more clearly than that
+ * would.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,8 +102,8 @@ fun BasemapPickerSheet(
     /** Waymarked Trails overlays (spec: GPX Studio reference "Overlays"
      *  section) — defaults keep every existing call site working
      *  unchanged (no overlays shown/togglable) until a screen opts in. */
-    activeOverlays: Set<com.nyasar.app.map.OverlayLayer> = emptySet(),
-    onToggleOverlay: (com.nyasar.app.map.OverlayLayer) -> Unit = {},
+    activeOverlays: Set<OverlayLayer> = emptySet(),
+    onToggleOverlay: (OverlayLayer) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val purgeContext = LocalContext.current
@@ -113,46 +124,27 @@ fun BasemapPickerSheet(
                 .padding(bottom = 32.dp)
         ) {
             Text("Jenis Peta", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth().heightForRows(BasemapEntry.ordered.size)
-            ) {
-                items(BasemapEntry.ordered) { entry ->
-                    val isSelected = entry == selected
-                    Column(
-                        Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelect(entry) }
-                            .padding(4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            tonalElevation = 1.dp,
-                            border = if (isSelected) {
-                                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                            } else {
-                                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                            }
-                        ) {
-                            BasemapThumbnail(
-                                entry = entry,
-                                modifier = Modifier.fillMaxWidth().aspectRatio(1f)
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            entry.gpxName,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            // Shared tile-width formula for both rows — "exactly 4 visible
+            // at once, rest reachable by swipe" (spec), computed from this
+            // Column's actual content width (already inset by the 20.dp
+            // horizontal padding above) rather than a fixed dp constant, so
+            // it holds on any screen size, not just one reference width.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val spacing = 10.dp
+                val tileWidth = (maxWidth - spacing * 3) / 4
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(BasemapEntry.ordered) { entry ->
+                        BasemapTile(
+                            entry = entry,
+                            isSelected = entry == selected,
+                            onClick = { onSelect(entry) },
+                            width = tileWidth
                         )
                     }
                 }
@@ -167,37 +159,167 @@ fun BasemapPickerSheet(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(8.dp))
-            com.nyasar.app.map.OverlayLayer.entries.forEach { overlay ->
-                val checked = overlay in activeOverlays
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onToggleOverlay(overlay) }
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            Spacer(Modifier.height(16.dp))
+
+            // Same tile width formula as the basemap row above (spec:
+            // "mirip untuk UI antara jenis peta dan overlay") — recomputed
+            // from this row's own BoxWithConstraints rather than hoisted
+            // out of the one above, since the two rows aren't guaranteed
+            // to share a composition scope, but the formula (and therefore
+            // the resulting width) is identical given the same content
+            // width, so the tiles still end up pixel-for-pixel the same
+            // size. Only 3 entries exist today so this row never needs to
+            // scroll — that's a property of OverlayLayer's current entry
+            // count, not a different layout mechanism from the row above.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val spacing = 10.dp
+                val tileWidth = (maxWidth - spacing * 3) / 4
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    androidx.compose.material3.Checkbox(
-                        checked = checked,
-                        onCheckedChange = { onToggleOverlay(overlay) }
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(overlay.displayName, style = MaterialTheme.typography.bodyLarge)
+                    items(OverlayLayer.entries.toList()) { overlay ->
+                        OverlayTile(
+                            overlay = overlay,
+                            isChecked = overlay in activeOverlays,
+                            onClick = { onToggleOverlay(overlay) },
+                            width = tileWidth
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-/** 3 columns -> ceil(count/3) rows, each thumbnail is a square card ~132dp
- *  tall including its label, plus grid spacing — a fixed height (rather
- *  than nested-scroll weight tricks) keeps this sheet's height stable and
- *  avoids the LazyVerticalGrid-inside-ModalBottomSheet measurement issues
- *  an unconstrained/weighted height can cause. */
-private fun Modifier.heightForRows(itemCount: Int): Modifier {
-    val rows = (itemCount + 2) / 3
-    return this.height((rows * 132).dp)
+/** One basemap tile — real map-snapshot thumbnail, label below, selection
+ *  shown as a primary-color border (radio-style: exactly one basemap is
+ *  ever selected). [width] comes from the shared formula in the sheet
+ *  above so every tile in the row is identically sized. */
+@Composable
+private fun BasemapTile(
+    entry: BasemapEntry,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    width: Dp
+) {
+    Column(
+        Modifier
+            .width(width)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 1.dp,
+            border = if (isSelected) {
+                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            } else {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            }
+        ) {
+            BasemapThumbnail(
+                entry = entry,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f)
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            entry.gpxName,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (isSelected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
+
+/** One overlay tile — same shape/size/selection-border language as
+ *  [BasemapTile] (spec: the two sections should look like one picker),
+ *  but overlays are multi-select (checkboxes, not radio) so on top of the
+ *  border, a checked tile also gets a small check badge — without that
+ *  second cue, a selected overlay tile and a selected (radio) basemap
+ *  tile would be visually identical despite meaning different things
+ *  ("the" choice vs. "one of possibly several" choices). */
+@Composable
+private fun OverlayTile(
+    overlay: OverlayLayer,
+    isChecked: Boolean,
+    onClick: () -> Unit,
+    width: Dp
+) {
+    Column(
+        Modifier
+            .width(width)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 1.dp,
+            border = if (isChecked) {
+                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            } else {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            }
+        ) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+                Icon(
+                    imageVector = overlayIcon(overlay),
+                    contentDescription = null,
+                    tint = overlayTint(overlay),
+                    modifier = Modifier.fillMaxSize(0.42f).align(Alignment.Center)
+                )
+                if (isChecked) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(18.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(3.dp)
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            overlay.displayName,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (isChecked) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
+
+private fun overlayIcon(overlay: OverlayLayer): ImageVector = when (overlay) {
+    OverlayLayer.HIKING -> Icons.Default.DirectionsWalk
+    OverlayLayer.CYCLING -> Icons.Default.DirectionsBike
+    OverlayLayer.MTB -> Icons.Default.Terrain
+}
+
+@Composable
+private fun overlayTint(overlay: OverlayLayer): Color = when (overlay) {
+    OverlayLayer.HIKING -> Color(0xFFE8734D)
+    OverlayLayer.CYCLING -> Color(0xFF4D8FE8)
+    OverlayLayer.MTB -> Color(0xFF6BAE4D)
 }
 
 /**
@@ -280,63 +402,12 @@ private fun entryStyleUrl(entry: BasemapEntry, context: android.content.Context)
     return provider.styleUrlFor(entry, context)
 }
 
-@Composable
-private fun OutdoorScene(modifier: Modifier) {
-    Canvas(modifier) {
-        drawRect(Brush.verticalGradient(listOf(Color(0xFF44603F), Color(0xFF2C4230))))
-        drawCircle(
-            Color(0xFF4E7C8C).copy(alpha = 0.9f),
-            radius = size.width * 0.15f,
-            center = Offset(size.width * 0.78f, size.height * 0.75f)
-        )
-        val trail = Path().apply {
-            moveTo(size.width * 0.08f, size.height * 0.85f)
-            cubicTo(
-                size.width * 0.45f, size.height * 0.65f,
-                size.width * 0.25f, size.height * 0.30f,
-                size.width * 0.92f, size.height * 0.14f
-            )
-        }
-        drawPath(trail, Color(0xFFE8C468), style = Stroke(width = size.width * 0.08f, cap = StrokeCap.Round))
-    }
-}
-
-@Composable
-private fun SatelliteScene(modifier: Modifier) {
-    Canvas(modifier) {
-        drawRect(Brush.verticalGradient(listOf(Color(0xFF2A4227), Color(0xFF162415))))
-        drawCircle(Color(0xFF3E5C2F), radius = size.width * 0.22f, center = Offset(size.width * 0.30f, size.height * 0.34f))
-        drawCircle(Color(0xFF576D35), radius = size.width * 0.18f, center = Offset(size.width * 0.72f, size.height * 0.58f))
-        drawCircle(Color(0xFF24401F), radius = size.width * 0.26f, center = Offset(size.width * 0.66f, size.height * 0.18f))
-        val river = Path().apply {
-            moveTo(0f, size.height * 0.78f)
-            quadraticBezierTo(size.width * 0.5f, size.height * 0.52f, size.width, size.height * 0.72f)
-        }
-        drawPath(river, Color(0xFF35586D).copy(alpha = 0.95f), style = Stroke(width = size.width * 0.07f))
-    }
-}
-
-@Composable
-private fun TerrainScene(modifier: Modifier) {
-    Canvas(modifier) {
-        drawRect(Brush.verticalGradient(listOf(Color(0xFFDCCFA9), Color(0xFFC6B48D))))
-        for (i in 1..4) {
-            drawCircle(
-                Color(0xFF8A744E).copy(alpha = 0.55f),
-                radius = size.width * (0.10f + i * 0.09f),
-                center = Offset(size.width * 0.44f, size.height * 0.46f),
-                style = Stroke(width = size.width * 0.022f)
-            )
-        }
-        drawCircle(Color(0xFF6B5636), radius = size.width * 0.05f, center = Offset(size.width * 0.44f, size.height * 0.46f))
-    }
-}
-
 /** Shared look for the 6 catalog entries with no bespoke scene — a flat
  *  tint (stable per entry, from its ordinal, so it doesn't shift between
  *  recompositions) plus a centered icon distinguishing raster (globe —
  *  OpenStreetMap-family tile servers) from vector (layered stack icon —
- *  hosted MapLibre style JSON). */
+ *  hosted MapLibre style JSON). Also the fallback whenever a real
+ *  snapshot fails to load (offline, upstream down), for any entry. */
 @Composable
 private fun GenericScene(entry: BasemapEntry, modifier: Modifier = Modifier) {
     val tints = listOf(

@@ -47,30 +47,15 @@ interface TileProvider {
  */
 fun styleUrlFor(entry: BasemapEntry, context: Context? = null): String = when {
     entry == BasemapEntry.LIBERTY_SATELLITE -> {
-        // Fix (root cause of "Liberty Satellite shows nothing", now
-        // confirmed end-to-end — verified by fetching MapTiler's real
-        // tiles: https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg
-        // was the wrong API family (Maps API, not a valid mapId there).
-        // MapTiler's raw satellite imagery is served via their separate
-        // Tiles API — no tileSize segment, no file extension:
-        //   https://api.maptiler.com/tiles/{tilesId}/{z}/{x}/{y}?key=...
-        // Dataset id is satellite-v2 — confirmed two ways: (1) fetching
-        // MapTiler's own https://api.maptiler.com/maps/satellite-v4/
-        // style.json shows its "satellite" raster source still points at
-        // .../tiles/satellite-v2/tiles.json (v4 names the STYLE product,
-        // not a separate raster tileset — there is no satellite-v4 raster
-        // dataset to request directly), and (2) manually loading
-        // https://api.maptiler.com/tiles/satellite-v2/1/1/1?key=... in a
-        // browser returns real satellite imagery. satellite-v2 (imagery
-        // only, no labels/roads) is correct for this entry specifically
-        // because it layers imagery underneath the Liberty vector overlay
-        // for labels/roads — a hybrid dataset here would double up every
-        // road and place label, once from the imagery and once from the
-        // Liberty overlay on top of it.
-        val apiKey = com.nyasar.app.BuildConfig.MAPTILER_API_KEY
-        val imageryUrl = if (apiKey.isNotBlank()) {
-            "https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}?key=$apiKey"
-        } else null
+        // FIX: was calling libertySatelliteStyle() with no imageryUrl,
+        // producing an empty "tiles": [] raster source — no satellite
+        // imagery rendered at all, only the vector overlay on a blank
+        // layer. Now wires real MapTiler satellite tiles when a key is
+        // configured, and gracefully keeps the old (blank-imagery, vector-
+        // only) behavior when it isn't, rather than crashing or fetching
+        // an unauthenticated/broken URL.
+        val maptiler = com.nyasar.app.map.providers.MapTilerProvider()
+        val imageryUrl = if (maptiler.isConfigured()) maptiler.satelliteRasterTileUrl() else null
         com.nyasar.app.map.providers.RasterStyleJson.libertySatelliteStyle(imageryUrl)
     }
     entry.styleUrl != null -> entry.styleUrl
@@ -78,32 +63,6 @@ fun styleUrlFor(entry: BasemapEntry, context: Context? = null): String = when {
         com.nyasar.app.map.providers.RasterStyleJson.build(entry, context)
     entry.assetPath != null ->
         com.nyasar.app.map.providers.RasterStyleJson.build(entry)
-    // P3K audit fix — THE root cause of "OpenStreetMap/OpenTopoMap/
-    // OpenHikingMap/CyclOSM look identical in the picker": these 4
-    // entries are plain raster (rasterUrl/rasterUrls set, styleUrl=null,
-    // assetPath=null, requiresMapTilerKey=false), so NONE of the branches
-    // above or below ever matched them. They fell all the way through to
-    // the catch-all `else -> styleUrl(StyleVariant.OUTDOOR)` at the
-    // bottom — the SAME shared default-provider style for all four,
-    // regardless of each entry's own distinct rasterUrl/rasterUrls. That
-    // silent fallthrough, not RasterStyleJson.build() itself (which was
-    // already correct per-entry), is why they rendered identically.
-    // isRaster is true exactly when rasterUrl or rasterUrls is set, so
-    // this branch now explicitly routes every plain-raster entry to its
-    // own inline style built from its own tile template.
-    entry.isRaster ->
-        com.nyasar.app.map.providers.RasterStyleJson.build(entry)
-    // Explicit branch for entries whose only real source IS the default
-    // provider's style (currently just OSM_TOPO — see its
-    // requiresMapTilerKey doc). Named explicitly here so it's a
-    // deliberate choice, not indistinguishable from an unconfigured/
-    // placeholder entry falling through by accident.
-    entry.requiresMapTilerKey -> styleUrl(StyleVariant.TOPO)
-    // Defensive fallback only — no current catalog entry reaches this
-    // (every entry above either has styleUrl, assetPath, isRaster, or
-    // requiresMapTilerKey set). Kept so a future entry added without one
-    // of those degrades to *something* renderable instead of crashing,
-    // rather than being relied upon as the normal path for any entry.
     else -> styleUrl(StyleVariant.OUTDOOR)
 }
 

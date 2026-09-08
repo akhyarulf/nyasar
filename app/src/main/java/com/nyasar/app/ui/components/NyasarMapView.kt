@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import com.nyasar.app.gpx.model.GpxWaypoint
 import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.map.SharedMapHolder
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.map.TileProvider
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -73,28 +74,8 @@ fun NyasarMapView(
     modifier: Modifier = Modifier,
     provider: TileProvider,
     /** Standard/Satellite/Terrain (spec P3 §11). Resolved through the same
-     *  [TileProvider] abstraction — no provider-specific branching here.
-     *  Superseded by [basemapEntry] when that's non-null; kept as the
-     *  fallback for every screen that doesn't offer the 9-basemap picker
-     *  (DrawRoute, ActivityDetail, Navigation, offline map screens,
-     *  WaypointCrosshair — none of those were touched here). */
+     *  [TileProvider] abstraction — no provider-specific branching here. */
     styleVariant: StyleVariant = StyleVariant.OUTDOOR,
-    /** One of the 9 World basemaps (BasemapCatalog) — takes priority over
-     *  [styleVariant] when supplied. Resolved via
-     *  [TileProvider.styleUrlFor], which already knows how to build every
-     *  entry's style (hosted vector style URL, inline raster style, or the
-     *  Liberty Satellite composite) — this composable doesn't need to know
-     *  which. Null (the default) preserves every existing call site's
-     *  behavior exactly as before this param was added. */
-    basemapEntry: com.nyasar.app.map.BasemapEntry? = null,
-    /** Waymarked Trails overlay layers (Hiking/Cycling/MTB), on top of
-     *  whichever basemap is active. Deliberately kept OUT of the giant
-     *  style-setup LaunchedEffect below (which fully reloads the style
-     *  via setStyle on every key change) — toggling an overlay checkbox
-     *  must not reset/re-fetch the entire basemap. Applied in its own
-     *  effect further down instead, using getStyle() to add/remove just
-     *  these sources/layers on the currently-loaded style. */
-    activeOverlays: Set<com.nyasar.app.map.OverlayLayer> = emptySet(),
     track: List<TrackPoint>,
     /** The track actually walked so far (recording), drawn as a second line in
      *  a different color from [track] (the planned route). Updates on every
@@ -179,81 +160,15 @@ fun NyasarMapView(
     onMapReady: (MapLibreMap) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val mapView = remember(context) { MapView(context) }
-
-    DisposableEffect(mapView) {
-        mapView.onCreate(null)
-        mapView.onStart()
-        mapView.onResume()
-        onDispose {
-            mapView.onPause()
-            mapView.onStop()
-            mapView.onDestroy()
-        }
-    }
-
-    // Waymarked Trails overlay toggle — see the parameter doc on
-    // [activeOverlays] for why this is a separate effect from the big
-    // style-setup one below. getStyle() (not setStyle()) so this never
-    // touches the base map's own sources/layers; only adds/removes the
-    // 3 possible overlay source+layer pairs. Runs on every re-composition
-    // where activeOverlays changed AND whenever basemapEntry/styleVariant
-    // changes too (a fresh setStyle() call wipes ALL sources/layers,
-    // overlays included, so they need to be re-applied after any full
-    // style reload — keying on those here as well, not just
-    // activeOverlays, is what makes overlays survive a basemap switch
-    // instead of silently disappearing the next time the user picks a
-    // different basemap).
-    LaunchedEffect(activeOverlays, basemapEntry, provider.id, styleVariant) {
-        mapView.getMapAsync { map ->
-            map.getStyle { style ->
-                com.nyasar.app.map.OverlayLayer.entries.forEach { overlay ->
-                    val sourceId = "nyasar-overlay-${overlay.id}-source"
-                    val layerId = "nyasar-overlay-${overlay.id}-layer"
-                    val shouldBeOn = overlay in activeOverlays
-                    val isOn = style.getLayer(layerId) != null
-                    if (shouldBeOn && !isOn) {
-                        if (style.getSourceAs<org.maplibre.android.style.sources.RasterSource>(sourceId) == null) {
-                            style.addSource(
-                                org.maplibre.android.style.sources.RasterSource(
-                                    sourceId,
-                                    org.maplibre.android.style.sources.TileSet("tilejson", overlay.rasterUrl).apply {
-                                        setMaxZoom(overlay.maxZoom.toFloat())
-                                        // Attribution intentionally not set here — an
-                                        // earlier attempt called a setAttribution(String)
-                                        // that doesn't exist on this TileSet API and
-                                        // failed to compile; rather than guess a second
-                                        // unverified method name, the map stays fully
-                                        // functional without it (overlay.attribution is
-                                        // still defined on OverlayLayer for use in UI
-                                        // text, e.g. the picker sheet, just not fed into
-                                        // MapLibre's own attribution control here).
-                                    },
-                                    256
-                                )
-                            )
-                        }
-                        // Overlay must sit above the basemap but below
-                        // Nyasar's own route/track/waypoint/user layers —
-                        // insert right above the basemap's own bottom
-                        // layer (index 0) rather than appending at the
-                        // very top, so a route line drawn on the map is
-                        // never hidden underneath a trail overlay.
-                        val bottomLayerId = style.layers.firstOrNull()?.id
-                        val overlayLayer = org.maplibre.android.style.layers.RasterLayer(layerId, sourceId)
-                        if (bottomLayerId != null) {
-                            style.addLayerAbove(overlayLayer, bottomLayerId)
-                        } else {
-                            style.addLayer(overlayLayer)
-                        }
-                    } else if (!shouldBeOn && isOn) {
-                        try { style.removeLayer(layerId) } catch (_: Exception) {}
-                        try { style.removeSource(sourceId) } catch (_: Exception) {}
-                    }
-                }
-            }
-        }
-    }
+    // FIX (b): was `remember(context) { MapView(context) }` + a
+    // DisposableEffect calling onCreate()...onDestroy() per screen visit —
+    // meaning Home/RoutePreview/Recording each created and fully destroyed
+    // their own MapView every time the user navigated to/away from them,
+    // reloading style+tiles from scratch each time. Now all 3 borrow the
+    // SAME instance (SharedMapHolder), created/onCreate'd once ever; no
+    // per-screen onDestroy() call at all (see SharedMapHolder's own doc for
+    // why, and the tradeoff that comes with it).
+    val mapView = remember { SharedMapHolder.get(context) }
 
     // focusBounds intentionally NOT a key here. OfflineDownloadScreen feeds
     // this from state that it itself updates on every camera-idle event
@@ -264,7 +179,7 @@ fun NyasarMapView(
     // first composition's focusBounds value is applied once inside this
     // effect and never again after — see the one-shot effect further below
     // for handling subsequent focusBounds changes intentionally.
-    LaunchedEffect(provider.id, styleVariant, basemapEntry, track, waypoints, userWaypoints) {
+    LaunchedEffect(provider.id, styleVariant, track, waypoints, userWaypoints) {
         mapView.getMapAsync { map ->
             // MapLibre's own built-in compass widget is separate from our
             // Compose CompassButton (NavigationScreen/RecordingScreen) and
@@ -275,41 +190,7 @@ fun NyasarMapView(
             // ("kompas ketutup") — and it's redundant with our own compass
             // UI everywhere it would show up anyway.
             map.uiSettings.isCompassEnabled = false
-            val styleUri = basemapEntry?.let { provider.styleUrlFor(it, context) } ?: provider.styleUrl(styleVariant)
-            // P3K audit fix (root cause of "peta gak berubah" — the map's
-            // OWN setStyle, not just MapSnapshotter, had the same problem):
-            // map.setStyle(String) resolves through Style.Builder().
-            // fromUri(uri) internally — that path never reliably completes
-            // for a data:application/json;base64 URI (it's meant for real
-            // URLs/asset paths), so for every entry using an inline style
-            // (OpenStreetMap, OpenTopoMap, OpenHikingMap, CyclOSM, Liberty
-            // Satellite) this LaunchedEffect *did* re-run and *did* call
-            // setStyle every time basemapEntry changed, but the load never
-            // finished — no crash, no visible error, the style callback
-            // below just never fired, so the live map silently kept
-            // whatever style was already loaded. Confirmed on-device with
-            // a temporary debug Toast in both branches: the "called" toast
-            // fired for all 9 entries, the "completed" toast only fired
-            // for the 4 using a real remote styleUrl. Same underlying
-            // MapLibre quirk as the MapSnapshotter fix above, same
-            // resolution: detect the data: URI, decode it back to raw
-            // JSON, and load it via Style.Builder().fromJson(json) —
-            // fromJson is the API MapLibre actually documents for
-            // in-memory/inline styles. Non-data-URI entries (remote
-            // styleUrl, or a plain http(s) URL/asset URI) keep using
-            // fromUri exactly as before, since that path was never broken
-            // for them.
-            val dataUriPrefix = "data:application/json;base64,"
-            val styleBuilder = if (styleUri.startsWith(dataUriPrefix)) {
-                val json = String(
-                    android.util.Base64.decode(styleUri.removePrefix(dataUriPrefix), android.util.Base64.DEFAULT),
-                    Charsets.UTF_8
-                )
-                org.maplibre.android.maps.Style.Builder().fromJson(json)
-            } else {
-                org.maplibre.android.maps.Style.Builder().fromUri(styleUri)
-            }
-            map.setStyle(styleBuilder) { style ->
+            map.setStyle(provider.styleUrl(styleVariant)) { style ->
                 if (style.getImage("nyasar-heading-arrow") == null) {
                     style.addImage("nyasar-heading-arrow", headingArrowBitmap())
                 }
@@ -591,24 +472,6 @@ fun NyasarMapView(
                     }
                 }
                 mapView.post(applyCamera)
-
-                // Native gesture detection (spec: "1 jari drag = PAN", "saat
-                // user menggeser/zoom manual -> Follow GPS harus OFF"). This
-                // is registered on the MapLibreMap itself, not via a Compose
-                // pointerInput overlay, so it never steals touch events from
-                // MapLibre's own pan/pinch/rotate handling.
-                map.addOnCameraMoveStartedListener { reason ->
-                    if (reason == org.maplibre.android.maps.MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
-                        onUserGesture()
-                    }
-                }
-                // Compass needle source (spec complaint: "kompas gaada") —
-                // fires on every camera move regardless of cause (gesture
-                // rotate, or our own animateCamera heading-up calls), so the
-                // needle always reflects what's actually rendered.
-                map.addOnCameraMoveListener {
-                    onBearingChanged(map.cameraPosition.bearing.toFloat())
-                }
             }
             onMapReady(map)
         }
@@ -771,46 +634,96 @@ fun NyasarMapView(
     val currentOnUserWaypointClick by rememberUpdatedState(onUserWaypointClick)
     val currentOnMapClick by rememberUpdatedState(onMapClick)
     val currentOnMapLongPress by rememberUpdatedState(onMapLongPress)
+    // BUG #1 FIX (camera listeners): were registered inside the
+    // LaunchedEffect above, re-running (and duplicate-registering) on every
+    // track/waypoints/basemap change AND every successful style reload —
+    // during Recording, where `track` changes on every GPS fix, this meant
+    // onUserGesture()/onBearingChanged() fired multiple times per real
+    // event, worse the longer a session ran. Same fix pattern already used
+    // for click/long-click below: register once in `factory`.
+    val currentOnUserGesture by rememberUpdatedState(onUserGesture)
+    val currentOnBearingChanged by rememberUpdatedState(onBearingChanged)
+
+    // FIX (b) risk #3: with the MapView instance now shared/reused across
+    // Home/RoutePreview/Recording (SharedMapHolder), registering listeners
+    // inside `factory` (as fix (a) just did) is no longer enough on its
+    // own — `factory` re-runs every time a NEW screen's AndroidView claims
+    // this same instance, so listeners from every past visit would pile up
+    // forever, never removed. Track the ready MapLibreMap in state and
+    // add/remove listeners through a DisposableEffect instead: added when
+    // this screen's instance of NyasarMapView appears, removed when it
+    // leaves — symmetric, no matter how many times the same underlying
+    // MapView gets revisited.
+    var readyMap by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
+
+    DisposableEffect(readyMap) {
+        val map = readyMap ?: return@DisposableEffect onDispose {}
+
+        val moveStartedListener = org.maplibre.android.maps.MapLibreMap.OnCameraMoveStartedListener { reason ->
+            if (reason == org.maplibre.android.maps.MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
+                currentOnUserGesture()
+            }
+        }
+        val moveListener = org.maplibre.android.maps.MapLibreMap.OnCameraMoveListener {
+            currentOnBearingChanged(map.cameraPosition.bearing.toFloat())
+        }
+        val clickListener = org.maplibre.android.maps.MapLibreMap.OnMapClickListener { point ->
+            val screenPoint = map.projection.toScreenLocation(point)
+
+            val gpxHits = map.queryRenderedFeatures(screenPoint, LAYER_WAYPOINTS)
+            val gpxHit = gpxHits.firstOrNull()
+            if (gpxHit != null) {
+                val name = gpxHit.getStringProperty(PROP_WP_NAME)
+                val lat = gpxHit.getProperty(PROP_WP_LAT)?.asDouble
+                val lon = gpxHit.getProperty(PROP_WP_LON)?.asDouble
+                if (name != null && lat != null && lon != null) {
+                    val ele = gpxHit.getProperty(PROP_WP_ELEVATION)?.asDouble
+                    val desc = gpxHit.getProperty(PROP_WP_DESCRIPTION)?.asString
+                    currentOnWaypointClick(GpxWaypoint(name = name, lat = lat, lon = lon, elevationM = ele, description = desc))
+                    return@OnMapClickListener true
+                }
+            }
+
+            val userHits = map.queryRenderedFeatures(screenPoint, LAYER_USER_WAYPOINTS)
+            val userHit = userHits.firstOrNull()
+            if (userHit != null) {
+                val id = userHit.getStringProperty(PROP_UWP_ID)
+                if (id != null) {
+                    currentOnUserWaypointClick(id)
+                    return@OnMapClickListener true
+                }
+            }
+
+            currentOnMapClick(point.latitude, point.longitude)
+            false
+        }
+        val longClickListener = org.maplibre.android.maps.MapLibreMap.OnMapLongClickListener { point ->
+            currentOnMapLongPress(point.latitude, point.longitude)
+            true
+        }
+
+        map.addOnCameraMoveStartedListener(moveStartedListener)
+        map.addOnCameraMoveListener(moveListener)
+        map.addOnMapClickListener(clickListener)
+        map.addOnMapLongClickListener(longClickListener)
+
+        onDispose {
+            map.removeOnCameraMoveStartedListener(moveStartedListener)
+            map.removeOnCameraMoveListener(moveListener)
+            map.removeOnMapClickListener(clickListener)
+            map.removeOnMapLongClickListener(longClickListener)
+        }
+    }
 
     AndroidView(
         factory = {
-            mapView.getMapAsync { map ->
-                map.addOnMapClickListener { point ->
-                    val screenPoint = map.projection.toScreenLocation(point)
-
-                    val gpxHits = map.queryRenderedFeatures(screenPoint, LAYER_WAYPOINTS)
-                    val gpxHit = gpxHits.firstOrNull()
-                    if (gpxHit != null) {
-                        val name = gpxHit.getStringProperty(PROP_WP_NAME)
-                        val lat = gpxHit.getProperty(PROP_WP_LAT)?.asDouble
-                        val lon = gpxHit.getProperty(PROP_WP_LON)?.asDouble
-                        if (name != null && lat != null && lon != null) {
-                            val ele = gpxHit.getProperty(PROP_WP_ELEVATION)?.asDouble
-                            val desc = gpxHit.getProperty(PROP_WP_DESCRIPTION)?.asString
-                            currentOnWaypointClick(GpxWaypoint(name = name, lat = lat, lon = lon, elevationM = ele, description = desc))
-                            return@addOnMapClickListener true
-                        }
-                    }
-
-                    val userHits = map.queryRenderedFeatures(screenPoint, LAYER_USER_WAYPOINTS)
-                    val userHit = userHits.firstOrNull()
-                    if (userHit != null) {
-                        val id = userHit.getStringProperty(PROP_UWP_ID)
-                        if (id != null) {
-                            currentOnUserWaypointClick(id)
-                            return@addOnMapClickListener true
-                        }
-                    }
-
-                    currentOnMapClick(point.latitude, point.longitude)
-                    false
-                }
-
-                map.addOnMapLongClickListener { point ->
-                    currentOnMapLongPress(point.latitude, point.longitude)
-                    true
-                }
-            }
+            // FIX (b) risk #2: mapView may already be attached to whatever
+            // screen the user is navigating AWAY from — a View can only
+            // have one parent, so it must be detached before this screen
+            // claims it, or Android throws "The specified child already
+            // has a parent".
+            SharedMapHolder.detachFromCurrentParent(mapView)
+            mapView.getMapAsync { map -> readyMap = map }
             mapView
         },
         modifier = modifier

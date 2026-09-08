@@ -81,7 +81,6 @@ fun HomeScreen(
     val rotateWithHeading by viewModel.rotateWithHeading.collectAsState()
     val provider by viewModel.provider.collectAsState()
     val styleVariant by viewModel.styleVariant.collectAsState()
-    val selectedBasemap by viewModel.selectedBasemap.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
     // Task 4 gap (P3 audit): recovery was previously only checked once the
@@ -110,13 +109,6 @@ fun HomeScreen(
     var showBasemapSheet by remember { mutableStateOf(false) }
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }
-    // Waymarked Trails overlays — was missing entirely on this screen
-    // (BasemapPickerSheet's activeOverlays/onToggleOverlay default to
-    // emptySet()/no-op when a caller doesn't pass them, so the checkboxes
-    // rendered but toggling them did nothing here — RoutePreviewScreen was
-    // the only screen actually wired). Same plain-Compose-state pattern
-    // RoutePreviewScreen already uses, not a new mechanism.
-    var activeOverlays by remember { mutableStateOf(setOf<com.nyasar.app.map.OverlayLayer>()) }
 
     val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.importGpx(it) }
@@ -177,8 +169,6 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             provider = provider,
             styleVariant = styleVariant,
-            basemapEntry = selectedBasemap,
-            activeOverlays = activeOverlays,
             track = emptyList(),
             waypoints = emptyList(),
             userWaypoints = userWaypoints,
@@ -416,14 +406,10 @@ fun HomeScreen(
 
     if (showBasemapSheet) {
         com.nyasar.app.ui.components.BasemapPickerSheet(
-            selected = selectedBasemap,
-            onSelect = { entry ->
-                viewModel.setBasemap(entry)
+            selectedVariant = styleVariant,
+            onSelect = { variant ->
+                viewModel.setStyleVariant(variant)
                 showBasemapSheet = false
-            },
-            activeOverlays = activeOverlays,
-            onToggleOverlay = { overlay ->
-                activeOverlays = if (overlay in activeOverlays) activeOverlays - overlay else activeOverlays + overlay
             },
             onDismiss = { showBasemapSheet = false }
         )

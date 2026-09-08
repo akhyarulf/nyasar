@@ -47,19 +47,25 @@ interface TileProvider {
  */
 fun styleUrlFor(entry: BasemapEntry, context: Context? = null): String = when {
     entry == BasemapEntry.LIBERTY_SATELLITE -> {
-        // P3I audit fix: was called with no argument, so imageryUrl
-        // defaulted to null and produced an empty "tiles": [] raster
-        // source below — no satellite imagery was ever actually fetched,
-        // despite this entry's attribution already claiming "© MapTiler".
-        // MapTiler's raw XYZ raster tile endpoint (not their style.json,
-        // which a raster source's "tiles" array cannot consume) is
-        // https://api.maptiler.com/maps/{mapId}/{tileSize}/{z}/{x}/{y}.{format}
-        // per MapTiler's own Tiles API docs. Falls back to the previous
-        // no-imagery behavior only if no key is configured, rather than
-        // hard-failing the whole entry.
+        // Fix (real root cause of "Liberty Satellite shows nothing"):
+        // this was pointed at the wrong MapTiler API entirely.
+        // https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg is
+        // the Maps (raster-of-a-style) API, and "satellite" is not a
+        // valid mapId there — MapTiler's actual satellite imagery is
+        // served through their separate Tiles API, under dataset ID
+        // "satellite-v2" (their docs explicitly warn: if you'd customized
+        // an older satellite integration, switch to satellite-v2 for
+        // current imagery), with NO tileSize segment and NO file
+        // extension in the URL:
+        //   https://api.maptiler.com/tiles/{tilesId}/{z}/{x}/{y}
+        //   e.g. https://api.maptiler.com/tiles/satellite-v2/10/536/358?key=...
+        // (MapTiler's Tiles API serves the correct format — jpg for this
+        // dataset — without needing it named in the URL.) This was 404ing
+        // silently every time a key was configured; with no key it still
+        // correctly falls back to no imagery, same as before.
         val apiKey = com.nyasar.app.BuildConfig.MAPTILER_API_KEY
         val imageryUrl = if (apiKey.isNotBlank()) {
-            "https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg?key=$apiKey"
+            "https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}?key=$apiKey"
         } else null
         com.nyasar.app.map.providers.RasterStyleJson.libertySatelliteStyle(imageryUrl)
     }

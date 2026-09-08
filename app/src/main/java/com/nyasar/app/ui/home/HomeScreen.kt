@@ -3,6 +3,7 @@ package com.nyasar.app.ui.home
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
 import androidx.compose.material3.*
@@ -227,16 +229,30 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Nyasar logo with background
+                // Nyasar logo badge — the brand pin logo (mipmap PNG
+                // densities) on its original pale-cream backdrop. The
+                // container color is deliberately FIXED across light/dark
+                // mode instead of following colorScheme: the logo artwork
+                // inside (gray mountains, compass, green pin) was designed
+                // against this pale #E6EBE5 background, so a dark-mode-
+                // tinted container would destroy the artwork's contrast
+                // rather than help it. Pale badge on the dark-theme header
+                // surface = strongest separation in dark mode; in light
+                // mode it reads as a subtle tonal step against the near-
+                // white surface. Mirrors the launcher icon decision (pale
+                // background there too, both themes). Same rounded-badge
+                // container shape/position the "Nyasar" text badge used —
+                // nothing else in the header moves.
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primary
+                    color = Color(0xFFE6EBE5)
                 ) {
-                    Text(
-                        "Nyasar",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    Image(
+                        painter = painterResource(R.mipmap.ic_launcher_foreground),
+                        contentDescription = stringResource(R.string.app_name),
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .size(28.dp)
                     )
                 }
                 // Search bar

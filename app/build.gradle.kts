@@ -68,8 +68,9 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     // Official Android 12+ SplashScreen API back-ported to API 23+
     // (Theme.SplashScreen / installSplashScreen) — powers the launch
-    // splash screen. Must match core-ktx's major line.
-    implementation("androidx.core:core-splashscreen:1.2.0-rc01")
+    // splash screen. 1.0.1 (stable): the 1.2.x line requires
+    // compileSdk 35, this project compiles against 34.
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")

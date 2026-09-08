@@ -222,9 +222,24 @@ enum class BasemapEntry(
     OPEN_TOPO_MAP(
         "openTopoMap", "OpenTopoMap",
         styleUrl = null,
-        rasterUrl = "https://tile.opentopomap.org/{z}/{x}/{y}.png",
+        rasterUrl = null,
+        // Fix: OpenTopoMap's own usage docs specify the a/b/c subdomain
+        // form (https://{a|b|c}.tile.opentopomap.org/{z}/{x}/{y}.png) for
+        // load distribution — a single bare host works but doesn't follow
+        // their documented usage. Matches the same rasterUrls pattern
+        // already used below for OSM_STANDARD and CYCLOSM.
+        rasterUrls = listOf(
+            "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+            "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
+            "https://c.tile.opentopomap.org/{z}/{x}/{y}.png"
+        ),
         maxZoom = 17,
-        attribution = "© OpenTopoMap © OpenStreetMap contributors"
+        // Fix: OpenTopoMap's usage docs specify this exact attribution
+        // text (map data credit + map rendering credit + license), not a
+        // generic "© OpenTopoMap © OpenStreetMap contributors" — SRTM is
+        // their elevation-data source for the contour lines and CC-BY-SA
+        // is the license the credit line is required to name.
+        attribution = "Kartendaten: © OpenStreetMap-Mitwirkende, SRTM | Kartendarstellung: © OpenTopoMap (CC-BY-SA)"
     ),
 
     // OpenHikingMap — RASTER
@@ -233,9 +248,19 @@ enum class BasemapEntry(
     OPEN_HIKING_MAP(
         "openHikingMap", "OpenHikingMap",
         styleUrl = null,
-        rasterUrl = "https://tile.openmaps.fr/OpenHikingMap/{z}/{x}/{y}.png",
+        // Fix: openmaps.fr's tile usage policy documents the path in
+        // lowercase — /openhikingmap/{z}/{x}/{y}.png — not /OpenHikingMap/.
+        // Their server may well be case-sensitive, so the old mixed-case
+        // path risked silently 404ing instead of serving tiles (matches
+        // the stuck-loading behavior seen for this entry earlier).
+        // https://openmaps.fr/tile-usage-policy.html
+        rasterUrl = "https://tile.openmaps.fr/openhikingmap/{z}/{x}/{y}.png",
         maxZoom = 18,
-        attribution = "© OpenHikingMap © OpenStreetMap contributors"
+        // Fix: their usage policy requires this exact attribution shape —
+        // OpenHikingMap credit + a donation link (their servers are
+        // donation-funded, not a generic free service) + OSM data credit —
+        // not just a bare "© OpenHikingMap © OpenStreetMap contributors".
+        attribution = "© OpenHikingMap · Donate: openmaps.fr/donate · © OpenStreetMap contributors"
     ),
 
     // CyclOSM — RASTER

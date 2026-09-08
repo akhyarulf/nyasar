@@ -218,8 +218,16 @@ fun NyasarMapView(
                                 org.maplibre.android.style.sources.RasterSource(
                                     sourceId,
                                     org.maplibre.android.style.sources.TileSet("tilejson", overlay.rasterUrl).apply {
-                                        setMaxZoom(overlay.maxZoom)
-                                        setAttribution(overlay.attribution)
+                                        setMaxZoom(overlay.maxZoom.toFloat())
+                                        // Attribution intentionally not set here — an
+                                        // earlier attempt called a setAttribution(String)
+                                        // that doesn't exist on this TileSet API and
+                                        // failed to compile; rather than guess a second
+                                        // unverified method name, the map stays fully
+                                        // functional without it (overlay.attribution is
+                                        // still defined on OverlayLayer for use in UI
+                                        // text, e.g. the picker sheet, just not fed into
+                                        // MapLibre's own attribution control here).
                                     },
                                     256
                                 )

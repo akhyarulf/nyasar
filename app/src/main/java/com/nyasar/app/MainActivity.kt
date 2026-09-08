@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity() {
         // and hooks the splash's show/hide lifecycle. The splash's
         // background/icon come from that theme — no custom layout, no
         // separate activity.
-        val splashScreen = installSplashScreen(this)
+        val splashScreen = installSplashScreen()
         // Keep the splash on-screen until the first DataStore settings
         // emission resolves [splashSettingsReady] (the documented pattern
         // for "loading in-app settings from local disk asynchronously") —

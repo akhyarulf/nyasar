@@ -47,27 +47,29 @@ interface TileProvider {
  */
 fun styleUrlFor(entry: BasemapEntry, context: Context? = null): String = when {
     entry == BasemapEntry.LIBERTY_SATELLITE -> {
-        // Fix (real root cause of "Liberty Satellite shows nothing"):
-        // this was pointed at the wrong MapTiler API entirely.
-        // https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg is
-        // the Maps (raster-of-a-style) API, and "satellite" is not a
-        // valid mapId there — MapTiler's actual satellite imagery is
-        // served through their separate Tiles API, with NO tileSize
-        // segment and NO file extension in the URL:
-        //   https://api.maptiler.com/tiles/{tilesId}/{z}/{x}/{y}
-        //   e.g. https://api.maptiler.com/tiles/satellite-v4/10/536/358?key=...
-        // Dataset ID is satellite-v4 (current generation, confirmed at
-        // cloud.maptiler.com/maps/satellite-v4/ — satellite-v2 used in an
-        // earlier pass here was itself already superseded). satellite-v4
-        // (imagery only, no labels/roads baked in) is used rather than
-        // hybrid-v4 (imagery + labels/roads composited in) specifically
-        // because this entry layers imagery underneath the Liberty vector
-        // overlay for labels/roads — hybrid-v4 here would double up every
-        // road and place label, once from the hybrid imagery and once
-        // from the Liberty overlay on top of it.
+        // Fix (root cause of "Liberty Satellite shows nothing", now
+        // confirmed end-to-end — verified by fetching MapTiler's real
+        // tiles: https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg
+        // was the wrong API family (Maps API, not a valid mapId there).
+        // MapTiler's raw satellite imagery is served via their separate
+        // Tiles API — no tileSize segment, no file extension:
+        //   https://api.maptiler.com/tiles/{tilesId}/{z}/{x}/{y}?key=...
+        // Dataset id is satellite-v2 — confirmed two ways: (1) fetching
+        // MapTiler's own https://api.maptiler.com/maps/satellite-v4/
+        // style.json shows its "satellite" raster source still points at
+        // .../tiles/satellite-v2/tiles.json (v4 names the STYLE product,
+        // not a separate raster tileset — there is no satellite-v4 raster
+        // dataset to request directly), and (2) manually loading
+        // https://api.maptiler.com/tiles/satellite-v2/1/1/1?key=... in a
+        // browser returns real satellite imagery. satellite-v2 (imagery
+        // only, no labels/roads) is correct for this entry specifically
+        // because it layers imagery underneath the Liberty vector overlay
+        // for labels/roads — a hybrid dataset here would double up every
+        // road and place label, once from the imagery and once from the
+        // Liberty overlay on top of it.
         val apiKey = com.nyasar.app.BuildConfig.MAPTILER_API_KEY
         val imageryUrl = if (apiKey.isNotBlank()) {
-            "https://api.maptiler.com/tiles/satellite-v4/{z}/{x}/{y}?key=$apiKey"
+            "https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}?key=$apiKey"
         } else null
         com.nyasar.app.map.providers.RasterStyleJson.libertySatelliteStyle(imageryUrl)
     }

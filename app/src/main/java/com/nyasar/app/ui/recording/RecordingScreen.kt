@@ -118,6 +118,11 @@ fun RecordingScreen(
     var showBasemapSheet by remember { mutableStateOf(false) }
     val styleVariant by viewModel.styleVariant.collectAsState()
     val selectedBasemap by viewModel.selectedBasemap.collectAsState()
+    // Waymarked Trails overlays — same missing wiring as HomeScreen (see
+    // its comment): BasemapPickerSheet's overlay params default to
+    // empty/no-op when a caller omits them, so this screen's checkboxes
+    // rendered but did nothing until now.
+    var activeOverlays by remember { mutableStateOf(setOf<com.nyasar.app.map.OverlayLayer>()) }
     val provider = remember { TileProviderFactory.default() }
     val userWaypoints by waypointViewModel.waypoints.collectAsState()
     val pendingWaypointTap by waypointViewModel.pendingTap.collectAsState()
@@ -388,6 +393,7 @@ fun RecordingScreen(
             provider = provider,
             styleVariant = styleVariant,
             basemapEntry = selectedBasemap,
+            activeOverlays = activeOverlays,
             // PART 4 fix: previously this only showed the picked GPX line
             // while IDLE, then went empty the moment recording started —
             // based on a mistaken assumption that actualTrack (the live
@@ -753,6 +759,10 @@ fun RecordingScreen(
             onSelect = { entry ->
                 viewModel.setBasemap(entry)
                 showBasemapSheet = false
+            },
+            activeOverlays = activeOverlays,
+            onToggleOverlay = { overlay ->
+                activeOverlays = if (overlay in activeOverlays) activeOverlays - overlay else activeOverlays + overlay
             },
             onDismiss = { showBasemapSheet = false }
         )

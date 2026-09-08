@@ -51,7 +51,7 @@ Navigasi (`NavigationEngine`, `TrackMatcher`) dan rekaman (`RecordingEngine`) ad
 5. Rekaman aktivitas (RecordingService foreground + `RecordingEngine`) dengan: timer, jarak, elevation gain/loss, kecepatan, rata-rata, split pace, auto-pause, indikator GPS lemah/hilang, peringatan storage penuh, konfirmasi stop, summary pasca-rekaman, pilih foto dari galeri / kamera, simpan atau buang.
 6. **Pilih Jalur** dari layar recording (IDLE) → preview garis GPX di map sebelum mulai rekam, dengan lapisan `Track & Peta` yang terpisah dari Library.
 7. **Gambar rute sendiri** (draw-route) → titik-tahan di map → hasilkan file GPX + `RouteEntity` lokal yang identik dengan rute hasil import, jadi preview / mulai aktivitas / offline download semua jalan tanpa kode khusus.
-8. **Settings screen** — pilih map provider (MapTiler / OpenFreeMap), pilih basemap dari katalog GPX Studio (world + country section, thumbnail procedural), atur threshold? (tergantung versi kode), pilih tema (system / terang / gelap), bahasa (system / id / en), speed unit (kmh / mph), keep screen on, auto-pause on/off — tersimpan di DataStore, dipakai ulang saat Route Preview dan Navigation dibuka.
+8. **Settings screen** — pilih map provider (MapTiler / OpenFreeMap), pilih 9 basemap World (world + country section, thumbnail procedural; sumber upstream asli, bukan proxy GPX Studio), atur threshold? (tergantung versi kode), pilih tema (system / terang / gelap), bahasa (system / id / en), speed unit (kmh / mph), keep screen on, auto-pause on/off — tersimpan di DataStore, dipakai ulang saat Route Preview dan Navigation dibuka.
 9. **Offline map download** — dari Route Preview atau layar khusus, area di sekitar track (dipadding ±1.5km) bisa diunduh lewat `OfflineMapManager` sebelum berangkat, progress ditampilkan, dan hasilnya otomatis dipakai MapLibre saat offline tanpa perubahan kode navigasi. Ada layar `OfflineMapsScreen` buat lihat / hapus area yang sudah diunduh.
 10. **Waypoint**:
     - GPX waypoint (baca dari file, tampil di peta, tap → lihat detail nama/koordinat/elevation/deskripsi).
@@ -61,6 +61,7 @@ Navigasi (`NavigationEngine`, `TrackMatcher`) dan rekaman (`RecordingEngine`) ad
 13. **Layar Activity Detail** — rename, hapus, rencana vs aktual, elevation profile, waypoint rekaman, export/share.
 14. **Share card** — generator kartu aktivitas dari data Room.
 15. Unit test untuk off-route detector, track matcher, elevation stats, dan recording engine.
+16. **Overlay "Jalur Saya"** — toggle di BasemapPickerSheet (section sendiri, terpisah dari Overlays Waymarked Trails) yang menampilkan semua rute tersimpan di Library sebagai garis di peta (Home/RoutePreview/Recording). Data langsung dari RouteRepository (GPX lokal yang sudah ada, tanpa penyimpanan baru), di-parse di Dispatchers.IO hanya saat overlay ON, di-decimate maks ±1500 vertex/rute biar tetap ringan. Route aktif (Pilih Jalur / route yang dibuka) digambar biru solid; rute lain abu-abu putus-putus. Pilihan ON/OFF persist di DataStore dan berlaku di ketiga screen (satu MapView bersama).
 
 ## Patch / perbaikan yang sudah masuk
 
@@ -75,6 +76,8 @@ Navigasi (`NavigationEngine`, `TrackMatcher`) dan rekaman (`RecordingEngine`) ad
 9. Pembaruan kamera diikuti throttle (minimal 300ms antar animasi) supaya heading-up / follow tidak jitter.
 10. Actual track (jejak rekaman) di-redraw lewat `Dispatchers.Default` biar nggak makin berat di main thread seiring panjang rekaman.
 11. Bottom bar dan navigasi tab pakai pola `popUpTo(start) + saveState/restoreState` yang konsisten, termasuk pemulihan tab terakhir sebelum masuk Recording.
+12. **Satu MapView untuk Home ↔ RoutePreview ↔ Recording** (`SharedMapHolder` + flag `shared` di `NyasarMapView`): instance MapView dibuat sekali per proses, dipinjam screen yang aktif (detach/attach antar screen, tanpa onDestroy), dan `setStyle()` dilewati kalau style yang diminta sudah dimuat (key = provider + basemap). Hasilnya pindah antar 3 screen itu tidak reload style/tile lagi. Listener tap/gesture/bearing dipasang sekali dan diteruskan lewat slot `TapHandlers` (add*Listener MapLibre tidak bisa di-remove — tanpa ini listener bakal numpuk tiap ganti screen). 7 screen lain (Navigation, DrawRoute, ActivityDetail, offline, dll) tetap punya instance peta sendiri, tidak diubah.
+13. **Basemap + overlay + provider diingat lintas screen & restart**: pilihan basemap (9 World), overlay Waymarked Trails, dan map provider disimpan di DataStore (`SettingsRepository`) dan dibaca ketiga screen — sebelumnya tiap screen punya state sendiri-sendiri (HomeViewModel, RecordingViewModel, `remember` lokal di RoutePreview) yang reset tiap restart dan tidak nyambung antar screen. Overlay ikut di-share karena ketiga screen kini memakai satu style peta yang sama — overlay per-screen bakal saling menghapus. Follow/heading mode sengaja tetap per-screen (default Recording memang beda dari Home, sesuai spec §15).
 
 ## Yang sengaja BELUM dikerjakan (P2+)
 
@@ -117,7 +120,7 @@ app/src/main/java/com/nyasar/app/
 
   map/
     TileProvider.kt          <- interface abstraksi provider
-    BasemapCatalog.kt        <- enum katalog basemap GPX Studio
+    BasemapCatalog.kt        <- katalog 9 basemap World + country list
     OfflineMapManager.kt     <- download region MapLibre offline
     providers/
       MapTilerProvider.kt

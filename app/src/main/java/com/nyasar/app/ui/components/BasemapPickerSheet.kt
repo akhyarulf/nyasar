@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -105,6 +106,15 @@ fun BasemapPickerSheet(
      *  unchanged (no overlays shown/togglable) until a screen opts in. */
     activeOverlays: Set<OverlayLayer> = emptySet(),
     onToggleOverlay: (OverlayLayer) -> Unit = {},
+    /** "Jalur Saya" overlay — draws every saved Library route as a line
+     *  on the map. Independent of the Waymarked Trails set: those are
+     *  raster tile layers from a server, this is the user's own GPX data
+     *  (see MyRoutesOverlay), so it gets its own persisted boolean. Its
+     *  tile sits in the SAME row as the Waymarked tiles (one overlays
+     *  row) but the toggles stay fully independent. Defaults off/no-op
+     *  so call sites that don't opt in see nothing new. */
+    myRoutesEnabled: Boolean = false,
+    onToggleMyRoutes: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val purgeContext = LocalContext.current
@@ -156,7 +166,7 @@ fun BasemapPickerSheet(
             Spacer(Modifier.height(16.dp))
             Text("Overlays", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Waymarked Trails",
+                "Waymarked Trails · Jalur Saya",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -169,9 +179,10 @@ fun BasemapPickerSheet(
             // to share a composition scope, but the formula (and therefore
             // the resulting width) is identical given the same content
             // width, so the tiles still end up pixel-for-pixel the same
-            // size. Only 3 entries exist today so this row never needs to
-            // scroll — that's a property of OverlayLayer's current entry
-            // count, not a different layout mechanism from the row above.
+            // size. The 3 Waymarked layers + "Jalur Saya" make exactly 4
+            // tiles — one full row at the shared formula width, no
+            // scrolling; the row only starts scrolling if more entries
+            // are ever added.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val spacing = 10.dp
                 val tileWidth = (maxWidth - spacing * 3) / 4
@@ -185,6 +196,19 @@ fun BasemapPickerSheet(
                             overlay = overlay,
                             isChecked = overlay in activeOverlays,
                             onClick = { onToggleOverlay(overlay) },
+                            width = tileWidth
+                        )
+                    }
+                    // "Jalur Saya" rides in the SAME row as the Waymarked
+                    // tiles — same shape, same border+check-badge toggle
+                    // language, same width formula — instead of its own
+                    // section below. It stays an independent toggle (own
+                    // persisted boolean, own data source — see
+                    // MyRoutesOverlay) — only its placement is shared.
+                    item {
+                        MyRoutesTile(
+                            isChecked = myRoutesEnabled,
+                            onClick = onToggleMyRoutes,
                             width = tileWidth
                         )
                     }
@@ -314,6 +338,72 @@ private fun overlayIcon(overlay: OverlayLayer): ImageVector = when (overlay) {
     OverlayLayer.HIKING -> Icons.Default.DirectionsWalk
     OverlayLayer.CYCLING -> Icons.Default.DirectionsBike
     OverlayLayer.MTB -> Icons.Default.Terrain
+}
+
+/** The "Jalur Saya" tile — same shape/selection language as [OverlayTile]
+ *  (border + check badge) but with its own icon/tint and no per-layer
+ *  variants: it's a single on/off switch over the user's saved routes, not
+ *  a family of server layers. */
+@Composable
+private fun MyRoutesTile(
+    isChecked: Boolean,
+    onClick: () -> Unit,
+    width: Dp
+) {
+    Column(
+        Modifier
+            .width(width)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 1.dp,
+            border = if (isChecked) {
+                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            } else {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            }
+        ) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+                Icon(
+                    imageVector = Icons.Filled.Route,
+                    contentDescription = null,
+                    tint = Color(0xFF42A5F5),
+                    modifier = Modifier.fillMaxSize(0.42f).align(Alignment.Center)
+                )
+                if (isChecked) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(18.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(3.dp)
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Jalur Saya",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (isChecked) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
 }
 
 @Composable

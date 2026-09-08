@@ -3,5 +3,9 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#2E5339" android:pathData="M0,0h108v108h-108z"/>
+    <!-- Pale cream/green (#E6EBE5) matching the original Nyasar logo's
+         rounded-square backdrop, chosen over a bolder dark-green option
+         to keep the app icon consistent with the logo's own identity
+         rather than introducing a new brand color. -->
+    <path android:fillColor="#E6EBE5" android:pathData="M0,0h108v108h-108z"/>
 </vector>

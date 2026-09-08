@@ -35,7 +35,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.recording.RecordingService
 import com.nyasar.app.recording.RecordingStatus
@@ -68,10 +67,9 @@ import kotlin.math.roundToInt
  * database, but its track (via previewRouteId/previewTrack below) is now
  * also drawn on the map like a Track Picker selection.
  *
- * Provider is read directly via TileProviderFactory.default() (same
- * pattern as OfflineDownloadScreen) rather than through Settings — this
- * screen has no ViewModel dependency on SettingsRepository yet; wiring that
- * up is a separate, smaller follow-up, not blocking the live-map fix.
+ * Provider is exposed by RecordingViewModel from the persisted Settings
+ * value (same source Home/RoutePreview read) so the basemap+provider pair —
+ * and therefore the shared-map style key — is identical on all 3 map screens.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,12 +116,19 @@ fun RecordingScreen(
     var showBasemapSheet by remember { mutableStateOf(false) }
     val styleVariant by viewModel.styleVariant.collectAsState()
     val selectedBasemap by viewModel.selectedBasemap.collectAsState()
-    // Waymarked Trails overlays — same missing wiring as HomeScreen (see
-    // its comment): BasemapPickerSheet's overlay params default to
-    // empty/no-op when a caller omits them, so this screen's checkboxes
-    // rendered but did nothing until now.
-    var activeOverlays by remember { mutableStateOf(setOf<com.nyasar.app.map.OverlayLayer>()) }
-    val provider = remember { TileProviderFactory.default() }
+    // Waymarked Trails overlays — shared persisted state from the ViewModel
+    // (same DataStore row Home/RoutePreview read). With one shared MapView,
+    // per-screen overlay sets would strip/restore overlays on every switch.
+    val activeOverlays by viewModel.activeOverlays.collectAsState()
+    // "Jalur Saya" overlay: app-wide persisted switch + reactive lines.
+    val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    val myRouteLines by viewModel.myRouteLines.collectAsState()
+    // Provider comes from the ViewModel (persisted setting, same source Home
+    // uses) — the old `remember { TileProviderFactory.default() }` pinned
+    // MapTiler even after the user changed provider in Settings, and could
+    // disagree with Home's provider (which also broke shared-map style-key
+    // equality between the two screens).
+    val provider by viewModel.provider.collectAsState()
     val userWaypoints by waypointViewModel.waypoints.collectAsState()
     val pendingWaypointTap by waypointViewModel.pendingTap.collectAsState()
     val selectedWaypoint by waypointViewModel.selectedWaypoint.collectAsState()
@@ -393,7 +398,19 @@ fun RecordingScreen(
             provider = provider,
             styleVariant = styleVariant,
             basemapEntry = selectedBasemap,
+            // Opt into the shared MapView so Home ↔ RoutePreview ↔ Recording
+            // reuse one GL surface/tile cache/style instead of rebuilding the
+            // map on every screen switch.
+            shared = true,
             activeOverlays = activeOverlays,
+            // "Jalur Saya" overlay — app-wide persisted flag + reactive line
+            // data. previewRouteId (the "Pilih Jalur" pick, or the routeId
+            // this screen was launched with) is the active route: it renders
+            // solid accent while the user's other saved routes stay gray/
+            // dashed. The Pilih Jalur flow itself is untouched — this only
+            // restyles the line it already draws via track = previewTrack.
+            myRoutes = myRouteLines,
+            activeRouteId = previewRouteId,
             // PART 4 fix: previously this only showed the picked GPX line
             // while IDLE, then went empty the moment recording started —
             // based on a mistaken assumption that actualTrack (the live
@@ -762,8 +779,10 @@ fun RecordingScreen(
             },
             activeOverlays = activeOverlays,
             onToggleOverlay = { overlay ->
-                activeOverlays = if (overlay in activeOverlays) activeOverlays - overlay else activeOverlays + overlay
+                viewModel.toggleOverlay(overlay)
             },
+            myRoutesEnabled = myRoutesEnabled,
+            onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
             onDismiss = { showBasemapSheet = false }
         )
     }

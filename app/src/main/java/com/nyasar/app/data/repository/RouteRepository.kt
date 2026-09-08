@@ -8,7 +8,11 @@ import com.nyasar.app.gpx.GpxParser
 import com.nyasar.app.gpx.model.GpxDocument
 import com.nyasar.app.navigation.ElevationStats
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -30,6 +34,53 @@ class RouteRepository(private val context: Context) {
     }
 
     fun observeRoutes(): Flow<List<RouteEntity>> = dao.observeAll()
+
+    /**
+     * "Jalur Saya" overlay data source: every saved Library route as a
+     * render-ready [com.nyasar.app.map.MyRouteLine], emitted whenever the
+     * route table changes (import/delete — Room's reactive observeAll
+     * re-fires this whole chain, so the overlay always matches the Library
+     * with no manual refresh path).
+     *
+     * Runs entirely off the main thread: each route's GPX is parsed on
+     * Dispatchers.IO (the same files/parse [loadDocument] uses — no second
+     * parser, no new storage), results are gathered independently so one
+     * unreadable/corrupt file degrades to a silently-missing line instead
+     * of failing every route, and each polyline is decimated through
+     * MyRouteLine.decimate before leaving this function so the map never
+     * receives an unbounded vertex count (spec: "rendering tetap ringan
+     * ketika GPX tersimpan cukup banyak").
+     *
+     * @param enabled gate from the persisted "Jalur Saya" switch — when
+     *        false this emits an empty list WITHOUT touching the filesystem,
+     *        so the overlay off state costs nothing (no parse work, no IO).
+     * @param activeRouteId the route currently picked for recording/
+     *        navigation ("Pilih Jalur" flow), rendered with accent styling;
+     *        null when nothing is active.
+     */
+    fun observeOverlayLines(
+        enabled: Boolean,
+        activeRouteId: String? = null
+    ): Flow<List<com.nyasar.app.map.MyRouteLine>> =
+        observeRoutes().map { routes ->
+            if (!enabled || routes.isEmpty()) return@map emptyList()
+            coroutineScope {
+                routes.map { route ->
+                    async(Dispatchers.IO) {
+                        try {
+                            val doc = loadDocument(route)
+                            com.nyasar.app.map.MyRouteLine(
+                                routeId = route.id,
+                                name = route.name,
+                                points = com.nyasar.app.map.MyRouteLine.decimate(doc.allTrackPoints)
+                            )
+                        } catch (_: Exception) {
+                            null // corrupt/unreadable file: skip this route only
+                        }
+                    }
+                }.awaitAll().filterNotNull()
+            }
+        }
 
     suspend fun getRoute(id: String): RouteEntity? = dao.getById(id)
 

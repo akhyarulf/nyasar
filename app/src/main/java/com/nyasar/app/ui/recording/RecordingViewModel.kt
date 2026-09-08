@@ -12,7 +12,10 @@ import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.navigation.GpsFix
 import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.StyleVariant
+import com.nyasar.app.map.TileProvider
 import com.nyasar.app.map.providers.TileProviderFactory
+import com.nyasar.app.data.repository.RouteRepository
+import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.recording.RecordingService
 import com.nyasar.app.recording.RecordingServiceConnection
 import com.nyasar.app.recording.RecordingUiState
@@ -21,6 +24,7 @@ import com.nyasar.app.ui.components.CameraFollowMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -42,6 +46,8 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
 
     private val connection = RecordingServiceConnection(app)
     private val dao = AppDatabase.get(app).activityDao()
+    private val settingsRepository = SettingsRepository(app)
+    private val routeRepository = RouteRepository(app)
     // Fix: before this, "recenter" on the pre-record (IDLE) screen was a
     // no-op — RecordingViewModel had no GPS source of its own, only ever
     // reading currentLat/currentLon from RecordingService's state, which
@@ -91,14 +97,73 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     private val _styleVariant = MutableStateFlow(StyleVariant.OUTDOOR)
     val styleVariant: StateFlow<StyleVariant> = _styleVariant.asStateFlow()
 
-    // Basemap picker (9-entry World catalog) — same non-persisted pattern
-    // as HomeViewModel.selectedBasemap; see that file's comment.
-    private val _selectedBasemap = MutableStateFlow(BasemapEntry.LIBERTY_TOPO)
-    val selectedBasemap: StateFlow<BasemapEntry> = _selectedBasemap.asStateFlow()
+    // Basemap picker (9-entry World catalog): ONE persisted selection shared
+    // with Home and RoutePreview via SettingsRepository's DataStore — same
+    // pattern as HomeViewModel.selectedBasemap. Previously this was a private
+    // MutableStateFlow disconnected from Home's: picking "Liberty Satellite"
+    // here never reached the other screens, and the choice died with the
+    // process.
+    val selectedBasemap: StateFlow<BasemapEntry> = settingsRepository.settings
+        .map { BasemapEntry.fromId(it.basemapId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BasemapEntry.LIBERTY_TOPO)
 
     fun setBasemap(entry: BasemapEntry) {
-        _selectedBasemap.value = entry
+        viewModelScope.launch { settingsRepository.setBasemapId(entry.gpxKey) }
     }
+
+    // Tile provider from the same persisted setting Home reads — previously
+    // RecordingScreen pinned TileProviderFactory.default() at first
+    // composition, so a user who switched provider in Settings still got
+    // MapTiler here. Also required for the shared-map style key: Home and
+    // Recording must resolve the SAME provider or the style key differs and
+    // every screen switch triggers a full style reload again.
+    val provider: StateFlow<TileProvider> = settingsRepository.settings
+        .map { TileProviderFactory.byId(it.providerId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TileProviderFactory.default())
+
+    // Waymarked Trails overlays: shared + persisted, same reasoning as
+    // HomeViewModel.activeOverlays — with one shared MapView, per-screen
+    // overlay sets would visibly strip/restore overlays on every switch.
+    val activeOverlays: StateFlow<Set<com.nyasar.app.map.OverlayLayer>> = settingsRepository.settings
+        .map { prefs ->
+            prefs.overlayIds.mapNotNull { id ->
+                com.nyasar.app.map.OverlayLayer.entries.firstOrNull { it.id == id }
+            }.toSet()
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    fun toggleOverlay(overlay: com.nyasar.app.map.OverlayLayer) {
+        val current = activeOverlays.value
+        val next = if (overlay in current) current - overlay else current + overlay
+        viewModelScope.launch { settingsRepository.setOverlayIds(next.map { it.id }.toSet()) }
+    }
+
+    // "Jalur Saya" overlay (MyRoutesOverlay): persisted app-wide like the
+    // Waymarked overlays — with ONE shared MapView the flag must come from
+    // the same DataStore on all 3 map screens or the last-mounted screen
+    // would decide visibility for everyone. Default false (user opt-in).
+    val myRoutesOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.myRoutesOverlayEnabled }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setMyRoutesOverlayEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setMyRoutesOverlayEnabled(enabled) }
+    }
+
+    /** Saved routes as render-ready lines for the map — the enabled gate
+     *  and route-id null filter live inside the repository flow; GPX
+     *  parsing/decimation happens there on Dispatchers.IO and only runs
+     *  while the overlay is ON. Same source as Home/RoutePreview (one
+     *  shared MapView + one DataStore), so overlay state is identical
+     *  everywhere; the "Pilih Jalur" active-route pick is passed to the
+     *  map separately (activeRouteId) and does not go through this flow. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val myRouteLines: StateFlow<List<com.nyasar.app.map.MyRouteLine>> =
+        myRoutesOverlayEnabled
+            .flatMapLatest { enabled ->
+                if (enabled) routeRepository.observeOverlayLines(true) else flowOf(emptyList())
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val followMode: StateFlow<Boolean> = _cameraMode
         .map { it != CameraFollowMode.FREE }

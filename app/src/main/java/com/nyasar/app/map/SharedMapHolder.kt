@@ -2,6 +2,7 @@ package com.nyasar.app.map
 
 import android.content.Context
 import android.view.ViewGroup
+import com.nyasar.app.gpx.model.GpxWaypoint
 import org.maplibre.android.maps.MapView
 
 /**
@@ -36,6 +37,97 @@ object SharedMapHolder {
     @Volatile
     private var instance: MapView? = null
 
+    /**
+     * Identity of the style currently loaded on the shared instance, or null
+     * while a load is in flight / never completed. NyasarMapView computes a
+     * key from (providerId, basemapId-or-styleVariant) before every style
+     * effect; when the key already matches what's on screen, setStyle() is
+     * SKIPPED entirely and only the content sources (track/waypoints/etc.)
+     * are re-applied. That's the actual fix for "map reloads (style + tiles)
+     * on every screen switch": the GL surface, tile cache, AND loaded style
+     * all survive the navigation; only cheap GeoJSON source updates run.
+     */
+    @Volatile
+    private var loadedStyleKey: String? = null
+
+    fun isStyleLoaded(key: String): Boolean = loadedStyleKey == key
+
+    /** Called right before setStyle() so a failed/interrupted load can never
+     *  be mistaken for a loaded one (the next screen then reloads instead of
+     *  rendering the previous style under a wrong assumption). */
+    fun markStyleLoading() {
+        loadedStyleKey = null
+    }
+
+    /** Called from inside setStyle()'s onStyleLoaded callback. */
+    fun markStyleLoaded(key: String) {
+        loadedStyleKey = key
+    }
+
+    /** Stable identity for a style choice: provider + basemap id (or the
+     *  legacy StyleVariant when no 9-basemap entry is selected). Same inputs
+     *  always produce the same style JSON — the inline raster styles are
+     *  deterministic functions of the entry — so key equality is a fair
+     *  proxy for "the style currently on screen is the one this screen wants". */
+    fun styleKey(providerId: String, basemapEntry: BasemapEntry?, styleVariant: StyleVariant): String =
+        "$providerId:${basemapEntry?.gpxKey ?: styleVariant.name}"
+
+    /**
+     * Per-screen input handlers for the shared instance, swapped on every
+     * recomposition of whichever screen currently hosts it (NyasarMapView
+     * writes them from its own rememberUpdatedState delegates).
+     *
+     * Why this indirection exists: MapLibre's addOnMapClickListener /
+     * addOnCameraMoveListener family is ADDITIVE with no remove counterpart.
+     * A shared map is adopted by a new AndroidView on every screen switch,
+     * so registering fresh listeners per screen would stack N screens' worth
+     * of handlers (taps firing 3 times after visiting 3 screens). Instead the
+     * physical listeners are registered exactly ONCE (first-ever host) and
+     * forward into these slots, which always point at the current host's
+     * handlers.
+     */
+    data class TapHandlers(
+        val onMapClick: (lat: Double, lon: Double) -> Unit = { _, _ -> },
+        val onMapLongPress: (lat: Double, lon: Double) -> Unit = { _, _ -> },
+        val onWaypointClick: (GpxWaypoint) -> Unit = {},
+        val onUserWaypointClick: (String) -> Unit = {},
+        val onUserGesture: () -> Unit = {},
+        val onBearingChanged: (Float) -> Unit = {}
+    )
+
+    @Volatile
+    var tapHandlers: TapHandlers = TapHandlers()
+
+    // Two SEPARATE one-shot flags: tap listeners are installed from the
+    // AndroidView factory, camera listeners from the style-load path — two
+    // independent async entry points with no defined ordering. Sharing one
+    // flag would let whichever ran first mark BOTH groups as installed and
+    // silently drop the other group (e.g. camera listeners never registered
+    // because the factory ran first).
+    @Volatile
+    private var tapListenersInstalled = false
+
+    @Volatile
+    private var cameraListenersInstalled = false
+
+    /** True while the one-time physical tap listeners still need to be
+     *  registered on the shared instance. */
+    fun needsTapListenerInstall(): Boolean = synchronized(this) { !tapListenersInstalled }
+
+    /** Called right after registering the physical tap listeners. */
+    fun markTapListenersInstalled() {
+        synchronized(this) { tapListenersInstalled = true }
+    }
+
+    /** True while the one-time physical camera listeners still need to be
+     *  registered on the shared instance. */
+    fun needsCameraListenerInstall(): Boolean = synchronized(this) { !cameraListenersInstalled }
+
+    /** Called right after registering the physical camera listeners. */
+    fun markCameraListenersInstalled() {
+        synchronized(this) { cameraListenersInstalled = true }
+    }
+
     fun get(context: Context): MapView {
         instance?.let { return it }
         synchronized(this) {
@@ -58,3 +150,4 @@ object SharedMapHolder {
         (mapView.parent as? ViewGroup)?.removeView(mapView)
     }
 }
+

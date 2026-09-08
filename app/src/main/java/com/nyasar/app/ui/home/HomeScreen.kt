@@ -110,13 +110,18 @@ fun HomeScreen(
     var showBasemapSheet by remember { mutableStateOf(false) }
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }
-    // Waymarked Trails overlays — was missing entirely on this screen
-    // (BasemapPickerSheet's activeOverlays/onToggleOverlay default to
-    // emptySet()/no-op when a caller doesn't pass them, so the checkboxes
-    // rendered but toggling them did nothing here — RoutePreviewScreen was
-    // the only screen actually wired). Same plain-Compose-state pattern
-    // RoutePreviewScreen already uses, not a new mechanism.
-    var activeOverlays by remember { mutableStateOf(setOf<com.nyasar.app.map.OverlayLayer>()) }
+    // Waymarked Trails overlays — shared persisted state (ViewModel reads the
+    // same DataStore row Recording/RoutePreview use). Required now that all 3
+    // map screens borrow ONE MapView: a per-screen set would let whichever
+    // screen mounts last strip the others' overlays from the single loaded
+    // style. Previously this was a local `remember` (and before that, missing
+    // wiring entirely — the checkboxes did nothing on this screen).
+    val activeOverlays by viewModel.activeOverlays.collectAsState()
+    // "Jalur Saya" overlay: app-wide persisted switch + reactive lines from
+    // the same repository the Library reads. The lines flow only parses GPX
+    // while the switch is ON (see HomeViewModel.myRouteLines).
+    val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    val myRouteLines by viewModel.myRouteLines.collectAsState()
 
     val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.importGpx(it) }
@@ -178,7 +183,16 @@ fun HomeScreen(
             provider = provider,
             styleVariant = styleVariant,
             basemapEntry = selectedBasemap,
+            // Opt into the shared MapView so Home ↔ RoutePreview ↔ Recording
+            // reuse one GL surface/tile cache/style instead of rebuilding the
+            // map on every screen switch. Basemap/overlays state is persisted
+            // in SettingsRepository, so it's identical on all 3 screens.
+            shared = true,
             activeOverlays = activeOverlays,
+            // "Jalur Saya" overlay — app-wide persisted flag + reactive
+            // line data; no active route on Home, so every line renders
+            // inactive (gray/dashed).
+            myRoutes = myRouteLines,
             track = emptyList(),
             waypoints = emptyList(),
             userWaypoints = userWaypoints,
@@ -423,8 +437,10 @@ fun HomeScreen(
             },
             activeOverlays = activeOverlays,
             onToggleOverlay = { overlay ->
-                activeOverlays = if (overlay in activeOverlays) activeOverlays - overlay else activeOverlays + overlay
+                viewModel.toggleOverlay(overlay)
             },
+            myRoutesEnabled = myRoutesEnabled,
+            onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
             onDismiss = { showBasemapSheet = false }
         )
     }

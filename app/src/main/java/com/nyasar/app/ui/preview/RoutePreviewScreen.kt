@@ -52,6 +52,10 @@ fun RoutePreviewScreen(
     val currentLocation by viewModel.currentLocation.collectAsState()
     val followMode by viewModel.followMode.collectAsState()
     val rotateWithHeading by viewModel.rotateWithHeading.collectAsState()
+    // Basemap: shared persisted selection (same DataStore row Home and
+    // Recording read/write) — replaces the former per-destination
+    // `remember { mutableStateOf(...) }` that reset on every entry.
+    val currentBasemap by viewModel.selectedBasemap.collectAsState()
 
     // Start location updates once permission is granted
     LaunchedEffect(Unit) { viewModel.startLocationUpdatesIfPermitted() }
@@ -65,17 +69,21 @@ fun RoutePreviewScreen(
     var mapBearing by remember { mutableStateOf(0f) }
     var showBasemapSheet by remember { mutableStateOf(false) }
     var currentStyleVariant by remember { mutableStateOf(StyleVariant.OUTDOOR) }
-    // Basemap picker (9-entry World catalog) — same local-remember pattern
-    // currentStyleVariant above already used for this screen (not a
-    // ViewModel field, matches how this screen already held its map-style
-    // choice as plain Compose state rather than in RoutePreviewViewModel).
-    var currentBasemap by remember { mutableStateOf(com.nyasar.app.map.BasemapEntry.LIBERTY_TOPO) }
-    var currentProvider by remember { mutableStateOf(state.provider) }
-    // Waymarked Trails overlays — separate concept from basemap (spec:
-    // GPX Studio's reference "Overlays" section, checkboxes not radio,
-    // multiple can be active together). Same plain-Compose-state pattern
-    // as currentBasemap right above, not a ViewModel field.
-    var activeOverlays by remember { mutableStateOf(setOf<com.nyasar.app.map.OverlayLayer>()) }
+    // Provider as a persisted-setting StateFlow, same source Home/Recording
+    // read: state.provider is only set once `load()` finishes, so a plain
+    // remember of it froze on the pre-load default for the whole screen's
+    // lifetime (and could disagree with the other two screens' provider,
+    // which would break shared-map style-key equality too).
+    val currentProvider by viewModel.provider.collectAsState()
+    // Waymarked Trails overlays — shared persisted state from the ViewModel
+    // (same DataStore row Home/Recording read; spec: GPX Studio's "Overlays"
+    // section, checkboxes not radio, multiple can be active together). With
+    // one shared MapView, per-screen overlay sets would strip/restore
+    // overlays on every screen switch.
+    val activeOverlays by viewModel.activeOverlays.collectAsState()
+    // "Jalur Saya" overlay: app-wide persisted switch + reactive lines.
+    val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    val myRouteLines by viewModel.myRouteLines.collectAsState()
 
     Scaffold(
         topBar = {
@@ -122,7 +130,16 @@ fun RoutePreviewScreen(
                     provider = currentProvider,
                     styleVariant = currentStyleVariant,
                     basemapEntry = currentBasemap,
+                    // Opt into the shared MapView so Home ↔ RoutePreview ↔
+                    // Recording reuse one GL surface/tile cache/style instead
+                    // of rebuilding the map on every screen switch.
+                    shared = true,
                     activeOverlays = activeOverlays,
+                    // "Jalur Saya" overlay — this screen's own route is the
+                    // active one (solid accent); every other saved route
+                    // renders gray/dashed when the overlay is on.
+                    myRoutes = myRouteLines,
+                    activeRouteId = routeId,
                     track = state.track,
                     waypoints = state.waypoints,
                     highlightPoint = highlightLatLng,
@@ -293,13 +310,17 @@ fun RoutePreviewScreen(
         com.nyasar.app.ui.components.BasemapPickerSheet(
             selected = currentBasemap,
             onSelect = { entry ->
-                currentBasemap = entry
+                // Persisted app-wide: Home and Recording observe the same
+                // DataStore-backed flow, so the pick follows the user there.
+                viewModel.setBasemap(entry)
                 showBasemapSheet = false
             },
             activeOverlays = activeOverlays,
             onToggleOverlay = { overlay ->
-                activeOverlays = if (overlay in activeOverlays) activeOverlays - overlay else activeOverlays + overlay
+                viewModel.toggleOverlay(overlay)
             },
+            myRoutesEnabled = myRoutesEnabled,
+            onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
             onDismiss = { showBasemapSheet = false }
         )
     }

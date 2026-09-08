@@ -12,6 +12,7 @@ import android.graphics.Shader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
@@ -47,6 +48,22 @@ object MapSnapshotHelper {
 
     private const val CACHE_DIR = "map_snapshots"
     private const val CACHE_VERSION = 9 // bump: removed verticalOffsetFraction from Share Card map request — it was cropping the visible route toward the gradient edge instead of showing the full route like List History does
+
+    // P3K audit fix: basemap picker thumbnails (generateBasemapPreview)
+    // were sharing CACHE_VERSION with activity-track snapshots above,
+    // even though the two are unrelated. That meant a stale/failed
+    // basemap thumbnail (e.g. all 4 raster entries falling back to the
+    // same generic placeholder while offline, or from a since-fixed
+    // RasterStyleJson bug) could sit on disk under
+    // "basemap_<gpxKey>_<w>x<h>_v9.png" forever — nothing would ever
+    // invalidate it, since bumping CACHE_VERSION for an unrelated
+    // activity-thumbnail fix would silently also "fix" (by accident,
+    // or not at all) basemap previews with no relation to that change.
+    // A basemap-specific version lets this cache be invalidated
+    // independently, and bumping it here (9 -> 10) explicitly discards
+    // every previously-cached basemap thumbnail once, forcing a fresh
+    // MapSnapshotter fetch per entry using each entry's own real style.
+    private const val BASEMAP_PREVIEW_CACHE_VERSION = 10
     // 25m floor (was 100m) — 100m alone was already 5-10x wider than a
     // typical very-short recording's own span (a few meters to a few tens
     // of meters), so those tracks rendered as a tiny speck regardless of
@@ -399,11 +416,16 @@ object MapSnapshotHelper {
         return dir
     }
 
-    private fun cacheFile(context: Context, activityId: String, widthPx: Int, heightPx: Int): File =
-        File(cacheDir(context), "${activityId}_${widthPx}x${heightPx}_v${CACHE_VERSION}.png")
+    // version defaults to the shared CACHE_VERSION for every existing
+    // caller (activity-track thumbnails, share cards) — behavior for
+    // those callers is unchanged. generateBasemapPreview below is the
+    // only caller that passes BASEMAP_PREVIEW_CACHE_VERSION explicitly,
+    // so basemap thumbnails invalidate independently of everything else.
+    private fun cacheFile(context: Context, activityId: String, widthPx: Int, heightPx: Int, version: Int = CACHE_VERSION): File =
+        File(cacheDir(context), "${activityId}_${widthPx}x${heightPx}_v${version}.png")
 
-    private fun loadFromDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int): Bitmap? {
-        val file = cacheFile(context, activityId, widthPx, heightPx)
+    private fun loadFromDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int, version: Int = CACHE_VERSION): Bitmap? {
+        val file = cacheFile(context, activityId, widthPx, heightPx, version)
         return if (file.exists()) {
             try {
                 BitmapFactory.decodeFile(file.absolutePath)
@@ -414,14 +436,170 @@ object MapSnapshotHelper {
         } else null
     }
 
-    private fun saveToDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int, bitmap: Bitmap) {
+    private fun saveToDisk(context: Context, activityId: String, widthPx: Int, heightPx: Int, bitmap: Bitmap, version: Int = CACHE_VERSION) {
         try {
-            val file = cacheFile(context, activityId, widthPx, heightPx)
+            val file = cacheFile(context, activityId, widthPx, heightPx, version)
             file.outputStream().use { out ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
             }
         } catch (e: Exception) {
             android.util.Log.w("MapSnapshotHelper", "Cache write failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Real map preview for the basemap picker (BasemapPickerSheet) — NOT
+     * a duplicate snapshot system: reuses this exact object's disk cache
+     * (cacheFile/loadFromDisk/saveToDisk) and the same MapSnapshotter
+     * machinery as generateSync above, just with a fixed representative
+     * region instead of one derived from an activity's track points (the
+     * picker has no track to derive bounds from). [styleUrl] is always
+     * one of this app's own real per-provider URLs from
+     * TileProvider.styleUrlFor/BasemapEntry — never anything under
+     * styles.gpx.studio — so this renders each basemap's genuine upstream
+     * tiles/style, the same source the full map uses, just at thumbnail
+     * size and for a fixed area instead of the user's current viewport.
+     *
+     * Cache key is the catalog entry's own id (passed in as [cacheKey]),
+     * not an activity id — one cached thumbnail per basemap entry, shared
+     * across every screen that opens the picker.
+     *
+     * P3K audit fix: this previously called loadFromDisk/saveToDisk with
+     * no version argument, which defaulted to the shared [CACHE_VERSION]
+     * — the same version counter used for unrelated activity-track
+     * thumbnails. That meant a stale basemap thumbnail (e.g. captured
+     * while offline, when every raster entry fails identically and the
+     * caller falls back to the same generic placeholder) could never be
+     * invalidated except by an activity-thumbnail-motivated version bump
+     * that had nothing to do with basemaps. Now pinned to
+     * [BASEMAP_PREVIEW_CACHE_VERSION], bumped independently, so a bad
+     * cached basemap thumbnail is invalidated deliberately rather than
+     * by accident (or never).
+     */
+    suspend fun generateBasemapPreview(
+        context: Context,
+        cacheKey: String,
+        styleUrl: String,
+        widthPx: Int,
+        heightPx: Int
+    ): Bitmap? {
+        val cached = loadFromDisk(context, cacheKey, widthPx, heightPx, BASEMAP_PREVIEW_CACHE_VERSION)
+        if (cached != null) return cached
+
+        // Slopes of Gunung Lawu — has enough hillshade/contour/vegetation
+        // variety that a viewer can actually tell the 9 styles apart (a
+        // flat plain would look nearly identical across several of them),
+        // and it's thematically the app's own reference hike rather than
+        // an arbitrary coordinate.
+        val bounds = LatLngBounds.Builder()
+            .include(LatLng(-7.66, 111.13))
+            .include(LatLng(-7.58, 111.22))
+            .build()
+
+        val bitmap = withContext(Dispatchers.Main) {
+            try {
+                val options = MapSnapshotter.Options(widthPx, heightPx).apply {
+                    // P3K audit fix (the actual root cause of every inline-
+                    // style basemap thumbnail — OpenStreetMap, OpenTopoMap,
+                    // OpenHikingMap, CyclOSM, Liberty Satellite — staying
+                    // stuck on the generic placeholder): withStyle(String)
+                    // on MapSnapshotter.Options is deprecated and, per
+                    // MapLibre's own docs/examples, local/inline styles for
+                    // the snapshotter must go through withStyleBuilder(
+                    // Style.Builder().fromJson(...)) — a data: base64 URI
+                    // through withStyle() is accepted by the LIVE map's
+                    // MapLibreMap.setStyle() (a different loader) but was
+                    // silently failing here, hitting onSnapshotError for
+                    // every one of these entries and NEVER for entries
+                    // using a real remote styleUrl (Liberty Topo,
+                    // OpenMapTiles OSM, OpenMapTiles OSM Topo, UtagawaMTB —
+                    // which is exactly the split Sea observed). Remote
+                    // http(s) styleUrls keep using withStyle() below
+                    // unchanged since that path was never broken for them.
+                    val dataUriPrefix = "data:application/json;base64,"
+                    if (styleUrl.startsWith(dataUriPrefix)) {
+                        val json = String(
+                            android.util.Base64.decode(styleUrl.removePrefix(dataUriPrefix), android.util.Base64.DEFAULT),
+                            Charsets.UTF_8
+                        )
+                        withStyleJson(json)
+                    } else {
+                        withStyle(styleUrl)
+                    }
+                    withRegion(bounds)
+                    withAttribution(false)
+                }
+                val snapshotter = MapSnapshotter(context, options)
+                // P3K audit fix: THIS was why OpenStreetMap/OpenTopoMap/
+                // OpenHikingMap/CyclOSM thumbnails spun forever even with
+                // network on and airplane mode off. MapSnapshotter.start()
+                // has two callbacks — onSnapshotReady AND onSnapshotError
+                // (MapSnapshotter.ErrorHandler) — but only onSnapshotReady
+                // was wired up. When an inline raster style fails to
+                // resolve/load for any reason (slow/unreachable upstream,
+                // a style the native renderer rejects, etc.), MapLibre
+                // calls onSnapshotError, never onSnapshotReady — so the
+                // suspendCancellableCoroutine below was never resumed and
+                // just hung indefinitely, with nothing logged, which is
+                // exactly "spinner spins forever, no error, no timeout."
+                // OpenMapTiles OSM Topo / UtagawaMTB never hit this because
+                // they use a long-proven remote styleUrl, not one of these
+                // brand-new inline RasterStyleJson.build() styles.
+                //
+                // Fix has two independent layers so a hang can't happen
+                // again even if a future MapLibre version's error callback
+                // is itself unreliable for some failure mode:
+                //  1. onSnapshotError now resumes the coroutine with null
+                //     instead of leaving it hanging.
+                //  2. withTimeoutOrNull wraps the whole thing as a hard
+                //     backstop — if neither callback ever fires (e.g. a
+                //     completely stalled network call inside MapLibre's
+                //     native layer), this still returns null instead of
+                //     blocking the picker sheet forever.
+                withTimeoutOrNull(15_000) {
+                    suspendCancellableCoroutine<Bitmap?> { cont ->
+                        cont.invokeOnCancellation { snapshotter.cancel() }
+                        snapshotter.start(
+                            object : MapSnapshotter.SnapshotReadyCallback {
+                                override fun onSnapshotReady(snapshot: MapSnapshot) {
+                                    if (cont.isActive) cont.resume(snapshot.bitmap)
+                                }
+                            },
+                            MapSnapshotter.ErrorHandler { error ->
+                                android.util.Log.w("MapSnapshotHelper", "Snapshot error for $cacheKey: $error")
+                                if (cont.isActive) cont.resume(null)
+                            }
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("MapSnapshotHelper", "Basemap preview failed for $cacheKey: ${e.message}")
+                null
+            }
+        }
+
+        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it, BASEMAP_PREVIEW_CACHE_VERSION) }
+        return bitmap
+    }
+
+    /**
+     * One-time cleanup: deletes any on-disk basemap-picker thumbnail
+     * cached under an older [BASEMAP_PREVIEW_CACHE_VERSION] (or the old
+     * shared-CACHE_VERSION scheme this replaces), so a stale/wrong
+     * thumbnail from before this fix can never be served again even if a
+     * caller somehow still holds an old cache key. Safe to call
+     * repeatedly — it only touches files matching the "basemap_" prefix,
+     * never activity-track or share-card snapshots. Call once at app
+     * startup or from BasemapPickerSheet's first composition.
+     */
+    fun purgeStaleBasemapPreviews(context: Context) {
+        try {
+            val dir = cacheDir(context)
+            val currentSuffix = "_v${BASEMAP_PREVIEW_CACHE_VERSION}.png"
+            dir.listFiles { f -> f.name.startsWith("basemap_") && !f.name.endsWith(currentSuffix) }
+                ?.forEach { it.delete() }
+        } catch (e: Exception) {
+            android.util.Log.w("MapSnapshotHelper", "Stale basemap preview purge failed: ${e.message}")
         }
     }
 }

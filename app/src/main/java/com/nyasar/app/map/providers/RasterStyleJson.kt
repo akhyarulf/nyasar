@@ -179,6 +179,18 @@ object RasterStyleJson {
             // imagery never rendered even after the tileset ID/endpoint
             // fixes above got the URL itself right. Plain "$escaped"
             // (no backslashes) is correct here.
+            //
+            // Fix (root cause of "blank black screen" after the JSON-
+            // syntax fix above): this style had no "background" layer.
+            // Per MapLibre's own style spec, when a style omits the
+            // background layer, the map defaults to solid black rather
+            // than transparent — so the moment the imagery raster source
+            // fails to render for ANY reason (still-invalid key, network
+            // hiccup, tile 404), the whole map goes black instead of
+            // falling through to something visible, and the Liberty
+            // overlay layers on top get no visible surface to sit on
+            // either. A background layer is now the bottommost layer so
+            // there's always a sane fallback color instead of black.
             """
             "imagery": {
               "type": "raster",
@@ -200,6 +212,11 @@ object RasterStyleJson {
                 $imagerySource
               },
               "layers": [
+                {
+                  "id": "satellite-background",
+                  "type": "background",
+                  "paint": { "background-color": "#1a2e35" }
+                },
                 {
                   "id": "satellite-imagery",
                   "type": "raster",

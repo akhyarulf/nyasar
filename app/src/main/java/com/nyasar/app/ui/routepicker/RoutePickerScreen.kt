@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.ui.trackmaps.TrackAndMapsViewModel
+import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
 
@@ -123,16 +125,19 @@ fun RoutePickerScreen(
             }
 
             if (tracks.isEmpty()) {
-                Box(
-                    Modifier.fillMaxWidth().padding(48.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (searchQuery.isBlank())
-                            "Belum ada track.\nImport GPX atau gambar rute sendiri."
-                        else "Tidak ada track yang cocok.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium
+                if (searchQuery.isNotBlank()) {
+                    EmptyState(
+                        icon = Icons.Default.Search,
+                        title = stringResource(R.string.empty_search_title),
+                        description = stringResource(R.string.empty_search_desc),
+                        modifier = Modifier.padding(vertical = 24.dp)
+                    )
+                } else {
+                    EmptyState(
+                        icon = Icons.Default.Hiking,
+                        title = stringResource(R.string.empty_tracks_title),
+                        description = stringResource(R.string.empty_tracks_desc),
+                        modifier = Modifier.padding(vertical = 24.dp)
                     )
                 }
             } else {

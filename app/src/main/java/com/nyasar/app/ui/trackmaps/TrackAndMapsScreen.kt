@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
+import com.nyasar.app.ui.components.EmptyState
 
 /**
  * PART 2 — combined "Track & Peta" screen. Both sections read existing
@@ -139,30 +141,22 @@ fun TrackAndMapsScreen(
                 val tracks = state.filteredTracks
                 if (tracks.isEmpty()) {
                     item {
-                        Column(
-                            Modifier.fillMaxWidth().padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                if (state.searchQuery.isBlank()) stringResource(R.string.no_tracks)
-                                else "Tidak ada track yang cocok.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        if (state.searchQuery.isNotBlank()) {
+                            EmptyState(
+                                icon = Icons.Default.Search,
+                                title = stringResource(R.string.empty_search_title),
+                                description = stringResource(R.string.empty_search_desc),
+                                modifier = Modifier.padding(vertical = 24.dp)
                             )
-                            if (state.searchQuery.isBlank()) {
-                                    Spacer(Modifier.height(12.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = { pickGpx.launch("*/*") }) {
-                                            Icon(Icons.Default.Add, contentDescription = null)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(stringResource(R.string.import_gpx))
-                                        }
-                                        OutlinedButton(onClick = onOpenDrawRoute) {
-                                            Icon(Icons.Default.Edit, contentDescription = null)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(stringResource(R.string.draw_route))
-                                        }
-                                    }
-                                }
+                        } else {
+                            EmptyState(
+                                icon = Icons.Default.Hiking,
+                                title = stringResource(R.string.empty_tracks_title),
+                                description = stringResource(R.string.empty_tracks_desc),
+                                modifier = Modifier.padding(vertical = 16.dp),
+                                ctaText = stringResource(R.string.import_gpx),
+                                onCtaClick = { pickGpx.launch("*/*") }
+                            )
                         }
                     }
                 } else {

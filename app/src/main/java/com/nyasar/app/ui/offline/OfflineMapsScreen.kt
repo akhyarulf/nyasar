@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.map.providers.TileProviderFactory
+import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
@@ -108,26 +110,18 @@ fun OfflineMapsScreen(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                    state.regions.isEmpty() -> Column(
-                        Modifier.align(Alignment.Center).padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            stringResource(R.string.no_offline_maps_desc),
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(20.dp))
+                    state.regions.isEmpty() -> EmptyState(
+                        icon = Icons.Default.Download,
+                        title = stringResource(R.string.no_offline_maps),
+                        description = stringResource(R.string.no_offline_maps_desc),
                         // Spec §5: empty state needs a real central CTA, not
                         // just the corner FAB — the FAB stays too (still
                         // useful once the list has content), this is
                         // additive for the zero-region case specifically.
-                        Button(onClick = onDownloadArea, modifier = Modifier.height(48.dp)) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.download_map))
-                        }
-                    }
+                        ctaText = stringResource(R.string.download_map),
+                        onCtaClick = onDownloadArea,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
                     else -> LazyColumn(
                         Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),

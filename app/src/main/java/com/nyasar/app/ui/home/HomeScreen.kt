@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MyLocation
@@ -37,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.data.db.RouteEntity
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.recording.RecordingStatus
+import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.ui.components.ZoomControls
 import com.nyasar.app.ui.recording.RecordingViewModel
@@ -584,17 +586,14 @@ private fun RoutesBottomSheet(
             Spacer(Modifier.height(8.dp))
 
             if (filtered.isEmpty()) {
-                Box(
-                    Modifier.fillMaxWidth().padding(vertical = 40.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (routes.isEmpty()) stringResource(R.string.no_routes)
-                        else stringResource(R.string.no_matching_route),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                EmptyState(
+                    icon = Icons.Default.Hiking,
+                    title = if (routes.isEmpty()) stringResource(R.string.empty_routes_title)
+                    else stringResource(R.string.empty_search_title),
+                    description = if (routes.isEmpty()) stringResource(R.string.empty_routes_desc)
+                    else stringResource(R.string.empty_search_desc),
+                    modifier = Modifier.padding(vertical = 24.dp)
+                )
             } else {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                     items(filtered, key = { it.id }) { route ->

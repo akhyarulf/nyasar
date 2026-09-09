@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import com.nyasar.app.recording.ShareMetric
 import com.nyasar.app.recording.SportType
+import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -49,6 +50,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
+import com.nyasar.app.ui.components.EmptyState
 
 /**
  * Card-per-activity layout (spec ref: Strava's Activities feed) — was a
@@ -97,11 +99,13 @@ fun ActivityHistoryScreen(
                 }
                 HistoryLoadState.LOADED -> {
                     if (state.activities.isEmpty()) {
-                        Text(
-                            stringResource(R.string.no_history),
-                            modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        EmptyState(
+                            icon = Icons.Default.Hiking,
+                            title = stringResource(R.string.empty_history_title),
+                            description = stringResource(R.string.empty_history_desc),
+                            ctaText = stringResource(R.string.start_recording),
+                            onCtaClick = onBack,
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     } else {
                         LazyColumn(

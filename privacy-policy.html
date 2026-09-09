@@ -53,6 +53,16 @@
 <p>Saat aplikasi menampilkan peta, perangkat Anda melakukan permintaan langsung ke server-server tersebut untuk mengunduh gambar peta pada area yang sedang Anda lihat. Seperti permintaan internet pada umumnya, ini berarti alamat IP perangkat Anda diketahui oleh penyedia peta tersebut selama proses pengambilan data. Kami tidak menambahkan pelacakan tambahan di luar apa yang secara teknis diperlukan untuk memuat peta, dan kami sendiri tidak menerima atau menyimpan data ini.</p>
 <p>Kami menyarankan Anda meninjau kebijakan privasi masing-masing penyedia jika Anda ingin detail lebih lanjut mengenai bagaimana mereka menangani permintaan tile peta.</p>
 
+<h2>Pelaporan Crash (Firebase Crashlytics)</h2>
+<p>Nyasar menggunakan Firebase Crashlytics untuk membantu kami mendeteksi dan memperbaiki error/crash pada aplikasi. Jika aplikasi mengalami crash, informasi teknis berikut dikirim secara otomatis ke Firebase (layanan Google):</p>
+<ul>
+  <li>Detail teknis crash (baris kode, jenis error, stack trace)</li>
+  <li>Informasi perangkat (model HP, versi Android)</li>
+  <li>Versi aplikasi yang digunakan</li>
+</ul>
+<p>Data ini <strong>tidak mencakup data pribadi</strong> seperti lokasi GPS, rute perjalanan, atau foto Anda — Crashlytics hanya mengumpulkan informasi teknis yang diperlukan untuk mendiagnosis dan memperbaiki bug. Data ini digunakan semata-mata untuk meningkatkan stabilitas aplikasi.</p>
+<p>Informasi lebih lanjut tersedia di <a href="https://firebase.google.com/support/privacy" target="_blank">Kebijakan Privasi Firebase</a>.</p>
+
 <h2>Penyimpanan Data</h2>
 <p>Seluruh data aktivitas Anda (rute, titik GPS, foto, waypoint) <strong>disimpan secara lokal di perangkat Anda</strong>. Kami (pengembang Nyasar) <strong>tidak memiliki server</strong> yang menyimpan atau mengakses data pribadi Anda pada versi aplikasi ini.</p>
 

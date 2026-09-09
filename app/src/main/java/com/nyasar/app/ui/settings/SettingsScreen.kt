@@ -14,11 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.stringResource
-import com.nyasar.app.BuildConfig
 import com.nyasar.app.R
 import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.ui.components.AnimatedScreen
-import com.nyasar.app.debug.CrashTestSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -279,19 +277,10 @@ fun SettingsScreen(
             Spacer(Modifier.height(8.dp))
             Text(stringResource(R.string.about), style = MaterialTheme.typography.bodyMedium)
             Text(
-                stringResource(R.string.version, BuildConfig.VERSION_NAME),
+                stringResource(R.string.version, com.nyasar.app.BuildConfig.VERSION_NAME),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(24.dp))
-
-            // Crashlytics verification buttons. The composable lives in the
-            // debug source set AND is guarded here — release builds contain
-            // neither the code nor the call site.
-            if (BuildConfig.DEBUG) {
-                CrashTestSection()
-            }
-
             Spacer(Modifier.height(24.dp))
         }
         }

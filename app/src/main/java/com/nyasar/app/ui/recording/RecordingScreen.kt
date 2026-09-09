@@ -310,10 +310,10 @@ fun RecordingScreen(
     // Settings > Recording > "keep screen awake" (spec) — a real device
     // effect, not a stored-but-unused flag: keeps the screen on for as long
     // as this composable is on screen while recording is actually active.
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val settingsRepository = remember {
-        com.nyasar.app.data.settings.SettingsRepository(context)
-    }
+    // Reuses the `settingsRepository` created for the POST_NOTIFICATIONS
+    // explainer above — same SettingsRepository singleton-per-context over
+    // the same DataStore file; a second declaration here is a Kotlin
+    // "Conflicting declarations" compile error, not a separate instance.
     val keepScreenOn by settingsRepository.settings
         .map { it.keepScreenOnWhileRecording }
         .collectAsState(initial = true)

@@ -803,7 +803,7 @@ private fun RoundIconButton(
  */
 @Composable
 private fun RecordingPulseDot(color: Color, active: Boolean, modifier: Modifier = Modifier) {
-    val infinite = androidx.compose.runtime.rememberInfiniteTransition(label = "pulseDot")
+    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulseDot")
     val alpha by infinite.animateFloat(
         initialValue = if (active) 1f else 0.4f,
         targetValue = if (active) 0.35f else 0.4f,

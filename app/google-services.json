@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "436028608864",
+    "project_id": "nyasar-app",
+    "storage_bucket": "nyasar-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:436028608864:android:b7d72d99d75f522fe44e05",
+        "android_client_info": {
+          "package_name": "com.nyasar.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBaTC2_B2GNbh-ujC9G5bB0WDlldzGyKgk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

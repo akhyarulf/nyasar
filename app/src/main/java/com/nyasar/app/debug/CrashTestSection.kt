@@ -36,6 +36,9 @@ import com.nyasar.app.BuildConfig
  */
 @Composable
 fun CrashTestSection() {
+    // Captured at composition (LocalContext.current is itself composable
+    // and can't be read inside the button's onClick lambdas).
+    val context = LocalContext.current
     Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
         Text(
             "Firebase Crashlytics test (debug-only)",
@@ -65,7 +68,7 @@ fun CrashTestSection() {
                 // APK was built without google-services.json (e.g. the CI
                 // APK), fail loudly with the reason instead of an opaque
                 // IllegalStateException from deep inside Firebase.
-                if (com.google.firebase.FirebaseApp.getApps(LocalContext.current).isEmpty()) {
+                if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
                     throw IllegalStateException(
                         "Firebase not initialized in this APK — app/google-services.json was missing at build time"
                     )

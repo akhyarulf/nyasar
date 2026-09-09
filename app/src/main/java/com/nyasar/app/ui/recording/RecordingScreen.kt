@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -45,7 +46,22 @@ import com.nyasar.app.ui.components.CameraFollowMode
 import com.nyasar.app.ui.components.CompassButton
 import com.nyasar.app.ui.components.AnimatedAppear
 import com.nyasar.app.ui.components.AnimatedStatText
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.nyasar.app.ui.components.pressScale
+import com.nyasar.app.ui.theme.NyasarMotion
+import com.nyasar.app.ui.theme.NyasarRadius
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
 import android.Manifest
@@ -664,11 +680,19 @@ fun RecordingScreen(
             )
         }
 
-        if (userLatLng == null && !startStuck) {
+        // "Searching for GPS" banner fades+rises in while searching and
+        // fades out on lock, instead of hard-popping in/out.
+        AnimatedVisibility(
+            visible = userLatLng == null && !startStuck,
+            enter = fadeIn(animationSpec = NyasarMotion.enter()) +
+                slideInVertically(initialOffsetY = { it / 4 }, animationSpec = NyasarMotion.enter()),
+            exit = fadeOut(animationSpec = NyasarMotion.exit()),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
             Surface(
-                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                modifier = Modifier.padding(24.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = MaterialTheme.shapes.medium
+                shape = RoundedCornerShape(NyasarRadius.md)
             ) {
                 Text(
                     stringResource(R.string.gps_searching),
@@ -740,24 +764,48 @@ fun RecordingScreen(
                 .onSizeChanged { size ->
                     statBarHeight = with(density) { size.height.toDp() }
                 },
+            shape = RoundedCornerShape(topStart = NyasarRadius.xl, topEnd = NyasarRadius.xl),
             color = Color(0xFF16181A),
             contentColor = Color.White
         ) {
             Column(Modifier.padding(20.dp)) {
+                // Expand affordance: compact 36dp button (was a full-height
+                // icon row that wasted vertical space) with press feedback,
+                // and the icon itself crossfade+zooms on toggle so the
+                // state change is felt, not hard-swapped.
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { statsExpanded = !statsExpanded }) {
-                        Icon(
-                            if (statsExpanded) Icons.Default.CloseFullscreen else Icons.Default.OpenInFull,
-                            contentDescription = if (statsExpanded) stringResource(R.string.collapse_stats_cd) else stringResource(R.string.expand_stats_cd),
-                            tint = Color.White.copy(alpha = 0.7f)
-                        )
+                    val expandInteraction = remember { MutableInteractionSource() }
+                    IconButton(
+                        onClick = { statsExpanded = !statsExpanded },
+                        modifier = Modifier.size(36.dp).pressScale(expandInteraction),
+                        interactionSource = expandInteraction
+                    ) {
+                        AnimatedContent(
+                            targetState = statsExpanded,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = NyasarMotion.fast()) +
+                                    scaleIn(initialScale = 0.6f, animationSpec = NyasarMotion.fast()))
+                                    .togetherWith(
+                                        fadeOut(animationSpec = NyasarMotion.exit()) +
+                                            scaleOut(targetScale = 0.6f, animationSpec = NyasarMotion.exit())
+                                    )
+                            },
+                            label = "expandIcon"
+                        ) { expanded ->
+                            Icon(
+                                if (expanded) Icons.Default.CloseFullscreen else Icons.Default.OpenInFull,
+                                contentDescription = if (expanded) stringResource(R.string.collapse_stats_cd) else stringResource(R.string.expand_stats_cd),
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(2.dp))
                 // Strava-style: Distance as hero metric (center), Time left, Elevation right
                 Row(
                     Modifier.fillMaxWidth(),
@@ -781,7 +829,14 @@ fun RecordingScreen(
                     )
                 }
 
-                if (statsExpanded) {
+                // Secondary stats fold in/out with the shared emphasized
+                // expand curve instead of popping (was a hard if-cut).
+                AnimatedVisibility(
+                    visible = statsExpanded,
+                    enter = expandVertically(animationSpec = NyasarMotion.enter()) + fadeIn(animationSpec = NyasarMotion.enter()),
+                    exit = shrinkVertically(animationSpec = NyasarMotion.exit()) + fadeOut(animationSpec = NyasarMotion.exit())
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
                     Spacer(Modifier.height(20.dp))
                     HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
                     Spacer(Modifier.height(16.dp))
@@ -805,6 +860,7 @@ fun RecordingScreen(
                             compact = true,
                             modifier = Modifier.weight(1f)
                         )
+                    }
                     }
                 }
 
@@ -1136,8 +1192,24 @@ private fun RecordingControls(
     onShowSportFilter: () -> Unit = {}
 ) {
     val sportType = com.nyasar.app.recording.SportType.fromString(selectedSportType)
-    
-    when (status) {
+
+    // State swaps (Start <-> Pause <-> Resume/Finish) crossfade+scale
+    // through the shared motion tokens instead of hard-cutting between
+    // completely different layouts; the default SizeTransform also
+    // animates the height change between them.
+    AnimatedContent(
+        targetState = status,
+        transitionSpec = {
+            (fadeIn(animationSpec = NyasarMotion.enter()) +
+                scaleIn(initialScale = 0.94f, animationSpec = NyasarMotion.enter()))
+                .togetherWith(
+                    fadeOut(animationSpec = NyasarMotion.exit()) +
+                        scaleOut(targetScale = 0.94f, animationSpec = NyasarMotion.exit())
+                )
+        },
+        label = "recordingControls"
+    ) { controlStatus ->
+    when (controlStatus) {
         // Spec PART 3 STATE 1: exactly two labeled buttons, always both
         // visible regardless of whether a track is attached — "Pilih
         // Jalur" is how you attach one, not something that disappears
@@ -1149,31 +1221,61 @@ private fun RecordingControls(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Sport button (bottom-left)
+                // Sport button (bottom-left) — press-scale circle, and the
+                // icon crossfade+zooms when the user picks a different sport
+                // from the filter sheet instead of hard-swapping.
+                val sportInteraction = remember { MutableInteractionSource() }
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable(onClick = onShowSportFilter)
+                    modifier = Modifier.clickable(
+                        interactionSource = sportInteraction,
+                        indication = null,
+                        onClick = onShowSportFilter
+                    )
                 ) {
                     Box(
                         modifier = Modifier
                             .size(56.dp)
+                            .pressScale(sportInteraction)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            sportType.icon,
-                            contentDescription = stringResource(R.string.select_sport_cd),
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
+                        AnimatedContent(
+                            targetState = sportType,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = NyasarMotion.fast()) +
+                                    scaleIn(initialScale = 0.6f, animationSpec = NyasarMotion.fast()))
+                                    .togetherWith(
+                                        fadeOut(animationSpec = NyasarMotion.exit()) +
+                                            scaleOut(targetScale = 0.6f, animationSpec = NyasarMotion.exit())
+                                    )
+                            },
+                            label = "sportIcon"
+                        ) { animatedSport ->
+                            Icon(
+                                animatedSport.icon,
+                                contentDescription = stringResource(R.string.select_sport_cd),
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        sportType.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
+                    AnimatedContent(
+                        targetState = sportType,
+                        transitionSpec = {
+                            fadeIn(animationSpec = NyasarMotion.fast())
+                                .togetherWith(fadeOut(animationSpec = NyasarMotion.exit()))
+                        },
+                        label = "sportLabel"
+                    ) { animatedSport ->
+                        Text(
+                            animatedSport.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
                 }
                 
                 // Start button (center)
@@ -1208,9 +1310,26 @@ private fun RecordingControls(
                             }
                         }
                     }
+                    // Hero button: a gentle breathing pulse (2% scale, slow
+                    // cycle) invites the tap while idle, and the shared
+                    // press-scale gives tactile feedback on touch.
+                    val startInteraction = remember { MutableInteractionSource() }
+                    val pulseScale by androidx.compose.animation.core.rememberInfiniteTransition(label = "startPulse").animateFloat(
+                        initialValue = 1f,
+                        targetValue = 1.03f,
+                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                            animation = androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                        ),
+                        label = "startPulseScale"
+                    )
                     FilledIconButton(
                         onClick = onStart,
-                        modifier = Modifier.size(80.dp),
+                        modifier = Modifier
+                            .size(80.dp)
+                            .scale(pulseScale)
+                            .pressScale(startInteraction, pressedScale = 0.92f),
+                        interactionSource = startInteraction,
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(36.dp))
@@ -1222,14 +1341,21 @@ private fun RecordingControls(
                     )
                 }
                 
-                // Add Route button (bottom-right)
+                // Add Route button (bottom-right) — same press feedback as
+                // the sport button so both side controls feel identical.
+                val addRouteInteraction = remember { MutableInteractionSource() }
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable(onClick = onAddRoute)
+                    modifier = Modifier.clickable(
+                        interactionSource = addRouteInteraction,
+                        indication = null,
+                        onClick = onAddRoute
+                    )
                 ) {
                     Box(
                         modifier = Modifier
                             .size(56.dp)
+                            .pressScale(addRouteInteraction)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
@@ -1255,12 +1381,23 @@ private fun RecordingControls(
         // "gampang salah pencet Stop sambil jalan" risk the spec calls
         // out. Selesaikan only becomes reachable from PAUSED below.
         RecordingStatus.RECORDING -> {
-            FilledIconButton(
-                onClick = onPause,
-                modifier = Modifier.size(80.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
+            // Centered full-width so the pause button sits mid-panel like the
+            // Start button does (it used to hang on the panel's left edge).
+            val pauseInteraction = remember { MutableInteractionSource() }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
             ) {
-                Icon(Icons.Default.Pause, contentDescription = stringResource(R.string.pause_recording), modifier = Modifier.size(36.dp))
+                FilledIconButton(
+                    onClick = onPause,
+                    modifier = Modifier
+                        .size(80.dp)
+                        .pressScale(pauseInteraction, pressedScale = 0.92f),
+                    interactionSource = pauseInteraction,
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(Icons.Default.Pause, contentDescription = stringResource(R.string.pause_recording), modifier = Modifier.size(36.dp))
+                }
             }
         }
         // Spec PART 3 STATE 3: Lanjutkan + Selesaikan, side by side.
@@ -1295,6 +1432,7 @@ private fun RecordingControls(
         // STOPPED never reaches here — RecordingScreen normalizes it to
         // IDLE before calling this (see effectiveStatus).
         else -> {}
+    }
     }
 }
 

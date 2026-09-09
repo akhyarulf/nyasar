@@ -34,6 +34,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -162,11 +166,56 @@ class MainActivity : AppCompatActivity() {
                     ActivityResultContracts.RequestPermission()
                 ) { /* denial is non-fatal — recording still works, see above */ }
 
-                LaunchedEffect(Unit) {
-                    locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
+                // First-launch location onboarding: explain WHY location is
+                // needed BEFORE the system permission popup (previously the
+                // FINE_LOCATION dialog popped with zero context on very first
+                // launch). Shown exactly once — the flag persists in DataStore
+                // via SettingsRepository and every dialog exit path sets it.
+                // "Nanti Saja" skips the request entirely; permission stays
+                // requestable later from wherever it is actually checked
+                // (LocationRepository.hasLocationPermission consumers), just
+                // without this explainer again.
+                var showLocationOnboarding by remember { mutableStateOf(false) }
+                LaunchedEffect(settings) {
+                    val s = settings ?: return@LaunchedEffect
+                    if (!s.locationOnboardingShown) showLocationOnboarding = true
+                }
+                val settingsSnapshot = settings
+                if (showLocationOnboarding && settingsSnapshot != null &&
+                    !settingsSnapshot.locationOnboardingShown
+                ) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            showLocationOnboarding = false
+                            lifecycleScope.launch { settingsRepository.setLocationOnboardingShown() }
+                        },
+                        title = { Text(stringResource(R.string.onboarding_title)) },
+                        text = { Text(stringResource(R.string.onboarding_body)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showLocationOnboarding = false
+                                lifecycleScope.launch { settingsRepository.setLocationOnboardingShown() }
+                                locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }) { Text(stringResource(R.string.onboarding_allow)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                showLocationOnboarding = false
+                                lifecycleScope.launch { settingsRepository.setLocationOnboardingShown() }
+                                // Skip = no location request. POST_NOTIFICATIONS
+                                // still goes out (P3I §19: it must be requested
+                                // on API 33+ regardless) — it is NOT a location
+                                // permission, so keeping its request here honors
+                                // "explainer is location-specific, shown once".
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }) { Text(stringResource(R.string.onboarding_skip)) }
+                        }
+                    )
                 }
 
                 val navController = rememberNavController()

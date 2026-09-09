@@ -413,4 +413,20 @@
 
     <!-- Photos -->
     <string name="no_photos_yet_detail">No photos yet.</string>
+
+    <!-- Empty states (friendly, icon + title + CTA) -->
+    <string name="empty_routes_title">No routes yet</string>
+    <string name="empty_routes_desc">Import a GPX file to get started.</string>
+    <string name="empty_tracks_title">No tracks yet</string>
+    <string name="empty_tracks_desc">Import a GPX or draw your own route.</string>
+    <string name="empty_search_title">No matching tracks</string>
+    <string name="empty_search_desc">Try a different search term.</string>
+    <string name="empty_history_title">No activities yet</string>
+    <string name="empty_history_desc">Time to start your first hike!</string>
+
+    <!-- Location onboarding (first launch only) -->
+    <string name="onboarding_title">Welcome to Nyasar!</string>
+    <string name="onboarding_body">Nyasar needs location access to:\n• Record your track via GPS\n• Show your position on the map and during navigation\n\nYour location is only used while the app is open.</string>
+    <string name="onboarding_allow">Allow Location</string>
+    <string name="onboarding_skip">Later</string>
 </resources>

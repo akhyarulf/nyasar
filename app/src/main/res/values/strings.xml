@@ -413,4 +413,20 @@
 
     <!-- Photos -->
     <string name="no_photos_yet_detail">Belum ada foto.</string>
+
+    <!-- Empty states (friendly, icon + title + CTA) -->
+    <string name="empty_routes_title">Belum ada route</string>
+    <string name="empty_routes_desc">Import file GPX untuk mulai.</string>
+    <string name="empty_tracks_title">Belum ada track</string>
+    <string name="empty_tracks_desc">Import GPX atau gambar rute sendiri.</string>
+    <string name="empty_search_title">Tidak ada track yang cocok</string>
+    <string name="empty_search_desc">Coba kata kunci lain.</string>
+    <string name="empty_history_title">Belum ada aktivitas</string>
+    <string name="empty_history_desc">Yuk mulai hiking pertamamu!</string>
+
+    <!-- Location onboarding (first launch only) -->
+    <string name="onboarding_title">Selamat datang di Nyasar!</string>
+    <string name="onboarding_body">Nyasar butuh akses lokasi untuk:\n• Merekam jalur perjalananmu via GPS\n• Menampilkan posisimu di peta dan navigasi\n\nLokasi hanya dipakai saat app sedang dibuka.</string>
+    <string name="onboarding_allow">Izinkan Lokasi</string>
+    <string name="onboarding_skip">Nanti Saja</string>
 </resources>

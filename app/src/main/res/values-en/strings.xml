@@ -429,4 +429,10 @@
     <string name="onboarding_body">Nyasar needs location access to:\n• Record your track via GPS\n• Show your position on the map and during navigation\n\nYour location is only used while the app is open.</string>
     <string name="onboarding_allow">Allow Location</string>
     <string name="onboarding_skip">Later</string>
+
+    <!-- Notification onboarding (first recording, API 33+) -->
+    <string name="notif_onboarding_title">Allow Notifications?</string>
+    <string name="notif_onboarding_body">While a GPS recording is running, Nyasar posts a status notification:\n• Recording state (active / paused) and real-time distance\n• A visible sign that recording keeps running when the app goes to the background\n\nWithout this permission, recording still works — only the notification indicator is missing.</string>
+    <string name="notif_onboarding_allow">Allow Notifications</string>
+    <string name="notif_onboarding_skip">Later</string>
 </resources>

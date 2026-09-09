@@ -3,7 +3,6 @@ package com.nyasar.app
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
@@ -149,22 +148,6 @@ class MainActivity : AppCompatActivity() {
                 val locationPermission = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
                 ) { /* result observed by screens via LocationRepository.hasLocationPermission() */ }
-                // P3I audit fix (§19): POST_NOTIFICATIONS was declared in
-                // the manifest but never requested at runtime — required
-                // separately on API 33+ (unlike the older manifest-only
-                // permissions). Without this, RecordingService's
-                // foreground notification (spec §19: "selalu muncul ketika
-                // service recording") silently fails to display on a
-                // fresh API 33+ install; the foreground service itself
-                // still runs fine and recording is unaffected, but the
-                // user loses the visible indicator that recording is
-                // active, and any updateNotification() call becomes a
-                // no-op the app has no way to detect. Requesting it here,
-                // alongside location, means it's granted (or denied, same
-                // as location) before the user ever starts a recording.
-                val notificationPermission = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission()
-                ) { /* denial is non-fatal — recording still works, see above */ }
 
                 // First-launch location onboarding: explain WHY location is
                 // needed BEFORE the system permission popup (previously the
@@ -175,6 +158,13 @@ class MainActivity : AppCompatActivity() {
                 // requestable later from wherever it is actually checked
                 // (LocationRepository.hasLocationPermission consumers), just
                 // without this explainer again.
+                //
+                // POST_NOTIFICATIONS is deliberately NOT requested here
+                // anymore: it has its own first-time-relevant-moment explainer
+                // on the Recording screen (notifications only ever matter when
+                // a recording session runs — see RecordingScreen), so the
+                // location decision and the notification decision stay fully
+                // independent.
                 var showLocationOnboarding by remember { mutableStateOf(false) }
                 LaunchedEffect(settings) {
                     val s = settings ?: return@LaunchedEffect
@@ -196,23 +186,12 @@ class MainActivity : AppCompatActivity() {
                                 showLocationOnboarding = false
                                 lifecycleScope.launch { settingsRepository.setLocationOnboardingShown() }
                                 locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
                             }) { Text(stringResource(R.string.onboarding_allow)) }
                         },
                         dismissButton = {
                             TextButton(onClick = {
                                 showLocationOnboarding = false
                                 lifecycleScope.launch { settingsRepository.setLocationOnboardingShown() }
-                                // Skip = no location request. POST_NOTIFICATIONS
-                                // still goes out (P3I §19: it must be requested
-                                // on API 33+ regardless) — it is NOT a location
-                                // permission, so keeping its request here honors
-                                // "explainer is location-specific, shown once".
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
                             }) { Text(stringResource(R.string.onboarding_skip)) }
                         }
                     )

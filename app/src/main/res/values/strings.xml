@@ -429,4 +429,10 @@
     <string name="onboarding_body">Nyasar butuh akses lokasi untuk:\n• Merekam jalur perjalananmu via GPS\n• Menampilkan posisimu di peta dan navigasi\n\nLokasi hanya dipakai saat app sedang dibuka.</string>
     <string name="onboarding_allow">Izinkan Lokasi</string>
     <string name="onboarding_skip">Nanti Saja</string>
+
+    <!-- Notification onboarding (first recording, API 33+) -->
+    <string name="notif_onboarding_title">Izinkan Notifikasi?</string>
+    <string name="notif_onboarding_body">Saat recording GPS berjalan, Nyasar menampilkan notifikasi status di layar notifikasi:\n• Status recording (aktif / dijeda) dan jarak tempuh real-time\n• Tanda bahwa recording tetap berjalan saat app berpindah ke background\n\nTanpa izin ini, recording tetap jalan — hanya indikator notifikasinya yang tidak tampil.</string>
+    <string name="notif_onboarding_allow">Izinkan Notifikasi</string>
+    <string name="notif_onboarding_skip">Nanti Saja</string>
 </resources>

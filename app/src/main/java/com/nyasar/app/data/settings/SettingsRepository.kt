@@ -45,7 +45,13 @@ data class AppSettings(
     /** First-launch location onboarding ("why we need GPS" explainer before
      *  the system permission popup) has been shown+actioned. Once true it
      *  never shows again — the request itself lives in MainActivity. */
-    val locationOnboardingShown: Boolean = false
+    val locationOnboardingShown: Boolean = false,
+    /** First-time-relevant-moment notification onboarding ("why Nyasar wants
+     *  to post notifications" explainer, shown when the user first reaches
+     *  the Recording screen on API 33+) has been shown+actioned. Fully
+     *  independent of [locationOnboardingShown] — either decision can be
+     *  made without the other. */
+    val notificationOnboardingShown: Boolean = false
 )
 
 /**
@@ -64,6 +70,7 @@ class SettingsRepository(private val context: Context) {
         val OVERLAY_IDS = androidx.datastore.preferences.core.stringSetPreferencesKey("overlay_ids") // OverlayLayer.id
         val MY_ROUTES_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("my_routes_overlay_enabled")
         val LOCATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("location_onboarding_shown")
+        val NOTIFICATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("notification_onboarding_shown")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -77,7 +84,8 @@ class SettingsRepository(private val context: Context) {
             basemapId = prefs[Keys.BASEMAP_ID] ?: "libertyTopo",
             overlayIds = prefs[Keys.OVERLAY_IDS] ?: emptySet(),
             myRoutesOverlayEnabled = prefs[Keys.MY_ROUTES_OVERLAY] ?: false,
-            locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false
+            locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false,
+            notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false
         )
     }
 
@@ -129,5 +137,11 @@ class SettingsRepository(private val context: Context) {
      *  dialog never appears again on subsequent launches. */
     suspend fun setLocationOnboardingShown() {
         context.dataStore.edit { it[Keys.LOCATION_ONBOARDING] = true }
+    }
+
+    /** Mark the Recording-screen notification explainer as done (see
+     *  [AppSettings.notificationOnboardingShown]). */
+    suspend fun setNotificationOnboardingShown() {
+        context.dataStore.edit { it[Keys.NOTIFICATION_ONBOARDING] = true }
     }
 }

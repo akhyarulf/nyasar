@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.outlined.LocationSearching
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,6 +45,9 @@ import com.nyasar.app.ui.components.CameraFollowMode
 import com.nyasar.app.ui.components.CompassButton
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
+import android.Manifest
+import android.os.Build
+import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.ui.components.NyasarMapView
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -109,6 +113,55 @@ fun RecordingScreen(
     // "boolean flips true and never back" shape as `recoveryChecked` right
     // above it.
     var autoStartConsumed by remember { mutableStateOf(false) }
+
+    // POST_NOTIFICATIONS explainer (API 33+), own first-time-relevant-moment
+    // onboarding — separate from MainActivity's location explainer. Audit
+    // showed notifications in this app serve exactly ONE purpose: the
+    // RecordingService foreground notification ("Recording aktif" + live
+    // distance, channel "Recording", IMPORTANCE_LOW) — so the right moment
+    // to explain/request is when the user first reaches the Recording
+    // screen, not app-open (previously it was piggybacked onto the location
+    // dialog's buttons with zero notification context). Persisted via
+    // DataStore so it shows once per install; every exit path marks it
+    // shown. "Nanti Saja" skips the request entirely — recording itself is
+    // unaffected (the service still runs; only the visible progress
+    // notification is lost, see RecordingService's updateNotification
+    // comments). Requesting here (context: user is about to record) instead
+    // of at app-open follows the same "explain why, then ask" pattern as
+    // the location onboarding, independently of that dialog's outcome.
+    val notifContext = androidx.compose.ui.platform.LocalContext.current
+    val notifPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* denial is non-fatal — recording still runs, just without the progress notification */ }
+    val settingsRepository = remember { SettingsRepository(notifContext) }
+    val settingsForNotif by settingsRepository.settings.collectAsState(initial = null)
+    val notifScope = rememberCoroutineScope()
+    var showNotifOnboarding by remember { mutableStateOf(false) }
+    LaunchedEffect(settingsForNotif, state.status) {
+        val s = settingsForNotif ?: return@LaunchedEffect
+        // Only raise it while IDLE: the user resuming an already-running
+        // session (RECORDING/PAUSED) or staring at the Summary overlay
+        // (STOPPED) must not get ambushed by a permission dialog — in those
+        // states notifications are already moot for the running session.
+        // It still pops the moment they're back on a fresh IDLE screen.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            state.status == RecordingStatus.IDLE &&
+            !s.notificationOnboardingShown
+        ) showNotifOnboarding = true
+    }
+    val notifGateArmed = settingsForNotif?.notificationOnboardingShown == false
+    // Remembers which routeId the gated start was meant to use (manual Start
+    // can pass previewRouteId ?: routeId), so the dialog's own buttons
+    // reproduce the exact call the gate intercepted.
+    var pendingNotifGateStartRoute by remember { mutableStateOf<String?>(null) }
+    fun gateAutoStart(startRouteId: String?) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && notifGateArmed) {
+            pendingNotifGateStartRoute = startRouteId
+            showNotifOnboarding = true
+        } else {
+            viewModel.startRecording(startRouteId)
+        }
+    }
     // P3J §6: guards the Stop button — see the AlertDialog near the bottom
     // of this function for why.
     var showStopConfirm by remember { mutableStateOf(false) }
@@ -321,7 +374,7 @@ fun RecordingScreen(
         val readyForNewSession = state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED
         if (recoveryChecked && recoveryCandidate == null && autoStart && !autoStartConsumed && readyForNewSession) {
             autoStartConsumed = true
-            viewModel.startRecording(routeId)
+            gateAutoStart(routeId)
         }
     }
 
@@ -336,17 +389,53 @@ fun RecordingScreen(
     LaunchedEffect(recoveryChecked, recoveryCandidate, autoStart) {
         if (!recoveryChecked || recoveryCandidate != null || !autoStart) return@LaunchedEffect
         kotlinx.coroutines.delay(6_000L)
+        // While the notification-explainer dialog is up, the user hasn't had
+        // a chance to start anything yet — the watchdog must not "retry"
+        // into the gate again or flip startStuck behind the modal.
+        if (showNotifOnboarding) return@LaunchedEffect
         if (state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED) {
             // One retry — covers the case where the first startRecording()
             // call landed on a service instance that hadn't finished
             // binding yet (autoCreate binds and creates near-simultaneously
             // with the first ACTION_START intent being sent).
-            viewModel.startRecording(routeId)
+            gateAutoStart(routeId)
             kotlinx.coroutines.delay(6_000L)
-            if (state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED) {
+            if (!showNotifOnboarding && (state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED)) {
                 startStuck = true
             }
         }
+    }
+
+    // Own-explainer dialog for POST_NOTIFICATIONS (API 33+) — see the
+    // comment block at its state declarations above. Triggered by the
+    // first start attempt (auto or the startStuck retry) or by the user's
+    // manual Start tap; never on mere screen visits.
+    if (showNotifOnboarding) {
+        AlertDialog(
+            onDismissRequest = {
+                showNotifOnboarding = false
+                notifScope.launch { settingsRepository.setNotificationOnboardingShown() }
+            },
+            title = { Text(stringResource(R.string.notif_onboarding_title)) },
+            text = { Text(stringResource(R.string.notif_onboarding_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showNotifOnboarding = false
+                    notifScope.launch { settingsRepository.setNotificationOnboardingShown() }
+                    notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    viewModel.startRecording(pendingNotifGateStartRoute ?: routeId)
+                }) { Text(stringResource(R.string.notif_onboarding_allow)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showNotifOnboarding = false
+                    notifScope.launch { settingsRepository.setNotificationOnboardingShown() }
+                    // Nanti Saja: no request — recording proceeds fine
+                    // without the progress notification.
+                    viewModel.startRecording(pendingNotifGateStartRoute ?: routeId)
+                }) { Text(stringResource(R.string.notif_onboarding_skip)) }
+            }
+        )
     }
 
     recoveryCandidate?.let { candidate ->
@@ -613,7 +702,7 @@ fun RecordingScreen(
                         TextButton(onClick = onExit) { Text(stringResource(R.string.exit_recording)) }
                         Button(onClick = {
                             startStuck = false
-                            viewModel.startRecording(routeId)
+                            gateAutoStart(routeId)
                         }) { Text(stringResource(R.string.try_again)) }
                     }
                 }
@@ -713,7 +802,7 @@ fun RecordingScreen(
                 RecordingControls(
                     status = effectiveStatus,
                     routeName = previewRouteName,
-                    onStart = { viewModel.startRecording(routeId = previewRouteId ?: routeId) },
+                    onStart = { gateAutoStart(previewRouteId ?: routeId) },
                     onPause = viewModel::pauseRecording,
                     onResume = viewModel::resumeRecording,
                     onStop = { showStopConfirm = true },

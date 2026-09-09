@@ -245,16 +245,25 @@ fun HomeScreen(
                 // background there too, both themes). Same rounded-badge
                 // container shape/position the "Nyasar" text badge used —
                 // nothing else in the header moves.
+                //
+                // Sizing: the launcher foreground PNG is an adaptive-icon
+                // asset — its artwork only fills the center ~65% of the
+                // canvas (the rest is baked-in safe-zone padding). At the
+                // old 28dp the VISIBLE artwork was only ~18dp, far too
+                // small to read next to the search bar. 40dp canvas keeps
+                // the same in-canvas proportions as the launcher icon while
+                // making the visible artwork ~26dp — on par with the
+                // header's text/icon scale.
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = Color(0xFFE6EBE5)
                 ) {
                     Image(
                         painter = painterResource(R.mipmap.ic_launcher_foreground),
                         contentDescription = stringResource(R.string.app_name),
                         modifier = Modifier
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .size(28.dp)
+                            .padding(4.dp)
+                            .size(40.dp)
                     )
                 }
                 // Search bar

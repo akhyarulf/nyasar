@@ -211,24 +211,33 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         if (_uiState.value.status != RecordingStatus.IDLE) return
         if (!locationRepository.hasLocationPermission()) return
         previewLocationJob = viewModelScope.launch {
+            // Camera-jitter gate with a bounded patience: fixes accurate to
+            // <=30m are always shown immediately; if nothing that accurate
+            // has been shown within 15s, the best available fix is shown
+            // anyway.
+            //
+            // Why the 30m gate exists at all: the follow camera animates to
+            // every shown fix, and the first fixes off a cold GPS lock
+            // (often 100-500m off while the radio settles) each yanked the
+            // camera to a different spot, reading as jump cuts. Why the gate
+            // needed a limit (the actual bug — "Mencari sinyal GPS… muncul
+            // terus + tombol lokasi tidak bisa fokus"): indoors or under
+            // canopy fixes sit ABOVE 30m indefinitely, so _previewLocation
+            // stayed null forever — the searching banner never cleared and
+            // recenter/follow had no target to animate to (the user-position
+            // dot they could see was a STALE marker left on the shared
+            // MapView by the previous screen). With the 15s fallback the
+            // worst case is one update per 15s while GPS stays poor — still
+            // a live, usable "where am I" — and the tight cadence returns as
+            // soon as accuracy drops below 30m.
+            val subscribedAtMs = System.currentTimeMillis()
+            var lastShownFixAtMs = 0L
             locationRepository.observeLocation().collect { fix ->
-                // Bug: camera defaults to follow-user (FOLLOW_NORTH_UP) on
-                // this screen, and NyasarMapView's animateCamera runs on
-                // every fix with no accuracy gate — so the first several
-                // fixes off a cold GPS lock (which can be off by hundreds
-                // of meters before the radio settles) each yanked the
-                // camera to a wildly different spot, animated smoothly
-                // each time but landing somewhere new every time, reading
-                // as a jump cut rather than "no animation" (the animation
-                // itself was never the problem). RecordingEngine's own
-                // recording-acceptance filter is 100m (P3I) — deliberately
-                // tighter here (30m) since this only gates *camera
-                // movement*, not whether a fix is kept, and early
-                // GPS_PROVIDER fixes indoors/near buildings routinely land
-                // in the 100-500m range, which is still a visible jump for
-                // a map that's supposed to be centered on the user.
-                if (fix.accuracyMeters <= 30f) {
+                val now = System.currentTimeMillis()
+                val shownRecently = lastShownFixAtMs > 0 && now - lastShownFixAtMs <= 15_000L
+                if (fix.accuracyMeters <= 30f || (!shownRecently && now - subscribedAtMs >= 15_000L)) {
                     _previewLocation.value = fix
+                    lastShownFixAtMs = now
                 }
             }
         }

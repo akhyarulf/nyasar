@@ -933,7 +933,26 @@ fun NyasarMapView(
     // (which only re-runs on track/waypoint/provider changes) so a marker
     // position update never re-adds sources/layers or re-fits the camera.
     LaunchedEffect(userLocation, userHeadingDeg, followUser, rotateWithHeading, accuracyMeters) {
-        if (userLocation == null) return@LaunchedEffect
+        if (userLocation == null) {
+            // BUG FIX ("di layar terlihat posisi terkini padahal app bilang
+            // mencari GPS"): on the SHARED MapView, the previous screen's
+            // user-position dot lives on in SOURCE_USER (style + sources
+            // survive screen switches), so Recording could show a stale blue
+            // dot while its own position stream had produced nothing yet —
+            // the dot read as "position is right there" while the screen
+            // still claimed to be searching and recenter had no target. A
+            // null position means "unknown HERE": clear the marker (and the
+            // accuracy circle) instead of silently keeping the previous
+            // screen's last known spot.
+            mapView.getMapAsync { map ->
+                val style = map.style ?: return@getMapAsync
+                style.getSourceAs<GeoJsonSource>(SOURCE_USER)
+                    ?.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
+                style.getSourceAs<GeoJsonSource>(SOURCE_ACCURACY)
+                    ?.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
+            }
+            return@LaunchedEffect
+        }
         mapView.getMapAsync { map ->
             val source = map.style?.getSourceAs<GeoJsonSource>(SOURCE_USER) ?: return@getMapAsync
             val feature = Feature.fromGeometry(Point.fromLngLat(userLocation.longitude, userLocation.latitude))

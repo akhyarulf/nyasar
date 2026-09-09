@@ -181,6 +181,30 @@ fun RecordingScreen(
             viewModel.startRecording(startRouteId)
         }
     }
+    // BUG FIX ("setelah dialog permission notification, langsung otomatis
+    // recording"): the dialog's buttons used to call viewModel.startRecording()
+    // unconditionally. The dialog is raised by TWO different triggers — an
+    // intercepted start attempt (gateAutoStart above, which records the route
+    // in pendingNotifGateStartRoute) and the user's FIRST VISIT to this screen
+    // while IDLE (the LaunchedEffect near the top of this function). For the
+    // visit trigger there is no start to reproduce, yet the old buttons
+    // started one anyway (falling back to `routeId`), so merely answering the
+    // explainer — Allow or "Nanti Saja" — kicked off a recording session the
+    // user never asked for. Fix: answering the dialog now only resolves the
+    // notification decision; recording proceeds ONLY when a real start
+    // attempt was intercepted (pendingNotifGateStartRoute != null), replaying
+    // the exact call the gate held back.
+    fun resolveNotifOnboarding(requestPermission: Boolean) {
+        showNotifOnboarding = false
+        notifScope.launch { settingsRepository.setNotificationOnboardingShown() }
+        if (requestPermission) {
+            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        pendingNotifGateStartRoute?.let { interceptedRouteId ->
+            pendingNotifGateStartRoute = null
+            viewModel.startRecording(interceptedRouteId)
+        }
+    }
     // P3J §6: guards the Stop button — see the AlertDialog near the bottom
     // of this function for why.
     var showStopConfirm by remember { mutableStateOf(false) }
@@ -433,26 +457,26 @@ fun RecordingScreen(
         AlertDialog(
             onDismissRequest = {
                 showNotifOnboarding = false
+                // Outside-tap dismiss: close only — any intercepted start is
+                // dropped and the user stays on IDLE, free to tap Start
+                // themselves (recording must never be a side effect of
+                // dismissing this dialog).
+                pendingNotifGateStartRoute = null
                 notifScope.launch { settingsRepository.setNotificationOnboardingShown() }
             },
             title = { Text(stringResource(R.string.notif_onboarding_title)) },
             text = { Text(stringResource(R.string.notif_onboarding_body)) },
             confirmButton = {
-                TextButton(onClick = {
-                    showNotifOnboarding = false
-                    notifScope.launch { settingsRepository.setNotificationOnboardingShown() }
-                    notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    viewModel.startRecording(pendingNotifGateStartRoute ?: routeId)
-                }) { Text(stringResource(R.string.notif_onboarding_allow)) }
+                TextButton(onClick = { resolveNotifOnboarding(requestPermission = true) }) {
+                    Text(stringResource(R.string.notif_onboarding_allow))
+                }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showNotifOnboarding = false
-                    notifScope.launch { settingsRepository.setNotificationOnboardingShown() }
-                    // Nanti Saja: no request — recording proceeds fine
-                    // without the progress notification.
-                    viewModel.startRecording(pendingNotifGateStartRoute ?: routeId)
-                }) { Text(stringResource(R.string.notif_onboarding_skip)) }
+                // Nanti Saja: no request — recording still runs fine
+                // without the progress notification.
+                TextButton(onClick = { resolveNotifOnboarding(requestPermission = false) }) {
+                    Text(stringResource(R.string.notif_onboarding_skip))
+                }
             }
         )
     }
@@ -1332,13 +1356,12 @@ private fun RecordingControls(
                         interactionSource = startInteraction,
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(36.dp))
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = stringResource(R.string.start_recording),
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
-                    Text(
-                        stringResource(R.string.start_recording),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
                 }
                 
                 // Add Route button (bottom-right) — same press feedback as

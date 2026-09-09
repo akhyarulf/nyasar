@@ -38,6 +38,7 @@ import kotlin.math.max
 import kotlin.math.min
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
+import com.nyasar.app.ui.theme.NyasarRadius
 
 /**
  * Spec P3H §7/§20/§26: the Photos section inside Activity Detail — grid of
@@ -84,7 +85,7 @@ fun PhotosSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(NyasarRadius.xs))
                         .clickable { onPhotoClick(index) }
                 )
             }
@@ -108,7 +109,7 @@ fun AddPhotoChooserSheet(
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(bottom = 24.dp)) {
+        Column(Modifier.widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth).fillMaxWidth().padding(bottom = 24.dp)) {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.take_photo)) },
                 leadingContent = { Icon(Icons.Default.CameraAlt, contentDescription = null) },

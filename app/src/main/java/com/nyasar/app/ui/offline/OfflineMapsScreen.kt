@@ -27,6 +27,7 @@ import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.R
+import com.nyasar.app.ui.theme.NyasarRadius
 import androidx.compose.ui.res.stringResource
 
 /**
@@ -128,15 +129,19 @@ fun OfflineMapsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(state.regions, key = { System.identityHashCode(it.region) }) { item ->
-                            OfflineRegionCard(
-                                item = item,
-                                isDeleting = System.identityHashCode(item.region) == state.deletingRegionKey,
-                                isResuming = System.identityHashCode(item.region) == state.resumingRegionKey,
-                                onPrimaryAction = {
-                                    if (item.completed) onOpenInMap(item) else viewModel.resumeDownload(item)
-                                },
-                                onDeleteRequest = { pendingDelete = item }
-                            )
+                            com.nyasar.app.ui.components.AnimatedAppear(
+                                delayMs = com.nyasar.app.ui.components.Stagger.forIndex(state.regions.indexOf(item))
+                            ) {
+                                OfflineRegionCard(
+                                    item = item,
+                                    isDeleting = System.identityHashCode(item.region) == state.deletingRegionKey,
+                                    isResuming = System.identityHashCode(item.region) == state.resumingRegionKey,
+                                    onPrimaryAction = {
+                                        if (item.completed) onOpenInMap(item) else viewModel.resumeDownload(item)
+                                    },
+                                    onDeleteRequest = { pendingDelete = item }
+                                )
+                            }
                         }
                     }
                 }
@@ -189,7 +194,7 @@ private fun OfflineRegionCard(
     var showMenu by remember { mutableStateOf(false) }
     val provider = remember { TileProviderFactory.default() }
 
-    Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 2.dp) {
+    Surface(shape = RoundedCornerShape(NyasarRadius.md), tonalElevation = 2.dp) {
         Column {
             // Mini-map preview showing the actual coverage area
             Box(
@@ -310,7 +315,7 @@ private fun StatusTag(completed: Boolean, statusKnown: Boolean, statusError: Boo
     }
     Surface(
         color = Color.Black.copy(alpha = 0.35f),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(NyasarRadius.xs)
     ) {
         Text(
             label,

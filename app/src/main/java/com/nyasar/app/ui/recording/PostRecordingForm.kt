@@ -23,6 +23,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.data.db.ActivityPhotoEntity
 import com.nyasar.app.recording.RecordingUiState
+import com.nyasar.app.ui.components.AnimatedScreen
+import com.nyasar.app.ui.theme.NyasarRadius
 import kotlin.math.roundToInt
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
@@ -72,6 +74,9 @@ fun PostRecordingForm(
             )
         }
     ) { padding ->
+        // Shared page entrance (fade + rise) — consistent with Settings and
+        // the other static form screens.
+        AnimatedScreen {
         Column(
             Modifier
                 .padding(padding)
@@ -96,8 +101,9 @@ fun PostRecordingForm(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(NyasarRadius.md),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                 )
             ) {
                 Column(Modifier.padding(16.dp)) {
@@ -207,6 +213,7 @@ fun PostRecordingForm(
             ) {
                 Text(stringResource(R.string.discard_activity))
             }
+        }
         }
     }
 

@@ -143,12 +143,16 @@ fun RoutePickerScreen(
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(tracks, key = { it.route.id }) { row ->
-                        RoutePickerRow(
-                            name = row.route.name,
-                            distanceKm = row.route.distanceMeters / 1000.0,
-                            onClick = { onRouteSelected(row.route.id) }
-                        )
-                        HorizontalDivider()
+                        com.nyasar.app.ui.components.AnimatedAppear(
+                            delayMs = com.nyasar.app.ui.components.Stagger.forIndex(tracks.indexOfFirst { it.route.id == row.route.id })
+                        ) {
+                            RoutePickerRow(
+                                name = row.route.name,
+                                distanceKm = row.route.distanceMeters / 1000.0,
+                                onClick = { onRouteSelected(row.route.id) }
+                            )
+                            HorizontalDivider()
+                        }
                     }
                 }
             }

@@ -1,13 +1,15 @@
 package com.nyasar.app.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.nyasar.app.ui.theme.NyasarRadius
 
 /**
  * Reusable friendly empty state (icon in a soft tinted circle + title +
@@ -24,6 +27,11 @@ import androidx.compose.ui.unit.dp
  * "Belum ada X" Text labels screens used to show. Kept presentation-only —
  * every screen passes its own strings/icon/callback so localization and
  * navigation stay where they already live.
+ *
+ * Now animates in with the shared [AnimatedAppear] (fade + rise, staggered
+ * by the caller where several empty states could appear together) and uses
+ * the shared radius/spacing tokens so every empty state has the exact same
+ * look in every screen.
  */
 @Composable
 fun EmptyState(
@@ -34,48 +42,51 @@ fun EmptyState(
     ctaText: String? = null,
     onCtaClick: (() -> Unit)? = null
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Surface(
-            shape = androidx.compose.foundation.shape.CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-            modifier = Modifier.size(72.dp)
+    AnimatedAppear(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(34.dp)
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                modifier = Modifier.size(72.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (description != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            title,
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        if (description != null) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                description,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (ctaText != null && onCtaClick != null) {
-            Spacer(Modifier.height(20.dp))
-            androidx.compose.material3.Button(
-                onClick = onCtaClick,
-                modifier = Modifier.height(48.dp)
-            ) {
-                Text(ctaText)
+            if (ctaText != null && onCtaClick != null) {
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = onCtaClick,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(NyasarRadius.sm),
+                    modifier = Modifier.height(48.dp)
+                ) {
+                    Text(ctaText)
+                }
             }
         }
     }

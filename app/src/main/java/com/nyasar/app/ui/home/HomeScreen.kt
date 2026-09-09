@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,6 +34,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.data.db.RouteEntity
@@ -41,8 +43,10 @@ import com.nyasar.app.recording.RecordingStatus
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.ui.components.ZoomControls
+import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.recording.RecordingViewModel
 import com.nyasar.app.ui.recording.RecoveryDialog
+import com.nyasar.app.ui.theme.NyasarRadius
 import kotlin.math.roundToInt
 
 /**
@@ -255,7 +259,7 @@ fun HomeScreen(
                 // making the visible artwork ~26dp — on par with the
                 // header's text/icon scale.
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(NyasarRadius.sm),
                     color = Color(0xFFE6EBE5)
                 ) {
                     Image(
@@ -269,7 +273,7 @@ fun HomeScreen(
                 // Search bar
                 Surface(
                     modifier = Modifier.weight(1f).clickable { showRoutesSheet = true },
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(NyasarRadius.pill),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     tonalElevation = 2.dp
                 ) {
@@ -289,18 +293,24 @@ fun HomeScreen(
         }
 
         importError?.let {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 80.dp, start = 16.dp, end = 16.dp),
-                color = MaterialTheme.colorScheme.errorContainer,
-                shape = RoundedCornerShape(12.dp)
+            // Toast-style banners share one recipe now: shared radius token
+            // + the standard fade-and-rise entrance, so every screen's
+            // floating banner behaves identically.
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
             ) {
-                Text(
-                    it,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(12.dp)
-                )
+                Surface(
+                    modifier = Modifier
+                        .padding(top = 80.dp, start = 16.dp, end = 16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm)
+                ) {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
             }
         }
 
@@ -314,32 +324,40 @@ fun HomeScreen(
             // Now the whole banner is a tap target that opens this app's
             // exact permission page.
             val context = androidx.compose.ui.platform.LocalContext.current
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 80.dp, start = 16.dp, end = 16.dp)
-                    .clickable {
-                        context.startActivity(
-                            android.content.Intent(
-                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                android.net.Uri.fromParts("package", context.packageName, null)
-                            )
-                        )
-                    },
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(12.dp)
+            val bannerInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
             ) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(
-                        stringResource(R.string.gps_permission_banner),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.tap_to_open_settings),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                Surface(
+                    modifier = Modifier
+                        .padding(top = 80.dp, start = 16.dp, end = 16.dp)
+                        .pressScale(bannerInteraction)
+                        .clickable(
+                            interactionSource = bannerInteraction,
+                            indication = null
+                        ) {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    android.net.Uri.fromParts("package", context.packageName, null)
+                                )
+                            )
+                        },
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(
+                            stringResource(R.string.gps_permission_banner),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.tap_to_open_settings),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         } else if (currentLocation == null) {
@@ -348,7 +366,7 @@ fun HomeScreen(
                     .align(Alignment.TopCenter)
                     .padding(top = 80.dp, start = 16.dp, end = 16.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(NyasarRadius.sm)
             ) {
                 Text(
                     stringResource(R.string.gps_searching),
@@ -365,7 +383,7 @@ fun HomeScreen(
                     .align(Alignment.TopCenter)
                     .padding(top = 80.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(NyasarRadius.sm)
             ) {
                 Text(
                     "GPS \u00b1${currentLocation?.accuracyMeters?.roundToInt() ?: 0} m",
@@ -385,6 +403,8 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // (entrance animation lives on each RoundIconButton below —
+            // staggered fade-and-rise, same family as banners/cards)
             Box {
                 RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
                     showBasemapSheet = true
@@ -419,37 +439,86 @@ fun HomeScreen(
         // Zoom +/- removed per feedback — recenter + pinch-to-zoom cover
         // this, the buttons were just extra clutter.
 
-        // --- BOTTOM: recording status only (button removed per feedback) ---
-        if (recordingUiState.status == RecordingStatus.RECORDING ||
-            recordingUiState.status == RecordingStatus.PAUSED
+        // --- BOTTOM: live recording pill (tap = back into the session) ---
+        // AnimatedContent between hidden/shown so the pill slides up/fades
+        // in when a recording starts and back out when it ends, instead of
+        // popping. Slide distance is small — it sits at the bottom edge.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = recordingUiState.status == RecordingStatus.RECORDING ||
+                recordingUiState.status == RecordingStatus.PAUSED,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = androidx.compose.animation.slideInVertically(
+                initialOffsetY = { it / 2 },
+                animationSpec = androidx.compose.animation.core.tween(
+                    com.nyasar.app.ui.theme.NyasarMotion.BASE_MS,
+                    easing = com.nyasar.app.ui.theme.NyasarMotion.EmphasizedDecelerate
+                )
+            ) + androidx.compose.animation.fadeIn(
+                animationSpec = androidx.compose.animation.core.tween(
+                    com.nyasar.app.ui.theme.NyasarMotion.BASE_MS,
+                    easing = com.nyasar.app.ui.theme.NyasarMotion.EmphasizedDecelerate
+                )
+            ),
+            exit = androidx.compose.animation.slideOutVertically(
+                targetOffsetY = { it / 2 },
+                animationSpec = androidx.compose.animation.core.tween(
+                    com.nyasar.app.ui.theme.NyasarMotion.BASE_MS,
+                    easing = com.nyasar.app.ui.theme.NyasarMotion.EmphasizedAccelerate
+                )
+            ) + androidx.compose.animation.fadeOut(
+                animationSpec = androidx.compose.animation.core.tween(
+                    com.nyasar.app.ui.theme.NyasarMotion.BASE_MS,
+                    easing = com.nyasar.app.ui.theme.NyasarMotion.EmphasizedAccelerate
+                )
+            )
         ) {
+            val pillInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
             Surface(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(20.dp)
-                    .clickable(onClick = onResumeRecording),
+                    .pressScale(pillInteraction)
+                    .clickable(
+                        interactionSource = pillInteraction,
+                        indication = null,
+                        onClick = onResumeRecording
+                    ),
                 color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(12.dp),
-                tonalElevation = 4.dp,
+                shape = RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.lg),
                 shadowElevation = 2.dp
             ) {
                 Row(
-                    Modifier.padding(12.dp).fillMaxWidth(),
+                    Modifier.padding(16.dp).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
-                        Text(
-                            if (recordingUiState.status == RecordingStatus.PAUSED) stringResource(R.string.recording_paused) else stringResource(R.string.recording_active),
-                            style = MaterialTheme.typography.labelLarge
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Live dot: pulses while recording, steady when
+                        // paused — small, but it's what makes the pill feel
+                        // alive (and communicates state without text).
+                        RecordingPulseDot(
+                            active = recordingUiState.status == RecordingStatus.RECORDING,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        Text(
-                            "%.2f km".format(recordingUiState.distanceMeters / 1000.0),
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                if (recordingUiState.status == RecordingStatus.PAUSED) stringResource(R.string.recording_paused) else stringResource(R.string.recording_active),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "%.2f km".format(recordingUiState.distanceMeters / 1000.0),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
                     }
-                    Text(stringResource(R.string.continue_recording), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        stringResource(R.string.continue_recording),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
             }
         }
@@ -575,7 +644,7 @@ private fun RoutesBottomSheet(
     var pendingDelete by remember { mutableStateOf<RouteEntity?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column(Modifier.widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth).fillMaxWidth().padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = searchQuery,
@@ -646,6 +715,7 @@ private fun RouteRow(
     onClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val rowInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     ListItem(
         headlineContent = { Text(route.name) },
         supportingContent = {
@@ -670,7 +740,10 @@ private fun RouteRow(
                 }
             }
         },
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(rowInteraction)
+            .clickable(interactionSource = rowInteraction, indication = null, onClick = onClick)
     )
 }
 
@@ -698,16 +771,54 @@ private fun RoundIconButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Surface(
-        shape = CircleShape,
-        tonalElevation = 3.dp,
-        shadowElevation = 2.dp,
-        modifier = modifier.size(48.dp)
-    ) {
-        IconButton(onClick = onClick) {
-            Icon(icon, contentDescription = contentDescription, tint = tint)
+    // Shared map-control recipe: theme surface over any basemap, the
+    // app-wide CircleShape, one shared elevation pair, the standard press
+    // spring (inside pressScale), and the shared fade-and-rise entrance.
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    com.nyasar.app.ui.components.AnimatedAppear(modifier = modifier) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
+            shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
+            modifier = Modifier
+                .size(48.dp)
+                .pressScale(interaction)
+        ) {
+            IconButton(
+                onClick = onClick,
+                interactionSource = interaction
+            ) {
+                Icon(icon, contentDescription = contentDescription, tint = tint)
+            }
         }
     }
+}
+
+/**
+ * Live-recording pulse dot — a small colored dot that gently pulses while a
+ * recording is active and holds steady when paused. Used by Home's live
+ * recording pill; kept here (single call site) until a second consumer
+ * appears, then it moves to ui/components.
+ */
+@Composable
+private fun RecordingPulseDot(color: Color, active: Boolean, modifier: Modifier = Modifier) {
+    val infinite = androidx.compose.runtime.rememberInfiniteTransition(label = "pulseDot")
+    val alpha by infinite.animateFloat(
+        initialValue = if (active) 1f else 0.4f,
+        targetValue = if (active) 0.35f else 0.4f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+    androidx.compose.foundation.layout.Box(
+        modifier = modifier
+            .size(10.dp)
+            .graphicsLayer { this.alpha = alpha }
+            .background(color, CircleShape)
+    )
 }
 
 /** Small shim so this file doesn't need a WindowInsets import wired through

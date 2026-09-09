@@ -217,7 +217,7 @@ private fun FinishRouteSheet(
     var name by remember { mutableStateOf("") }
 
     ModalBottomSheet(onDismissRequest = { if (!saving) onDismiss() }) {
-        Column(Modifier.fillMaxWidth().padding(16.dp).padding(bottom = 24.dp)) {
+        Column(Modifier.widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth).fillMaxWidth().padding(16.dp).padding(bottom = 24.dp)) {
             Text(stringResource(R.string.save_route), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(

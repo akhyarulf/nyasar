@@ -24,6 +24,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.ui.components.EmptyState
+import com.nyasar.app.ui.components.pressScale
+import com.nyasar.app.ui.theme.NyasarRadius
 
 /**
  * PART 2 — combined "Track & Peta" screen. Both sections read existing
@@ -161,10 +163,14 @@ fun TrackAndMapsScreen(
                     }
                 } else {
                     items(tracks, key = { it.route.id }) { row ->
-                        TrackRow(row, onClick = {
-                            onOpenRoute(row.route.id)
-                        })
-                        HorizontalDivider()
+                        com.nyasar.app.ui.components.AnimatedAppear(
+                            delayMs = com.nyasar.app.ui.components.Stagger.forIndex(state.filteredTracks.indexOfFirst { it.route.id == row.route.id })
+                        ) {
+                            TrackRow(row, onClick = {
+                                onOpenRoute(row.route.id)
+                            })
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
@@ -193,9 +199,14 @@ private fun SectionHeader(title: String, onSeeAll: (() -> Unit)?) {
 
 @Composable
 private fun OfflineSummaryBanner(count: Int, previewNames: List<String>, onClick: () -> Unit) {
+    val bannerInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .pressScale(bannerInteraction)
+            .clickable(interactionSource = bannerInteraction, indication = null, onClick = onClick),
+        shape = RoundedCornerShape(NyasarRadius.sm),
         tonalElevation = 2.dp
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -226,6 +237,7 @@ private fun OfflineSummaryBanner(count: Int, previewNames: List<String>, onClick
 
 @Composable
 private fun TrackRow(row: TrackRowUi, onClick: () -> Unit) {
+    val rowInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val km = row.route.distanceMeters / 1000.0
     val statusText = when (row.hasOfflineCoverage) {
         true -> "\u2713 Siap dipakai offline"
@@ -249,7 +261,10 @@ private fun TrackRow(row: TrackRowUi, onClick: () -> Unit) {
                 else MaterialTheme.colorScheme.outline
             )
         },
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(rowInteraction)
+            .clickable(interactionSource = rowInteraction, indication = null, onClick = onClick)
     )
 }
 

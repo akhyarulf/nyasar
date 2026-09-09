@@ -51,6 +51,8 @@ import kotlin.math.roundToInt
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.ui.components.EmptyState
+import com.nyasar.app.ui.components.pressScale
+import com.nyasar.app.ui.theme.NyasarRadius
 
 /**
  * Card-per-activity layout (spec ref: Strava's Activities feed) — was a
@@ -114,14 +116,22 @@ fun ActivityHistoryScreen(
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             items(state.activities, key = { it.id }) { activity ->
-                                ActivityCard(
-                                    activity = activity,
-                                    thumbnail = thumbnails[activity.id],
-                                    onThumbnailNeeded = { viewModel.loadThumbnail(activity.id) },
-                                    onClick = { onOpenActivity(activity.id) },
-                                    onShare = { onShareActivity(activity.id) },
-                                    onShareGpx = { onShareGpx(activity.id) }
-                                )
+                                // Staggered entrance — each card fades+rises
+                                // slightly after the previous one (capped so
+                                // long lists don't wait), the app-wide list
+                                // entrance.
+                                com.nyasar.app.ui.components.AnimatedAppear(
+                                    delayMs = com.nyasar.app.ui.components.Stagger.forIndex(state.activities.indexOfFirst { it.id == activity.id })
+                                ) {
+                                    ActivityCard(
+                                        activity = activity,
+                                        thumbnail = thumbnails[activity.id],
+                                        onThumbnailNeeded = { viewModel.loadThumbnail(activity.id) },
+                                        onClick = { onOpenActivity(activity.id) },
+                                        onShare = { onShareActivity(activity.id) },
+                                        onShareGpx = { onShareGpx(activity.id) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -141,6 +151,7 @@ private fun ActivityCard(
     onShareGpx: () -> Unit
 ) {
     LaunchedEffect(activity.id) { onThumbnailNeeded() }
+    val cardInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
 
     // Real map snapshot state — stores bitmap + bounds together
     val context = LocalContext.current
@@ -160,9 +171,16 @@ private fun ActivityCard(
     }
 
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(NyasarRadius.md),
         tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(cardInteraction)
+            .clickable(
+                interactionSource = cardInteraction,
+                indication = null,
+                onClick = onClick
+            )
     ) {
         Column {
             Column(Modifier.padding(16.dp)) {

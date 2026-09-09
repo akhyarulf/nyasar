@@ -6,9 +6,11 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -32,7 +34,12 @@ import androidx.core.content.FileProvider
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.map.providers.TileProviderFactory
+import com.nyasar.app.ui.components.AnimatedAppear
+import com.nyasar.app.ui.components.Stagger
+import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.map.MapSnapshotHelper
+import com.nyasar.app.ui.theme.NyasarMotion
+import com.nyasar.app.ui.theme.NyasarRadius
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -129,11 +136,14 @@ fun ShareCardScreen(
             ) { page ->
                 val tpl = templates[page]
                 val bmp = bitmaps[tpl]
+                val cardInteraction = remember { MutableInteractionSource() }
+                AnimatedAppear(delayMs = Stagger.forIndex(page)) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(9f / 16f),
-                    shape = RoundedCornerShape(16.dp)
+                        .aspectRatio(9f / 16f)
+                        .pressScale(cardInteraction, pressedScale = 0.97f),
+                    shape = RoundedCornerShape(NyasarRadius.md)
                 ) {
                     if (bmp != null) {
                         // For transparent templates, show checkerboard hint
@@ -184,9 +194,12 @@ fun ShareCardScreen(
                         }
                     }
                 }
+                }
             }
 
-            // Dot indicators
+            // Dot indicators — active dot animates its size/color, so the
+            // page change is felt, not hard-cut (same fast spring as the
+            // rest of the app).
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -195,10 +208,15 @@ fun ShareCardScreen(
             ) {
                 templates.forEachIndexed { index, _ ->
                     val isActive = pagerState.currentPage == index
+                    val dotSize by animateDpAsState(
+                        targetValue = if (isActive) 10.dp else 8.dp,
+                        animationSpec = NyasarMotion.press(),
+                        label = "dotSize"
+                    )
                     Box(
                         Modifier
                             .padding(horizontal = 4.dp)
-                            .size(if (isActive) 10.dp else 8.dp)
+                            .size(dotSize)
                             .clip(CircleShape)
                             .background(
                                 if (isActive) MaterialTheme.colorScheme.primary
@@ -231,7 +249,7 @@ fun ShareCardScreen(
                     .padding(horizontal = 24.dp)
                     .height(56.dp),
                 enabled = bitmaps.isNotEmpty(),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(NyasarRadius.md)
             ) {
                 Icon(Icons.Default.Share, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -259,7 +277,7 @@ fun ShareCardScreen(
                     .padding(horizontal = 24.dp)
                     .height(48.dp),
                 enabled = bitmaps.isNotEmpty(),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(NyasarRadius.md)
             ) {
                 Text(stringResource(R.string.save_to_gallery))
             }

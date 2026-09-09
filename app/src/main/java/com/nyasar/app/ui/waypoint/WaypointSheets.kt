@@ -2,6 +2,7 @@ package com.nyasar.app.ui.waypoint
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -54,6 +55,8 @@ fun WaypointFormSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
+                .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
+                .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
         ) {
@@ -167,6 +170,8 @@ fun WaypointDetailSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
+                .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
+                .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
         ) {

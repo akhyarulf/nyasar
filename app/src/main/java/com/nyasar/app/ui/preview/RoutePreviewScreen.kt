@@ -356,7 +356,7 @@ private fun Stat(text: String) {
 @Composable
 private fun WaypointDetailSheet(waypoint: GpxWaypoint, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+        Column(Modifier.widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth).fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.LocationOn, contentDescription = null)
                 Spacer(Modifier.width(8.dp))

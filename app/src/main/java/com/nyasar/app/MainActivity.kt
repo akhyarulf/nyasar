@@ -14,10 +14,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.EaseOutCubic
-import androidx.compose.animation.core.EaseInCubic
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import com.nyasar.app.ui.theme.NyasarMotion
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -325,8 +324,10 @@ private fun NyasarNavHost(
         bottomBar = {
             AnimatedVisibility(
                 visible = showBottomBar,
-                enter = expandVertically(animationSpec = tween(150)) + fadeIn(animationSpec = tween(150)),
-                exit = shrinkVertically(animationSpec = tween(150)) + fadeOut(animationSpec = tween(150))
+                enter = expandVertically(animationSpec = tween(NyasarMotion.FAST_MS, easing = NyasarMotion.EmphasizedDecelerate)) +
+                    fadeIn(animationSpec = tween(NyasarMotion.FAST_MS, easing = NyasarMotion.EmphasizedDecelerate)),
+                exit = shrinkVertically(animationSpec = tween(NyasarMotion.FAST_MS, easing = NyasarMotion.EmphasizedAccelerate)) +
+                    fadeOut(animationSpec = tween(NyasarMotion.FAST_MS, easing = NyasarMotion.EmphasizedAccelerate))
             ) {
                 NyasarBottomBar(
                     currentRoute = currentRoute,
@@ -390,28 +391,31 @@ private fun NyasarNavHost(
             top = 0.dp,
             bottom = innerPadding.calculateBottomPadding()
         )
-        // Default transitions: slide for push navigation (enter from right, exit to right)
-        val slideAnimationDuration = 250
+        // Default transitions: push = slide from the end with the shared
+        // emphasized easing; pop = mirror slide back. Durations/easings come
+        // from NyasarMotion so every screen transition in the app shares one
+        // personality (previously 250ms default-easing tweens inline).
+        val slideAnimationDuration = NyasarMotion.SLOW_MS
         NavHost(
             navController = navController,
             startDestination = "home",
             modifier = Modifier.fillMaxSize().padding(contentPadding),
             enterTransition = { slideInHorizontally(
                 initialOffsetX = { it },
-                animationSpec = tween(slideAnimationDuration)
-            ) + fadeIn(animationSpec = tween(slideAnimationDuration)) },
+                animationSpec = tween(slideAnimationDuration, easing = NyasarMotion.EmphasizedDecelerate)
+            ) + fadeIn(animationSpec = tween(slideAnimationDuration, easing = NyasarMotion.EmphasizedDecelerate)) },
             exitTransition = { slideOutHorizontally(
                 targetOffsetX = { -it / 3 },
-                animationSpec = tween(slideAnimationDuration)
-            ) + fadeOut(animationSpec = tween(slideAnimationDuration / 2)) },
+                animationSpec = tween(slideAnimationDuration, easing = NyasarMotion.EmphasizedAccelerate)
+            ) + fadeOut(animationSpec = tween(slideAnimationDuration / 2, easing = NyasarMotion.EmphasizedAccelerate)) },
             popEnterTransition = { slideInHorizontally(
                 initialOffsetX = { -it / 3 },
-                animationSpec = tween(slideAnimationDuration)
-            ) + fadeIn(animationSpec = tween(slideAnimationDuration)) },
+                animationSpec = tween(slideAnimationDuration, easing = NyasarMotion.EmphasizedDecelerate)
+            ) + fadeIn(animationSpec = tween(slideAnimationDuration, easing = NyasarMotion.EmphasizedDecelerate)) },
             popExitTransition = { slideOutHorizontally(
                 targetOffsetX = { it },
-                animationSpec = tween(slideAnimationDuration)
-            ) + fadeOut(animationSpec = tween(slideAnimationDuration / 2)) }
+                animationSpec = tween(slideAnimationDuration, easing = NyasarMotion.EmphasizedAccelerate)
+            ) + fadeOut(animationSpec = tween(slideAnimationDuration / 2, easing = NyasarMotion.EmphasizedAccelerate)) }
         ) {
         // Tab routes: cross-fade WITH a small vertical settle (not slide,
         // and not fade-only). The previous fade-only version was still
@@ -424,18 +428,18 @@ private fun NyasarNavHost(
         // transition read as "smooth" rather than "jump-cut", while
         // staying subtle enough not to look like a full slide-navigation
         // push (this is a same-level tab switch, not drilling into a
-        // screen). EaseOutCubic on enter / EaseInCubic on exit gives the
-        // incoming screen a gentle deceleration instead of a linear pace.
-        val tabFadeDuration = 220
-        val tabEnter = fadeIn(animationSpec = tween(tabFadeDuration)) +
+        // screen). Easing/duration now come from NyasarMotion so the tab
+        // switch and in-screen entrances are the same motion family.
+        val tabFadeDuration = NyasarMotion.BASE_MS
+        val tabEnter = fadeIn(animationSpec = tween(tabFadeDuration, easing = NyasarMotion.EmphasizedDecelerate)) +
             slideInVertically(
                 initialOffsetY = { it / 24 },
-                animationSpec = tween(tabFadeDuration, easing = EaseOutCubic)
+                animationSpec = tween(tabFadeDuration, easing = NyasarMotion.EmphasizedDecelerate)
             )
-        val tabExit = fadeOut(animationSpec = tween(tabFadeDuration)) +
+        val tabExit = fadeOut(animationSpec = tween(tabFadeDuration, easing = NyasarMotion.EmphasizedAccelerate)) +
             slideOutVertically(
                 targetOffsetY = { -it / 24 },
-                animationSpec = tween(tabFadeDuration, easing = EaseInCubic)
+                animationSpec = tween(tabFadeDuration, easing = NyasarMotion.EmphasizedAccelerate)
             )
         composable(
             "home",

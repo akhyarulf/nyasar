@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Hiking
@@ -15,10 +17,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
+import com.nyasar.app.ui.components.AnimatedAppear
+import com.nyasar.app.ui.components.pressScale
+import com.nyasar.app.ui.theme.NyasarContentWidth
+import com.nyasar.app.ui.theme.NyasarMotion
 
 /**
  * Task 7: the missing "confirm before recording starts" step. Opening the
@@ -62,9 +69,12 @@ fun StartActivityScreen(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
         }
 
+        AnimatedAppear {
         Column(
             Modifier
                 .fillMaxSize()
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = NyasarContentWidth.formMaxWidth)
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.Bottom
@@ -114,14 +124,20 @@ fun StartActivityScreen(
                 // state (both toggles off) dims rather than disappears, so
                 // the "why can't I start" affordance stays visible instead
                 // of the button just vanishing.
+                val playInteraction = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
                         .size(76.dp)
+                        .pressScale(playInteraction, pressedScale = 0.94f)
                         .clip(CircleShape)
                         .background(
                             if (canStart) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                         )
-                        .clickable(enabled = canStart) { onStart(recordingEnabled, navigationEnabled) },
+                        .clickable(
+                            interactionSource = playInteraction,
+                            indication = null,
+                            enabled = canStart
+                        ) { onStart(recordingEnabled, navigationEnabled) },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -143,6 +159,7 @@ fun StartActivityScreen(
                 )
             }
         }
+        }
     }
 }
 
@@ -153,10 +170,20 @@ private fun ModePill(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    // Shared press feedback + a subtle settle-scale when selected, matching
+    // the app-wide tactile language (same spring as Home cards/pills).
+    val interaction = remember { MutableInteractionSource() }
+    val selectedScale by animateFloatAsState(
+        targetValue = if (selected) 1.05f else 1f,
+        animationSpec = NyasarMotion.press(),
+        label = "pillScale"
+    )
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
                 .size(64.dp)
+                .pressScale(interaction)
+                .scale(selectedScale)
                 .clip(CircleShape)
                 .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
                 .border(
@@ -164,7 +191,7 @@ private fun ModePill(
                     color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
                     shape = CircleShape
                 )
-                .clickable(onClick = onClick),
+                .clickable(interactionSource = interaction, indication = null, onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Icon(

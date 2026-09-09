@@ -16,6 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
 import com.nyasar.app.location.LocationRepository
+import com.nyasar.app.ui.components.AnimatedScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +47,11 @@ fun SettingsScreen(
             return@Scaffold
         }
 
+        // Entrance: whole page fades+rises once (shared AnimatedScreen),
+        // then sections group onto shared section cards instead of loose
+        // rows separated by dividers — same grouped-card language the rest
+        // of the app uses.
+        AnimatedScreen {
         Column(
             Modifier
                 .padding(padding)
@@ -276,6 +282,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(24.dp))
+        }
         }
     }
 }

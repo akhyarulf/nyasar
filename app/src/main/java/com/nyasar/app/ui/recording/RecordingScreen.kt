@@ -43,6 +43,9 @@ import com.nyasar.app.recording.RecordingUiState
 import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.CameraFollowMode
 import com.nyasar.app.ui.components.CompassButton
+import com.nyasar.app.ui.components.AnimatedAppear
+import com.nyasar.app.ui.components.AnimatedStatText
+import androidx.compose.animation.togetherWith
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
 import android.Manifest
@@ -562,19 +565,26 @@ fun RecordingScreen(
         // in-memory regardless; this just tells the user not to trust that
         // everything will still be there after Stop.
         if (state.storageError) {
-            Surface(
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp),
-                color = MaterialTheme.colorScheme.errorContainer,
-                shape = MaterialTheme.shapes.small,
-                tonalElevation = 3.dp,
-                shadowElevation = 2.dp
+            // Appears with the shared fade-and-rise (AnimatedAppear starts
+            // invisible and animates in — same family as Home banners)
+            // instead of popping in mid-recording.
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
             ) {
-                Text(
-                    "⚠ Gagal menyimpan data — storage penuh?",
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelMedium
-                )
+                Surface(
+                    modifier = Modifier.padding(top = 56.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Text(
+                        "⚠ Gagal menyimpan data — storage penuh?",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
             }
         }
 
@@ -1043,12 +1053,26 @@ private fun StatusChip(status: RecordingStatus, isAutoPaused: Boolean = false, g
         status == RecordingStatus.PAUSED -> Color(0xFFF9A825) to "❚❚ DIJEDA"
         else -> MaterialTheme.colorScheme.outline to "SELESAI"
     }
-    Text(
-        label,
-        color = color,
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-        style = MaterialTheme.typography.labelLarge
-    )
+    // Status transitions (SIAP -> RECORDING -> DIJEDA -> ...) animate with
+    // the shared fast tween instead of hard-swapping text, matching every
+    // other animated state change in the app.
+    androidx.compose.animation.AnimatedContent(
+        targetState = label,
+        transitionSpec = {
+            (androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(com.nyasar.app.ui.theme.NyasarMotion.FAST_MS)))
+                .togetherWith(
+                    androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(com.nyasar.app.ui.theme.NyasarMotion.FAST_MS))
+                )
+        },
+        label = "statusChip"
+    ) { animatedLabel ->
+        Text(
+            animatedLabel,
+            color = color,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelLarge
+        )
+    }
 }
 
 @Composable
@@ -1073,16 +1097,17 @@ private fun BigStatBlock(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides clampedDensity) {
-            Text(
-                value,
+            // Live stats tick via the shared AnimatedStatText (fast slide+
+            // fade between values) so GPS updates feel continuous rather
+            // than flashing — same animation family as the Home pill.
+            AnimatedStatText(
+                value = value,
                 style = when {
                     isHero -> MaterialTheme.typography.headlineLarge
                     compact -> MaterialTheme.typography.titleLarge
                     else -> MaterialTheme.typography.headlineMedium
                 },
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = Color.White
             )
         }
         Spacer(Modifier.height(2.dp))

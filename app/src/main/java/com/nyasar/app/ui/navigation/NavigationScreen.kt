@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.recording.RecordingStatus
+import com.nyasar.app.ui.components.AnimatedStatText
 import com.nyasar.app.ui.components.CameraFollowMode
 import com.nyasar.app.ui.components.CompassButton
 import com.nyasar.app.ui.components.NyasarMapView
@@ -374,8 +375,11 @@ private fun RecordingStrip(
  *  GPS bearing yet) — never a fabricated "in front of you". */
 @Composable
 private fun NextWaypointChip(next: NextWaypoint, userHeadingDeg: Float?) {
+    // Shared fade-and-rise entrance — the chip appears with the standard
+    // motion when a next-waypoint lock is acquired, not a hard pop.
+    com.nyasar.app.ui.components.AnimatedAppear {
     Surface(
-        shape = MaterialTheme.shapes.medium,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
         tonalElevation = 3.dp,
         shadowElevation = 2.dp,
         color = MaterialTheme.colorScheme.surface
@@ -417,6 +421,7 @@ private fun NextWaypointChip(next: NextWaypoint, userHeadingDeg: Float?) {
             }
         }
     }
+    }
 }
 
 private fun formatWaypointDistance(meters: Double): String =
@@ -449,7 +454,13 @@ private fun cardinalDirection(bearingDeg: Double): String {
 @Composable
 private fun StatBlock(value: String, label: String) {
     Column {
-        Text(value, style = MaterialTheme.typography.headlineSmall)
+        // Live navigation stats tick with the shared AnimatedStatText —
+        // same animation family as Recording's stat card and Home's pill,
+        // so every live readout in the app updates with identical motion.
+        com.nyasar.app.ui.components.AnimatedStatText(
+            value = value,
+            style = MaterialTheme.typography.headlineSmall
+        )
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.data.db.WaypointCategory
 import com.nyasar.app.map.providers.TileProviderFactory
+import com.nyasar.app.ui.components.AnimatedAppear
 import com.nyasar.app.ui.components.NyasarMapView
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -134,11 +135,17 @@ fun WaypointCrosshairScreen(
             }
             
             // Bottom info panel
-            Surface(
+            AnimatedAppear(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .wrapContentWidth(Alignment.CenterHorizontally)
+                    .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.formMaxWidth)
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(16.dp)
+            ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 8.dp
@@ -240,6 +247,7 @@ fun WaypointCrosshairScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

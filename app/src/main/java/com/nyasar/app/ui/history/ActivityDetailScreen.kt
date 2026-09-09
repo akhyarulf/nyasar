@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -696,16 +697,26 @@ private fun StatsGrid(
         if (pointCount > 0) add(context.getString(R.string.stat_gps_points) to "$pointCount")
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+    // Grouped stat tiles: each stat gets a soft surfaceContainerHigh tile
+    // (shared md radius) instead of bare text rows — same visual language
+    // as the stat chips in Recording/Navigation. 2 per row, weight-balanced
+    // so a single trailing tile doesn't stretch to half width.
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.chunked(2).forEach { pair ->
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 36.dp),
+                Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 pair.forEach { (label, value) ->
-                    Column(Modifier.weight(1f)) {
-                        Text(value, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))

@@ -1,5 +1,6 @@
 package com.nyasar.app.ui.components
 
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.History
@@ -7,25 +8,24 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.nyasar.app.ui.theme.NyasarMotion
 
-/** The 4 routes the bottom bar is allowed to appear on (spec PART 1:
- *  "Tab bar HANYA muncul di 4 screen utama"). "start-activity" here means
- *  specifically the route-less Start Activity screen (Home's quick-start
- *  entry) — the route-scoped variant "start-activity/{routeId}" reached
- *  from Route Preview is a secondary flow and intentionally not included,
- *  same as Route Preview itself. Exposed so MainActivity's NavHost can
- *  decide visibility from the current back stack entry without duplicating
- *  this route list in two places. */
 /**
- * Routes where the bottom bar should be visible. The recording route
- * can appear in several forms depending on parameters:
+ * Routes where the bottom bar should be visible (spec PART 1: "Tab bar
+ * HANYA muncul di 4 screen utama"). The recording route can appear in
+ * several forms depending on parameters:
  * - "recording?autoStart=false" (from Record tab)
  * - "recording?autoStart=true" (from Home quick-start)
  * - "recording?routeId=X&autoStart=false" (from Track picker)
@@ -53,7 +53,7 @@ fun shouldShowBottomBar(route: String?): Boolean {
 private data class BottomTab(
     val route: String,
     val label: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val icon: ImageVector,
     /** Route template to match against currentRoute for the "selected"
      *  highlight — needed only where it differs from [route] (navigate()
      *  argument string vs. the composable's registered template, e.g.
@@ -86,10 +86,19 @@ private val TABS = listOf(
  * decide when it's visible; that's the caller's job (see
  * [BOTTOM_BAR_ROUTES]), since visibility depends on nav-graph knowledge
  * this component shouldn't need.
+ *
+ * UI upgrade: M3 NavigationBar with the shared theme (surfaceContainer bar,
+ * primary indicator pill) and an animated selection — the icon pops to full
+ * size / labels stay, so switching tabs reads as motion rather than a
+ * color flip, using the shared [NyasarMotion] spring. Route-matching logic
+ * is byte-identical to the pre-upgrade version.
  */
 @Composable
 fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modifier: Modifier = Modifier) {
-    NavigationBar(modifier = modifier) {
+    NavigationBar(
+        modifier = modifier,
+        tonalElevation = 2.dp
+    ) {
         TABS.forEach { tab ->
             // BUG FIX: Use prefix matching for the recording tab, since
             // the actual route can have different parameters (routeId, autoStart)
@@ -104,11 +113,38 @@ fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modi
                 tab.route == "history" -> currentRoute == tab.matchRoute || currentRoute?.startsWith("activity/") == true
                 else -> currentRoute == tab.matchRoute
             }
+            // Animated selection: icon scales up gently when its tab is
+            // selected (the M3 indicator pill animates itself; this adds
+            // the same feel to the icon). Shared press spring keeps it
+            // consistent with every other animated element.
+            val iconScale by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = if (isSelected) 1.12f else 1f,
+                animationSpec = NyasarMotion.press(),
+                label = "tabIconScale"
+            )
             NavigationBarItem(
                 selected = isSelected,
                 onClick = { if (!isSelected) onTabSelected(tab.route) },
-                icon = { Icon(tab.icon, contentDescription = tab.label) },
-                label = { Text(tab.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) }
+                icon = {
+                    Icon(
+                        tab.icon,
+                        contentDescription = tab.label,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .graphicsLayer {
+                                scaleX = iconScale
+                                scaleY = iconScale
+                            }
+                    )
+                },
+                label = { Text(tab.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
         }
     }

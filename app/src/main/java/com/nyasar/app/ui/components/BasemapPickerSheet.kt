@@ -63,6 +63,7 @@ import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.OverlayLayer
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.ui.map.MapSnapshotHelper
+import com.nyasar.app.ui.theme.NyasarRadius
 
 /**
  * Basemap + overlay picker — bottom sheet with two horizontally-scrollable
@@ -130,6 +131,7 @@ fun BasemapPickerSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
+                .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
@@ -232,13 +234,13 @@ private fun BasemapTile(
     Column(
         Modifier
             .width(width)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(NyasarRadius.sm))
             .clickable(onClick = onClick)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(NyasarRadius.md),
             color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 1.dp,
             border = if (isSelected) {
@@ -281,13 +283,13 @@ private fun OverlayTile(
     Column(
         Modifier
             .width(width)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(NyasarRadius.sm))
             .clickable(onClick = onClick)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(NyasarRadius.md),
             color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 1.dp,
             border = if (isChecked) {
@@ -353,13 +355,13 @@ private fun MyRoutesTile(
     Column(
         Modifier
             .width(width)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(NyasarRadius.sm))
             .clickable(onClick = onClick)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(NyasarRadius.md),
             color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 1.dp,
             border = if (isChecked) {

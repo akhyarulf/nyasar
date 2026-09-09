@@ -39,7 +39,18 @@ private val LightColors = lightColorScheme(
     surface = Color(0xFFFBFDF9),
     onSurface = Color(0xFF1A1C19),
     surfaceVariant = Color(0xFFDDE5DA),
-    onSurfaceVariant = Color(0xFF414941)
+    onSurfaceVariant = Color(0xFF414941),
+    outline = Color(0xFF6F7971),
+    outlineVariant = Color(0xFFC2CCC4),
+    surfaceContainerLow = Color(0xFFF5F8F2),
+    surfaceContainer = Color(0xFFEFF4EC),
+    surfaceContainerHigh = Color(0xFFE9EFE6),
+    surfaceContainerHighest = Color(0xFFE3EAE0),
+    surfaceTint = NyasarGreen,
+    inverseSurface = Color(0xFF2F3130),
+    inverseOnSurface = Color(0xFFEFF1EE),
+    inversePrimary = NyasarGreenLight,
+    scrim = Color(0xFF000000)
 )
 
 private val DarkColors = darkColorScheme(
@@ -53,13 +64,27 @@ private val DarkColors = darkColorScheme(
     onSecondaryContainer = Color(0xFFD8E9DE),
     tertiary = NyasarGreen,
     onTertiary = Color.White,
-    error = OffRouteRed,
+    error = Color(0xFFE57373),
+    errorContainer = Color(0xFF5C2B2B),
+    onError = Color(0xFF3B1111),
+    onErrorContainer = Color(0xFFF8D7D7),
     background = Color(0xFF1A1C19),
     onBackground = Color(0xFFE2E3DE),
     surface = Color(0xFF1A1C19),
     onSurface = Color(0xFFE2E3DE),
     surfaceVariant = Color(0xFF414941),
-    onSurfaceVariant = Color(0xFFC1C9BF)
+    onSurfaceVariant = Color(0xFFC1C9BF),
+    outline = Color(0xFF8B958D),
+    outlineVariant = Color(0xFF414941),
+    surfaceContainerLow = Color(0xFF1E211E),
+    surfaceContainer = Color(0xFF232623),
+    surfaceContainerHigh = Color(0xFF2D302D),
+    surfaceContainerHighest = Color(0xFF383B38),
+    surfaceTint = NyasarGreenLight,
+    inverseSurface = Color(0xFFE2E3DE),
+    inverseOnSurface = Color(0xFF1A1C19),
+    inversePrimary = NyasarGreen,
+    scrim = Color(0xFF000000)
 )
 
 /**

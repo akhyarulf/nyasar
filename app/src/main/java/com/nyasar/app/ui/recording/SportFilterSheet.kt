@@ -2,6 +2,7 @@ package com.nyasar.app.ui.recording
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.nyasar.app.recording.SportCategory
 import com.nyasar.app.recording.SportType
 import com.nyasar.app.R
+import com.nyasar.app.ui.theme.NyasarRadius
 import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,6 +56,7 @@ fun SportFilterSheet(
     ) {
         Column(
             modifier = Modifier
+                .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
         ) {
@@ -94,7 +97,7 @@ fun SportFilterSheet(
                         tint = Color.White.copy(alpha = 0.5f)
                     ) 
                 },
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(NyasarRadius.sm),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.White.copy(alpha = 0.2f),

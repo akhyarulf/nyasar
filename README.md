@@ -189,3 +189,9 @@ Catatan: ini debug build (signing pakai debug key bawaan Android), pas untuk tes
 ## Catatan tentang README ini
 
 Versi README sebelumnya ada beberapa kalimat yang sudah bertambah/berubah sejak pertama kali ditulis (misalnya bagian offline yang sempat tertulis "belum disambungkan" padahal sudah, dan fitur waypoint/user/recording yang sudah masuk di kode tapi belum tercermin di README). Versi sekarang dicoba update sejalan dengan isi file di `app/src/main/java/com/nyasar/app/` yang ada saat ini.
+
+## License
+
+Project ini dirilis di bawah lisensi **GNU General Public License v3.0 (GPL-3.0)** — teks lengkapnya ada di [LICENSE](LICENSE).
+
+Nyasar adalah free software: kamu bebas menggunakan, mempelajari, memodifikasi, dan mendistribusikan ulang sesuai ketentuan GPL-3.0. Lisensi open source yang jelas ini juga menjadi salah satu syarat indeksasi [F-Droid](https://f-droid.org/).

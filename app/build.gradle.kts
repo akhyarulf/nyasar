@@ -120,4 +120,25 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
+
+    // Firebase Crashlytics — automatic crash reporting. Analytics is a
+    // prerequisite of Crashlytics (per Firebase docs). All versions come
+    // from the BoM so the artifacts stay mutually compatible.
+    // BoM 33.1.2 is the newest line that still supports compileSdk 34
+    // (this project's target); newer BoMs require compileSdk 35.
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
+}
+
+// Both Firebase build plugins apply together, in documented order
+// (google-services reads app/google-services.json first, then the
+// Crashlytics plugin wires up mapping-file uploads). Conditional so CI —
+// which doesn't have the file — still builds; the full Firebase setup
+// activates the moment the file exists in app/. The file is intentionally
+// NOT gitignored: it only contains the app id + API key already compiled
+// into every APK (Google's own guidance: not a secret for Android apps).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }

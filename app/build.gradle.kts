@@ -6,6 +6,16 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Release signing — every value comes from environment variables so the same
+// config serves local builds (`export KEYSTORE_FILE=...` etc.) and CI (GitHub
+// Actions secrets). Nothing signing-related is hardcoded or committed. When
+// the keystore file is absent (clone-and-build without signing material),
+// the config below is simply not attached and release builds fall back to
+// unsigned output instead of failing at configuration time.
+val releaseKeystoreFile = rootProject.file(
+    System.getenv("KEYSTORE_FILE") ?: "keystore/nyasar-release.keystore"
+)
+
 android {
     namespace = "com.nyasar.app"
     compileSdk = 34
@@ -31,10 +41,26 @@ android {
         )
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = releaseKeystoreFile
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Sign with the release keystore only when it is actually present
+            // (CI after secrets are configured, or a local machine that has
+            // the file). Otherwise keep Gradle's default unsigned output so
+            // anyone can still build release without the signing material.
+            if (releaseKeystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             isMinifyEnabled = false

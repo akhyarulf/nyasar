@@ -1,0 +1,82 @@
+name: Release Nyasar AAB (Play Store)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}   # manual trigger from the Actions tab
+
+jobs:
+  release:
+    name: Build signed release AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      # Graceful skip: before the four signing secrets exist, this job does
+      # nothing except warn. CI stays green; once the secrets are added the
+      # very next push (or a manual re-run) produces the signed AAB.
+      - name: Check signing secrets are configured
+        id: secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release signing secrets are not set yet (KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD). Skipping the release build — add them under Settings -> Secrets and variables -> Actions, then re-run this workflow."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        if: steps.secrets.outputs.configured == 'true'
+        uses: android-actions/setup-android@v3
+
+      - name: Decode release keystore from KEYSTORE_BASE64
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p keystore
+          echo "$KEYSTORE_BASE64" | base64 --decode > keystore/nyasar-release.keystore
+
+      - name: Write local.properties (MapTiler key from repo secret, if set)
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "MAPTILER_API_KEY=${{ secrets.MAPTILER_API_KEY }}" >> local.properties
+
+      - name: Set up Gradle
+        if: steps.secrets.outputs.configured == 'true'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      # bundleRelease produces the .aab required for Play Store submission
+      # (assembleRelease APKs are not accepted for new apps). Signing values
+      # are read by app/build.gradle.kts from these environment variables.
+      - name: Build signed release AAB (bundleRelease)
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          KEYSTORE_FILE: ${{ github.workspace }}/keystore/nyasar-release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle bundleRelease --no-daemon --stacktrace
+
+      - name: Upload release AAB
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nyasar-release-aab
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

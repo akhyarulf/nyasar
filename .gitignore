@@ -1,0 +1,7 @@
+# Signing material must never be committed to this repository.
+# CI receives the keystore via the KEYSTORE_BASE64 GitHub secret instead;
+# for local release builds place the file outside version control
+# (or point KEYSTORE_FILE at any untracked path).
+keystore/
+*.keystore
+*.jks

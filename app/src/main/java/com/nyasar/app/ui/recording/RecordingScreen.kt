@@ -1350,9 +1350,13 @@ fun RecordingScreen(
 
     // v7: crosshair picker — same screen the other map screens open.
     if (showCrosshair) {
+        // Local copies: `state` is a delegated property, so its nullable
+        // fields can't smart-cast — these locals can.
+        val crosshairLat = state.currentLat
+        val crosshairLon = state.currentLon
         WaypointCrosshairScreen(
-            initialLatLng = if (state.currentLat != null && state.currentLon != null)
-                LatLng(state.currentLat, state.currentLon) else null,
+            initialLatLng = if (crosshairLat != null && crosshairLon != null)
+                LatLng(crosshairLat, crosshairLon) else null,
             attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
                 routeId = routeId,
                 activityId = state.activityId

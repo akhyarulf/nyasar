@@ -64,7 +64,7 @@ fun WaypointCrosshairScreen(
 
     // Rendered as a full-screen overlay from Home/RoutePreview/Recording —
     // system back must close THIS screen, not pop the host destination.
-    androidx.activity.compose.BackHandler(onDismiss = onDismiss)
+    androidx.activity.compose.BackHandler(onBack = onDismiss)
 
     Scaffold(
         topBar = {

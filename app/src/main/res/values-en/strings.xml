@@ -516,4 +516,21 @@
     <string name="notif_onboarding_body">While a GPS recording is running, Nyasar posts a status notification:\n• Recording state (active / paused) and real-time distance\n• A visible sign that recording keeps running when the app goes to the background\n\nWithout this permission, recording still works — only the notification indicator is missing.</string>
     <string name="notif_onboarding_allow">Allow Notifications</string>
     <string name="notif_onboarding_skip">Later</string>
+
+    <!-- Location gate (pre-start onboarding) -->
+    <string name="location_gate_title">Allow Location?</string>
+    <string name="location_gate_body">Recording needs location access (GPS) to:\n• Record the track points you walk\n• Calculate distance, moving time, and elevation\n\nWithout this permission, recording cannot start — no GPS points will be captured.</string>
+    <string name="location_gate_allow">Allow Location</string>
+    <string name="location_denied_banner">⚠ Location permission not granted — GPS will not be recorded during the session.</string>
+    <string name="location_denied_grant">Allow</string>
+    <string name="location_denied_settings">Open Settings</string>
+
+    <!-- Battery optimization gate (pre-start onboarding) -->
+    <string name="battery_gate_title">Allow Unrestricted Battery Use?</string>
+    <string name="battery_gate_body">To keep GPS recording accurate while the screen is off or the phone is in your pocket, Nyasar needs an exemption from battery optimization:\n• Some phones (Xiaomi, Samsung, etc.) aggressively kill background GPS\n• Recording still works without this — it\'s just more likely to be interrupted\n\nYou can change this anytime in Settings → GPS.</string>
+    <string name="battery_gate_allow">Allow</string>
+
+    <!-- Settings > GPS > battery row -->
+    <string name="battery_optimization_title">Battery Exemption</string>
+    <string name="battery_optimization_hint">Tap to request a battery exemption — so recording is not killed by your phone\'s battery saver</string>
 </resources>

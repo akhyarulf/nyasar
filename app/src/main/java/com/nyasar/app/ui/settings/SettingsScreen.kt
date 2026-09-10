@@ -1,7 +1,10 @@
 package com.nyasar.app.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -11,12 +14,14 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
 import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.ui.components.AnimatedScreen
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +92,60 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
             )
+
+            // Gap 2 manual access: the battery-optimization exemption is
+            // normally raised once by the pre-start gate chain on the
+            // Recording screen; this row re-opens the same system sheet on
+            // demand, any time, regardless of the onboarding flag. Status
+            // line is read live from PowerManager so it reflects reality,
+            // not a stored preference.
+            val batteryContext = LocalContext.current
+            val batteryIgnoring = remember {
+                val pm = batteryContext.getSystemService(android.os.PowerManager::class.java)
+                pm?.isIgnoringBatteryOptimizations(batteryContext.packageName) ?: true
+            }
+            val batteryScope = rememberCoroutineScope()
+            val batterySettings = remember { com.nyasar.app.data.settings.SettingsRepository(batteryContext) }
+            val batteryLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.StartActivityForResult()
+            ) { _ -> /* user decided on the system sheet; PowerManager is re-read on next visit */ }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .selectable(selected = false, onClick = {
+                        batteryScope.launch { batterySettings.setBatteryOptimizationOnboardingShown() }
+                        val packageUri = android.net.Uri.parse("package:${batteryContext.packageName}")
+                        val intents = listOf(
+                            android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(packageUri),
+                            // Same OEM fallback as the Recording gate.
+                            android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(packageUri)
+                        )
+                        for (intent in intents) {
+                            try {
+                                batteryLauncher.launch(intent)
+                                break
+                            } catch (_: Exception) { /* try the next intent */ }
+                        }
+                    })
+                    .padding(vertical = 8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.BatterySaver,
+                    contentDescription = null,
+                    tint = if (batteryIgnoring) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(stringResource(R.string.battery_optimization_title))
+                    Text(
+                        if (batteryIgnoring) stringResource(R.string.ready_to_use)
+                        else stringResource(R.string.battery_optimization_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Spacer(Modifier.height(24.dp))
             HorizontalDivider()

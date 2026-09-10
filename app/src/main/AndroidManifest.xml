@@ -10,6 +10,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Battery-optimization exemption request: lets the user allow Nyasar
+         to keep GPS recording alive through vendor battery savers (MIUI,
+         Samsung, etc.). The permission only enables the dialog intent —
+         the user still decides per system sheet. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".NyasarApp"

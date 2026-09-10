@@ -51,7 +51,14 @@ data class AppSettings(
      *  the Recording screen on API 33+) has been shown+actioned. Fully
      *  independent of [locationOnboardingShown] — either decision can be
      *  made without the other. */
-    val notificationOnboardingShown: Boolean = false
+    val notificationOnboardingShown: Boolean = false,
+    /** Battery-optimization onboarding ("why Nyasar wants to run without
+     *  battery saver restrictions" explainer, shown once right before the
+     *  first actual start attempt when PowerManager says we're still
+     *  optimized) has been shown+actioned. Once true the start-flow gate
+     *  never raises it again — manual access stays available via the
+     *  Settings screen row, which opens the same system sheet on demand. */
+    val batteryOptimizationOnboardingShown: Boolean = false
 )
 
 /**
@@ -71,6 +78,7 @@ class SettingsRepository(private val context: Context) {
         val MY_ROUTES_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("my_routes_overlay_enabled")
         val LOCATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("location_onboarding_shown")
         val NOTIFICATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("notification_onboarding_shown")
+        val BATTERY_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("battery_optimization_onboarding_shown")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -85,8 +93,13 @@ class SettingsRepository(private val context: Context) {
             overlayIds = prefs[Keys.OVERLAY_IDS] ?: emptySet(),
             myRoutesOverlayEnabled = prefs[Keys.MY_ROUTES_OVERLAY] ?: false,
             locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false,
-            notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false
+            notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false,
+            batteryOptimizationOnboardingShown = prefs[Keys.BATTERY_ONBOARDING] ?: false
         )
+    }
+
+    suspend fun setBatteryOptimizationOnboardingShown() {
+        context.dataStore.edit { it[Keys.BATTERY_ONBOARDING] = true }
     }
 
     suspend fun setProvider(providerId: String) {

@@ -149,9 +149,6 @@ fun RecordingScreen(
     // of at app-open follows the same "explain why, then ask" pattern as
     // the location onboarding, independently of that dialog's outcome.
     val notifContext = androidx.compose.ui.platform.LocalContext.current
-    val notifPermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* denial is non-fatal — recording still runs, just without the progress notification */ }
     val settingsRepository = remember { SettingsRepository(notifContext) }
     val settingsForNotif by settingsRepository.settings.collectAsState(initial = null)
     val notifScope = rememberCoroutineScope()
@@ -173,12 +170,164 @@ fun RecordingScreen(
     // can pass previewRouteId ?: routeId), so the dialog's own buttons
     // reproduce the exact call the gate intercepted.
     var pendingNotifGateStartRoute by remember { mutableStateOf<String?>(null) }
+    // ------------------------------------------------------------------
+    // Start-flow gate chain: notifikasi -> lokasi -> battery.
+    //
+    // Same architecture as the original notification gate (BUG FIX
+    // "setelah dialog permission notification, langsung otomatis
+    // recording"): each gate holds the routeId of the REAL start attempt it
+    // intercepted in its own pending*GateStartRoute slot, and a gate's
+    // dialog answers only ever continue that held attempt. A dialog raised
+    // by a mere screen visit has nothing held — answering it can never
+    // start a recording, however the user answers. Gates chain forward:
+    // resolving one gate hands the held route to the next, and only the
+    // last gate (battery) finally calls viewModel.startRecording(). No two
+    // dialogs ever overlap: each gate's dialog is raised from the previous
+    // gate's RESULT callback (system popup already gone), never from the
+    // button click itself.
+    val gateScope = rememberCoroutineScope()
+    val gateContext = androidx.compose.ui.platform.LocalContext.current
+    var pendingBatteryGateStartRoute by remember { mutableStateOf<String?>(null) }
+    var showBatteryOnboarding by remember { mutableStateOf(false) }
+    var pendingLocationGateStartRoute by remember { mutableStateOf<String?>(null) }
+    var showLocationOnboarding by remember { mutableStateOf(false) }
+    var showLocationDeniedBanner by remember { mutableStateOf(false) }
+
+    fun advanceToBatteryGate(startRouteId: String?) {
+        // Battery-optimization gate (Gap 2) — advisory only: recording works
+        // without the exemption, vendor battery savers (MIUI/Samsung/etc.)
+        // just make screen-off/background tracking less reliable. One-time
+        // DataStore flag keeps the explainer from nagging on every start;
+        // the Settings screen row re-opens the same system sheet on demand.
+        val pm = gateContext.getSystemService(android.os.PowerManager::class.java)
+        val ignoring = pm?.isIgnoringBatteryOptimizations(gateContext.packageName) ?: true
+        if (!ignoring && settingsForNotif?.batteryOptimizationOnboardingShown == false) {
+            pendingBatteryGateStartRoute = startRouteId
+            showBatteryOnboarding = true
+        } else {
+            viewModel.startRecording(startRouteId)
+        }
+    }
+
+    // Location gate (Gap 1 fix) — startLocationCollection() silently returns
+    // without ACCESS_FINE_LOCATION (RecordingService), which used to leave a
+    // "RECORDING" session with a ticking timer and a foreground notification
+    // but ZERO GPS points. No start attempt proceeds past this gate unless
+    // the permission is granted right now.
+    fun advanceToLocationGate(startRouteId: String?) {
+        if (!viewModel.hasLocationPermission()) {
+            pendingLocationGateStartRoute = startRouteId
+            showLocationOnboarding = true
+        } else {
+            advanceToBatteryGate(startRouteId)
+        }
+    }
+
     fun gateAutoStart(startRouteId: String?) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && notifGateArmed) {
             pendingNotifGateStartRoute = startRouteId
             showNotifOnboarding = true
         } else {
-            viewModel.startRecording(startRouteId)
+            advanceToLocationGate(startRouteId)
+        }
+    }
+
+    // Battery-optimization explainer resolution. The system sheet is raised
+    // through a StartActivityForResult launcher so the held start continues
+    // from its RESULT callback — our activity is foreground again by then,
+    // which matters on Android 12+ (a foreground service must not be started
+    // while a system sheet fully covers the activity).
+    val batteryPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        // Allow or deny both land here; isIgnoringBatteryOptimizations()
+        // says which, but recording proceeds either way — the exemption is
+        // optional. This is the last gate: continue the held attempt now.
+        pendingBatteryGateStartRoute?.let { heldRouteId ->
+            pendingBatteryGateStartRoute = null
+            viewModel.startRecording(heldRouteId)
+        }
+    }
+    fun launchBatterySheet(): Boolean {
+        val packageUri = android.net.Uri.parse("package:${gateContext.packageName}")
+        val intents = listOf(
+            android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(packageUri),
+            // Fallback: some OEM builds strip the direct dialog intent —
+            // degrade to the app's system settings page instead of crashing.
+            android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(packageUri)
+        )
+        for (intent in intents) {
+            try {
+                batteryPermission.launch(intent)
+                return true
+            } catch (_: Exception) { /* try the next intent */ }
+        }
+        return false
+    }
+    fun resolveBatteryOnboarding(allow: Boolean) {
+        showBatteryOnboarding = false
+        gateScope.launch { settingsRepository.setBatteryOptimizationOnboardingShown() }
+        if (allow && launchBatterySheet()) return // continues from the sheet's result callback
+        pendingBatteryGateStartRoute?.let { heldRouteId ->
+            pendingBatteryGateStartRoute = null
+            viewModel.startRecording(heldRouteId)
+        }
+    }
+
+    // Location explainer resolution. Grant hands the held attempt to the
+    // next gate; skip DROPS it (deliberate — see the denied banner below:
+    // this app refuses to run a session that would silently record
+    // nothing). A fresh Start tap later re-enters the chain as a new
+    // attempt.
+    val locationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            // Refresh the IDLE screen's GPS preview dot with the newly
+            // granted permission (same call the screen makes on entry).
+            showLocationDeniedBanner = false
+            viewModel.startLocationUpdatesIfPermitted()
+            // Continue the chain ONLY when a real start attempt is held.
+            // The denied banner's standalone "Izinkan" path raises this
+            // same dialog with nothing held — granting from there must
+            // merely clear the banner, never start a recording.
+            pendingLocationGateStartRoute?.let { heldRouteId ->
+                pendingLocationGateStartRoute = null
+                advanceToBatteryGate(heldRouteId)
+            }
+        } else {
+            // Denied (or "don't ask again" — the system popup will never
+            // re-appear, so a retry loop would dead-end). Drop the held
+            // start and surface the persistent banner with a shortcut to
+            // system settings; the user grants there and taps Start again.
+            showLocationDeniedBanner = true
+        }
+        pendingLocationGateStartRoute = null
+    }
+    fun resolveLocationOnboarding(requestPermission: Boolean) {
+        showLocationOnboarding = false
+        if (requestPermission) {
+            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        } else {
+            pendingLocationGateStartRoute = null
+        }
+    }
+
+    // Notification gate (existing behavior — see BUG FIX below). Its
+    // launcher lives here, after the location gate, because its RESULT
+    // callback is what hands the held attempt to advanceToLocationGate —
+    // chaining from the button click instead would raise the location
+    // dialog while the SYSTEM notification popup is still up (two dialogs
+    // overlapping — exactly what the gate chain must never do).
+    val notifPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        // Denial is non-fatal — recording still runs, just without the
+        // progress notification. The gate chain continues here, not while
+        // the system popup is up.
+        pendingNotifGateStartRoute?.let { interceptedRouteId ->
+            pendingNotifGateStartRoute = null
+            advanceToLocationGate(interceptedRouteId)
         }
     }
     // BUG FIX ("setelah dialog permission notification, langsung otomatis
@@ -190,19 +339,22 @@ fun RecordingScreen(
     // visit trigger there is no start to reproduce, yet the old buttons
     // started one anyway (falling back to `routeId`), so merely answering the
     // explainer — Allow or "Nanti Saja" — kicked off a recording session the
-    // user never asked for. Fix: answering the dialog now only resolves the
-    // notification decision; recording proceeds ONLY when a real start
-    // attempt was intercepted (pendingNotifGateStartRoute != null), replaying
-    // the exact call the gate held back.
+    // user never asked for. Fix (now extended to the whole 3-gate chain):
+    // answering the dialog only resolves that gate's decision; recording
+    // proceeds ONLY when a real start attempt was intercepted
+    // (pending*GateStartRoute != null), replaying the exact call the gate
+    // held back.
     fun resolveNotifOnboarding(requestPermission: Boolean) {
         showNotifOnboarding = false
         notifScope.launch { settingsRepository.setNotificationOnboardingShown() }
         if (requestPermission) {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        pendingNotifGateStartRoute?.let { interceptedRouteId ->
-            pendingNotifGateStartRoute = null
-            viewModel.startRecording(interceptedRouteId)
+            // Chain continues in the launcher's result callback.
+        } else {
+            pendingNotifGateStartRoute?.let { interceptedRouteId ->
+                pendingNotifGateStartRoute = null
+                advanceToLocationGate(interceptedRouteId)
+            }
         }
     }
     // P3J §6: guards the Stop button — see the AlertDialog near the bottom
@@ -432,10 +584,10 @@ fun RecordingScreen(
     LaunchedEffect(recoveryChecked, recoveryCandidate, autoStart) {
         if (!recoveryChecked || recoveryCandidate != null || !autoStart) return@LaunchedEffect
         kotlinx.coroutines.delay(6_000L)
-        // While the notification-explainer dialog is up, the user hasn't had
-        // a chance to start anything yet — the watchdog must not "retry"
-        // into the gate again or flip startStuck behind the modal.
-        if (showNotifOnboarding) return@LaunchedEffect
+        // While any gate-explainer dialog is up, the user hasn't had a
+        // chance to start anything yet — the watchdog must not "retry"
+        // into the gate chain again or flip startStuck behind the modal.
+        if (showNotifOnboarding || showLocationOnboarding || showBatteryOnboarding) return@LaunchedEffect
         if (state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED) {
             // One retry — covers the case where the first startRecording()
             // call landed on a service instance that hadn't finished
@@ -443,7 +595,9 @@ fun RecordingScreen(
             // with the first ACTION_START intent being sent).
             gateAutoStart(routeId)
             kotlinx.coroutines.delay(6_000L)
-            if (!showNotifOnboarding && (state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED)) {
+            if (!showNotifOnboarding && !showLocationOnboarding && !showBatteryOnboarding &&
+                (state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED)
+            ) {
                 startStuck = true
             }
         }
@@ -476,6 +630,58 @@ fun RecordingScreen(
                 // without the progress notification.
                 TextButton(onClick = { resolveNotifOnboarding(requestPermission = false) }) {
                     Text(stringResource(R.string.notif_onboarding_skip))
+                }
+            }
+        )
+    }
+
+    // Location explainer (Gate 2 of 3) — raised ONLY from gateAutoStart's
+    // chain (a real start attempt was intercepted) or by the user granting
+    // from the denied banner. Never by a screen visit: with nothing held in
+    // pendingLocationGateStartRoute, answering this dialog can never start
+    // a recording.
+    if (showLocationOnboarding) {
+        AlertDialog(
+            onDismissRequest = {
+                showLocationOnboarding = false
+                // Same dismiss semantics as the notification gate: an
+                // outside tap drops the held attempt without starting.
+                pendingLocationGateStartRoute = null
+            },
+            title = { Text(stringResource(R.string.location_gate_title)) },
+            text = { Text(stringResource(R.string.location_gate_body)) },
+            confirmButton = {
+                TextButton(onClick = { resolveLocationOnboarding(requestPermission = true) }) {
+                    Text(stringResource(R.string.location_gate_allow))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { resolveLocationOnboarding(requestPermission = false) }) {
+                    Text(stringResource(R.string.onboarding_skip))
+                }
+            }
+        )
+    }
+
+    // Battery-optimization explainer (Gate 3 of 3) — same held-attempt
+    // contract. "Nanti Saja" skips without opening any system UI; "Izinkan"
+    // opens the PowerManager sheet and the start continues from its result.
+    if (showBatteryOnboarding) {
+        AlertDialog(
+            onDismissRequest = {
+                showBatteryOnboarding = false
+                pendingBatteryGateStartRoute = null
+            },
+            title = { Text(stringResource(R.string.battery_gate_title)) },
+            text = { Text(stringResource(R.string.battery_gate_body)) },
+            confirmButton = {
+                TextButton(onClick = { resolveBatteryOnboarding(allow = true) }) {
+                    Text(stringResource(R.string.battery_gate_allow))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { resolveBatteryOnboarding(allow = false) }) {
+                    Text(stringResource(R.string.onboarding_skip))
                 }
             }
         )
@@ -624,6 +830,55 @@ fun RecordingScreen(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium
                     )
+                }
+            }
+        }
+
+        // Gap 1 companion UX: a start attempt that survived the whole gate
+        // chain with location still denied CAN legitimately happen (grant
+        // flow raced, OEM quirk) — and the service would then run a session
+        // that never accepts a single GPS fix. Rather than silently doing
+        // that, the IDLE screen carries a persistent banner explaining
+        // exactly that, with a one-tap grant (re-enters the gate chain with
+        // the currently attached route) and a system-settings shortcut for
+        // the "don't ask again" case. Persist until permission is granted —
+        // same persistence philosophy as storageError above.
+        if (showLocationDeniedBanner) {
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    modifier = Modifier.padding(top = 56.dp).padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.location_denied_banner),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        TextButton(onClick = {
+                            showLocationDeniedBanner = false
+                            showLocationOnboarding = true
+                        }) {
+                            Text(stringResource(R.string.location_denied_grant), style = MaterialTheme.typography.labelMedium)
+                        }
+                        TextButton(onClick = {
+                            gateContext.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                    .setData(android.net.Uri.parse("package:${gateContext.packageName}"))
+                            )
+                        }) {
+                            Text(stringResource(R.string.location_denied_settings), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                 }
             }
         }

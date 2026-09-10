@@ -516,4 +516,21 @@
     <string name="notif_onboarding_body">Saat recording GPS berjalan, Nyasar menampilkan notifikasi status di layar notifikasi:\n• Status recording (aktif / dijeda) dan jarak tempuh real-time\n• Tanda bahwa recording tetap berjalan saat app berpindah ke background\n\nTanpa izin ini, recording tetap jalan — hanya indikator notifikasinya yang tidak tampil.</string>
     <string name="notif_onboarding_allow">Izinkan Notifikasi</string>
     <string name="notif_onboarding_skip">Nanti Saja</string>
+
+    <!-- Location gate (pre-start onboarding) -->
+    <string name="location_gate_title">Izinkan Lokasi?</string>
+    <string name="location_gate_body">Recording butuh akses lokasi (GPS) untuk:\n• Mencatat titik jalur yang kamu lewati\n• Menghitung jarak, waktu bergerak, dan elevasi\n\nTanpa izin ini, recording tidak akan bisa dimulai — tidak ada titik GPS yang tercatat.</string>
+    <string name="location_gate_allow">Izinkan Lokasi</string>
+    <string name="location_denied_banner">⚠ Izin lokasi belum diberikan — GPS tidak akan terekam selama recording.</string>
+    <string name="location_denied_grant">Izinkan</string>
+    <string name="location_denied_settings">Buka Pengaturan</string>
+
+    <!-- Battery optimization gate (pre-start onboarding) -->
+    <string name="battery_gate_title">Izinkan Tanpa Pembatasan Baterai?</string>
+    <string name="battery_gate_body">Supaya recording GPS tetap akurat saat layar mati atau HP di kantong, Nyasar perlu pengecualian dari penghemat baterai:\n• Beberapa HP (Xiaomi, Samsung, dll.) mematikan GPS di background secara agresif\n• Rekomendasi HP akan tetap berjalan tanpa ini — hanya lebih rawan terputus\n\nKamu bisa mengubahnya kapan saja di Pengaturan → GPS.</string>
+    <string name="battery_gate_allow">Izinkan</string>
+
+    <!-- Settings > GPS > battery row -->
+    <string name="battery_optimization_title">Pengecualian Baterai</string>
+    <string name="battery_optimization_hint">Ketuk untuk minta pengecualian baterai — supaya recording tidak dimatikan oleh penghemat baterai HP</string>
 </resources>

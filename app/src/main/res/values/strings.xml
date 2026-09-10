@@ -391,6 +391,17 @@
     <string name="waypoint_cat_poi">POI</string>
     <string name="waypoint_cat_custom">Lainnya</string>
 
+    <!-- v7: waypoint attachment (route/activity/independent) + GPX merge -->
+    <string name="waypoint_attachment">Keterikatan</string>
+    <string name="waypoint_attachment_independent">Independen</string>
+    <string name="waypoint_attachment_route">Kaitkan ke rute ini (%1$s)</string>
+    <string name="waypoint_attachment_activity">Kaitkan ke aktivitas ini (%1$s)</string>
+    <string name="waypoint_attached_to_route">Terikat ke rute</string>
+    <string name="waypoint_attached_to_activity">Terikat ke aktivitas</string>
+    <string name="waypoint_source_gpx">Dari GPX</string>
+    <string name="activity_title_generic">Aktivitas</string>
+    <string name="add_waypoint_cd">Tambah waypoint</string>
+
     <!-- Basemap picker sheet -->
     <string name="overlays_title">Overlay</string>
     <string name="overlays_subtitle">Waymarked Trails · Jalur Saya</string>

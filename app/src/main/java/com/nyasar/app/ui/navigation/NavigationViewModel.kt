@@ -271,15 +271,21 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
             // change to the waypoint table (add/edit/delete — including
             // one dropped on this very screen mid-navigation), not a
             // one-shot snapshot like the GPX list above.
+            // v7: GPX-origin DB rows are EXCLUDED — this route's GPX
+            // waypoints already enter the engine via gpxWaypointsAlongTrack
+            // above, so counting the merged rows again would double-report
+            // every imported pin.
             viewModelScope.launch {
                 waypointRepository.observeAll().collect { userWaypoints ->
-                    userWaypointsAlongTrack = userWaypoints.mapNotNull { wp ->
-                        val match = navEngine.matchWaypoint(
-                            com.nyasar.app.navigation.LatLng(wp.lat, wp.lon)
-                        ) ?: return@mapNotNull null
-                        if (match.distanceFromTrackMeters > MAX_WAYPOINT_TRACK_DISTANCE_M) return@mapNotNull null
-                        NavWaypointRef(wp.name, wp.lat, wp.lon, wp.elevationM) to match.distanceTraveledMeters
-                    }
+                    userWaypointsAlongTrack = userWaypoints
+                        .filter { it.source != com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX }
+                        .mapNotNull { wp ->
+                            val match = navEngine.matchWaypoint(
+                                com.nyasar.app.navigation.LatLng(wp.lat, wp.lon)
+                            ) ?: return@mapNotNull null
+                            if (match.distanceFromTrackMeters > MAX_WAYPOINT_TRACK_DISTANCE_M) return@mapNotNull null
+                            NavWaypointRef(wp.name, wp.lat, wp.lon, wp.elevationM) to match.distanceTraveledMeters
+                        }
                 }
             }
 

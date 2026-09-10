@@ -48,6 +48,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     private val dao = AppDatabase.get(app).activityDao()
     private val settingsRepository = SettingsRepository(app)
     private val routeRepository = RouteRepository(app)
+    private val waypointRepository = com.nyasar.app.data.repository.WaypointRepository(app)
     // Fix: before this, "recenter" on the pre-record (IDLE) screen was a
     // no-op — RecordingViewModel had no GPS source of its own, only ever
     // reading currentLat/currentLon from RecordingService's state, which
@@ -415,6 +416,13 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     fun discardRecording(activityId: String?) {
         if (activityId == null) return
         viewModelScope.launch {
+            // v7: unlink waypoints linked to the discarded activity (kept as
+            // independent) before the row goes.
+            try {
+                waypointRepository.onActivityDeleted(activityId)
+            } catch (_: Exception) {
+                // never block discard on waypoint cleanup
+            }
             dao.deletePointsForActivity(activityId)
             dao.deleteById(activityId)
         }

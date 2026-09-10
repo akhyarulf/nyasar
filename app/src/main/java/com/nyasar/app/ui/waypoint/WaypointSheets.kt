@@ -24,11 +24,33 @@ import com.nyasar.app.data.db.WaypointEntity
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
 
+/** Which attachment choices the Add/Edit form offers. Only the contexts
+ *  the caller actually has are listed — Home offers only "independent", a
+ *  route screen adds "link to this route", recording/history add "link to
+ *  this activity" (activity screens keep the route option off: a history
+ *  entry has no single route unless it was recorded with one, in which
+ *  case the caller passes it and the option appears on its own). */
+data class WaypointAttachments(
+    val routeId: String? = null,
+    val routeName: String? = null,
+    val activityId: String? = null,
+    val activityName: String? = null
+) {
+    val hasOptions: Boolean get() = routeId != null || activityId != null
+}
+
 /**
- * Add/Edit form (spec P3E2): name, category, note. Coordinates/elevation
- * are shown read-only (they come from where the user tapped, or from the
- * existing waypoint being edited) — not editable fields, since P3E2 scope
- * is metadata editing, not repositioning a pin.
+ * Add/Edit form (spec P3E2, extended v7): name, category, note, and the
+ * optional route/activity attachment. Coordinates/elevation are shown
+ * read-only (they come from where the user tapped, or from the existing
+ * waypoint being edited) — not editable fields, since P3E2 scope is
+ * metadata editing, not repositioning a pin.
+ *
+ * Attachment: [initialLinkedRouteId]/[initialLinkedActivityId] seed the
+ * picker from the screen's context (WaypointContext defaults); the user can
+ * switch to "independent" or the other offered link before saving. GPX-
+ * imported waypoints keep the picker hidden/locked ([lockAttachment]) —
+ * their route link is intrinsic to the import and merging.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,12 +63,18 @@ fun WaypointFormSheet(
     lon: Double,
     elevationM: Double?,
     onDismiss: () -> Unit,
-    onSave: (name: String, category: WaypointCategory, note: String?) -> Unit,
-    onDelete: (() -> Unit)? = null
+    onSave: (name: String, category: WaypointCategory, note: String?, linkedRouteId: String?, linkedActivityId: String?) -> Unit,
+    onDelete: (() -> Unit)? = null,
+    attachments: WaypointAttachments = WaypointAttachments(),
+    initialLinkedRouteId: String? = null,
+    initialLinkedActivityId: String? = null,
+    lockAttachment: Boolean = false
 ) {
     var name by remember { mutableStateOf(initialName) }
     var category by remember { mutableStateOf(initialCategory) }
     var note by remember { mutableStateOf(initialNote) }
+    var linkedRouteId by remember { mutableStateOf(initialLinkedRouteId) }
+    var linkedActivityId by remember { mutableStateOf(initialLinkedActivityId) }
     // Guards the Save button against a double-tap firing two saves before
     // the sheet has a chance to dismiss (spec: "jangan membuat duplicate
     // waypoint karena UI event berulang").
@@ -94,6 +122,36 @@ fun WaypointFormSheet(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Attachment picker (v7): independent / route / activity. Only
+            // shown when the caller actually offers a link option, and
+            // hidden entirely for GPX-imported waypoints (link locked).
+            if (attachments.hasOptions && !lockAttachment) {
+                Spacer(Modifier.height(16.dp))
+                Text(stringResource(R.string.waypoint_attachment), style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AttachmentOption(
+                        selected = linkedRouteId == null && linkedActivityId == null,
+                        label = stringResource(R.string.waypoint_attachment_independent),
+                        onClick = { linkedRouteId = null; linkedActivityId = null }
+                    )
+                    attachments.routeId?.let { rid ->
+                        AttachmentOption(
+                            selected = linkedRouteId == rid,
+                            label = stringResource(R.string.waypoint_attachment_route, attachments.routeName ?: stringResource(R.string.default_route_name)),
+                            onClick = { linkedRouteId = rid; linkedActivityId = null }
+                        )
+                    }
+                    attachments.activityId?.let { aid ->
+                        AttachmentOption(
+                            selected = linkedActivityId == aid,
+                            label = stringResource(R.string.waypoint_attachment_activity, attachments.activityName ?: stringResource(R.string.activity_title_generic)),
+                            onClick = { linkedActivityId = aid; linkedRouteId = null }
+                        )
+                    }
+                }
+            }
+
             Spacer(Modifier.height(12.dp))
             Text(
                 "%.5f, %.5f".format(lat, lon) + (elevationM?.let { " · ${it.toInt()} m" } ?: ""),
@@ -118,7 +176,7 @@ fun WaypointFormSheet(
                     onClick = {
                         if (!saving) {
                             saving = true
-                            onSave(name.trim(), category, note.trim())
+                            onSave(name.trim(), category, note.trim(), linkedRouteId, linkedActivityId)
                         }
                     },
                     enabled = !saving
@@ -126,6 +184,26 @@ fun WaypointFormSheet(
                     Text(stringResource(R.string.save))
                 }
             }
+        }
+    }
+}
+
+/** One radio-style attachment choice in the form. Shared with
+ *  WaypointCrosshairScreen (same package). */
+@Composable
+internal fun AttachmentOption(selected: Boolean, label: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(selected = selected, onClick = null)
+            Spacer(Modifier.width(4.dp))
+            Text(label, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -155,7 +233,8 @@ private fun CategoryChip(category: WaypointCategory, selected: Boolean, onClick:
 }
 
 /** Spec P3E2 detail: nama, kategori, elevasi, koordinat, catatan, jarak
- *  dari user (jika ada fix GPS). Edit/Delete actions live here too. */
+ *  dari user (jika ada fix GPS), plus asal & keterikatan (v7). Edit/Delete
+ *  actions live here too. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WaypointDetailSheet(
@@ -188,7 +267,20 @@ fun WaypointDetailSheet(
                 Spacer(Modifier.width(10.dp))
                 Column {
                     Text(waypoint.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(stringResource(category.labelRes), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(category.labelRes), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (waypoint.source == WaypointEntity.SOURCE_GPX) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                stringResource(R.string.waypoint_source_gpx),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
+                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -202,6 +294,17 @@ fun WaypointDetailSheet(
             if (!waypoint.note.isNullOrBlank()) {
                 Spacer(Modifier.height(8.dp))
                 Text(waypoint.note, style = MaterialTheme.typography.bodyMedium)
+            }
+
+            // Attachment line (v7): what this waypoint belongs to, if anything.
+            val linkLabel = when {
+                waypoint.linkedRouteId != null -> stringResource(R.string.waypoint_attached_to_route)
+                waypoint.linkedActivityId != null -> stringResource(R.string.waypoint_attached_to_activity)
+                else -> null
+            }
+            linkLabel?.let {
+                Spacer(Modifier.height(8.dp))
+                DetailRow(stringResource(R.string.waypoint_attachment), it)
             }
 
             Spacer(Modifier.height(20.dp))

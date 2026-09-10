@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Search
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
+import com.nyasar.app.ui.waypoint.WaypointCrosshairScreen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -111,9 +113,16 @@ fun HomeScreen(
 
     // P3E2: user-created waypoints, tap-to-add on the map.
     val userWaypoints by waypointViewModel.waypoints.collectAsState()
+    // v7: only INDEPENDENT pins render on Home — route/activity-linked ones
+    // are their own screens' context (see WaypointContext).
+    val independentWaypoints by waypointViewModel.independentWaypoints.collectAsState()
     val pendingWaypointTap by waypointViewModel.pendingTap.collectAsState()
     val selectedWaypoint by waypointViewModel.selectedWaypoint.collectAsState()
     val editingWaypoint by waypointViewModel.editingWaypoint.collectAsState()
+    val waypointContext by waypointViewModel.context.collectAsState()
+    // v7: crosshair picker entry — Home has no route/activity context, so
+    // saved pins from here are always independent.
+    var showCrosshair by remember { mutableStateOf(false) }
 
     var showRoutesSheet by remember { mutableStateOf(false) }
     var showBasemapSheet by remember { mutableStateOf(false) }
@@ -204,9 +213,11 @@ fun HomeScreen(
             myRoutes = myRouteLines,
             track = emptyList(),
             waypoints = emptyList(),
-            userWaypoints = userWaypoints,
+            // v7: Home shows INDEPENDENT pins only — route/activity-linked
+            // waypoints belong to their own screens (context filtering).
+            userWaypoints = independentWaypoints,
             onUserWaypointClick = { id ->
-                waypointViewModel.selectWaypoint(userWaypoints.firstOrNull { it.id == id })
+                waypointViewModel.selectWaypoint(independentWaypoints.firstOrNull { it.id == id })
             },
             onMapLongPress = { lat, lon ->
                 waypointViewModel.onMapLongPress(lat, lon, currentLocation?.elevationM)
@@ -422,6 +433,13 @@ fun HomeScreen(
                 contentDescription = stringResource(R.string.draw_route_cd),
                 onClick = onOpenDrawRoute
             )
+            // v7: crosshair waypoint picker — Home context = independent pin
+            // (no route/activity to link to from here).
+            RoundIconButton(
+                icon = Icons.Default.Place,
+                contentDescription = stringResource(R.string.add_waypoint_cd),
+                onClick = { showCrosshair = true }
+            )
         }
 
         // Compass — top-end, pushed down below the search bar (was
@@ -576,8 +594,24 @@ fun HomeScreen(
         )
     }
 
+    // v7: full-screen crosshair picker — Home context = independent pin.
+    if (showCrosshair) {
+        WaypointCrosshairScreen(
+            initialLatLng = currentLocation?.let { org.maplibre.android.geometry.LatLng(it.lat, it.lon) },
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(),
+            onSave = { lat, lon, name, category, _, _ ->
+                waypointViewModel.confirmCrosshairWaypointFrom(lat, lon, name, category, null, null, null)
+                showCrosshair = false
+            },
+            onDismiss = { showCrosshair = false }
+        )
+    }
+
     // P3E2: Add Waypoint sheet, opened by a long-press on the map above.
+    // v7: attachment options from the current context (Home = independent
+    // only; the picker row disappears entirely when no link is offered).
     pendingWaypointTap?.let { tap ->
+        val ctx = waypointContext
         com.nyasar.app.ui.waypoint.WaypointFormSheet(
             title = stringResource(R.string.new_waypoint),
             initialName = "",
@@ -586,8 +620,16 @@ fun HomeScreen(
             lat = tap.lat,
             lon = tap.lon,
             elevationM = tap.elevationM,
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = (ctx as? com.nyasar.app.ui.waypoint.WaypointContext.Route)?.routeId,
+                activityId = (ctx as? com.nyasar.app.ui.waypoint.WaypointContext.Recording)?.activityId
+            ),
+            initialLinkedRouteId = ctx.defaultRouteId,
+            initialLinkedActivityId = ctx.defaultActivityId,
             onDismiss = waypointViewModel::dismissPendingTap,
-            onSave = { name, category, note -> waypointViewModel.confirmAdd(name, category, note) }
+            onSave = { name, category, note, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmAdd(name, category, note, linkedRouteId, linkedActivityId)
+            }
         )
     }
 
@@ -620,8 +662,18 @@ fun HomeScreen(
             lat = wp.lat,
             lon = wp.lon,
             elevationM = wp.elevationM,
+            // From Home the only re-link option is this waypoint's own route
+            // (if it has one); GPX rows keep their intrinsic link locked.
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = wp.linkedRouteId
+            ),
+            initialLinkedRouteId = wp.linkedRouteId,
+            initialLinkedActivityId = wp.linkedActivityId,
+            lockAttachment = wp.source == com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX,
             onDismiss = waypointViewModel::dismissEditing,
-            onSave = { name, cat, note -> waypointViewModel.confirmEdit(name, cat, note) },
+            onSave = { name, cat, note, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmEditWithLinks(name, cat, note, linkedRouteId, linkedActivityId)
+            },
             onDelete = { waypointViewModel.deleteWaypoint(wp) }
         )
     }

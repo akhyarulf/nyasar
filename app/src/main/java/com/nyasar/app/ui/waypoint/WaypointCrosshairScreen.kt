@@ -23,22 +23,30 @@ import androidx.compose.ui.res.stringResource
 
 /**
  * Waypoint selection screen with crosshair in center of map.
- * 
+ *
  * Flow:
- * 1. User taps Waypoint button
+ * 1. User taps Waypoint button (wired from Home/RoutePreview/Recording v7)
  * 2. Crosshair appears in center of map
  * 3. User pans/zooms map to desired location
  * 4. Crosshair stays in center
  * 5. Coordinates update as map moves
  * 6. User taps Confirm to save waypoint
- * 
+ *
+ * v7: carries the caller's attachment context — [attachments] decides
+ * which "independent / link to route / link to activity" options the form
+ * offers, [initialLinkedRouteId]/[initialLinkedActivityId] preselect one
+ * (defaults follow the same context rules WaypointContext encodes).
+ *
  * UX similar to download area selection, but for a single point.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WaypointCrosshairScreen(
     initialLatLng: LatLng? = null,
-    onSave: (lat: Double, lon: Double, name: String, category: WaypointCategory) -> Unit,
+    attachments: WaypointAttachments = WaypointAttachments(),
+    initialLinkedRouteId: String? = null,
+    initialLinkedActivityId: String? = null,
+    onSave: (lat: Double, lon: Double, name: String, category: WaypointCategory, linkedRouteId: String?, linkedActivityId: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
@@ -46,12 +54,18 @@ fun WaypointCrosshairScreen(
     var waypointName by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(WaypointCategory.POI) }
     var showCategoryMenu by remember { mutableStateOf(false) }
+    var linkedRouteId by remember { mutableStateOf(initialLinkedRouteId) }
+    var linkedActivityId by remember { mutableStateOf(initialLinkedActivityId) }
     // Hoisted so onClick lambdas (non-composable scope) can use the
     // category's localized label as the default waypoint name.
     val selectedCategoryLabel = stringResource(selectedCategory.labelRes)
-    
+
     val provider = remember { TileProviderFactory.default() }
-    
+
+    // Rendered as a full-screen overlay from Home/RoutePreview/Recording —
+    // system back must close THIS screen, not pop the host destination.
+    androidx.activity.compose.BackHandler(onDismiss = onDismiss)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -69,7 +83,9 @@ fun WaypointCrosshairScreen(
                                     currentCenter.latitude,
                                     currentCenter.longitude,
                                     waypointName.ifBlank { selectedCategoryLabel },
-                                    selectedCategory
+                                    selectedCategory,
+                                    linkedRouteId,
+                                    linkedActivityId
                                 )
                             }
                         }
@@ -104,7 +120,7 @@ fun WaypointCrosshairScreen(
                     currentCenter = LatLng(lat, lon)
                 }
             )
-            
+
             // Crosshair in center
             Box(
                 modifier = Modifier
@@ -136,7 +152,7 @@ fun WaypointCrosshairScreen(
                     }
                 }
             }
-            
+
             // Bottom info panel
             AnimatedAppear(
                 modifier = Modifier
@@ -158,7 +174,7 @@ fun WaypointCrosshairScreen(
                 ) {
                     // Coordinates display
                     Text(
-                        "Koordinat",
+                        stringResource(R.string.coordinate),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -168,9 +184,9 @@ fun WaypointCrosshairScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    
+
                     Spacer(Modifier.height(16.dp))
-                    
+
                     // Waypoint name input
                     OutlinedTextField(
                         value = waypointName,
@@ -179,9 +195,9 @@ fun WaypointCrosshairScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    
+
                     Spacer(Modifier.height(12.dp))
-                    
+
                     // Category selection
                     Box {
                         OutlinedButton(
@@ -190,7 +206,7 @@ fun WaypointCrosshairScreen(
                         ) {
                             Text(stringResource(R.string.category) + ": ${stringResource(selectedCategory.labelRes)}")
                         }
-                        
+
                         DropdownMenu(
                             expanded = showCategoryMenu,
                             onDismissRequest = { showCategoryMenu = false }
@@ -206,9 +222,38 @@ fun WaypointCrosshairScreen(
                             }
                         }
                     }
-                    
+
+                    // Attachment selection (v7) — only when the caller offers
+                    // a link context; otherwise the waypoint is independent.
+                    if (attachments.hasOptions) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(stringResource(R.string.waypoint_attachment), style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.height(6.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            attachments.routeId?.let { rid ->
+                                AttachmentOption(
+                                    selected = linkedRouteId == rid,
+                                    label = stringResource(R.string.waypoint_attachment_route, attachments.routeName ?: stringResource(R.string.default_route_name)),
+                                    onClick = { linkedRouteId = rid; linkedActivityId = null }
+                                )
+                            }
+                            attachments.activityId?.let { aid ->
+                                AttachmentOption(
+                                    selected = linkedActivityId == aid,
+                                    label = stringResource(R.string.waypoint_attachment_activity, attachments.activityName ?: stringResource(R.string.activity_title_generic)),
+                                    onClick = { linkedActivityId = aid; linkedRouteId = null }
+                                )
+                            }
+                            AttachmentOption(
+                                selected = linkedRouteId == null && linkedActivityId == null,
+                                label = stringResource(R.string.waypoint_attachment_independent),
+                                onClick = { linkedRouteId = null; linkedActivityId = null }
+                            )
+                        }
+                    }
+
                     Spacer(Modifier.height(16.dp))
-                    
+
                     // Action buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -226,7 +271,7 @@ fun WaypointCrosshairScreen(
                             Spacer(Modifier.width(8.dp))
                             Text(stringResource(R.string.cancel))
                         }
-                        
+
                         Button(
                             onClick = {
                                 if (currentCenter.latitude != 0.0 || currentCenter.longitude != 0.0) {
@@ -234,7 +279,9 @@ fun WaypointCrosshairScreen(
                                         currentCenter.latitude,
                                         currentCenter.longitude,
                                         waypointName.ifBlank { selectedCategoryLabel },
-                                        selectedCategory
+                                        selectedCategory,
+                                        linkedRouteId,
+                                        linkedActivityId
                                     )
                                 }
                             },

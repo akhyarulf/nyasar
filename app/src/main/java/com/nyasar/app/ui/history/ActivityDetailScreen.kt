@@ -59,7 +59,10 @@ fun ActivityDetailScreen(
     waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel(),
     onBack: () -> Unit
 ) {
-    LaunchedEffect(activityId) { viewModel.load(activityId) }
+    LaunchedEffect(activityId) {
+        waypointViewModel.setContext(com.nyasar.app.ui.waypoint.WaypointContext.Recording(activityId = activityId, routeId = null))
+        viewModel.load(activityId)
+    }
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
@@ -390,6 +393,8 @@ fun ActivityDetailScreen(
     }
 
     // Edit sheet — reuses the same Add/Edit form HomeScreen uses.
+    // v7: this screen's re-link option = THIS activity (history context);
+    // GPX rows keep their intrinsic route link locked.
     editingWaypoint?.let { wp ->
         val category = com.nyasar.app.data.db.WaypointCategory.fromStorageValue(wp.category)
         com.nyasar.app.ui.waypoint.WaypointFormSheet(
@@ -400,9 +405,16 @@ fun ActivityDetailScreen(
             lat = wp.lat,
             lon = wp.lon,
             elevationM = wp.elevationM,
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                activityId = activityId,
+                activityName = state.activity?.name
+            ),
+            initialLinkedRouteId = wp.linkedRouteId,
+            initialLinkedActivityId = wp.linkedActivityId,
+            lockAttachment = wp.source == com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX,
             onDismiss = waypointViewModel::dismissEditing,
-            onSave = { name, cat, note ->
-                waypointViewModel.confirmEdit(name, cat, note)
+            onSave = { name, cat, note, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmEditWithLinks(name, cat, note, linkedRouteId, linkedActivityId)
                 viewModel.load(activityId)
             },
             onDelete = {

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -32,6 +33,8 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import kotlin.math.roundToInt
 import com.nyasar.app.R
+import com.nyasar.app.ui.waypoint.WaypointCrosshairScreen
+import com.nyasar.app.ui.waypoint.WaypointFormSheet
 import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -47,6 +50,16 @@ fun RoutePreviewScreen(
     LaunchedEffect(routeId) { viewModel.load(routeId) }
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel()
+    // v7: DB rows for this route (GPX-imported + user pins linked here) and
+    // independent pins — the two extra marker sources this screen feeds the
+    // map alongside the parsed-GPX layer.
+    val dbWaypoints by viewModel.dbWaypoints.collectAsState()
+    val userWaypoints by waypointViewModel.independentWaypoints.collectAsState()
+    val editingWaypointState by waypointViewModel.editingWaypoint.collectAsState()
+    LaunchedEffect(routeId) {
+        waypointViewModel.setContext(com.nyasar.app.ui.waypoint.WaypointContext.Route(routeId))
+    }
 
     // GPS state collection (mirrors HomeScreen pattern)
     val currentLocation by viewModel.currentLocation.collectAsState()
@@ -61,6 +74,10 @@ fun RoutePreviewScreen(
     LaunchedEffect(Unit) { viewModel.startLocationUpdatesIfPermitted() }
 
     var selectedWaypoint by remember { mutableStateOf<GpxWaypoint?>(null) }
+    // v7: DB-side selection (GPX-imported + linked/independent user pins)
+    // and the crosshair add-waypoint flow, context-seeded to THIS route.
+    var selectedDbWaypoint by remember { mutableStateOf<com.nyasar.app.data.db.WaypointEntity?>(null) }
+    var showCrosshair by remember { mutableStateOf(false) }
     // Highlight marker position when user scrubs the elevation chart
     var highlightLatLng by remember { mutableStateOf<LatLng?>(null) }
 
@@ -141,9 +158,26 @@ fun RoutePreviewScreen(
                     myRoutes = myRouteLines,
                     activeRouteId = routeId,
                     track = state.track,
-                    waypoints = state.waypoints,
+                    // v7 merge filter: the GPX layer keeps only waypoints
+                    // WITHOUT a DB counterpart for this route (name + coords
+                    // within WaypointEntity.GPX_COORD_MATCH_DEGREES) — every
+                    // merged one is already in dbWaypoints. Without this,
+                    // each imported waypoint would render twice (GPX icon +
+                    // DB marker) after the merge feature lands.
+                    waypoints = state.waypoints.filter { gpxWp ->
+                        dbWaypoints.none { db ->
+                            db.source == com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX &&
+                                db.name == gpxWp.name &&
+                                kotlin.math.abs(db.lat - gpxWp.lat) <= com.nyasar.app.data.db.WaypointEntity.GPX_COORD_MATCH_DEGREES &&
+                                kotlin.math.abs(db.lon - gpxWp.lon) <= com.nyasar.app.data.db.WaypointEntity.GPX_COORD_MATCH_DEGREES
+                        }
+                    },
+                    userWaypoints = dbWaypoints + userWaypoints,
                     highlightPoint = highlightLatLng,
                     onWaypointClick = { selectedWaypoint = it },
+                    onUserWaypointClick = { id ->
+                        (dbWaypoints + userWaypoints).firstOrNull { it.id == id }?.let { selectedDbWaypoint = it }
+                    },
                     onMapReady = { mapInstance = it },
                     onBearingChanged = { mapBearing = it },
                     // GPS user position + follow mode
@@ -186,6 +220,10 @@ fun RoutePreviewScreen(
                     // Layer button — opens Strava-style basemap grid sheet
                     RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
                         showBasemapSheet = true
+                    }
+                    // v7: add a waypoint pinned to THIS route (crosshair picker).
+                    RoundIconButton(icon = Icons.Default.Place, contentDescription = stringResource(R.string.add_waypoint_cd)) {
+                        showCrosshair = true
                     }
                     // Location button — center on user GPS position + toggle heading
                     RoundIconButton(
@@ -324,6 +362,45 @@ fun RoutePreviewScreen(
             onDismiss = { showBasemapSheet = false }
         )
     }
+
+    // v7 waypoint overlays (detail/crosshair/edit) — drawn above the Scaffold.
+    RoutePreviewWaypointOverlays(
+        selectedDbWaypoint = selectedDbWaypoint,
+        onDismissSelected = { selectedDbWaypoint = null },
+        onEditSelected = { wp ->
+            waypointViewModel.startEditing(wp)
+            selectedDbWaypoint = null
+        },
+        onDeleteSelected = { wp ->
+            waypointViewModel.deleteWaypoint(wp)
+            selectedDbWaypoint = null
+        },
+        distanceFromUserMeters = { wp ->
+            currentLocation?.let {
+                com.nyasar.app.navigation.GeoMath.distanceMeters(
+                    com.nyasar.app.navigation.LatLng(it.lat, it.lon),
+                    com.nyasar.app.navigation.LatLng(wp.lat, wp.lon)
+                )
+            }
+        },
+        showCrosshair = showCrosshair,
+        routeId = routeId,
+        routeName = state.name,
+        editingWaypoint = editingWaypointState,
+        onDismissEditing = { waypointViewModel.dismissEditing() },
+        onCrosshairDismiss = { showCrosshair = false },
+        onCrosshairSave = { lat, lon, name, category, linkedRouteId, linkedActivityId ->
+            waypointViewModel.confirmCrosshairWaypointFrom(
+                lat = lat, lon = lon, name = name, category = category,
+                note = null, linkedRouteId = linkedRouteId, linkedActivityId = linkedActivityId
+            )
+            showCrosshair = false
+        },
+        onEditSave = { name, cat, note, linkedRouteId, linkedActivityId ->
+            waypointViewModel.confirmEditWithLinks(name, cat, note, linkedRouteId, linkedActivityId)
+        },
+        onEditDelete = { wp -> waypointViewModel.deleteWaypoint(wp) }
+    )
 }
 
 @Composable
@@ -349,6 +426,81 @@ private fun RoundIconButton(
 @Composable
 private fun Stat(text: String) {
     Text(text, style = MaterialTheme.typography.bodyLarge)
+}
+
+// ---------------------------------------------------------------------------
+// v7 waypoint overlays. Composed AFTER the Scaffold so they draw on top of
+// it (a full-screen crosshair or bottom sheet emitted before the Scaffold
+// would be covered by it).
+// ---------------------------------------------------------------------------
+
+// v7: DB waypoint tap → the shared detail sheet (categorize/edit/delete
+// for GPX-imported rows too — the whole point of the merge).
+@Composable
+private fun RoutePreviewWaypointOverlays(
+    selectedDbWaypoint: com.nyasar.app.data.db.WaypointEntity?,
+    onDismissSelected: () -> Unit,
+    onEditSelected: (com.nyasar.app.data.db.WaypointEntity) -> Unit,
+    onDeleteSelected: (com.nyasar.app.data.db.WaypointEntity) -> Unit,
+    distanceFromUserMeters: (com.nyasar.app.data.db.WaypointEntity) -> Double?,
+    showCrosshair: Boolean,
+    routeId: String,
+    routeName: String?,
+    editingWaypoint: com.nyasar.app.data.db.WaypointEntity?,
+    onDismissEditing: () -> Unit,
+    onCrosshairDismiss: () -> Unit,
+    onCrosshairSave: (Double, Double, String, com.nyasar.app.data.db.WaypointCategory, String?, String?) -> Unit,
+    onEditSave: (String, com.nyasar.app.data.db.WaypointCategory, String?, String?, String?) -> Unit,
+    onEditDelete: (com.nyasar.app.data.db.WaypointEntity) -> Unit
+) {
+    selectedDbWaypoint?.let { wp ->
+        com.nyasar.app.ui.waypoint.WaypointDetailSheet(
+            waypoint = wp,
+            distanceFromUserMeters = distanceFromUserMeters(wp),
+            onDismiss = onDismissSelected,
+            onEdit = { onEditSelected(wp) },
+            onDelete = { onDeleteSelected(wp) }
+        )
+    }
+
+    if (showCrosshair) {
+        WaypointCrosshairScreen(
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = routeId,
+                routeName = routeName
+            ),
+            initialLinkedRouteId = routeId,
+            onSave = { lat, lon, name, category, linkedRouteId, linkedActivityId ->
+                onCrosshairSave(lat, lon, name, category, linkedRouteId, linkedActivityId)
+            },
+            onDismiss = onCrosshairDismiss
+        )
+    }
+
+    editingWaypoint?.let { wp ->
+        val category = com.nyasar.app.data.db.WaypointCategory.fromStorageValue(wp.category)
+        WaypointFormSheet(
+            title = stringResource(R.string.edit_waypoint),
+            initialName = wp.name,
+            initialCategory = category,
+            initialNote = wp.note ?: "",
+            lat = wp.lat,
+            lon = wp.lon,
+            elevationM = wp.elevationM,
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = routeId,
+                routeName = routeName
+            ),
+            initialLinkedRouteId = wp.linkedRouteId,
+            initialLinkedActivityId = wp.linkedActivityId,
+            lockAttachment = wp.source == com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX,
+            onDismiss = onDismissEditing,
+            onSave = { name, cat, note, linkedRouteId, linkedActivityId ->
+                onEditSave(name, cat, note, linkedRouteId, linkedActivityId)
+            },
+            onDelete = { onEditDelete(wp) }
+        )
+    }
 }
 
 /** Spec section 13: nama, koordinat, elevation, description saat waypoint dipilih. */

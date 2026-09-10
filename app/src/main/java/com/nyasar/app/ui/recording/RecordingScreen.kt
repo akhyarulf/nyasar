@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.PlayArrow
@@ -64,6 +65,7 @@ import com.nyasar.app.ui.theme.NyasarMotion
 import com.nyasar.app.ui.theme.NyasarRadius
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
+import com.nyasar.app.ui.waypoint.WaypointCrosshairScreen
 import android.Manifest
 import android.os.Build
 import com.nyasar.app.data.settings.SettingsRepository
@@ -378,9 +380,25 @@ fun RecordingScreen(
     // equality between the two screens).
     val provider by viewModel.provider.collectAsState()
     val userWaypoints by waypointViewModel.waypoints.collectAsState()
+    // v7: independent pins + waypoints linked to THIS session's activity
+    // (or its route while still IDLE) — other routes'/activities' pins stay
+    // out of the recording map. Explicit null checks on purpose: a null
+    // member in the session-id set would otherwise make `null in set`
+    // match every unlinked id field and leak OTHER routes' pins in.
+    val independentWaypoints by waypointViewModel.independentWaypoints.collectAsState()
+    val visibleUserWaypoints = buildList {
+        addAll(independentWaypoints)
+        addAll(userWaypoints.filter { wp ->
+            wp.source != com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX && (
+                (state.activityId != null && wp.linkedActivityId == state.activityId) ||
+                    (routeId != null && wp.linkedRouteId == routeId)
+                )
+        })
+    }.distinctBy { it.id }
     val pendingWaypointTap by waypointViewModel.pendingTap.collectAsState()
     val selectedWaypoint by waypointViewModel.selectedWaypoint.collectAsState()
     val editingWaypoint by waypointViewModel.editingWaypoint.collectAsState()
+    val waypointContext by waypointViewModel.context.collectAsState()
 
     // Part 3: the service can legitimately report STOPPED right after a
     // just-finished session (or a stray leftover from before this screen's
@@ -408,8 +426,23 @@ fun RecordingScreen(
     var previewRouteName by remember { mutableStateOf<String?>(null) }
     var previewTrack by remember { mutableStateOf<List<com.nyasar.app.gpx.model.TrackPoint>>(emptyList()) }
     var showSportFilterSheet by remember { mutableStateOf(false) }
+    // v7: full-screen crosshair picker state.
+    var showCrosshair by remember { mutableStateOf(false) }
     val pickerContext = androidx.compose.ui.platform.LocalContext.current
     val routeRepository = remember { com.nyasar.app.data.repository.RouteRepository(pickerContext) }
+
+    // v7: waypoint attachment context = the LIVE recording. While IDLE the
+    // activity row doesn't exist yet, so the context falls back to the
+    // attached route; once recording starts (state.activityId mints) the
+    // context switches to activity-linking automatically.
+    LaunchedEffect(state.activityId, routeId) {
+        waypointViewModel.setContext(
+            com.nyasar.app.ui.waypoint.WaypointContext.Recording(
+                activityId = state.activityId,
+                routeId = routeId
+            )
+        )
+    }
 
     LaunchedEffect(pendingSelectedRouteId) {
         val picked = pendingSelectedRouteId ?: return@LaunchedEffect
@@ -768,9 +801,9 @@ fun RecordingScreen(
             onUserGesture = viewModel::onUserPanned,
             onBearingChanged = { mapBearing = it },
             onMapReady = { mapInstance = it },
-            userWaypoints = userWaypoints,
+            userWaypoints = visibleUserWaypoints,
             onUserWaypointClick = { id ->
-                waypointViewModel.selectWaypoint(userWaypoints.firstOrNull { it.id == id })
+                waypointViewModel.selectWaypoint(visibleUserWaypoints.firstOrNull { it.id == id })
             },
             onMapLongPress = { lat, lon ->
                 waypointViewModel.onMapLongPress(lat, lon, state.recordedTrack.lastOrNull()?.elevationM)
@@ -904,6 +937,27 @@ fun RecordingScreen(
                 .safeDrawingPadding()
                 .padding(top = 12.dp, end = 12.dp)
         )
+
+        // v7: crosshair waypoint picker — saved pin links to the live
+        // activity (context set above), user can switch to independent
+        // in-form. IDLE: falls back to the attached route via context.
+        Surface(
+            onClick = { showCrosshair = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .safeDrawingPadding()
+                .padding(end = 12.dp, bottom = bottomClearance + 120.dp),
+            shape = CircleShape,
+            tonalElevation = 3.dp,
+            shadowElevation = 2.dp
+        ) {
+            Icon(
+                Icons.Default.Place,
+                contentDescription = stringResource(R.string.add_waypoint_cd),
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(14.dp)
+            )
+        }
 
         // Layer switcher — same pattern as HomeScreen: opens the Strava-style
         // BasemapPickerSheet (grid with thumbnails), positioned above the recenter button.
@@ -1294,10 +1348,30 @@ fun RecordingScreen(
         )
     }
 
+    // v7: crosshair picker — same screen the other map screens open.
+    if (showCrosshair) {
+        WaypointCrosshairScreen(
+            initialLatLng = if (state.currentLat != null && state.currentLon != null)
+                LatLng(state.currentLat, state.currentLon) else null,
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = routeId,
+                activityId = state.activityId
+            ),
+            initialLinkedRouteId = waypointContext.defaultRouteId,
+            initialLinkedActivityId = waypointContext.defaultActivityId,
+            onSave = { lat, lon, name, category, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmCrosshairWaypointFrom(lat, lon, name, category, null, linkedRouteId, linkedActivityId)
+                showCrosshair = false
+            },
+            onDismiss = { showCrosshair = false }
+        )
+    }
+
     // Same waypoint sheets as NavigationScreen (P3E3) — Add on long-press,
     // Detail on marker tap, Edit from Detail. Reused verbatim, no second
     // form/detail implementation.
     pendingWaypointTap?.let { tap ->
+        val ctx = waypointContext
         com.nyasar.app.ui.waypoint.WaypointFormSheet(
             title = stringResource(R.string.new_waypoint),
             initialName = "",
@@ -1306,8 +1380,17 @@ fun RecordingScreen(
             lat = tap.lat,
             lon = tap.lon,
             elevationM = tap.elevationM,
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = (ctx as? com.nyasar.app.ui.waypoint.WaypointContext.Recording)?.routeId
+                    ?: (ctx as? com.nyasar.app.ui.waypoint.WaypointContext.Route)?.routeId,
+                activityId = (ctx as? com.nyasar.app.ui.waypoint.WaypointContext.Recording)?.activityId
+            ),
+            initialLinkedRouteId = ctx.defaultRouteId,
+            initialLinkedActivityId = ctx.defaultActivityId,
             onDismiss = waypointViewModel::dismissPendingTap,
-            onSave = { name, category, note -> waypointViewModel.confirmAdd(name, category, note) }
+            onSave = { name, category, note, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmAdd(name, category, note, linkedRouteId, linkedActivityId)
+            }
         )
     }
 
@@ -1337,8 +1420,17 @@ fun RecordingScreen(
             lat = wp.lat,
             lon = wp.lon,
             elevationM = wp.elevationM,
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = routeId,
+                activityId = state.activityId
+            ),
+            initialLinkedRouteId = wp.linkedRouteId,
+            initialLinkedActivityId = wp.linkedActivityId,
+            lockAttachment = wp.source == com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX,
             onDismiss = waypointViewModel::dismissEditing,
-            onSave = { name, cat, note -> waypointViewModel.confirmEdit(name, cat, note) },
+            onSave = { name, cat, note, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmEditWithLinks(name, cat, note, linkedRouteId, linkedActivityId)
+            },
             onDelete = { waypointViewModel.deleteWaypoint(wp) }
         )
     }

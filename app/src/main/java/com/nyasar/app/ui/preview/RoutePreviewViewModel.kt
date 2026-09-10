@@ -3,7 +3,9 @@ package com.nyasar.app.ui.preview
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nyasar.app.data.db.WaypointEntity
 import com.nyasar.app.data.repository.RouteRepository
+import com.nyasar.app.data.repository.WaypointRepository
 import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.gpx.model.GpxWaypoint
 import com.nyasar.app.gpx.model.TrackPoint
@@ -47,6 +49,7 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = RouteRepository(app)
     private val settingsRepository = SettingsRepository(app)
     private val locationRepository = LocationRepository(app)
+    private val waypointRepository = WaypointRepository(app)
 
     private val _uiState = MutableStateFlow(RoutePreviewUiState())
     val uiState: StateFlow<RoutePreviewUiState> = _uiState.asStateFlow()
@@ -131,6 +134,19 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // v7: DB waypoints for THIS route (GPX-imported rows + user pins linked
+    // from preview) — reactive, so a categorize/edit/delete made right here
+    // updates the markers without re-parsing the GPX file.
+    private val _currentRouteId = MutableStateFlow<String?>(null)
+    internal val currentRouteId: StateFlow<String?> = _currentRouteId.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val dbWaypoints: StateFlow<List<WaypointEntity>> = currentRouteId
+        .flatMapLatest { id ->
+            if (id != null) waypointRepository.observeForRoute(id) else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private var locationStarted = false
 
     fun startLocationUpdatesIfPermitted() {
@@ -167,6 +183,25 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
     fun load(routeId: String) {
         viewModelScope.launch {
             val route = repository.getRoute(routeId) ?: return@launch
+            _currentRouteId.value = routeId
+
+            // v7 backfill (idempotent): routes imported BEFORE the merge
+            // feature have their waypoints only in the file. Previewing one
+            // imports them into the DB once; importFromGpx's content dedup
+            // makes every later call a no-op, so repeated opens can never
+            // stack duplicates.
+            try {
+                val parsed = repository.loadDocument(route)
+                waypointRepository.importFromGpx(
+                    routeId = routeId,
+                    waypoints = parsed.waypoints,
+                    isBackfill = true
+                )
+            } catch (_: Exception) {
+                // corrupt/unreadable file: load() below already handles the
+                // missing document gracefully.
+            }
+
             val doc = repository.loadDocument(route)
             val settings = settingsRepository.settings.first()
             _uiState.value = RoutePreviewUiState(

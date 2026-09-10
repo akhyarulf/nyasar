@@ -127,10 +127,17 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
                 // endedAtEpochMs is null only while the activity is still
                 // recording/paused (see ActivityEntity) — "now" is the
                 // correct upper bound in that case, not a fabricated one.
-                val waypointsDuring = waypointRepository.getCreatedBetween(
+                // v7: union of (a) pins CREATED during the session window
+                // (user drops, honest time-window approximation) and (b)
+                // rows explicitly LINKED to this activity (v7 attachment) —
+                // deduped by id since a drop during a linked session lands
+                // in both sets.
+                val createdDuring = waypointRepository.getCreatedBetween(
                     activity.startedAtEpochMs,
                     activity.endedAtEpochMs ?: System.currentTimeMillis()
                 )
+                val linkedToActivity = waypointRepository.getForActivity(activity.id)
+                val waypointsDuring = (createdDuring + linkedToActivity).distinctBy { it.id }
                 val settings = settingsRepository.settings.first()
 
                 val plannedRoute = activity.routeId?.let { routeId ->
@@ -213,6 +220,14 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
             // activity, not linger as orphans — done before the points/row
             // delete below, mirroring the existing points-then-row order.
             photoRepository.deleteAllForActivity(activity.id)
+            // v7: waypoints linked to this activity are unlinked (kept as
+            // independent) — deleting an activity must not destroy the
+            // user's own pins.
+            try {
+                waypointRepository.onActivityDeleted(activity.id)
+            } catch (_: Exception) {
+                // never block activity deletion on waypoint cleanup
+            }
             dao.deletePointsForActivity(activity.id)
             dao.deleteById(activity.id)
             onDeleted()

@@ -65,13 +65,21 @@ fun NavigationScreen(
     waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel(),
     onExit: () -> Unit
 ) {
-    LaunchedEffect(routeId) { viewModel.start(routeId) }
+    LaunchedEffect(routeId) {
+        waypointViewModel.setContext(com.nyasar.app.ui.waypoint.WaypointContext.Route(routeId))
+        viewModel.start(routeId)
+    }
     val state by viewModel.uiState.collectAsState()
     val cameraMode by viewModel.cameraMode.collectAsState()
     val followMode by viewModel.followMode.collectAsState()
     val rotateWithHeading by viewModel.rotateWithHeading.collectAsState()
     val recordingState by recordingViewModel.uiState.collectAsState()
     val userWaypoints by waypointViewModel.waypoints.collectAsState()
+    // v7: GPX waypoints now ALSO live in the DB (source=GPX) — the map layer
+    // already shows them via state.waypoints, so exclude GPX rows here or
+    // every imported pin would render twice. Navigation's next-waypoint
+    // engine (NavigationViewModel) applies the same exclusion internally.
+    val dbUserWaypoints = userWaypoints.filter { it.source != com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX }
     val pendingWaypointTap by waypointViewModel.pendingTap.collectAsState()
     val selectedWaypoint by waypointViewModel.selectedWaypoint.collectAsState()
     val editingWaypoint by waypointViewModel.editingWaypoint.collectAsState()
@@ -107,9 +115,9 @@ fun NavigationScreen(
             // list otherwise, so this is a no-op for plain navigation.
             actualTrack = if (withRecording) recordingState.recordedTrack else emptyList(),
             waypoints = state.waypoints,
-            userWaypoints = userWaypoints,
+            userWaypoints = dbUserWaypoints,
             onUserWaypointClick = { id ->
-                waypointViewModel.selectWaypoint(userWaypoints.firstOrNull { it.id == id })
+                waypointViewModel.selectWaypoint(dbUserWaypoints.firstOrNull { it.id == id })
             },
             onMapLongPress = { lat, lon ->
                 waypointViewModel.onMapLongPress(lat, lon, state.currentElevationM)
@@ -284,8 +292,13 @@ fun NavigationScreen(
             lat = tap.lat,
             lon = tap.lon,
             elevationM = tap.elevationM,
+            // Navigation context: default (and only route option) = THIS route.
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(routeId = routeId),
+            initialLinkedRouteId = routeId,
             onDismiss = waypointViewModel::dismissPendingTap,
-            onSave = { name, category, note -> waypointViewModel.confirmAdd(name, category, note) }
+            onSave = { name, category, note, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmAdd(name, category, note, linkedRouteId, linkedActivityId)
+            }
         )
     }
 
@@ -318,8 +331,14 @@ fun NavigationScreen(
             lat = wp.lat,
             lon = wp.lon,
             elevationM = wp.elevationM,
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(routeId = routeId),
+            initialLinkedRouteId = wp.linkedRouteId,
+            initialLinkedActivityId = wp.linkedActivityId,
+            lockAttachment = wp.source == com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX,
             onDismiss = waypointViewModel::dismissEditing,
-            onSave = { name, cat, note -> waypointViewModel.confirmEdit(name, cat, note) },
+            onSave = { name, cat, note, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmEditWithLinks(name, cat, note, linkedRouteId, linkedActivityId)
+            },
             onDelete = { waypointViewModel.deleteWaypoint(wp) }
         )
     }

@@ -391,6 +391,17 @@
     <string name="waypoint_cat_poi">POI</string>
     <string name="waypoint_cat_custom">Other</string>
 
+    <!-- v7: waypoint attachment (route/activity/independent) + GPX merge -->
+    <string name="waypoint_attachment">Attachment</string>
+    <string name="waypoint_attachment_independent">Independent</string>
+    <string name="waypoint_attachment_route">Link to this route (%1$s)</string>
+    <string name="waypoint_attachment_activity">Link to this activity (%1$s)</string>
+    <string name="waypoint_attached_to_route">Linked to route</string>
+    <string name="waypoint_attached_to_activity">Linked to activity</string>
+    <string name="waypoint_source_gpx">From GPX</string>
+    <string name="activity_title_generic">Activity</string>
+    <string name="add_waypoint_cd">Add waypoint</string>
+
     <!-- Basemap picker sheet -->
     <string name="overlays_title">Overlays</string>
     <string name="overlays_subtitle">Waymarked Trails · My Routes</string>

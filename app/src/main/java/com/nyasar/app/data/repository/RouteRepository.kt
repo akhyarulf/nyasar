@@ -27,6 +27,7 @@ import java.util.UUID
 class RouteRepository(private val context: Context) {
 
     private val dao = AppDatabase.get(context).routeDao()
+    private val waypointDao = AppDatabase.get(context).waypointDao()
     private val parser = GpxParser()
 
     private val routesDir: File by lazy {
@@ -132,7 +133,33 @@ class RouteRepository(private val context: Context) {
             lastOpenedAtEpochMs = null
         )
         dao.insert(entity)
+        mergeGpxWaypoints(routeId = id, gpxWaypoints = doc.waypoints)
         entity
+    }
+
+    /**
+     * v7: GPX waypoints become first-class [com.nyasar.app.data.db.WaypointEntity]
+     * rows (source=GPX, linkedRouteId=this route) instead of living only
+     * inside the file. Dedup lives in WaypointRepository.importFromGpx —
+     * a same-name+same-coordinates GPX row anywhere in the table blocks a
+     * second creation, so re-importing the same file (always a NEW route id)
+     * or previewing an old route repeatedly never stacks duplicates.
+     *
+     * Kept as a private helper: importFromUri (already on Dispatchers.IO)
+     * calls it inline. Backfill for OLDER routes happens when their preview
+     * is actually opened (RoutePreviewViewModel), not in loadDocument —
+     * that one also feeds the Jalur Saya overlay parse loop, where a dedup
+     * probe per route per refresh would be pure waste. Failures degrade to "waypoints only in the
+     * file" — the pre-v7 behavior — never a failed import.
+     */
+    private suspend fun mergeGpxWaypoints(routeId: String, gpxWaypoints: List<com.nyasar.app.gpx.model.GpxWaypoint>) {
+        if (gpxWaypoints.isEmpty()) return
+        try {
+            WaypointRepository(context).importFromGpx(routeId, gpxWaypoints)
+        } catch (_: Exception) {
+            // Dedup probe/insert failed (disk full, DB busy): waypoints stay
+            // readable from the GPX file itself, as they always were.
+        }
     }
 
     /**
@@ -225,6 +252,14 @@ class RouteRepository(private val context: Context) {
     }
 
     suspend fun delete(route: RouteEntity) = withContext(Dispatchers.IO) {
+        // v7: waypoints tied to this route are cleaned up BEFORE the route
+        // row goes — GPX-imported ones are route data (deleted), user pins
+        // merely linked to it survive as independent waypoints.
+        try {
+            WaypointRepository(context).onRouteDeleted(route.id)
+        } catch (_: Exception) {
+            // never block route deletion on waypoint cleanup
+        }
         File(route.localGpxFilePath).delete()
         dao.delete(route)
     }

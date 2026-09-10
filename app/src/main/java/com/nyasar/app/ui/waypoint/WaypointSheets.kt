@@ -67,7 +67,7 @@ fun WaypointFormSheet(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text(stringResource(R.string.waypoint_name)) },
-                placeholder = { Text(category.label) },
+                placeholder = { Text(stringResource(category.labelRes)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -149,7 +149,7 @@ private fun CategoryChip(category: WaypointCategory, selected: Boolean, onClick:
                     .background(category.color)
             )
             Spacer(Modifier.width(6.dp))
-            Text(category.label, style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(category.labelRes), style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -188,7 +188,7 @@ fun WaypointDetailSheet(
                 Spacer(Modifier.width(10.dp))
                 Column {
                     Text(waypoint.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(category.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(category.labelRes), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 

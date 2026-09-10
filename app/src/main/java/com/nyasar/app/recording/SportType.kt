@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Sports
 import androidx.compose.material.icons.filled.WheelchairPickup
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.nyasar.app.R
 
 /**
  * Metric utama yang ditonjolkan di share card per jenis olahraga.

@@ -51,7 +51,7 @@ data class TrackAndMapsUiState(
  * per-track "does an offline map already cover this area" cross-check,
  * which nothing in the codebase computed before this screen needed it.
  */
-class TrackAndMapsViewModel(app: Application) : AndroidViewModel(app) {
+class TrackAndMapsViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private val routeRepository = RouteRepository(app)
     private val offlineMapManager = OfflineMapManager(app)

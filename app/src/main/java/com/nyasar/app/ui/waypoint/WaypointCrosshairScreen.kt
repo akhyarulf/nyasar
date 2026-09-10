@@ -46,6 +46,9 @@ fun WaypointCrosshairScreen(
     var waypointName by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(WaypointCategory.POI) }
     var showCategoryMenu by remember { mutableStateOf(false) }
+    // Hoisted so onClick lambdas (non-composable scope) can use the
+    // category's localized label as the default waypoint name.
+    val selectedCategoryLabel = stringResource(selectedCategory.labelRes)
     
     val provider = remember { TileProviderFactory.default() }
     
@@ -65,7 +68,7 @@ fun WaypointCrosshairScreen(
                                 onSave(
                                     currentCenter.latitude,
                                     currentCenter.longitude,
-                                    waypointName.ifBlank { stringResource(selectedCategory.labelRes) },
+                                    waypointName.ifBlank { selectedCategoryLabel },
                                     selectedCategory
                                 )
                             }
@@ -194,7 +197,7 @@ fun WaypointCrosshairScreen(
                         ) {
                             WaypointCategory.entries.forEach { category ->
                                 DropdownMenuItem(
-                                    text = { Text(category.label) },
+                                    text = { Text(stringResource(category.labelRes)) },
                                     onClick = {
                                         selectedCategory = category
                                         showCategoryMenu = false
@@ -230,7 +233,7 @@ fun WaypointCrosshairScreen(
                                     onSave(
                                         currentCenter.latitude,
                                         currentCenter.longitude,
-                                        waypointName.ifBlank { stringResource(selectedCategory.labelRes) },
+                                        waypointName.ifBlank { selectedCategoryLabel },
                                         selectedCategory
                                     )
                                 }

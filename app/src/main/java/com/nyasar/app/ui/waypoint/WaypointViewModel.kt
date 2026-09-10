@@ -81,7 +81,7 @@ class WaypointViewModel(app: Application) : AndroidViewModel(app) {
         _pendingTap.value = null
         viewModelScope.launch {
             repository.create(
-                name = name.ifBlank { category.label },
+                name = name.ifBlank { getApplication<Application>().getString(category.labelRes) },
                 category = category,
                 lat = tap.lat,
                 lon = tap.lon,
@@ -95,7 +95,7 @@ class WaypointViewModel(app: Application) : AndroidViewModel(app) {
         val waypoint = _editingWaypoint.value ?: return
         _editingWaypoint.value = null
         viewModelScope.launch {
-            repository.update(waypoint, name.ifBlank { category.label }, category, note)
+            repository.update(waypoint, name.ifBlank { getApplication<Application>().getString(category.labelRes) }, category, note)
         }
     }
 
@@ -123,7 +123,7 @@ class WaypointViewModel(app: Application) : AndroidViewModel(app) {
         val position = _crosshairPosition.value ?: return
         viewModelScope.launch {
             repository.create(
-                name = name.ifBlank { category.label },
+                name = name.ifBlank { getApplication<Application>().getString(category.labelRes) },
                 category = category,
                 lat = position.latitude,
                 lon = position.longitude,

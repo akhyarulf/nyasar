@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Cabin
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.nyasar.app.R
 
 /**
  * Minimal category set from spec P3E2, each with a distinct icon+color so

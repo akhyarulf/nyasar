@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -60,6 +61,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nyasar.app.R
 import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.OverlayLayer
 import com.nyasar.app.map.providers.TileProviderFactory
@@ -137,7 +139,7 @@ fun BasemapPickerSheet(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
         ) {
-            Text("Jenis Peta", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.map_types_title), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(16.dp))
 
             // Shared tile-width formula for both rows — "exactly 4 visible
@@ -167,9 +169,9 @@ fun BasemapPickerSheet(
             Spacer(Modifier.height(24.dp))
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
-            Text("Overlays", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.overlays_title), style = MaterialTheme.typography.titleLarge)
             Text(
-                "Waymarked Trails · Jalur Saya",
+                stringResource(R.string.overlays_subtitle),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -327,7 +329,7 @@ private fun OverlayTile(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            overlay.displayName,
+            stringResource(overlay.labelRes),
             style = MaterialTheme.typography.labelMedium,
             color = if (isChecked) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,

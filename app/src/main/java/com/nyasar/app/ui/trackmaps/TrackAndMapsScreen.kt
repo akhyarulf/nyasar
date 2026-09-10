@@ -240,8 +240,8 @@ private fun TrackRow(row: TrackRowUi, onClick: () -> Unit) {
     val rowInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val km = row.route.distanceMeters / 1000.0
     val statusText = when (row.hasOfflineCoverage) {
-        true -> "\u2713 Siap dipakai offline"
-        false -> "Belum lengkap"
+        true -> "\u2713 " + stringResource(R.string.offline_ready)
+        false -> stringResource(R.string.offline_incomplete)
         null -> stringResource(R.string.checking_status)
     }
     ListItem(

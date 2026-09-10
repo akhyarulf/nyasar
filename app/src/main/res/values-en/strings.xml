@@ -9,6 +9,7 @@
     <string name="nav_record">Record</string>
     <string name="nav_history">History</string>
     <string name="nav_settings">Settings</string>
+    <string name="nav_navigation">Navigation</string>
 
     <!-- Home Screen -->
     <string name="search_route">Search route…</string>
@@ -322,6 +323,86 @@
     <string name="gpx_saved">GPX saved</string>
     <string name="gpx_save_failed">Failed to save GPX</string>
     <string name="gpx_create_failed">Failed to create GPX file</string>
+
+    <!-- Notifications (RecordingService / NavigationService) -->
+    <string name="notif_starting">Starting recording…</string>
+    <string name="notif_restoring">Restoring recording…</string>
+    <string name="notif_restoring_body">Loading activity data</string>
+    <string name="notif_resumed">Recording resumed</string>
+    <string name="notif_started">Recording started</string>
+    <string name="notif_paused">Recording paused</string>
+    <string name="notif_active">Recording active</string>
+    <string name="notif_auto_paused">Recording auto-paused</string>
+    <string name="notif_navigation_active">Navigation active</string>
+    <string name="notif_channel_recording">Recording</string>
+    <string name="notif_channel_navigation">Navigation</string>
+
+    <!-- Offline maps -->
+    <string name="offline_tile_limit">Offline tile limit exceeded (%1$d)</string>
+    <string name="offline_unknown_error">Unknown offline download error</string>
+    <string name="offline_state_checking">Checking offline map…</string>
+    <string name="offline_map_unnamed">Unnamed map</string>
+    <string name="offline_ready">Ready for offline use</string>
+    <string name="offline_incomplete">Incomplete</string>
+    <string name="offline_map_available">This map is available for offline use.</string>
+    <string name="estimated_size">Estimated size: %1$s</string>
+
+    <!-- GPX import errors -->
+    <string name="cannot_open_gpx">Cannot open the selected GPX file.</string>
+    <string name="route_min_points">Route needs at least 2 points.</string>
+    <string name="default_route_name">Route</string>
+    <string name="import_gpx_failed">Failed to import GPX: %1$s</string>
+    <string name="route_default_name">New Route</string>
+
+    <!-- Share card labels (rendered on bitmap) -->
+    <string name="share_stat_distance">Distance</string>
+    <string name="share_stat_time">Time</string>
+    <string name="share_stat_pace">Pace</string>
+    <string name="share_stat_elev_gain">Elev Gain</string>
+    <string name="share_stat_max_speed">Max Speed</string>
+    <string name="share_stat_points">Points</string>
+    <string name="share_stat_duration">Duration</string>
+
+    <!-- Share card template picker -->
+    <string name="share_tpl_map">Map</string>
+    <string name="share_tpl_stats">Stats</string>
+    <string name="share_tpl_dark">Dark</string>
+    <string name="share_tpl_route">Route</string>
+    <string name="share_tpl_grid">Grid</string>
+    <string name="share_tpl_minimal">Minimal</string>
+
+    <!-- Sport types -->
+    <string name="sport_run">Run</string>
+    <string name="sport_trail_run">Trail Run</string>
+    <string name="sport_walk">Walk</string>
+    <string name="sport_hike">Hike</string>
+    <string name="sport_wheelchair">Wheelchair</string>
+    <string name="sport_ride">Ride</string>
+    <string name="sport_category_foot">Foot Sports</string>
+    <string name="sport_category_cycle">Cycle Sports</string>
+
+    <!-- Waypoint categories -->
+    <string name="waypoint_cat_summit">Summit</string>
+    <string name="waypoint_cat_water">Water Source</string>
+    <string name="waypoint_cat_shelter">Shelter</string>
+    <string name="waypoint_cat_campsite">Camp</string>
+    <string name="waypoint_cat_danger">Danger</string>
+    <string name="waypoint_cat_parking">Parking</string>
+    <string name="waypoint_cat_poi">POI</string>
+    <string name="waypoint_cat_custom">Other</string>
+
+    <!-- Basemap picker sheet -->
+    <string name="overlays_title">Overlays</string>
+    <string name="overlays_subtitle">Waymarked Trails · My Routes</string>
+    <string name="overlay_hiking">Hiking</string>
+    <string name="overlay_cycling">Cycling</string>
+    <string name="overlay_mtb">MTB</string>
+
+    <!-- Offline download screen -->
+    <string name="offline_free_area_hint">Drag and zoom the map to choose the area to download — the area inside the box will be available offline.</string>
+    <string name="offline_route_area_hint">The area around track \"%1$s\" will be downloaded for offline use. Drag/zoom to adjust the area.</string>
+    <string name="offline_size_tiles">of %1$d tiles</string>
+    <string name="offline_default_area_name">Area</string>
     <string name="camera_storage_error">Cannot open camera — storage problem</string>
     <string name="route_planned">Planned route</string>
     <string name="track_actual">Actual track</string>

@@ -160,9 +160,9 @@ fun OfflineDownloadScreen(
                 Column(Modifier.padding(16.dp).fillMaxWidth()) {
                     Text(
                         if (isFreeArea) {
-                            "Geser dan zoom map untuk memilih area yang ingin diunduh — area di dalam kotak akan tersedia offline."
+                            stringResource(R.string.offline_free_area_hint)
                         } else {
-                            "Area sekitar track \"${state.routeName ?: ""}\" akan diunduh untuk digunakan tanpa internet. Anda bisa menggeser/zoom untuk mengubah area."
+                            stringResource(R.string.offline_route_area_hint, state.routeName ?: "")
                         },
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -173,7 +173,7 @@ fun OfflineDownloadScreen(
                             // never state a size as if it were exact, since
                             // real tile weight varies a lot by style/zoom
                             // content density (see formatEstimatedSize doc).
-                            "Perkiraan ukuran: ${formatEstimatedSize(count)}",
+                            stringResource(R.string.estimated_size, formatEstimatedSize(count, stringResource(R.string.offline_size_tiles, count))),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -268,17 +268,17 @@ fun OfflineDownloadScreen(
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                state.routeName ?: state.areaName.trim().ifBlank { "Area" },
+                                state.routeName ?: state.areaName.trim().ifBlank { stringResource(R.string.offline_default_area_name) },
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Text(
-                                "Perkiraan ukuran: ${formatBytes(state.completedSizeBytes)}",
+                                stringResource(R.string.estimated_size, formatBytes(state.completedSizeBytes)),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "Peta ini tersedia untuk penggunaan offline.",
+                                stringResource(R.string.offline_map_available),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Spacer(Modifier.height(12.dp))
@@ -308,9 +308,9 @@ fun OfflineDownloadScreen(
  *  content density, but a ballpark beats no number at all (spec §22).
  *  Framed explicitly as an estimate ("~X MB"), never a bare/implied-exact
  *  figure. */
-private fun formatEstimatedSize(tileCount: Int): String {
+private fun formatEstimatedSize(tileCount: Int, tilesSuffix: String): String {
     val estimatedMb = tileCount * 0.015 // ~15KB/tile rough average for vector styles
-    return if (estimatedMb >= 1) "~%.0f MB (dari $tileCount tile)".format(estimatedMb) else "< 1 MB"
+    return if (estimatedMb >= 1) "~%.0f MB $tilesSuffix".format(estimatedMb) else "< 1 MB"
 }
 
 /** Real, measured size from OfflineRegionStatus — used once a download is

@@ -176,7 +176,16 @@ fun ShareCardScreen(
                             }
                             Image(
                                 bitmap = bmp.asImageBitmap(),
-                                contentDescription = ShareCardGenerator.templateLabel(tpl),
+                                contentDescription = stringResource(
+                                    when (tpl) {
+                                        "map" -> R.string.share_tpl_map
+                                        "stats" -> R.string.share_tpl_stats
+                                        "dark_card" -> R.string.share_tpl_dark
+                                        "route" -> R.string.share_tpl_route
+                                        "grid" -> R.string.share_tpl_grid
+                                        else -> R.string.share_tpl_minimal
+                                    }
+                                ),
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Fit
                             )

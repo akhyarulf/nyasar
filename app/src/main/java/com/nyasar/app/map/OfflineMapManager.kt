@@ -22,6 +22,11 @@ import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
  */
 class OfflineMapManager(context: Context) {
 
+    // Kept for localized error strings in the download callbacks below
+    // (maplibre's OfflineRegionError.message is an opaque English string,
+    // and the tile-limit message is built here).
+    private val appContext = context.applicationContext
+
     private val offlineManager = OfflineManager.getInstance(context)
 
     interface DownloadCallback {
@@ -73,11 +78,14 @@ class OfflineMapManager(context: Context) {
                         }
 
                         override fun onError(error: OfflineRegionError) {
-                            callback.onError(error.message ?: "Unknown offline download error")
+                            callback.onError(error.message
+                                ?: appContext.getString(com.nyasar.app.R.string.offline_unknown_error))
                         }
 
                         override fun mapboxTileCountLimitExceeded(limit: Long) {
-                            callback.onError("Batas jumlah tile offline terlampaui ($limit)")
+                            callback.onError(appContext.getString(
+                                com.nyasar.app.R.string.offline_tile_limit, limit
+                            ))
                         }
                     })
                 }
@@ -133,11 +141,14 @@ class OfflineMapManager(context: Context) {
             }
 
             override fun onError(error: OfflineRegionError) {
-                callback.onError(error.message ?: "Unknown offline download error")
+                callback.onError(error.message
+                    ?: appContext.getString(com.nyasar.app.R.string.offline_unknown_error))
             }
 
             override fun mapboxTileCountLimitExceeded(limit: Long) {
-                callback.onError("Batas jumlah tile offline terlampaui ($limit)")
+                callback.onError(appContext.getString(
+                    com.nyasar.app.R.string.offline_tile_limit, limit
+                ))
             }
         })
         region.setDownloadState(OfflineRegion.STATE_ACTIVE)

@@ -1,5 +1,7 @@
 package com.nyasar.app.map
 
+import com.nyasar.app.R
+
 /**
  * Waymarked Trails overlay layers (waymarkedtrails.org) — the "Overlays"
  * section in GPX Studio's Basemaps panel that Nyasar didn't have yet.
@@ -20,31 +22,31 @@ package com.nyasar.app.map
  * own domain).
  *
  * @param id stable id (persistence key + MapLibre source/layer id suffix).
- * @param displayName shown in the overlay picker.
+ * @param labelRes picker label as a string resource (locale-aware).
  * @param rasterUrl XYZ template, {z}/{x}/{y}.png — served pre-rendered
  *        with transparency already baked in (no separate style needed).
  * @param maxZoom Waymarked Trails serves up to 18 for all three layers.
  */
 enum class OverlayLayer(
     val id: String,
-    val displayName: String,
+    val labelRes: Int,
     val rasterUrl: String,
     val maxZoom: Int = 18,
     val attribution: String = "Waymarked Trails, OpenStreetMap contributors"
 ) {
     HIKING(
         id = "waymarked_hiking",
-        displayName = "Hiking",
+        labelRes = R.string.overlay_hiking,
         rasterUrl = "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"
     ),
     CYCLING(
         id = "waymarked_cycling",
-        displayName = "Cycling",
+        labelRes = R.string.overlay_cycling,
         rasterUrl = "https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png"
     ),
     MTB(
         id = "waymarked_mtb",
-        displayName = "MTB",
+        labelRes = R.string.overlay_mtb,
         rasterUrl = "https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png"
     )
 }

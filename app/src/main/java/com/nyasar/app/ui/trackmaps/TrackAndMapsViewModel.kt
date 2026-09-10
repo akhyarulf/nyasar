@@ -2,6 +2,7 @@ package com.nyasar.app.ui.trackmaps
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.nyasar.app.R
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.data.db.RouteEntity
 import com.nyasar.app.data.repository.RouteRepository
@@ -115,7 +116,7 @@ class TrackAndMapsViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: com.nyasar.app.gpx.GpxParseException) {
                 _importError.value = e.message
             } catch (e: Exception) {
-                _importError.value = "Gagal mengimpor GPX: ${e.message}"
+                _importError.value = app.getString(com.nyasar.app.R.string.import_gpx_failed, e.message ?: "")
             }
         }
     }
@@ -179,9 +180,9 @@ class TrackAndMapsViewModel(app: Application) : AndroidViewModel(app) {
             offlineMapManager.listRegions { regions ->
                 val infos = regions.mapNotNull { region ->
                     val name = try {
-                        region.metadata?.let { String(it) }?.takeIf { it.isNotBlank() } ?: "Peta tanpa nama"
+                        region.metadata?.let { String(it) }?.takeIf { it.isNotBlank() } ?: app.getString(R.string.offline_map_unnamed)
                     } catch (e: Exception) {
-                        "Peta tanpa nama"
+                        app.getString(R.string.offline_map_unnamed)
                     }
                     val bounds = try {
                         (region.definition as? org.maplibre.android.offline.OfflineTilePyramidRegionDefinition)?.bounds

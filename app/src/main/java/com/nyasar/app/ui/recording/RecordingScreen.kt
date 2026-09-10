@@ -619,7 +619,7 @@ fun RecordingScreen(
                     shadowElevation = 2.dp
                 ) {
                     Text(
-                        "⚠ Gagal menyimpan data — storage penuh?",
+                        stringResource(R.string.storage_error),
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium
@@ -1295,7 +1295,7 @@ private fun RecordingControls(
                         label = "sportLabel"
                     ) { animatedSport ->
                         Text(
-                            animatedSport.label,
+                            stringResource(animatedSport.labelRes),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.8f)
                         )

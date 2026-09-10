@@ -40,7 +40,7 @@ fun SportFilterSheet(
             SportType.entries
         } else {
             SportType.entries.filter { 
-                it.label.contains(searchQuery, ignoreCase = true) 
+                it.enLabel.contains(searchQuery, ignoreCase = true) 
             }
         }
     }
@@ -114,7 +114,7 @@ fun SportFilterSheet(
                 groupedSports.forEach { (category, sports) ->
                     item {
                         Text(
-                            category.displayName,
+                            stringResource(category.titleRes),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
@@ -149,7 +149,7 @@ private fun SportListItem(
     ) {
         Icon(
             sport.icon,
-            contentDescription = sport.label,
+            contentDescription = stringResource(sport.labelRes),
             tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
             modifier = Modifier.size(24.dp)
         )
@@ -157,7 +157,7 @@ private fun SportListItem(
         Spacer(modifier = Modifier.width(16.dp))
         
         Text(
-            sport.label,
+            stringResource(sport.labelRes),
             style = MaterialTheme.typography.bodyLarge,
             color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
             modifier = Modifier.weight(1f)

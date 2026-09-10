@@ -203,7 +203,7 @@ private fun ActivityCard(
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text(
-                            SportType.fromString(activity.sportType).label,
+                            stringResource(SportType.fromString(activity.sportType).labelRes),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -223,7 +223,7 @@ private fun ActivityCard(
                 // 3-column stat row — sport-aware: middle column is Pace for running, Elev Gain for hiking
                 Row(Modifier.fillMaxWidth()) {
                     StatColumn(
-                        label = "Distance",
+                        label = stringResource(R.string.distance),
                         value = "%.2f km".format(activity.distanceMeters / 1000.0),
                         modifier = Modifier.weight(1f)
                     )
@@ -235,16 +235,16 @@ private fun ActivityCard(
                             val ps = ((paceMinPerKm - pm) * 60).toInt()
                             "%d:%02d /km".format(pm, ps)
                         } else "- /km"
-                        StatColumn(label = "Pace", value = pace, modifier = Modifier.weight(1f))
+                        StatColumn(label = stringResource(R.string.pace), value = pace, modifier = Modifier.weight(1f))
                     } else {
                         StatColumn(
-                            label = "Elev Gain",
+                            label = stringResource(R.string.elev_gain),
                             value = "${activity.elevationGainM?.roundToInt() ?: 0} m",
                             modifier = Modifier.weight(1f)
                         )
                     }
                     StatColumn(
-                        label = "Time",
+                        label = stringResource(R.string.time),
                         value = formatDuration(activity.elapsedTimeMs),
                         modifier = Modifier.weight(1f)
                     )

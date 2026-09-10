@@ -19,22 +19,27 @@ enum class ShareMetric { PACE, ELEVATION }
 /**
  * Jenis olahraga yang didukung Nyasar. Disimpan sebagai String (nama enum)
  * di Room, konsisten dengan pola status yang sudah ada di ActivityEntity.
+ *
+ * Label ditampilkan lewat [labelRes] (string resource) supaya ikut locale
+ * yang aktif; [enLabel] disimpan sebagai fallback pencarian & identitas
+ * internal yang stabil.
  */
 enum class SportType(
-    val label: String,
+    val labelRes: Int,
+    val enLabel: String,
     val icon: ImageVector,
     val category: SportCategory,
     val primaryMetric: ShareMetric
 ) {
     // Foot Sports
-    RUN("Run", Icons.Default.RunCircle, SportCategory.FOOT, ShareMetric.PACE),
-    TRAIL_RUN("Trail Run", Icons.Default.Sports, SportCategory.FOOT, ShareMetric.PACE),
-    WALK("Walk", Icons.AutoMirrored.Filled.DirectionsWalk, SportCategory.FOOT, ShareMetric.PACE),
-    HIKE("Hike", Icons.Default.Hiking, SportCategory.FOOT, ShareMetric.ELEVATION),
-    WHEELCHAIR("Wheelchair", Icons.Default.WheelchairPickup, SportCategory.FOOT, ShareMetric.ELEVATION),
+    RUN(R.string.sport_run, "Run", Icons.Default.RunCircle, SportCategory.FOOT, ShareMetric.PACE),
+    TRAIL_RUN(R.string.sport_trail_run, "Trail Run", Icons.Default.Sports, SportCategory.FOOT, ShareMetric.PACE),
+    WALK(R.string.sport_walk, "Walk", Icons.AutoMirrored.Filled.DirectionsWalk, SportCategory.FOOT, ShareMetric.PACE),
+    HIKE(R.string.sport_hike, "Hike", Icons.Default.Hiking, SportCategory.FOOT, ShareMetric.ELEVATION),
+    WHEELCHAIR(R.string.sport_wheelchair, "Wheelchair", Icons.Default.WheelchairPickup, SportCategory.FOOT, ShareMetric.ELEVATION),
 
     // Cycle Sports
-    RIDE("Ride", Icons.Default.DirectionsBike, SportCategory.CYCLE, ShareMetric.PACE);
+    RIDE(R.string.sport_ride, "Ride", Icons.Default.DirectionsBike, SportCategory.CYCLE, ShareMetric.PACE);
 
     companion object {
         fun fromString(value: String?): SportType =
@@ -42,7 +47,7 @@ enum class SportType(
     }
 }
 
-enum class SportCategory(val displayName: String) {
-    FOOT("Foot Sports"),
-    CYCLE("Cycle Sports")
+enum class SportCategory(val titleRes: Int) {
+    FOOT(R.string.sport_category_foot),
+    CYCLE(R.string.sport_category_cycle)
 }

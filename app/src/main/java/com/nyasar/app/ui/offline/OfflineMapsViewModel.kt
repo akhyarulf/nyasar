@@ -2,6 +2,7 @@ package com.nyasar.app.ui.offline
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.nyasar.app.R
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.map.OfflineMapManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,9 +73,9 @@ class OfflineMapsViewModel(app: Application) : AndroidViewModel(app) {
                 // itself). One bad region must not take down the whole list.
                 val name = try {
                     region.metadata?.let { String(it) }?.takeIf { it.isNotBlank() }
-                        ?: "Peta tanpa nama (#${System.identityHashCode(region)})"
+                        ?: getApplication<Application>().getString(R.string.offline_map_unnamed) + " (#${System.identityHashCode(region)})"
                 } catch (e: Exception) {
-                    "Peta tanpa nama (#${System.identityHashCode(region)})"
+                    getApplication<Application>().getString(R.string.offline_map_unnamed) + " (#${System.identityHashCode(region)})"
                 }
                 val bounds = try {
                     (region.definition as? OfflineTilePyramidRegionDefinition)?.bounds

@@ -17,15 +17,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
  * markers are distinguishable on a small outdoor screen at a glance rather
  * than requiring a tap to tell them apart.
  */
-enum class WaypointCategory(val label: String, val icon: ImageVector, val color: Color) {
-    SUMMIT("Puncak", Icons.Default.Terrain, Color(0xFFD64545)),
-    WATER("Sumber Air", Icons.Default.LocalDrink, Color(0xFF2979FF)),
-    SHELTER("Shelter", Icons.Default.Cabin, Color(0xFF8D6E63)),
-    CAMPSITE("Camp", Icons.Default.Home, Color(0xFF2E7D32)),
-    DANGER("Bahaya", Icons.Default.Warning, Color(0xFFF2A900)),
-    PARKING("Parkir", Icons.Default.DirectionsCar, Color(0xFF546E7A)),
-    POI("POI", Icons.Default.LocationOn, Color(0xFF6A1B9A)),
-    CUSTOM("Lainnya", Icons.Default.MoreHoriz, Color(0xFF424242));
+enum class WaypointCategory(val labelRes: Int, val icon: ImageVector, val color: Color) {
+    SUMMIT(R.string.waypoint_cat_summit, Icons.Default.Terrain, Color(0xFFD64545)),
+    WATER(R.string.waypoint_cat_water, Icons.Default.LocalDrink, Color(0xFF2979FF)),
+    SHELTER(R.string.waypoint_cat_shelter, Icons.Default.Cabin, Color(0xFF8D6E63)),
+    CAMPSITE(R.string.waypoint_cat_campsite, Icons.Default.Home, Color(0xFF2E7D32)),
+    DANGER(R.string.waypoint_cat_danger, Icons.Default.Warning, Color(0xFFF2A900)),
+    PARKING(R.string.waypoint_cat_parking, Icons.Default.DirectionsCar, Color(0xFF546E7A)),
+    POI(R.string.waypoint_cat_poi, Icons.Default.LocationOn, Color(0xFF6A1B9A)),
+    CUSTOM(R.string.waypoint_cat_custom, Icons.Default.MoreHoriz, Color(0xFF424242));
 
     companion object {
         fun fromStorageValue(value: String): WaypointCategory =

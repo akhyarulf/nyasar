@@ -27,7 +27,7 @@ class NavigationService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannelIfNeeded()
-        startForeground(NOTIFICATION_ID, buildNotification("Navigasi aktif"))
+        startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notif_navigation_active)))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -42,7 +42,7 @@ class NavigationService : Service() {
 
     private fun buildNotification(text: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Nyasar")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_navigation)
             .setOngoing(true)
@@ -52,7 +52,7 @@ class NavigationService : Service() {
     private fun createChannelIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, "Navigasi", NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID, getString(R.string.notif_channel_navigation), NotificationManager.IMPORTANCE_LOW
             )
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }

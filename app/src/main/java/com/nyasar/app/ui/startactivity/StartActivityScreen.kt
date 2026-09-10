@@ -100,14 +100,14 @@ fun StartActivityScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 ModePill(
                     icon = Icons.Default.Hiking,
-                    label = "Record",
+                    label = stringResource(R.string.nav_record),
                     selected = recordingEnabled,
                     onClick = { recordingEnabled = !recordingEnabled }
                 )
                 if (routeName != null) {
                     ModePill(
                         icon = Icons.Default.Route,
-                        label = "Navigation",
+                        label = stringResource(R.string.nav_navigation),
                         selected = navigationEnabled,
                         onClick = { navigationEnabled = !navigationEnabled }
                     )

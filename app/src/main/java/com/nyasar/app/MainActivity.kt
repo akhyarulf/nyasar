@@ -488,7 +488,7 @@ private fun NyasarNavHost(
                         } catch (e: Exception) {
                             android.widget.Toast.makeText(
                                 context,
-                                "Gagal membuat file GPX",
+                                context.getString(R.string.gpx_create_failed),
                                 android.widget.Toast.LENGTH_SHORT
                             ).show()
                         }

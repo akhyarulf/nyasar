@@ -65,7 +65,7 @@ fun WaypointCrosshairScreen(
                                 onSave(
                                     currentCenter.latitude,
                                     currentCenter.longitude,
-                                    waypointName.ifBlank { selectedCategory.label },
+                                    waypointName.ifBlank { stringResource(selectedCategory.labelRes) },
                                     selectedCategory
                                 )
                             }
@@ -185,7 +185,7 @@ fun WaypointCrosshairScreen(
                             onClick = { showCategoryMenu = true },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(stringResource(R.string.category) + ": ${selectedCategory.label}")
+                            Text(stringResource(R.string.category) + ": ${stringResource(selectedCategory.labelRes)}")
                         }
                         
                         DropdownMenu(
@@ -230,7 +230,7 @@ fun WaypointCrosshairScreen(
                                     onSave(
                                         currentCenter.latitude,
                                         currentCenter.longitude,
-                                        waypointName.ifBlank { selectedCategory.label },
+                                        waypointName.ifBlank { stringResource(selectedCategory.labelRes) },
                                         selectedCategory
                                     )
                                 }

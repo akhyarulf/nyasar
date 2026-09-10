@@ -104,9 +104,9 @@ class RouteRepository(private val context: Context) {
 
         context.contentResolver.openInputStream(uri)?.use { input ->
             destFile.outputStream().use { output -> input.copyTo(output) }
-        } ?: throw IllegalArgumentException("Tidak bisa membuka file GPX yang dipilih.")
+        } ?: throw IllegalArgumentException(context.getString(com.nyasar.app.R.string.cannot_open_gpx))
 
-        val doc = destFile.inputStream().use { parser.parse(it, displayName ?: "Route") }
+        val doc = destFile.inputStream().use { parser.parse(it, displayName ?: context.getString(com.nyasar.app.R.string.default_route_name)) }
         val elevation = ElevationStats.summarize(doc.allTrackPoints)
 
         val totalDistance = doc.tracks.sumOf { track ->
@@ -157,11 +157,11 @@ class RouteRepository(private val context: Context) {
      */
     suspend fun importFromDrawnPoints(name: String, points: List<com.nyasar.app.gpx.model.TrackPoint>): RouteEntity =
         withContext(Dispatchers.IO) {
-            require(points.size >= 2) { "Rute butuh minimal 2 titik." }
+            require(points.size >= 2) { context.getString(com.nyasar.app.R.string.route_min_points) }
 
             val id = UUID.randomUUID().toString()
             val destFile = File(routesDir, "$id.gpx")
-            val routeName = name.ifBlank { "Rute Baru" }
+            val routeName = name.ifBlank { context.getString(com.nyasar.app.R.string.route_default_name) }
 
             writeDrawnRouteGpx(destFile, routeName, points)
 

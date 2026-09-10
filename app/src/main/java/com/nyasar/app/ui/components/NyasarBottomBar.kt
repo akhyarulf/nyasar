@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.nyasar.app.R
 import com.nyasar.app.ui.theme.NyasarMotion
 
 /**
@@ -52,7 +54,7 @@ fun shouldShowBottomBar(route: String?): Boolean {
 
 private data class BottomTab(
     val route: String,
-    val label: String,
+    val labelRes: Int,
     val icon: ImageVector,
     /** Route template to match against currentRoute for the "selected"
      *  highlight — needed only where it differs from [route] (navigate()
@@ -63,8 +65,8 @@ private data class BottomTab(
 )
 
 private val TABS = listOf(
-    BottomTab("home", "Home", Icons.Default.Home),
-    BottomTab("track-and-maps", "Library", Icons.Default.Map),
+    BottomTab("home", R.string.nav_home, Icons.Default.Home),
+    BottomTab("track-and-maps", R.string.nav_library, Icons.Default.Map),
     // Was "start-activity" — an intermediate "Tanpa route / pilih route"
     // screen the user had to tap through before ever seeing the map. Now
     // goes straight to the live recording screen (map + big Play button,
@@ -72,12 +74,12 @@ private val TABS = listOf(
     // onto the map instead of a picker first.
     BottomTab(
         route = "recording?autoStart=false",
-        label = "Record",
+        labelRes = R.string.nav_record,
         icon = Icons.Default.FiberManualRecord,
         matchRoute = "recording?routeId={routeId}&autoStart={autoStart}"
     ),
-    BottomTab("history", "History", Icons.Default.History),
-    BottomTab("settings", "Settings", Icons.Default.Settings)
+    BottomTab("history", R.string.nav_history, Icons.Default.History),
+    BottomTab("settings", R.string.nav_settings, Icons.Default.Settings)
 )
 
 /**
@@ -128,7 +130,7 @@ fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modi
                 icon = {
                     Icon(
                         tab.icon,
-                        contentDescription = tab.label,
+                        contentDescription = stringResource(tab.labelRes),
                         modifier = Modifier
                             .size(24.dp)
                             .graphicsLayer {
@@ -137,7 +139,7 @@ fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modi
                             }
                     )
                 },
-                label = { Text(tab.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) },
+                label = { Text(stringResource(tab.labelRes), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     indicatorColor = MaterialTheme.colorScheme.primaryContainer,

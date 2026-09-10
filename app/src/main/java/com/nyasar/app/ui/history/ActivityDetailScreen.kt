@@ -660,7 +660,7 @@ private fun ActivityWaypointRow(waypoint: com.nyasar.app.data.db.WaypointEntity,
         Column(Modifier.weight(1f)) {
             Text(waypoint.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                category.label,
+                stringResource(category.labelRes),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

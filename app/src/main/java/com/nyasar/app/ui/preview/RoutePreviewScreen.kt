@@ -90,7 +90,7 @@ fun RoutePreviewScreen(
             TopAppBar(
                 title = {
                     Text(
-                        state.name ?: "Route",
+                        state.name ?: stringResource(R.string.default_route_name),
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )

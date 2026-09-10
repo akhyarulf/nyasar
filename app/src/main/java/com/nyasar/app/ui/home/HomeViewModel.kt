@@ -213,7 +213,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: GpxParseException) {
                 _importError.value = e.message
             } catch (e: Exception) {
-                _importError.value = "Gagal mengimpor GPX: ${e.message}"
+                _importError.value = getApplication<Application>().getString(com.nyasar.app.R.string.import_gpx_failed, e.message ?: "")
             }
         }
     }

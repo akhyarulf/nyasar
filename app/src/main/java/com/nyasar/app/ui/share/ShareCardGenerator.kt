@@ -10,6 +10,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.core.content.res.ResourcesCompat
+import com.nyasar.app.R
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.recording.ShareMetric
@@ -155,14 +156,16 @@ object ShareCardGenerator {
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
-        c.drawText("Distance", 80f, y1, labelP); c.drawText(dist, 80f, y2, statP)
-        c.drawText("Time", 420f, y1, labelP); c.drawText(dur, 420f, y2, statP)
+        val lblDistance = ctx.getString(R.string.share_stat_distance)
+        val lblTime = ctx.getString(R.string.share_stat_time)
+        c.drawText(lblDistance, 80f, y1, labelP); c.drawText(dist, 80f, y2, statP)
+        c.drawText(lblTime, 420f, y1, labelP); c.drawText(dur, 420f, y2, statP)
 
         if (sportMetric(a) == ShareMetric.PACE) {
-            c.drawText("Pace", 720f, y1, labelP); c.drawText(formatPace(a), 720f, y2, statP)
+            c.drawText(ctx.getString(R.string.share_stat_pace), 720f, y1, labelP); c.drawText(formatPace(a), 720f, y2, statP)
         } else {
             val gain = formatElevGain(a)
-            c.drawText("Elev Gain", 720f, y1, labelP); c.drawText("\u2191 $gain", 720f, y2, statP)
+            c.drawText(ctx.getString(R.string.share_stat_elev_gain), 720f, y1, labelP); c.drawText("\u2191 $gain", 720f, y2, statP)
         }
 
         // Branding
@@ -185,19 +188,23 @@ object ShareCardGenerator {
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
-        c.drawText("Distance", cx - sm.measureText("Distance") / 2, CARD_H * 0.32f, sm)
+        val lblDistance = ctx.getString(R.string.share_stat_distance)
+        val lblTime = ctx.getString(R.string.share_stat_time)
+        c.drawText(lblDistance, cx - sm.measureText(lblDistance) / 2, CARD_H * 0.32f, sm)
         c.drawText(dist, cx - big.measureText(dist) / 2, CARD_H * 0.38f, big)
 
-        c.drawText("Time", cx - sm.measureText("Time") / 2, CARD_H * 0.48f, sm)
+        c.drawText(lblTime, cx - sm.measureText(lblTime) / 2, CARD_H * 0.48f, sm)
         c.drawText(dur, cx - big.measureText(dur) / 2, CARD_H * 0.54f, big)
 
         if (sportMetric(a) == ShareMetric.PACE) {
             val pace = formatPace(a)
-            c.drawText("Pace", cx - sm.measureText("Pace") / 2, CARD_H * 0.64f, sm)
+            val lblPace = ctx.getString(R.string.share_stat_pace)
+            c.drawText(lblPace, cx - sm.measureText(lblPace) / 2, CARD_H * 0.64f, sm)
             c.drawText(pace, cx - big.measureText(pace) / 2, CARD_H * 0.70f, big)
         } else {
             val gain = formatElevGain(a)
-            c.drawText("Elev Gain", cx - sm.measureText("Elev Gain") / 2, CARD_H * 0.64f, sm)
+            val lblElev = ctx.getString(R.string.share_stat_elev_gain)
+            c.drawText(lblElev, cx - sm.measureText(lblElev) / 2, CARD_H * 0.64f, sm)
             c.drawText("\u2191 $gain", cx - big.measureText("\u2191 $gain") / 2, CARD_H * 0.70f, big)
         }
 
@@ -312,14 +319,16 @@ object ShareCardGenerator {
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
-        c.drawText("Distance", 80f, sy + 70f, labelP); c.drawText(dist, 80f, sy + 120f, statP)
-        c.drawText("Time", 440f, sy + 70f, labelP); c.drawText(dur, 440f, sy + 120f, statP)
+        val lblDistance = ctx.getString(R.string.share_stat_distance)
+        val lblTime = ctx.getString(R.string.share_stat_time)
+        c.drawText(lblDistance, 80f, sy + 70f, labelP); c.drawText(dist, 80f, sy + 120f, statP)
+        c.drawText(lblTime, 440f, sy + 70f, labelP); c.drawText(dur, 440f, sy + 120f, statP)
 
         if (sportMetric(a) == ShareMetric.PACE) {
-            c.drawText("Pace", 780f, sy + 70f, labelP); c.drawText(formatPace(a), 780f, sy + 120f, statP)
+            c.drawText(ctx.getString(R.string.share_stat_pace), 780f, sy + 70f, labelP); c.drawText(formatPace(a), 780f, sy + 120f, statP)
         } else {
             val gain = formatElevGain(a)
-            c.drawText("Elev Gain", 780f, sy + 70f, labelP); c.drawText("\u2191 $gain", 780f, sy + 120f, statP)
+            c.drawText(ctx.getString(R.string.share_stat_elev_gain), 780f, sy + 70f, labelP); c.drawText("\u2191 $gain", 780f, sy + 120f, statP)
         }
 
         c.drawText("Nyasar", 80f, CARD_H - 80f, textPaint(30f, interRegular(ctx), Color.parseColor("#66FFFFFF")))
@@ -340,8 +349,8 @@ object ShareCardGenerator {
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
-        c.drawText("Distance", 80f, sy, labelP); c.drawText(dist, 80f, sy + 55f, statP)
-        c.drawText("Time", 500f, sy, labelP); c.drawText(dur, 500f, sy + 55f, statP)
+        c.drawText(ctx.getString(R.string.share_stat_distance), 80f, sy, labelP); c.drawText(dist, 80f, sy + 55f, statP)
+        c.drawText(ctx.getString(R.string.share_stat_time), 500f, sy, labelP); c.drawText(dur, 500f, sy + 55f, statP)
 
         c.drawText("Nyasar", CARD_W / 2f - textPaint(28f, interRegular(ctx), LIGHT).measureText("Nyasar") / 2,
             CARD_H - 60f, textPaint(28f, interRegular(ctx), LIGHT))
@@ -367,29 +376,34 @@ object ShareCardGenerator {
         val primaryLabel: String
         val primaryValue: String
         if (sportMetric(a) == ShareMetric.PACE) {
-            primaryLabel = "Pace"
+            primaryLabel = ctx.getString(R.string.share_stat_pace)
             primaryValue = formatPace(a)
         } else {
-            primaryLabel = "Elev Gain"
+            primaryLabel = ctx.getString(R.string.share_stat_elev_gain)
             primaryValue = "\u2191 $gain"
         }
 
         // Row 1: Distance | Primary Metric | Duration
-        c.drawText("Distance", col1 - lblP.measureText("Distance") / 2, row1, lblP)
+        val lblDistance = ctx.getString(R.string.share_stat_distance)
+        val lblDuration = ctx.getString(R.string.share_stat_duration)
+        val lblElev = ctx.getString(R.string.share_stat_elev_gain)
+        val lblMaxSpeed = ctx.getString(R.string.share_stat_max_speed)
+        val lblPoints = ctx.getString(R.string.share_stat_points)
+        c.drawText(lblDistance, col1 - lblP.measureText(lblDistance) / 2, row1, lblP)
         c.drawText(dist, col1 - valP.measureText(dist) / 2, row1 + 52f, valP)
         c.drawText(primaryLabel, col2 - lblP.measureText(primaryLabel) / 2, row1, lblP)
         c.drawText(primaryValue, col2 - valP.measureText(primaryValue) / 2, row1 + 52f, valP)
-        c.drawText("Duration", col3 - lblP.measureText("Duration") / 2, row1, lblP)
+        c.drawText(lblDuration, col3 - lblP.measureText(lblDuration) / 2, row1, lblP)
         c.drawText(dur, col3 - valP.measureText(dur) / 2, row1 + 52f, valP)
 
         // Row 2: Elev Gain | Max Speed | Point Count
-        c.drawText("Elev Gain", col1 - lblP.measureText("Elev Gain") / 2, row2, lblP)
+        c.drawText(lblElev, col1 - lblP.measureText(lblElev) / 2, row2, lblP)
         c.drawText("\u2191 $gain", col1 - valP.measureText("\u2191 $gain") / 2, row2 + 52f, valP)
 
-        c.drawText("Max Speed", col2 - lblP.measureText("Max Speed") / 2, row2, lblP)
+        c.drawText(lblMaxSpeed, col2 - lblP.measureText(lblMaxSpeed) / 2, row2, lblP)
         c.drawText("%.1f km/h".format(a.maxSpeedKmh), col2 - valP.measureText("%.1f km/h".format(a.maxSpeedKmh)) / 2, row2 + 52f, valP)
 
-        c.drawText("Points", col3 - lblP.measureText("Points") / 2, row2, lblP)
+        c.drawText(lblPoints, col3 - lblP.measureText(lblPoints) / 2, row2, lblP)
         c.drawText("${pointCount(a)}", col3 - valP.measureText("${pointCount(a)}") / 2, row2 + 52f, valP)
 
         c.drawText("Nyasar", CARD_W / 2f - lblP.measureText("Nyasar") / 2,
@@ -409,7 +423,7 @@ object ShareCardGenerator {
         c.drawText(dist, cx - textPaint(140f, interBold(ctx), WHITE).measureText(dist) / 2,
             CARD_H * 0.50f, textPaint(140f, interBold(ctx), WHITE))
 
-        c.drawText("Distance", cx - textPaint(32f, interRegular(ctx), LIGHT).measureText("Distance") / 2,
+        c.drawText(ctx.getString(R.string.share_stat_distance), cx - textPaint(32f, interRegular(ctx), LIGHT).measureText(ctx.getString(R.string.share_stat_distance)) / 2,
             CARD_H * 0.55f, textPaint(32f, interRegular(ctx), LIGHT))
 
         val dur = formatDuration(a.movingTimeMs)

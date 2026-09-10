@@ -221,7 +221,7 @@ class RecordingService : Service() {
         // text — a harmless redundant call, not a second service.
         if (intent?.action == ACTION_START || intent?.action == ACTION_RESUME_EXISTING) {
             if (!foregroundStarted) {
-                startForeground(NOTIFICATION_ID, buildNotification("Nyasar", "Memulai recording…"))
+                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.app_name), getString(R.string.notif_starting)))
                 foregroundStarted = true
             }
         }
@@ -264,7 +264,7 @@ class RecordingService : Service() {
         // process-death recovery (Task 3), the scenario this exists for.
         // Fix: call startForeground() immediately with a placeholder
         // notification, then update it once the real data has loaded.
-        startForeground(NOTIFICATION_ID, buildNotification("Memulihkan recording…", "Memuat data aktivitas"))
+        startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notif_restoring), getString(R.string.notif_restoring_body)))
 
         serviceScope.launch {
             val existing = dao.getById(id) ?: run {
@@ -299,7 +299,7 @@ class RecordingService : Service() {
             // instance always satisfies that regardless of what came before.
             engine = RecordingEngine()
             engine.start()
-            updateNotification("Recording dilanjutkan", formatDistance())
+            updateNotification(getString(R.string.notif_resumed), formatDistance())
 
             dao.update(existing.copy(status = ActivityStatus.RECORDING))
 
@@ -351,7 +351,7 @@ class RecordingService : Service() {
         // requires IDLE, which a brand-new RecordingEngine() always is.
         engine = RecordingEngine()
         engine.start()
-        startForeground(NOTIFICATION_ID, buildNotification("Recording dimulai", "0.0 km"))
+        startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notif_started), "0.0 km"))
 
         resetAutoPauseAndGpsWatchdogState()
         loadAutoPauseSetting()
@@ -369,7 +369,9 @@ class RecordingService : Service() {
                     ActivityEntity(
                         id = id,
                         routeId = routeId,
-                        name = "Aktivitas ${java.text.SimpleDateFormat("d MMM HH:mm").format(java.util.Date(startedAtEpochMs))}",
+                        name = getString(R.string.activity_title_format).format(
+                            java.text.SimpleDateFormat("d MMM HH:mm").format(java.util.Date(startedAtEpochMs))
+                        ),
                         startedAtEpochMs = startedAtEpochMs,
                         endedAtEpochMs = null,
                         status = ActivityStatus.RECORDING,
@@ -449,7 +451,7 @@ class RecordingService : Service() {
         isAutoPaused = false // a manual pause always overrides/clears any auto-pause bookkeeping
         stillSinceMs = null
         publishState()
-        updateNotification("Recording dijeda", formatDistance())
+        updateNotification(getString(R.string.notif_paused), formatDistance())
         persistSummary(ActivityStatus.PAUSED)
     }
 
@@ -462,7 +464,7 @@ class RecordingService : Service() {
         isAutoPaused = false
         stillSinceMs = null
         publishState()
-        updateNotification("Recording aktif", formatDistance())
+        updateNotification(getString(R.string.notif_active), formatDistance())
         persistSummary(ActivityStatus.RECORDING)
     }
 
@@ -567,7 +569,7 @@ class RecordingService : Service() {
                     }
 
                     publishState()
-                    updateNotification("Recording dijeda otomatis", formatDistance())
+                    updateNotification(getString(R.string.notif_auto_paused), formatDistance())
                     persistSummary(ActivityStatus.PAUSED)
                 }
             } else {
@@ -582,7 +584,7 @@ class RecordingService : Service() {
                     _state.value = _state.value.copy(showNotMovingPrompt = false)
                 }
                 publishState()
-                updateNotification("Recording aktif", formatDistance())
+                updateNotification(getString(R.string.notif_active), formatDistance())
                 persistSummary(ActivityStatus.RECORDING)
             }
         }
@@ -692,7 +694,7 @@ class RecordingService : Service() {
                 // Update notification only every ~10 points to avoid hammering
                 // NotificationManager on every single GPS fix (every ~1s).
                 if (pointSequence % 10 == 0) {
-                    updateNotification("Recording aktif", formatDistance())
+                    updateNotification(getString(R.string.notif_active), formatDistance())
                 }
             }
         }
@@ -736,7 +738,9 @@ class RecordingService : Service() {
                         ActivityEntity(
                             id = capturedActivityId,
                             routeId = capturedRouteId,
-                            name = "Aktivitas ${java.text.SimpleDateFormat("d MMM HH:mm").format(java.util.Date(capturedStartedAt))}",
+                            name = getString(R.string.activity_title_format).format(
+                                java.text.SimpleDateFormat("d MMM HH:mm").format(java.util.Date(capturedStartedAt))
+                            ),
                             startedAtEpochMs = capturedStartedAt,
                             endedAtEpochMs = if (status == ActivityStatus.COMPLETED) System.currentTimeMillis() else null,
                             status = status,
@@ -882,7 +886,7 @@ class RecordingService : Service() {
     private fun createChannelIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, "Recording", NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID, getString(R.string.notif_channel_recording), NotificationManager.IMPORTANCE_LOW
             )
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }

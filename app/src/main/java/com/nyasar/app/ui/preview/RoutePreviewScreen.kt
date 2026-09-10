@@ -36,6 +36,7 @@ import kotlin.math.roundToInt
 import com.nyasar.app.R
 import com.nyasar.app.ui.waypoint.WaypointCrosshairScreen
 import com.nyasar.app.ui.waypoint.WaypointFormSheet
+import com.nyasar.app.ui.waypoint.rememberCrosshairCameraState
 import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -364,6 +365,13 @@ fun RoutePreviewScreen(
         )
     }
 
+    // v7 "layar terakhir": the crosshair overlay reads THIS screen's live
+    // camera, so it opens at exactly the last position+zoom the user was
+    // viewing — no teleport, no re-zoom. Declared here (not at the top)
+    // because it needs mapInstance/showCrosshair, which are declared inside
+    // the Scaffold content lambda.
+    val crosshairTarget by rememberCrosshairCameraState(mapInstance, showCrosshair)
+
     // v7 waypoint overlays (detail/crosshair/edit) — drawn above the Scaffold.
     RoutePreviewWaypointOverlays(
         selectedDbWaypoint = selectedDbWaypoint,
@@ -385,6 +393,7 @@ fun RoutePreviewScreen(
             }
         },
         showCrosshair = showCrosshair,
+        crosshairTarget = crosshairTarget,
         routeId = routeId,
         routeName = state.name,
         editingWaypoint = editingWaypointState,
@@ -461,6 +470,7 @@ private fun RoutePreviewWaypointOverlays(
     onDeleteSelected: (com.nyasar.app.data.db.WaypointEntity) -> Unit,
     distanceFromUserMeters: (com.nyasar.app.data.db.WaypointEntity) -> Double?,
     showCrosshair: Boolean,
+    crosshairTarget: org.maplibre.android.geometry.LatLng?,
     routeId: String,
     routeName: String?,
     editingWaypoint: com.nyasar.app.data.db.WaypointEntity?,
@@ -482,6 +492,7 @@ private fun RoutePreviewWaypointOverlays(
 
     if (showCrosshair) {
         WaypointCrosshairScreen(
+            cameraTarget = crosshairTarget,
             attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
                 routeId = routeId,
                 routeName = routeName

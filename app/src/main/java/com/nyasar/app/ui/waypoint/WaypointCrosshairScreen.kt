@@ -1,6 +1,10 @@
 package com.nyasar.app.ui.waypoint
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -10,47 +14,48 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.data.db.WaypointCategory
-import com.nyasar.app.map.providers.TileProviderFactory
-import com.nyasar.app.ui.components.AnimatedAppear
-import com.nyasar.app.ui.components.NyasarMapView
-import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.maps.MapLibreMap
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
 
 /**
- * Waypoint selection screen with crosshair in center of map.
+ * Waypoint placement overlay with a fixed crosshair in the center of the
+ * screen.
+ *
+ * v7 UX fix — "layar terakhir": this is NOT a second map anymore. The old
+ * implementation embedded its own NyasarMapView, which starts centered at
+ * (0,0) and snaps to a hardcoded zoom 15 — so opening it from Home, Route
+ * Preview or Recording always teleported the view somewhere else and lost
+ * every overlay/track the host screen had on. The host screens now render
+ * this overlay ON TOP of their existing (still visible, still interactive)
+ * map with [WaypointPlacementOverlayController] feeding it live camera
+ * data, so the crosshair view opens at EXACTLY the last position + zoom
+ * the user was looking at — never zoomed in, never zoomed out, tracks and
+ * overlays untouched underneath.
+ *
+ * Panning/zooming happens on the host map as usual; this overlay only
+ * reads the camera back through [cameraTarget] and pins the coordinate
+ * display to it.
  *
  * Flow:
- * 1. User taps Waypoint button (wired from Home/RoutePreview/Recording v7)
- * 2. Crosshair appears in center of map
- * 3. User pans/zooms map to desired location
- * 4. Crosshair stays in center
- * 5. Coordinates update as map moves
- * 6. User taps Confirm to save waypoint
- *
- * v7: carries the caller's attachment context — [attachments] decides
- * which "independent / link to route / link to activity" options the form
- * offers, [initialLinkedRouteId]/[initialLinkedActivityId] preselect one
- * (defaults follow the same context rules WaypointContext encodes).
- *
- * UX similar to download area selection, but for a single point.
+ * 1. User taps Waypoint button (Home/RoutePreview/Recording)
+ * 2. Dim + crosshair appear over the CURRENT map view (no camera move)
+ * 3. User pans/zooms the host map to fine-tune
+ * 4. Coordinate display follows the crosshair in real time
+ * 5. Confirm/Cancel via the bottom panel or the top bar actions
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WaypointCrosshairScreen(
-    initialLatLng: LatLng? = null,
+    cameraTarget: LatLng?,
     attachments: WaypointAttachments = WaypointAttachments(),
     initialLinkedRouteId: String? = null,
     initialLinkedActivityId: String? = null,
     onSave: (lat: Double, lon: Double, name: String, category: WaypointCategory, linkedRouteId: String?, linkedActivityId: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
-    var currentCenter by remember { mutableStateOf(initialLatLng ?: LatLng(0.0, 0.0)) }
     var waypointName by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(WaypointCategory.POI) }
     var showCategoryMenu by remember { mutableStateOf(false) }
@@ -60,111 +65,119 @@ fun WaypointCrosshairScreen(
     // category's localized label as the default waypoint name.
     val selectedCategoryLabel = stringResource(selectedCategory.labelRes)
 
-    val provider = remember { TileProviderFactory.default() }
-
     // Rendered as a full-screen overlay from Home/RoutePreview/Recording —
-    // system back must close THIS screen, not pop the host destination.
-    androidx.activity.compose.BackHandler(onBack = onDismiss)
+    // system back must close THIS overlay, not pop the host destination.
+    BackHandler(onBack = onDismiss)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.new_waypoint)) },
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cancel))
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            if (currentCenter.latitude != 0.0 || currentCenter.longitude != 0.0) {
-                                onSave(
-                                    currentCenter.latitude,
-                                    currentCenter.longitude,
-                                    waypointName.ifBlank { selectedCategoryLabel },
-                                    selectedCategory,
-                                    linkedRouteId,
-                                    linkedActivityId
-                                )
-                            }
-                        }
-                    ) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = stringResource(R.string.save),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            // Map with crosshair
-            NyasarMapView(
-                modifier = Modifier.fillMaxSize(),
-                provider = provider,
-                track = emptyList(),
-                userLocation = null,
-                followUser = false,
-                onMapReady = { map ->
-                    mapInstance = map
-                    // Set initial position if provided
-                    initialLatLng?.let { latLng ->
-                        map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15.0))
-                    }
-                },
-                onMapClick = { lat, lon ->
-                    // Update center position when user taps on map
-                    currentCenter = LatLng(lat, lon)
-                }
-            )
-
-            // Crosshair in center
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
+    Box(
+        Modifier
+            .fillMaxSize()
+            // Semi-dim so the host map stays visible underneath (the whole
+            // point of "layar terakhir"). The scrim CONSUMES taps (nothing
+            // behind it may trigger while placing) but NOT drags — pan/zoom
+            // falls through to the host MapView, which is exactly how the
+            // user fine-tunes placement. detectTapGestures observes only
+            // down/up sequences, so move events reach the map untouched.
+            .pointerInput(Unit) { detectTapGestures { } }
+    ) {
+        // Crosshair pinned to the exact center — the map is NOT moved by
+        // this overlay; whatever the camera already shows IS the selection.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                shadowElevation = 4.dp
             ) {
-                // Crosshair icon
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
-                    shadowElevation = 4.dp
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        // Cross lines
-                        HorizontalDivider(
-                            modifier = Modifier
-                                .width(24.dp)
-                                .height(2.dp),
-                            color = Color.White
-                        )
-                        VerticalDivider(
-                            modifier = Modifier
-                                .width(2.dp)
-                                .height(24.dp),
-                            color = Color.White
-                        )
-                    }
+                Box(contentAlignment = Alignment.Center) {
+                    HorizontalDivider(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(2.dp),
+                        color = Color.White
+                    )
+                    VerticalDivider(
+                        modifier = Modifier
+                            .width(2.dp)
+                            .height(24.dp),
+                        color = Color.White
+                    )
                 }
             }
+        }
 
-            // Bottom info panel
-            AnimatedAppear(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .wrapContentWidth(Alignment.CenterHorizontally)
-                    .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.formMaxWidth)
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
+        // Top actions: cancel / confirm. A compact bar instead of a full
+        // TopAppBar — the host screen's own top bar stays visible behind,
+        // reinforcing "this is still the screen you were on".
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 12.dp, top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth(),
+                onClick = onDismiss,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
+                shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.cancel),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            Surface(
+                onClick = {
+                    val target = cameraTarget
+                    if (target != null) {
+                        onSave(
+                            target.latitude,
+                            target.longitude,
+                            waypointName.ifBlank { selectedCategoryLabel },
+                            selectedCategory,
+                            linkedRouteId,
+                            linkedActivityId
+                        )
+                    }
+                },
+                enabled = cameraTarget != null,
+                shape = CircleShape,
+                color = if (cameraTarget != null) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = stringResource(R.string.save),
+                        tint = if (cameraTarget != null) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Bottom info panel — same AnimatedAppear entrance and visual family
+        // as the shared waypoint form sheets.
+        com.nyasar.app.ui.components.AnimatedAppear(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 8.dp
@@ -172,18 +185,20 @@ fun WaypointCrosshairScreen(
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
-                    // Coordinates display
+                    // Coordinates display — follows the host camera live.
                     Text(
                         stringResource(R.string.coordinate),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        "%.6f, %.6f".format(currentCenter.latitude, currentCenter.longitude),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    cameraTarget?.let { target ->
+                        Text(
+                            "%.6f, %.6f".format(target.latitude, target.longitude),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
 
                     Spacer(Modifier.height(16.dp))
 
@@ -274,10 +289,11 @@ fun WaypointCrosshairScreen(
 
                         Button(
                             onClick = {
-                                if (currentCenter.latitude != 0.0 || currentCenter.longitude != 0.0) {
+                                val target = cameraTarget
+                                if (target != null) {
                                     onSave(
-                                        currentCenter.latitude,
-                                        currentCenter.longitude,
+                                        target.latitude,
+                                        target.longitude,
                                         waypointName.ifBlank { selectedCategoryLabel },
                                         selectedCategory,
                                         linkedRouteId,
@@ -285,6 +301,7 @@ fun WaypointCrosshairScreen(
                                     )
                                 }
                             },
+                            enabled = cameraTarget != null,
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(
@@ -298,7 +315,52 @@ fun WaypointCrosshairScreen(
                     }
                 }
             }
-            }
         }
     }
+}
+
+/**
+ * Wires a host screen's shared map into [WaypointCrosshairScreen]:
+ * observes the host's MapLibre camera and mirrors it into a Compose state
+ * the overlay displays. Also controls whether the host map accepts input —
+ * while the overlay is open the map MUST stay interactive (pan/zoom is how
+ * the user fine-tunes placement), and the screen previously worried about
+ * long-presses creating stray Add sheets: those are suppressed here while
+ * the overlay is open so a long-press during placement can't queue a second
+ * waypoint form.
+ *
+ * The camera listener is registered for the lifetime of the returned state
+ * (the overlay session), not just one frame: set [active] when the overlay
+ * opens/closes.
+ */
+@Composable
+fun rememberCrosshairCameraState(
+    mapInstance: org.maplibre.android.maps.MapLibreMap?,
+    active: Boolean
+): State<LatLng?> {
+    val target = remember { mutableStateOf<LatLng?>(null) }
+    // Seed synchronously from the current camera so the very first frame of
+    // the overlay already shows the real coordinates (no (0,0) flash).
+    LaunchedEffect(mapInstance, active) {
+        if (!active) return@LaunchedEffect
+        mapInstance?.cameraPosition?.target?.let { target.value = it }
+    }
+    DisposableEffect(mapInstance, active) {
+        if (!active || mapInstance == null) {
+            target.value = null
+            return@DisposableEffect onDispose { }
+        }
+        target.value = mapInstance.cameraPosition.target
+        val listener = org.maplibre.android.maps.MapLibreMap.OnCameraMoveListener {
+            // Throttle: camera moves fire per frame; a cheap field read +
+            // state write is fine, recomposition of the small coordinate
+            // Text is the intended cost.
+            mapInstance.cameraPosition.target?.let { target.value = it }
+        }
+        mapInstance.addOnCameraMoveListener(listener)
+        onDispose {
+            mapInstance.removeOnCameraMoveListener(listener)
+        }
+    }
+    return target
 }

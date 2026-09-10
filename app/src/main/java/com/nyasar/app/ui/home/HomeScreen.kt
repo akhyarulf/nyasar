@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
 import com.nyasar.app.ui.waypoint.WaypointCrosshairScreen
+import com.nyasar.app.ui.waypoint.rememberCrosshairCameraState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -594,10 +595,14 @@ fun HomeScreen(
         )
     }
 
-    // v7: full-screen crosshair picker — Home context = independent pin.
+    // v7: crosshair placement overlay — "layar terakhir": rendered ON TOP
+    // of this screen's own map, so it opens at exactly the camera position
+    // + zoom the user was already looking at (never teleported, never
+    // re-zoomed; track lines and overlays stay visible underneath).
+    val crosshairTarget by rememberCrosshairCameraState(mapInstance, showCrosshair)
     if (showCrosshair) {
         WaypointCrosshairScreen(
-            initialLatLng = currentLocation?.let { org.maplibre.android.geometry.LatLng(it.lat, it.lon) },
+            cameraTarget = crosshairTarget,
             attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(),
             onSave = { lat, lon, name, category, _, _ ->
                 waypointViewModel.confirmCrosshairWaypointFrom(lat, lon, name, category, null, null, null)

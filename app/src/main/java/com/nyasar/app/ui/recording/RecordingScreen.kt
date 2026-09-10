@@ -1364,14 +1364,13 @@ fun RecordingScreen(
     }
 
     // v7: crosshair picker — same screen the other map screens open.
+    // v7 "layar terakhir": the crosshair overlay reads THIS screen's live
+    // camera, so it opens at exactly the last position+zoom the user was
+    // viewing — no teleport, no re-zoom.
+    val crosshairTarget by com.nyasar.app.ui.waypoint.rememberCrosshairCameraState(mapInstance, showCrosshair)
     if (showCrosshair) {
-        // Local copies: `state` is a delegated property, so its nullable
-        // fields can't smart-cast — these locals can.
-        val crosshairLat = state.currentLat
-        val crosshairLon = state.currentLon
         WaypointCrosshairScreen(
-            initialLatLng = if (crosshairLat != null && crosshairLon != null)
-                LatLng(crosshairLat, crosshairLon) else null,
+            cameraTarget = crosshairTarget,
             attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
                 routeId = routeId,
                 activityId = state.activityId

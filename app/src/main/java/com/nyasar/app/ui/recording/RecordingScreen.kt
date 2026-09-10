@@ -941,45 +941,60 @@ fun RecordingScreen(
         // v7: crosshair waypoint picker — saved pin links to the live
         // activity (context set above), user can switch to independent
         // in-form. IDLE: falls back to the attached route via context.
-        Surface(
-            onClick = { showCrosshair = true },
+        // Same map-control recipe as Home's RoundIconButton (theme surface,
+        // shared elevation tokens, press spring, fade-and-rise entrance).
+        val addWaypointInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        com.nyasar.app.ui.components.AnimatedAppear(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
-                .padding(end = 12.dp, bottom = bottomClearance + 120.dp),
-            shape = CircleShape,
-            tonalElevation = 3.dp,
-            shadowElevation = 2.dp
+                .padding(end = 12.dp, bottom = bottomClearance + 120.dp)
         ) {
-            Icon(
-                Icons.Default.Place,
-                contentDescription = stringResource(R.string.add_waypoint_cd),
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(14.dp)
-            )
+            Surface(
+                onClick = { showCrosshair = true },
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
+                shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
+                modifier = Modifier
+                    .size(48.dp)
+                    .pressScale(addWaypointInteraction)
+            ) {
+                Icon(
+                    Icons.Default.Place,
+                    contentDescription = stringResource(R.string.add_waypoint_cd),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
         }
 
         // Layer switcher — same pattern as HomeScreen: opens the Strava-style
         // BasemapPickerSheet (grid with thumbnails), positioned above the recenter button.
-        Box(
+        // Same shared map-control recipe as the waypoint button above.
+        val layersInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        com.nyasar.app.ui.components.AnimatedAppear(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
                 .padding(end = 12.dp, bottom = bottomClearance + 60.dp)
         ) {
             Surface(
+                onClick = { showBasemapSheet = true },
                 shape = CircleShape,
-                tonalElevation = 3.dp,
-                shadowElevation = 2.dp,
-                modifier = Modifier.size(48.dp)
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
+                shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
+                modifier = Modifier
+                    .size(48.dp)
+                    .pressScale(layersInteraction)
             ) {
-                IconButton(onClick = { showBasemapSheet = true }) {
-                    Icon(
-                        Icons.Default.Layers,
-                        contentDescription = stringResource(R.string.map_layer_cd),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                Icon(
+                    Icons.Default.Layers,
+                    contentDescription = stringResource(R.string.map_layer_cd),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(12.dp)
+                )
             }
         }
 

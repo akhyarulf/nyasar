@@ -280,6 +280,21 @@ fun NyasarMapView(
         )
     }
 
+    // Identity of the LAST COMPLETED full style load on this map instance.
+    // The overlay/my-routes effects below used to be keyed only on their own
+    // inputs + basemapEntry — but a basemap switch is a race: those effects
+    // (re)run against the OLD style while the new setStyle() is still
+    // loading, then the fresh style arrives WITHOUT them (its completion
+    // happens later, out of band). Visible symptom: after changing the
+    // basemap every Waymarked overlay AND "Jalur Saya" silently vanished
+    // until the user toggled them off+on (which re-ran the effects against
+    // the now-live style). Bumping [styleGeneration] from inside the
+    // setStyle() completion callback re-keys those effects exactly when the
+    // new style is live, so overlays are re-applied on top of it — and NOT
+    // re-run on the shared fast path (style unchanged ⇒ nothing wiped ⇒
+    // nothing to re-apply).
+    var styleGeneration by remember { mutableStateOf(0) }
+
     // Waymarked Trails overlay toggle — see the parameter doc on
     // [activeOverlays] for why this is a separate effect from the big
     // style-setup one below. getStyle() (not setStyle()) so this never
@@ -291,8 +306,10 @@ fun NyasarMapView(
     // style reload — keying on those here as well, not just
     // activeOverlays, is what makes overlays survive a basemap switch
     // instead of silently disappearing the next time the user picks a
-    // different basemap).
-    LaunchedEffect(activeOverlays, basemapEntry, provider.id, styleVariant) {
+    // different basemap). [styleGeneration] closes the race: the effect
+    // runs once more, AFTER the new style has fully loaded, against THAT
+    // style.
+    LaunchedEffect(activeOverlays, basemapEntry, provider.id, styleVariant, styleGeneration) {
         mapView.getMapAsync { map ->
             map.getStyle { style ->
                 com.nyasar.app.map.OverlayLayer.entries.forEach { overlay ->
@@ -351,8 +368,11 @@ fun NyasarMapView(
     // (myRoutes, activeRouteId) so import/delete/active-route changes redraw
     // immediately — the lines flow is reactive over Room's observeAll, so no
     // manual refresh path exists or is needed. Nothing here runs at all
-    // while the data and style are unchanged.
-    LaunchedEffect(myRoutes, activeRouteId, basemapEntry, provider.id, styleVariant) {
+    // while the data and style are unchanged. [styleGeneration] re-keys this
+    // after every completed style load for the same basemap-switch race the
+    // Waymarked effect documents above (symptom: "Jalur Saya" vanishing on
+    // basemap change until toggled off+on).
+    LaunchedEffect(myRoutes, activeRouteId, basemapEntry, provider.id, styleVariant, styleGeneration) {
         mapView.getMapAsync { map ->
             map.getStyle { style ->
                 // Skip degenerate geometry: a LineString needs >= 2 points,
@@ -517,6 +537,12 @@ fun NyasarMapView(
             map.setStyle(styleBuilder) { style ->
                 // Success — only now is the key allowed to read as loaded.
                 if (shared) SharedMapHolder.markStyleLoaded(styleKey)
+                // New style is LIVE: bump the generation so the overlay /
+                // "Jalur Saya" effects re-run against it (the fresh style
+                // has neither). Without this they'd only re-apply on the
+                // next unrelated recomposition — or never, which was the
+                // "overlay hilang setelah ganti basemap" bug.
+                styleGeneration++
                 if (style.getImage("nyasar-heading-arrow") == null) {
                     style.addImage("nyasar-heading-arrow", headingArrowBitmap())
                 }

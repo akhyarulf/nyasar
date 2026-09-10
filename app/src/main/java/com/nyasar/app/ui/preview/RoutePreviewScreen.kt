@@ -29,6 +29,7 @@ import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.ui.components.CompassButton
 import com.nyasar.app.ui.components.ElevationProfile
 import com.nyasar.app.ui.components.NyasarMapView
+import com.nyasar.app.ui.components.pressScale
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import kotlin.math.roundToInt
@@ -411,14 +412,30 @@ private fun RoundIconButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Surface(
-        shape = CircleShape,
-        tonalElevation = 3.dp,
-        shadowElevation = 2.dp,
-        modifier = modifier.size(48.dp)
-    ) {
-        IconButton(onClick = onClick) {
-            Icon(icon, contentDescription = contentDescription, tint = tint)
+    // Shared map-control recipe — SAME as HomeScreen's RoundIconButton:
+    // theme surface over any basemap, app-wide CircleShape, the shared
+    // NyasarElevation.mapControl* tokens (this local copy previously used
+    // bare 3.dp/2.dp values), the standard press spring (pressScale inside
+    // AnimatedAppear), and the shared fade-and-rise entrance. RoutePreview's
+    // map buttons (incl. the v7 add-waypoint button) now look, feel and
+    // animate identically to Home's.
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    com.nyasar.app.ui.components.AnimatedAppear(modifier = modifier) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
+            shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
+            modifier = Modifier
+                .size(48.dp)
+                .pressScale(interaction)
+        ) {
+            IconButton(
+                onClick = onClick,
+                interactionSource = interaction
+            ) {
+                Icon(icon, contentDescription = contentDescription, tint = tint)
+            }
         }
     }
 }

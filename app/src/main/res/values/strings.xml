@@ -496,6 +496,9 @@
     <string name="prepare_offline_map">Siapkan Peta Offline</string>
     <string name="around_me_cd">Di sekitar saya</string>
     <string name="prepare_offline_cd">Siapkan peta offline</string>
+    <string name="map_expand_cd">Perbesar peta layar penuh</string>
+    <string name="map_collapse_cd">Kecilkan peta</string>
+    <string name="gpx_badge">Diimpor dari GPX</string>
 
     <!-- Track & Maps -->
     <string name="search_track_cd">Cari track</string>

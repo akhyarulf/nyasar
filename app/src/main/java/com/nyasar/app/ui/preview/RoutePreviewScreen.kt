@@ -77,7 +77,7 @@ import kotlin.math.roundToInt
  *   phones: collapsed map is a fraction of screen height, data column scrolls,
  *   nothing overflows.
  */
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoutePreviewScreen(
     routeId: String,
@@ -308,6 +308,7 @@ fun RoutePreviewScreen(
             // --- the bottom of the full map like the reference screenshot.
             if (mapExpanded) {
                 AnimatedAppear(modifier = Modifier.align(Alignment.BottomCenter)) {
+                    val density = LocalDensity.current
                     Surface(
                         shape = RoundedCornerShape(NyasarRadius.lg),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -316,7 +317,7 @@ fun RoutePreviewScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .onSizeChanged { with(LocalDensity.current) { elevationCardHeightDp = it.height.toDp() } }
+                            .onSizeChanged { with(density) { elevationCardHeightDp = it.height.toDp() } }
                     ) {
                         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                             ElevationSection(state) { highlightLatLng = it }
@@ -346,17 +347,26 @@ fun RoutePreviewScreen(
             )
             Spacer(Modifier.height(12.dp))
 
-            // Stat tiles — same soft-tile visual language as ActivityDetail's
-            // StatsGrid (label over value), 2 per row, wrapping on any width.
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                StatTile(stringResource(R.string.stat_distance), "%.1f km".format(state.distanceKm))
-                state.elevationGainM?.let { StatTile(stringResource(R.string.elevation_gain), "↑ ${it.roundToInt()} m") }
-                state.elevationLossM?.let { StatTile(stringResource(R.string.stat_elev_loss), "↓ ${it.roundToInt()} m") }
-                state.highestElevationM?.let { StatTile(stringResource(R.string.stat_highest_point), "${it.roundToInt()} m") }
+            // Stat tiles — same soft-tile visual as ActivityDetail's StatsGrid
+            // (label over value), a stable 2-column grid: weighted Row pairs so
+            // tiles share width on any screen size.
+            val tiles = buildList {
+                add(stringResource(R.string.stat_distance) to "%.1f km".format(state.distanceKm))
+                state.elevationGainM?.let { add(stringResource(R.string.elevation_gain) to "↑ ${it.roundToInt()} m") }
+                state.elevationLossM?.let { add(stringResource(R.string.stat_elev_loss) to "↓ ${it.roundToInt()} m") }
+                state.highestElevationM?.let { add(stringResource(R.string.stat_highest_point) to "${it.roundToInt()} m") }
+            }
+            tiles.chunked(2).forEach { rowTiles ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    rowTiles.forEach { (label, value) ->
+                        StatTile(label, value, Modifier.weight(1f))
+                    }
+                    if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
             }
 
             // Waypoint list (DB rows: GPX-imported + user pins linked here).
@@ -493,7 +503,7 @@ fun RoutePreviewScreen(
             onSave = { name, cat, note, linkedRouteId, linkedActivityId ->
                 waypointViewModel.confirmEditWithLinks(name, cat, note, linkedRouteId, linkedActivityId)
             },
-            onDelete = { wp2 -> waypointViewModel.deleteWaypoint(wp2) }
+            onDelete = { waypointViewModel.deleteWaypoint(wp) }
         )
     }
 }
@@ -506,11 +516,11 @@ fun RoutePreviewScreen(
  *  (small muted label over a semibold value), flexible width so 2-up rows
  *  wrap naturally on narrow screens. */
 @Composable
-private fun StatTile(label: String, value: String) {
+private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(NyasarRadius.md),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.weight(1f)
+        modifier = modifier
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(

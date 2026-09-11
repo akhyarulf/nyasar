@@ -2,7 +2,6 @@ package com.nyasar.app.ui.waypoint
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -14,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.data.db.WaypointCategory
 import org.maplibre.android.geometry.LatLng
@@ -38,7 +36,11 @@ import androidx.compose.ui.res.stringResource
  *
  * Panning/zooming happens on the host map as usual; this overlay only
  * reads the camera back through [cameraTarget] and pins the coordinate
- * display to it.
+ * display to it. The root Box deliberately has NO pointerInput: a
+ * tap-consuming scrim (the old detectTapGestures {}) swallowed the first
+ * pointer down, so MapLibre never saw the gesture stream and the map
+ * could not be panned while placing. Buttons/panels here are their own
+ * hit targets, so nothing needs a full-screen interceptor.
  *
  * Flow:
  * 1. User taps Waypoint button (Home/RoutePreview/Recording)
@@ -69,17 +71,7 @@ fun WaypointCrosshairScreen(
     // system back must close THIS overlay, not pop the host destination.
     BackHandler(onBack = onDismiss)
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            // Semi-dim so the host map stays visible underneath (the whole
-            // point of "layar terakhir"). The scrim CONSUMES taps (nothing
-            // behind it may trigger while placing) but NOT drags — pan/zoom
-            // falls through to the host MapView, which is exactly how the
-            // user fine-tunes placement. detectTapGestures observes only
-            // down/up sequences, so move events reach the map untouched.
-            .pointerInput(Unit) { detectTapGestures { } }
-    ) {
+    Box(Modifier.fillMaxSize()) {
         // Crosshair pinned to the exact center — the map is NOT moved by
         // this overlay; whatever the camera already shows IS the selection.
         Box(

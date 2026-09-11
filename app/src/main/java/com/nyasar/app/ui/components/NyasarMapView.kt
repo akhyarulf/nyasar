@@ -557,11 +557,12 @@ fun NyasarMapView(
                 if (style.getImage("nyasar-marker") == null) {
                     style.addImage("nyasar-marker", userWaypointMarkerBitmap(android.graphics.Color.parseColor("#42A5F5")))
                 }
-                // Note: MapLibre Android SDK does not support custom font
-                // registration via style.addFont(). The textFont references
-                // below will silently fall back to the style's default fonts.
-                // To use Inter on-map, the font must be baked into the
-                // map style's sprite/font stack at the tile-server level.
+                // Note on fonts: MapLibre Android SDK does not support custom
+                // font registration via style.addFont(). Every Nyasar text
+                // layer below therefore deliberately OMITS textFont and lets
+                // MapLibre fall back to the style's own glyph stack — to use
+                // Inter on-map, the font must be baked into the map style's
+                // font stack at the tile-server level.
                 // Track line (planned route = blue, actual/recorded = green)
                 // When there's no planned route but actualTrack has data,
                 // the caller passes actualTrack via the `track` param —
@@ -659,11 +660,21 @@ fun NyasarMapView(
                         SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
                             PropertyFactory.iconImage("nyasar-marker"),
                             PropertyFactory.iconAllowOverlap(true),
-                            // Professional text styling: Inter-SemiBold 12sp, anchored
-                            // below icon with white text halo for contrast on topo maps.
                             PropertyFactory.textField("{$PROP_WP_NAME}"),
                             PropertyFactory.textSize(12f),
-                            PropertyFactory.textFont(arrayOf("Inter-SemiBold")),
+                            // NO textFont — see the full rationale in the
+                            // refreshSharedContent rebuild of this same layer
+                            // below. Short version: "Inter-*" exists in NO
+                            // basemap's glyph stack (Liberty/OpenFreeMap ship
+                            // Noto Sans; the inline raster styles ship no
+                            // glyphs endpoint at all), so label placement
+                            // always failed, and textOptional(false) then hid
+                            // the WHOLE symbol — icon included. That was the
+                            // "pin gak muncul di Route Viewer" bug. Omitting
+                            // textFont falls back to the style's own font,
+                            // and textOptional(true) degrades any future text
+                            // failure to hidden TEXT only — the pin itself can
+                            // never be hidden by a text problem again.
                             PropertyFactory.textColor("#1A1A1A"),
                             PropertyFactory.textHaloColor("#FFFFFF"),
                             PropertyFactory.textHaloWidth(2f),
@@ -672,7 +683,7 @@ fun NyasarMapView(
                             PropertyFactory.textAnchor("top"),
                             PropertyFactory.textMaxWidth(8f),
                             PropertyFactory.textAllowOverlap(false),
-                            PropertyFactory.textOptional(false)
+                            PropertyFactory.textOptional(true)
                         )
                     )
                 }
@@ -721,11 +732,12 @@ fun NyasarMapView(
                             ),
                             PropertyFactory.iconAllowOverlap(true),
                             PropertyFactory.iconSize(1f),
-                            // Professional text styling: Inter-Medium 12sp, anchored
-                            // below icon with white halo for legibility on any map style.
+                            // Text styling: 12sp anchored below the icon with a
+                            // white halo for legibility on any map style. NO
+                            // textFont — same invalid-glyph bug as the GPX
+                            // waypoint layer above; see refreshSharedContent.
                             PropertyFactory.textField("{$PROP_WP_NAME}"),
                             PropertyFactory.textSize(12f),
-                            PropertyFactory.textFont(arrayOf("Inter-Medium")),
                             PropertyFactory.textColor("#2D2D2D"),
                             PropertyFactory.textHaloColor("#FFFFFF"),
                             PropertyFactory.textHaloWidth(2f),
@@ -734,7 +746,7 @@ fun NyasarMapView(
                             PropertyFactory.textAnchor("top"),
                             PropertyFactory.textMaxWidth(8f),
                             PropertyFactory.textAllowOverlap(false),
-                            PropertyFactory.textOptional(false)
+                            PropertyFactory.textOptional(true)
                         )
                     )
                 }
@@ -1216,7 +1228,16 @@ private fun refreshSharedContent(
                     PropertyFactory.iconAllowOverlap(true),
                     PropertyFactory.textField("{$PROP_WP_NAME}"),
                     PropertyFactory.textSize(12f),
-                    PropertyFactory.textFont(arrayOf("Inter-SemiBold")),
+                    // NO textFont — see the full rationale in the full-load
+                    // rebuild of this same layer above. Short version:
+                    // "Inter-*" exists in NO basemap's glyph stack, so label
+                    // placement always failed, and with textOptional(false)
+                    // MapLibre then hid the WHOLE symbol — icon included.
+                    // That was the "pin gak muncul di Route Viewer" bug.
+                    // Omitting textFont falls back to the style's own font,
+                    // which always exists, and textOptional(true) degrades
+                    // any future text failure to hidden TEXT only — the pin
+                    // icon can never be hidden by a text problem again.
                     PropertyFactory.textColor("#1A1A1A"),
                     PropertyFactory.textHaloColor("#FFFFFF"),
                     PropertyFactory.textHaloWidth(2f),
@@ -1225,7 +1246,7 @@ private fun refreshSharedContent(
                     PropertyFactory.textAnchor("top"),
                     PropertyFactory.textMaxWidth(8f),
                     PropertyFactory.textAllowOverlap(false),
-                    PropertyFactory.textOptional(false)
+                    PropertyFactory.textOptional(true)
                 )
             )
         }
@@ -1268,7 +1289,8 @@ private fun refreshSharedContent(
                     PropertyFactory.iconSize(1f),
                     PropertyFactory.textField("{$PROP_WP_NAME}"),
                     PropertyFactory.textSize(12f),
-                    PropertyFactory.textFont(arrayOf("Inter-Medium")),
+                    // NO textFont — same invalid-glyph bug as the GPX
+                    // waypoint layer above; see that comment.
                     PropertyFactory.textColor("#2D2D2D"),
                     PropertyFactory.textHaloColor("#FFFFFF"),
                     PropertyFactory.textHaloWidth(2f),
@@ -1277,7 +1299,7 @@ private fun refreshSharedContent(
                     PropertyFactory.textAnchor("top"),
                     PropertyFactory.textMaxWidth(8f),
                     PropertyFactory.textAllowOverlap(false),
-                    PropertyFactory.textOptional(false)
+                    PropertyFactory.textOptional(true)
                 )
             )
         }

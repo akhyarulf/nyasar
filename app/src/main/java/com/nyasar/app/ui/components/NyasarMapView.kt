@@ -641,31 +641,41 @@ fun NyasarMapView(
                         wp.description?.let { addStringProperty(PROP_WP_DESCRIPTION, it) }
                     }
                 }
-                // Always recreate source + layer so text properties stay fresh
-                // across style reloads (provider/styleVariant change).
-                try { style.removeLayer(LAYER_WAYPOINTS) } catch (_: Exception) {}
-                try { style.removeSource(SOURCE_WAYPOINTS) } catch (_: Exception) {}
-                style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
-                style.addLayer(
-                    SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
-                        PropertyFactory.iconImage("nyasar-marker"),
-                        PropertyFactory.iconAllowOverlap(true),
-                        // Professional text styling: Inter-SemiBold 12sp, anchored
-                        // below icon with white text halo for contrast on topo maps.
-                        PropertyFactory.textField("{$PROP_WP_NAME}"),
-                        PropertyFactory.textSize(12f),
-                        PropertyFactory.textFont(arrayOf("Inter-SemiBold")),
-                        PropertyFactory.textColor("#1A1A1A"),
-                        PropertyFactory.textHaloColor("#FFFFFF"),
-                        PropertyFactory.textHaloWidth(2f),
-                        PropertyFactory.textHaloBlur(0.5f),
-                        PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
-                        PropertyFactory.textAnchor("top"),
-                        PropertyFactory.textMaxWidth(8f),
-                        PropertyFactory.textAllowOverlap(false),
-                        PropertyFactory.textOptional(false)
+                // REUSE the source/layer — same rule as refreshSharedContent
+                // below. removeLayer/removeSource + re-add inside one style
+                // callback can throw mid-batch ("id already exists" against a
+                // removal still queued) and silently kill the REST of this
+                // callback. setGeoJson never goes stale: the layer's text
+                // properties are static (data-independent), and a full style
+                // reload recreates both from scratch anyway.
+                val gpxWpSource = style.getSourceAs<GeoJsonSource>(SOURCE_WAYPOINTS)
+                if (gpxWpSource != null) {
+                    gpxWpSource.setGeoJson(FeatureCollection.fromFeatures(features))
+                } else {
+                    style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
+                }
+                if (style.getLayer(LAYER_WAYPOINTS) == null) {
+                    style.addLayer(
+                        SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
+                            PropertyFactory.iconImage("nyasar-marker"),
+                            PropertyFactory.iconAllowOverlap(true),
+                            // Professional text styling: Inter-SemiBold 12sp, anchored
+                            // below icon with white text halo for contrast on topo maps.
+                            PropertyFactory.textField("{$PROP_WP_NAME}"),
+                            PropertyFactory.textSize(12f),
+                            PropertyFactory.textFont(arrayOf("Inter-SemiBold")),
+                            PropertyFactory.textColor("#1A1A1A"),
+                            PropertyFactory.textHaloColor("#FFFFFF"),
+                            PropertyFactory.textHaloWidth(2f),
+                            PropertyFactory.textHaloBlur(0.5f),
+                            PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
+                            PropertyFactory.textAnchor("top"),
+                            PropertyFactory.textMaxWidth(8f),
+                            PropertyFactory.textAllowOverlap(false),
+                            PropertyFactory.textOptional(false)
+                        )
                     )
-                )
+                }
 
                 // User-created waypoints (spec P3E2) — own source/layer, one
                 // colored pin bitmap per category (registered once, keyed by
@@ -684,44 +694,50 @@ fun NyasarMapView(
                         addStringProperty(PROP_UWP_CATEGORY, wp.category)
                     }
                 }
-                // Always recreate source + layer so text properties stay fresh
-                // across style reloads (provider/styleVariant change).
-                try { style.removeLayer(LAYER_USER_WAYPOINTS) } catch (_: Exception) {}
-                try { style.removeSource(SOURCE_USER_WAYPOINTS) } catch (_: Exception) {}
-                style.addSource(GeoJsonSource(SOURCE_USER_WAYPOINTS, FeatureCollection.fromFeatures(userWpFeatures)))
-                val iconMatchStops = com.nyasar.app.data.db.WaypointCategory.entries.flatMap { cat ->
-                    listOf(
-                        org.maplibre.android.style.expressions.Expression.literal(cat.name),
-                        org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${cat.name}")
+                // Same reuse rule as the GPX block above — update the existing
+                // source, add the layer only when genuinely missing. remove/re-add
+                // here can throw mid-batch and silently kill the rest of the callback.
+                val userWpSource = style.getSourceAs<GeoJsonSource>(SOURCE_USER_WAYPOINTS)
+                if (userWpSource != null) {
+                    userWpSource.setGeoJson(FeatureCollection.fromFeatures(userWpFeatures))
+                } else {
+                    style.addSource(GeoJsonSource(SOURCE_USER_WAYPOINTS, FeatureCollection.fromFeatures(userWpFeatures)))
+                }
+                if (style.getLayer(LAYER_USER_WAYPOINTS) == null) {
+                    val iconMatchStops = com.nyasar.app.data.db.WaypointCategory.entries.flatMap { cat ->
+                        listOf(
+                            org.maplibre.android.style.expressions.Expression.literal(cat.name),
+                            org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${cat.name}")
+                        )
+                    }.toTypedArray()
+                    style.addLayer(
+                        SymbolLayer(LAYER_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS).withProperties(
+                            PropertyFactory.iconImage(
+                                org.maplibre.android.style.expressions.Expression.match(
+                                    org.maplibre.android.style.expressions.Expression.get(PROP_UWP_CATEGORY),
+                                    org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${com.nyasar.app.data.db.WaypointCategory.CUSTOM.name}"),
+                                    *iconMatchStops
+                                )
+                            ),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconSize(1f),
+                            // Professional text styling: Inter-Medium 12sp, anchored
+                            // below icon with white halo for legibility on any map style.
+                            PropertyFactory.textField("{$PROP_WP_NAME}"),
+                            PropertyFactory.textSize(12f),
+                            PropertyFactory.textFont(arrayOf("Inter-Medium")),
+                            PropertyFactory.textColor("#2D2D2D"),
+                            PropertyFactory.textHaloColor("#FFFFFF"),
+                            PropertyFactory.textHaloWidth(2f),
+                            PropertyFactory.textHaloBlur(0.5f),
+                            PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
+                            PropertyFactory.textAnchor("top"),
+                            PropertyFactory.textMaxWidth(8f),
+                            PropertyFactory.textAllowOverlap(false),
+                            PropertyFactory.textOptional(false)
+                        )
                     )
-                }.toTypedArray()
-                style.addLayer(
-                    SymbolLayer(LAYER_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS).withProperties(
-                        PropertyFactory.iconImage(
-                            org.maplibre.android.style.expressions.Expression.match(
-                                org.maplibre.android.style.expressions.Expression.get(PROP_UWP_CATEGORY),
-                                org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${com.nyasar.app.data.db.WaypointCategory.CUSTOM.name}"),
-                                *iconMatchStops
-                            )
-                        ),
-                        PropertyFactory.iconAllowOverlap(true),
-                        PropertyFactory.iconSize(1f),
-                        // Professional text styling: Inter-Medium 12sp, anchored
-                        // below icon with white halo for legibility on any map style.
-                        PropertyFactory.textField("{$PROP_WP_NAME}"),
-                        PropertyFactory.textSize(12f),
-                        PropertyFactory.textFont(arrayOf("Inter-Medium")),
-                        PropertyFactory.textColor("#2D2D2D"),
-                        PropertyFactory.textHaloColor("#FFFFFF"),
-                        PropertyFactory.textHaloWidth(2f),
-                        PropertyFactory.textHaloBlur(0.5f),
-                        PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
-                        PropertyFactory.textAnchor("top"),
-                        PropertyFactory.textMaxWidth(8f),
-                        PropertyFactory.textAllowOverlap(false),
-                        PropertyFactory.textOptional(false)
-                    )
-                )
+                }
 
                 // User location marker (spec section 6/22): a soft halo behind a
                 // solid dot, drawn as its own source/layers so position updates
@@ -1178,27 +1194,41 @@ private fun refreshSharedContent(
                 style.addImage(imageName, userWaypointMarkerBitmap(cat.color.toArgb()))
             }
         }
-        try { style.removeLayer(LAYER_WAYPOINTS) } catch (_: Exception) {}
-        try { style.removeSource(SOURCE_WAYPOINTS) } catch (_: Exception) {}
-        style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
-        style.addLayer(
-            SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
-                PropertyFactory.iconImage("nyasar-marker"),
-                PropertyFactory.iconAllowOverlap(true),
-                PropertyFactory.textField("{$PROP_WP_NAME}"),
-                PropertyFactory.textSize(12f),
-                PropertyFactory.textFont(arrayOf("Inter-SemiBold")),
-                PropertyFactory.textColor("#1A1A1A"),
-                PropertyFactory.textHaloColor("#FFFFFF"),
-                PropertyFactory.textHaloWidth(2f),
-                PropertyFactory.textHaloBlur(0.5f),
-                PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
-                PropertyFactory.textAnchor("top"),
-                PropertyFactory.textMaxWidth(8f),
-                PropertyFactory.textAllowOverlap(false),
-                PropertyFactory.textOptional(false)
+        // REUSE the source/layer — never remove/recreate here. MapLibre batches
+        // style mutations; re-adding an id that is still queued for removal
+        // throws ("source id already exists") and kills the REST of this
+        // getStyle callback silently — the waypoint layers then stay whatever
+        // the last full load left them (often EMPTY), while the camera fit in
+        // the mapView.post below still runs. Exactly the "rute biru muncul,
+        // pin tidak" symptom. setGeoJson on the existing source is the same
+        // proven pattern the track block above uses (the track line always
+        // rendered on the shared map — the pins didn't).
+        val gpxSource = style.getSourceAs<GeoJsonSource>(SOURCE_WAYPOINTS)
+        if (gpxSource != null) {
+            gpxSource.setGeoJson(FeatureCollection.fromFeatures(features))
+        } else {
+            style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
+        }
+        if (style.getLayer(LAYER_WAYPOINTS) == null) {
+            style.addLayer(
+                SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
+                    PropertyFactory.iconImage("nyasar-marker"),
+                    PropertyFactory.iconAllowOverlap(true),
+                    PropertyFactory.textField("{$PROP_WP_NAME}"),
+                    PropertyFactory.textSize(12f),
+                    PropertyFactory.textFont(arrayOf("Inter-SemiBold")),
+                    PropertyFactory.textColor("#1A1A1A"),
+                    PropertyFactory.textHaloColor("#FFFFFF"),
+                    PropertyFactory.textHaloWidth(2f),
+                    PropertyFactory.textHaloBlur(0.5f),
+                    PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
+                    PropertyFactory.textAnchor("top"),
+                    PropertyFactory.textMaxWidth(8f),
+                    PropertyFactory.textAllowOverlap(false),
+                    PropertyFactory.textOptional(false)
+                )
             )
-        )
+        }
 
         val userWpFeatures = userWaypoints.map { wp ->
             Feature.fromGeometry(Point.fromLngLat(wp.lon, wp.lat)).apply {
@@ -1207,39 +1237,50 @@ private fun refreshSharedContent(
                 addStringProperty(PROP_UWP_CATEGORY, wp.category)
             }
         }
-        try { style.removeLayer(LAYER_USER_WAYPOINTS) } catch (_: Exception) {}
-        try { style.removeSource(SOURCE_USER_WAYPOINTS) } catch (_: Exception) {}
-        style.addSource(GeoJsonSource(SOURCE_USER_WAYPOINTS, FeatureCollection.fromFeatures(userWpFeatures)))
-        style.addLayer(
-            SymbolLayer(LAYER_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS).withProperties(
-                PropertyFactory.iconImage(
-                    org.maplibre.android.style.expressions.Expression.match(
-                        org.maplibre.android.style.expressions.Expression.get(PROP_UWP_CATEGORY),
-                        org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${com.nyasar.app.data.db.WaypointCategory.CUSTOM.name}"),
-                        *com.nyasar.app.data.db.WaypointCategory.entries.flatMap { cat ->
-                            listOf(
-                                org.maplibre.android.style.expressions.Expression.literal(cat.name),
-                                org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${cat.name}")
-                            )
-                        }.toTypedArray()
-                    )
-                ),
-                PropertyFactory.iconAllowOverlap(true),
-                PropertyFactory.iconSize(1f),
-                PropertyFactory.textField("{$PROP_WP_NAME}"),
-                PropertyFactory.textSize(12f),
-                PropertyFactory.textFont(arrayOf("Inter-Medium")),
-                PropertyFactory.textColor("#2D2D2D"),
-                PropertyFactory.textHaloColor("#FFFFFF"),
-                PropertyFactory.textHaloWidth(2f),
-                PropertyFactory.textHaloBlur(0.5f),
-                PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
-                PropertyFactory.textAnchor("top"),
-                PropertyFactory.textMaxWidth(8f),
-                PropertyFactory.textAllowOverlap(false),
-                PropertyFactory.textOptional(false)
+        // Same reuse rule as the GPX block above. This is the layer that
+        // renders every v7-merged DB waypoint in Route Viewer, so a throw
+        // here was the remaining "pin gak muncul" path in shared mode:
+        // remove+re-add against a removal still queued killed this callback
+        // after the source swap but before the layer came back.
+        val userWpSource = style.getSourceAs<GeoJsonSource>(SOURCE_USER_WAYPOINTS)
+        if (userWpSource != null) {
+            userWpSource.setGeoJson(FeatureCollection.fromFeatures(userWpFeatures))
+        } else {
+            style.addSource(GeoJsonSource(SOURCE_USER_WAYPOINTS, FeatureCollection.fromFeatures(userWpFeatures)))
+        }
+        if (style.getLayer(LAYER_USER_WAYPOINTS) == null) {
+            val iconMatchStops = com.nyasar.app.data.db.WaypointCategory.entries.flatMap { cat ->
+                listOf(
+                    org.maplibre.android.style.expressions.Expression.literal(cat.name),
+                    org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${cat.name}")
+                )
+            }.toTypedArray()
+            style.addLayer(
+                SymbolLayer(LAYER_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS).withProperties(
+                    PropertyFactory.iconImage(
+                        org.maplibre.android.style.expressions.Expression.match(
+                            org.maplibre.android.style.expressions.Expression.get(PROP_UWP_CATEGORY),
+                            org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${com.nyasar.app.data.db.WaypointCategory.CUSTOM.name}"),
+                            *iconMatchStops
+                        )
+                    ),
+                    PropertyFactory.iconAllowOverlap(true),
+                    PropertyFactory.iconSize(1f),
+                    PropertyFactory.textField("{$PROP_WP_NAME}"),
+                    PropertyFactory.textSize(12f),
+                    PropertyFactory.textFont(arrayOf("Inter-Medium")),
+                    PropertyFactory.textColor("#2D2D2D"),
+                    PropertyFactory.textHaloColor("#FFFFFF"),
+                    PropertyFactory.textHaloWidth(2f),
+                    PropertyFactory.textHaloBlur(0.5f),
+                    PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
+                    PropertyFactory.textAnchor("top"),
+                    PropertyFactory.textMaxWidth(8f),
+                    PropertyFactory.textAllowOverlap(false),
+                    PropertyFactory.textOptional(false)
+                )
             )
-        )
+        }
 
         // Same layout-timing rule as the full-load path: defer the camera fit
         // until the view has final dimensions (newLatLngBounds needs real

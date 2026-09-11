@@ -455,6 +455,20 @@ fun NyasarMapView(
         }
     }
 
+    // Camera-fit gate for the shared fast path below. refreshSharedContent
+    // refits the camera to the track bounds on every invocation — correct on
+    // screen entry / route switch, WRONG on waypoint-only updates: dbWaypoints
+    // arrives asynchronously from Room (typically right AFTER first render),
+    // so without this gate every waypoint add/edit/delete emission yanked the
+    // camera back to the full-route view, throwing away wherever the user had
+    // panned/zoomed (the "map kaku / lompat sendiri" complaint). The signature
+    // only changes when the planned track itself changes — list size plus
+    // first/last coordinates is enough to tell "new route loaded" from "same
+    // route, waypoints updated" at O(1) cost. Remembered per host composition:
+    // re-entering the screen starts fresh, so the desired once-per-entry fit
+    // still happens.
+    var lastFittedTrackSignature by remember { mutableStateOf<String?>(null) }
+
     // focusBounds intentionally NOT a key here. OfflineDownloadScreen feeds
     // this from state that it itself updates on every camera-idle event
     // (recomputeBoundsFromViewport) — if focusBounds re-triggered this
@@ -517,10 +531,16 @@ fun NyasarMapView(
                 // Shared fast path: the requested style is EXACTLY what's on
                 // screen — zero setStyle/tile work. Only refresh the sources
                 // this screen owns (planned track, waypoints, user waypoints)
-                // and refit the camera to its content. actualTrack/drawnPoints
-                // don't need this: their dedicated effects below run on every
-                // fresh composition with the current list anyway.
-                refreshSharedContent(map, mapView, track, waypoints, userWaypoints, focusBounds)
+                // and refit the camera — but ONLY when the track itself changed
+                // (see lastFittedTrackSignature above for why per-call refit
+                // was wrong). actualTrack/drawnPoints don't need this: their
+                // dedicated effects below run on every fresh composition with
+                // the current list anyway.
+                val trackSignature = if (track.isEmpty()) "0" else
+                    "${track.size}:${track.first().lat},${track.first().lon}:${track.last().lat},${track.last().lon}"
+                val needsCameraFit = lastFittedTrackSignature != trackSignature
+                refreshSharedContent(map, mapView, track, waypoints, userWaypoints, focusBounds, refitCamera = needsCameraFit)
+                if (needsCameraFit) lastFittedTrackSignature = trackSignature
                 onMapReady(map)
                 return@getMapAsync
             }
@@ -847,22 +867,39 @@ fun NyasarMapView(
                 // compute the camera position for newLatLngBounds. Inside a
                 // LazyColumn or any container with dynamic sizing, the style
                 // callback can fire before layout is complete, producing a
-                // distorted/"penyet" map. Wrapping in mapView.post {} defers
-                // the camera call to after the current layout pass finishes.
-                val applyCamera = Runnable {
-                    if (track.isNotEmpty()) {
-                        val bounds = boundsOf(track)
-                        val hasRealSpan = bounds.latitudeSpan > 0.0005 || bounds.longitudeSpan > 0.0005
-                        if (hasRealSpan) {
-                            map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
-                        } else {
-                            map.moveCamera(CameraUpdateFactory.newLatLngZoom(bounds.center, 17.5))
+                // distorted/"penyet" map. The camera fit is deferred to after
+                // the current layout pass (see applyCamera below).
+                // Gated on the same track-signature rule as the shared fast
+                // path: this callback re-runs whenever track/waypoints/
+                // userWaypoints change, and on a PRIVATE instance (e.g.
+                // ActivityDetail/RoutePreview) dbWaypoints is a Room flow that
+                // keeps emitting while the screen is open — every add/edit/
+                // delete/categorize of a waypoint used to yank the camera back
+                // to the full-route bounds, discarding the user's pan/zoom
+                // (the "map lompat sendiri" complaint). Runnable via a null
+                // var (not a captured local val): Kotlin would otherwise
+                // force it to final and the assignment below wouldn't
+                // compile; null keeps "no camera work this run" explicit.
+                var applyCamera: Runnable? = null
+                val trackSignature = if (track.isEmpty()) "0" else
+                    "${track.size}:${track.first().lat},${track.first().lon}:${track.last().lat},${track.last().lon}"
+                if (lastFittedTrackSignature != trackSignature) {
+                    lastFittedTrackSignature = trackSignature
+                    applyCamera = Runnable {
+                        if (track.isNotEmpty()) {
+                            val bounds = boundsOf(track)
+                            val hasRealSpan = bounds.latitudeSpan > 0.0005 || bounds.longitudeSpan > 0.0005
+                            if (hasRealSpan) {
+                                map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
+                            } else {
+                                map.moveCamera(CameraUpdateFactory.newLatLngZoom(bounds.center, 17.5))
+                            }
+                        } else if (focusBounds != null) {
+                            map.moveCamera(CameraUpdateFactory.newLatLngBounds(focusBounds, 40))
                         }
-                    } else if (focusBounds != null) {
-                        map.moveCamera(CameraUpdateFactory.newLatLngBounds(focusBounds, 40))
                     }
                 }
-                mapView.post(applyCamera)
+                applyCamera?.let { mapView.post(it) }
 
                 // Native gesture detection (spec: "1 jari drag = PAN", "saat
                 // user menggeser/zoom manual -> Follow GPS harus OFF"). This
@@ -1159,7 +1196,11 @@ private fun refreshSharedContent(
     track: List<TrackPoint>,
     waypoints: List<GpxWaypoint>,
     userWaypoints: List<com.nyasar.app.data.db.WaypointEntity>,
-    focusBounds: org.maplibre.android.geometry.LatLngBounds?
+    focusBounds: org.maplibre.android.geometry.LatLngBounds?,
+    /** False = content-only refresh (waypoints changed but the route is the
+     *  same): skip the camera fit so a background DB emission never yanks the
+     *  user's pan/zoom position back to the full-route bounds. */
+    refitCamera: Boolean
 ) {
     map.getStyle { style ->
         val trackSource = style.getSourceAs<GeoJsonSource>(SOURCE_TRACK)
@@ -1307,6 +1348,7 @@ private fun refreshSharedContent(
         // Same layout-timing rule as the full-load path: defer the camera fit
         // until the view has final dimensions (newLatLngBounds needs real
         // width/height or the map renders "penyet").
+        if (!refitCamera) return@getStyle
         mapView.post {
             if (track.isNotEmpty()) {
                 val bounds = boundsOf(track)

@@ -174,10 +174,25 @@ fun RoutePreviewScreen(
                 provider = currentProvider,
                 styleVariant = currentStyleVariant,
                 basemapEntry = currentBasemap,
-                // Opt into the shared MapView so Home ↔ RoutePreview ↔
-                // Recording reuse one GL surface/tile cache/style instead
-                // of rebuilding the map on every screen switch.
-                shared = true,
+                // BUG FIX ("pin gak muncul di Route Viewer padahal di Activity
+                // Detail muncul"): this screen used to opt into the SHARED
+                // MapView (shared = true). ActivityDetailScreen — where pins
+                // provably render — uses a PRIVATE instance via the full
+                // setStyle pipeline. The shared fast path (refreshSharedContent)
+                // was audited line-by-line and produces the identical sources,
+                // layers, images, and properties — and the track line FROM THE
+                // SAME CALLBACK visibly renders, so the callback runs to
+                // completion. The only remaining variable is persistent state
+                // carried by the process-wide shared instance (style + content
+                // + images installed by other screens), which this screen
+                // inherits instead of building fresh. The pragmatic fix is to
+                // give RoutePreview its own instance on the EXACT pipeline
+                // that is proven to work on-device — the ActivityDetail
+                // pipeline — at the cost of one style/tile load per entry
+                // (acceptable: it's a detail screen reached from Library, not
+                // a tab users flip between constantly; Home ↔ Recording keep
+                // the shared optimization where it matters most).
+                shared = false,
                 activeOverlays = activeOverlays,
                 // "Jalur Saya" overlay — this screen's route renders solid
                 // accent; other saved routes render gray/dashed when on.

@@ -546,6 +546,17 @@ fun NyasarMapView(
                 if (style.getImage("nyasar-heading-arrow") == null) {
                     style.addImage("nyasar-heading-arrow", headingArrowBitmap())
                 }
+                // GPX waypoint pin — an in-code bitmap instead of the style
+                // sprite "marker-15". MapLibre silently draws NO symbol when
+                // iconImage names an image the style doesn't carry, and our
+                // inline raster styles (RasterStyleJson) ship no sprite at
+                // all — so iconImage("marker-15") rendered nothing on them.
+                // Registering our own bitmap makes the layer independent of
+                // the style's sprite contents (same approach as the category
+                // pins below).
+                if (style.getImage("nyasar-marker") == null) {
+                    style.addImage("nyasar-marker", userWaypointMarkerBitmap(android.graphics.Color.parseColor("#42A5F5")))
+                }
                 // Note: MapLibre Android SDK does not support custom font
                 // registration via style.addFont(). The textFont references
                 // below will silently fall back to the style's default fonts.
@@ -637,7 +648,7 @@ fun NyasarMapView(
                 style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
                 style.addLayer(
                     SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
-                        PropertyFactory.iconImage("marker-15"),
+                        PropertyFactory.iconImage("nyasar-marker"),
                         PropertyFactory.iconAllowOverlap(true),
                         // Professional text styling: Inter-SemiBold 12sp, anchored
                         // below icon with white text halo for contrast on topo maps.
@@ -1148,12 +1159,31 @@ private fun refreshSharedContent(
                 wp.description?.let { addStringProperty(PROP_WP_DESCRIPTION, it) }
             }
         }
+        // Register the marker images this content needs BEFORE rebuilding
+        // the waypoint layers. The shared fast path SKIPS setStyle entirely,
+        // so anything registered only inside the style callback may never
+        // have run for the style currently on screen (this screen adopting
+        // the shared instance from another, or the layers rebuilt here right
+        // after a basemap switch). A missing iconImage bitmap = MapLibre
+        // silently draws no symbol at all — the "waypoint gak muncul di
+        // Route Viewer" bug: every v7-merged GPX waypoint lives in the DB
+        // layer, whose pin bitmaps were only ever registered in the full
+        // setStyle path that the shared fast path bypasses.
+        if (style.getImage("nyasar-marker") == null) {
+            style.addImage("nyasar-marker", userWaypointMarkerBitmap(android.graphics.Color.parseColor("#42A5F5")))
+        }
+        com.nyasar.app.data.db.WaypointCategory.entries.forEach { cat ->
+            val imageName = "nyasar-uwp-${cat.name}"
+            if (style.getImage(imageName) == null) {
+                style.addImage(imageName, userWaypointMarkerBitmap(cat.color.toArgb()))
+            }
+        }
         try { style.removeLayer(LAYER_WAYPOINTS) } catch (_: Exception) {}
         try { style.removeSource(SOURCE_WAYPOINTS) } catch (_: Exception) {}
         style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
         style.addLayer(
             SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
-                PropertyFactory.iconImage("marker-15"),
+                PropertyFactory.iconImage("nyasar-marker"),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.textField("{$PROP_WP_NAME}"),
                 PropertyFactory.textSize(12f),

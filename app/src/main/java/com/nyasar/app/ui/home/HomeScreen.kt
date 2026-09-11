@@ -604,8 +604,12 @@ fun HomeScreen(
         WaypointCrosshairScreen(
             cameraTarget = crosshairTarget,
             attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(),
-            onSave = { lat, lon, name, category, _, _ ->
-                waypointViewModel.confirmCrosshairWaypointFrom(lat, lon, name, category, null, null, null)
+            onSave = { lat, lon, name, category, linkedRouteId, linkedActivityId ->
+                // Home offers no link options, so the crosshair's picker is
+                // hidden and these arrive as null — but forward them as-is
+                // instead of discarding, so the crosshair's choice (not a
+                // hardcode) is what gets saved.
+                waypointViewModel.confirmCrosshairWaypointFrom(lat, lon, name, category, null, linkedRouteId, linkedActivityId)
                 showCrosshair = false
             },
             onDismiss = { showCrosshair = false }

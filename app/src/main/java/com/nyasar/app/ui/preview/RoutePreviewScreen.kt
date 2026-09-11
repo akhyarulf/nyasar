@@ -102,6 +102,7 @@ fun RoutePreviewScreen(
     val dbWaypoints by viewModel.dbWaypoints.collectAsState()
     val userWaypoints by waypointViewModel.independentWaypoints.collectAsState()
     val editingWaypointState by waypointViewModel.editingWaypoint.collectAsState()
+    val pendingWaypointTap by waypointViewModel.pendingTap.collectAsState()
     LaunchedEffect(routeId) {
         waypointViewModel.setContext(com.nyasar.app.ui.waypoint.WaypointContext.Route(routeId))
     }
@@ -220,6 +221,13 @@ fun RoutePreviewScreen(
             onWaypointClick = { selectedWaypoint = it },
             onUserWaypointClick = { id ->
                 (dbWaypoints + userWaypoints).firstOrNull { it.id == id }?.let { selectedDbWaypoint = it }
+            },
+            // Long-press → Add-waypoint sheet, the same gesture every other
+            // map screen offers (Home/Recording/Navigation). Context-seeded
+            // to THIS route via WaypointContext set in the LaunchedEffect
+            // above; the picker in the sheet lets the user detach it.
+            onMapLongPress = { lat, lon ->
+                waypointViewModel.onMapLongPress(lat, lon, currentLocation?.elevationM)
             },
             onMapReady = { mapInstance = it },
             onBearingChanged = { mapBearing = it },
@@ -458,6 +466,30 @@ fun RoutePreviewScreen(
 
     selectedWaypoint?.let { wp ->
         WaypointDetailSheet(waypoint = wp, onDismiss = { selectedWaypoint = null })
+    }
+
+    // Long-press Add sheet — same form as Home/Recording/Navigation. The
+    // attachment picker is seeded with THIS route (Route Viewer context);
+    // the user can switch to independent before saving.
+    pendingWaypointTap?.let { tap ->
+        WaypointFormSheet(
+            title = stringResource(R.string.new_waypoint),
+            initialName = "",
+            initialCategory = com.nyasar.app.data.db.WaypointCategory.POI,
+            initialNote = "",
+            lat = tap.lat,
+            lon = tap.lon,
+            elevationM = tap.elevationM,
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = routeId,
+                routeName = state.name
+            ),
+            initialLinkedRouteId = routeId,
+            onDismiss = waypointViewModel::dismissPendingTap,
+            onSave = { name, category, note, linkedRouteId, linkedActivityId ->
+                waypointViewModel.confirmAdd(name, category, note, linkedRouteId, linkedActivityId)
+            }
+        )
     }
 
     if (showBasemapSheet) {

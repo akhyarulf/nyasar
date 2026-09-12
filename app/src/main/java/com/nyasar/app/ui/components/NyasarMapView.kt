@@ -43,6 +43,13 @@ private const val SOURCE_WAYPOINTS = "nyasar-waypoints-source"
 private const val LAYER_WAYPOINTS = "nyasar-waypoints-layer"
 private const val SOURCE_USER_WAYPOINTS = "nyasar-user-waypoints-source"
 private const val LAYER_USER_WAYPOINTS = "nyasar-user-waypoints-layer"
+// Pins and labels are SEPARATE symbol layers (see addWaypointLabelLayer):
+// a symbol layer carrying any text property requires the style's "glyphs"
+// endpoint, and a glyph-less style rejects the layer WHOLE — icon
+// included. Icon-only layers keep pins glyph-free; labels degrade
+// gracefully (hidden) on glyph-less styles instead of taking pins down.
+private const val LAYER_LABEL_WAYPOINTS = "nyasar-waypoints-label-layer"
+private const val LAYER_LABEL_USER_WAYPOINTS = "nyasar-user-waypoints-label-layer"
 private const val SOURCE_USER = "nyasar-user-source"
 private const val SOURCE_ACCURACY = "nyasar-accuracy-source"
 private const val LAYER_ACCURACY_FILL = "nyasar-accuracy-fill-layer"
@@ -587,11 +594,16 @@ fun NyasarMapView(
                     style.addImage("nyasar-marker", userWaypointMarkerBitmap(android.graphics.Color.parseColor("#42A5F5")))
                 }
                 // Note on fonts: MapLibre Android SDK does not support custom
-                // font registration via style.addFont(). Every Nyasar text
-                // layer below therefore deliberately OMITS textFont and lets
-                // MapLibre fall back to the style's own glyph stack — to use
-                // Inter on-map, the font must be baked into the map style's
-                // font stack at the tile-server level.
+                // font registration via style.addFont(). The waypoint label
+                // layers below (see addWaypointLabelLayer) therefore pin
+                // textFont to "Noto Sans Regular" — the family every glyphs
+                // endpoint in this app serves (vector basemaps ship Noto;
+                // the inline raster styles borrow OpenFreeMap's font server).
+                // Omitting textFont is NOT an option: MapLibre's spec-default
+                // stack ("Open Sans Regular" etc.) 404s on that endpoint and
+                // textOptional then silently hides the label. To use Inter
+                // on-map, the font must be baked into the style's font stack
+                // at the tile-server level.
                 // Track line (planned route = blue, actual/recorded = green)
                 // When there's no planned route but actualTrack has data,
                 // the caller passes actualTrack via the `track` param —
@@ -686,36 +698,26 @@ fun NyasarMapView(
                     style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
                 }
                 if (style.getLayer(LAYER_WAYPOINTS) == null) {
+                    // ICON and LABEL are SEPARATE layers on purpose — the
+                    // FINAL root cause of "pin gak muncul di Route Viewer,
+                    // padahal di Activity Detail muncul". A symbol layer with
+                    // ANY text property requires the style's "glyphs"
+                    // endpoint; the inline raster basemaps used to ship none,
+                    // so MapLibre's style validation REJECTED this whole
+                    // layer — hiding the icon too, not just the label. (The
+                    // earlier Inter-*/textOptional fixes couldn't work: no
+                    // text setting rescues a layer that never validates.) An
+                    // icon-only layer has zero glyph dependency, so pins
+                    // render on EVERY basemap; labels live in their own
+                    // text-only layer (see addWaypointLabelLayer) that merely
+                    // hides on glyph-less styles instead of taking pins down.
                     style.addLayer(
                         SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
                             PropertyFactory.iconImage("nyasar-marker"),
-                            PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.textField("{$PROP_WP_NAME}"),
-                            PropertyFactory.textSize(12f),
-                            // NO textFont — see the full rationale in the
-                            // refreshSharedContent rebuild of this same layer
-                            // below. Short version: "Inter-*" exists in NO
-                            // basemap's glyph stack (Liberty/OpenFreeMap ship
-                            // Noto Sans; the inline raster styles ship no
-                            // glyphs endpoint at all), so label placement
-                            // always failed, and textOptional(false) then hid
-                            // the WHOLE symbol — icon included. That was the
-                            // "pin gak muncul di Route Viewer" bug. Omitting
-                            // textFont falls back to the style's own font,
-                            // and textOptional(true) degrades any future text
-                            // failure to hidden TEXT only — the pin itself can
-                            // never be hidden by a text problem again.
-                            PropertyFactory.textColor("#1A1A1A"),
-                            PropertyFactory.textHaloColor("#FFFFFF"),
-                            PropertyFactory.textHaloWidth(2f),
-                            PropertyFactory.textHaloBlur(0.5f),
-                            PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
-                            PropertyFactory.textAnchor("top"),
-                            PropertyFactory.textMaxWidth(8f),
-                            PropertyFactory.textAllowOverlap(false),
-                            PropertyFactory.textOptional(true)
+                            PropertyFactory.iconAllowOverlap(true)
                         )
                     )
+                    addWaypointLabelLayer(style, LAYER_LABEL_WAYPOINTS, SOURCE_WAYPOINTS, LAYER_WAYPOINTS)
                 }
 
                 // User-created waypoints (spec P3E2) — own source/layer, one
@@ -751,6 +753,8 @@ fun NyasarMapView(
                             org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${cat.name}")
                         )
                     }.toTypedArray()
+                    // Same icon/label split as the GPX layer above — pins
+                    // must not depend on the style's glyphs endpoint.
                     style.addLayer(
                         SymbolLayer(LAYER_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS).withProperties(
                             PropertyFactory.iconImage(
@@ -761,24 +765,10 @@ fun NyasarMapView(
                                 )
                             ),
                             PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.iconSize(1f),
-                            // Text styling: 12sp anchored below the icon with a
-                            // white halo for legibility on any map style. NO
-                            // textFont — same invalid-glyph bug as the GPX
-                            // waypoint layer above; see refreshSharedContent.
-                            PropertyFactory.textField("{$PROP_WP_NAME}"),
-                            PropertyFactory.textSize(12f),
-                            PropertyFactory.textColor("#2D2D2D"),
-                            PropertyFactory.textHaloColor("#FFFFFF"),
-                            PropertyFactory.textHaloWidth(2f),
-                            PropertyFactory.textHaloBlur(0.5f),
-                            PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
-                            PropertyFactory.textAnchor("top"),
-                            PropertyFactory.textMaxWidth(8f),
-                            PropertyFactory.textAllowOverlap(false),
-                            PropertyFactory.textOptional(true)
+                            PropertyFactory.iconSize(1f)
                         )
                     )
+                    addWaypointLabelLayer(style, LAYER_LABEL_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS, LAYER_USER_WAYPOINTS)
                 }
 
                 // User location marker (spec section 6/22): a soft halo behind a
@@ -1200,6 +1190,56 @@ fun NyasarMapView(
  *  screen owns — planned-track source, waypoint sources, camera fit. The
  *  dedicated per-concern effects below (actualTrack/drawnPoints/highlight/
  *  user marker) run on every fresh composition with current data anyway. */
+/**
+ * Text labels for the waypoint pin layers, added as SEPARATE text-only
+ * symbol layers. Root cause this solves ("pin gak muncul di Route Viewer
+ * padahal di Activity Detail muncul"): a symbol layer with ANY text
+ * property (textField/textFont/textOffset/...) requires the style's
+ * "glyphs" font endpoint, and MapLibre's style validation REJECTS such a
+ * layer wholesale on glyph-less styles — the inline raster basemaps
+ * (RasterStyleJson) used to ship no glyphs URL — so the pin ICON was
+ * hidden too, not just the label. No textOptional/textFont combination
+ * can rescue a layer that never validates. Splitting pins (icon-only,
+ * zero glyph dependency — renders on EVERY basemap including fully
+ * offline ones) from labels (text-only, textOptional so a failed glyph
+ * fetch hides just that one label) keeps pins bulletproof everywhere
+ * while labels still render wherever the style provides fonts.
+ *
+ * Placed directly ABOVE [aboveLayerId] so a label can never cover a
+ * neighboring pin (icons own their pixels; labels fill the gaps).
+ */
+private fun addWaypointLabelLayer(
+    style: org.maplibre.android.maps.Style,
+    labelLayerId: String,
+    sourceId: String,
+    aboveLayerId: String
+) {
+    style.addLayerAbove(
+        org.maplibre.android.style.layers.SymbolLayer(labelLayerId, sourceId).withProperties(
+            PropertyFactory.textField("{$PROP_WP_NAME}"),
+            // Pin the label to the one family every glyphs endpoint in this
+            // app serves (OpenFreeMap fonts endpoint: "Noto Sans Regular" =
+            // 200 OK; MapLibre's spec-default stack 404s there — without
+            // textFont the label would silently never render anywhere).
+            // Safe on a TEXT-ONLY layer: a failed fetch (e.g. fully
+            // offline) hides just this label via textOptional below — the
+            // pin icon on its own layer is never affected.
+            PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+            PropertyFactory.textSize(12f),
+            PropertyFactory.textColor("#1A1A1A"),
+            PropertyFactory.textHaloColor("#FFFFFF"),
+            PropertyFactory.textHaloWidth(2f),
+            PropertyFactory.textHaloBlur(0.5f),
+            PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
+            PropertyFactory.textAnchor("top"),
+            PropertyFactory.textMaxWidth(8f),
+            PropertyFactory.textAllowOverlap(false),
+            PropertyFactory.textOptional(true)
+        ),
+        aboveLayerId
+    )
+}
+
 private fun refreshSharedContent(
     map: MapLibreMap,
     mapView: MapView,
@@ -1273,33 +1313,17 @@ private fun refreshSharedContent(
             style.addSource(GeoJsonSource(SOURCE_WAYPOINTS, FeatureCollection.fromFeatures(features)))
         }
         if (style.getLayer(LAYER_WAYPOINTS) == null) {
+            // Same icon/label split as the full-load path above: a text
+            // property drags a glyphs-endpoint requirement onto the whole
+            // symbol layer, which is exactly how glyph-less inline raster
+            // basemaps used to reject pins wholesale (icon included).
             style.addLayer(
                 SymbolLayer(LAYER_WAYPOINTS, SOURCE_WAYPOINTS).withProperties(
                     PropertyFactory.iconImage("nyasar-marker"),
-                    PropertyFactory.iconAllowOverlap(true),
-                    PropertyFactory.textField("{$PROP_WP_NAME}"),
-                    PropertyFactory.textSize(12f),
-                    // NO textFont — see the full rationale in the full-load
-                    // rebuild of this same layer above. Short version:
-                    // "Inter-*" exists in NO basemap's glyph stack, so label
-                    // placement always failed, and with textOptional(false)
-                    // MapLibre then hid the WHOLE symbol — icon included.
-                    // That was the "pin gak muncul di Route Viewer" bug.
-                    // Omitting textFont falls back to the style's own font,
-                    // which always exists, and textOptional(true) degrades
-                    // any future text failure to hidden TEXT only — the pin
-                    // icon can never be hidden by a text problem again.
-                    PropertyFactory.textColor("#1A1A1A"),
-                    PropertyFactory.textHaloColor("#FFFFFF"),
-                    PropertyFactory.textHaloWidth(2f),
-                    PropertyFactory.textHaloBlur(0.5f),
-                    PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
-                    PropertyFactory.textAnchor("top"),
-                    PropertyFactory.textMaxWidth(8f),
-                    PropertyFactory.textAllowOverlap(false),
-                    PropertyFactory.textOptional(true)
+                    PropertyFactory.iconAllowOverlap(true)
                 )
             )
+            addWaypointLabelLayer(style, LAYER_LABEL_WAYPOINTS, SOURCE_WAYPOINTS, LAYER_WAYPOINTS)
         }
 
         val userWpFeatures = userWaypoints.map { wp ->
@@ -1327,6 +1351,8 @@ private fun refreshSharedContent(
                     org.maplibre.android.style.expressions.Expression.literal("nyasar-uwp-${cat.name}")
                 )
             }.toTypedArray()
+            // Icon/label split — see addWaypointLabelLayer and the full-load
+            // path above: icon-only pin layers carry no glyph dependency.
             style.addLayer(
                 SymbolLayer(LAYER_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS).withProperties(
                     PropertyFactory.iconImage(
@@ -1337,22 +1363,10 @@ private fun refreshSharedContent(
                         )
                     ),
                     PropertyFactory.iconAllowOverlap(true),
-                    PropertyFactory.iconSize(1f),
-                    PropertyFactory.textField("{$PROP_WP_NAME}"),
-                    PropertyFactory.textSize(12f),
-                    // NO textFont — same invalid-glyph bug as the GPX
-                    // waypoint layer above; see that comment.
-                    PropertyFactory.textColor("#2D2D2D"),
-                    PropertyFactory.textHaloColor("#FFFFFF"),
-                    PropertyFactory.textHaloWidth(2f),
-                    PropertyFactory.textHaloBlur(0.5f),
-                    PropertyFactory.textOffset(arrayOf(0f, 1.8f)),
-                    PropertyFactory.textAnchor("top"),
-                    PropertyFactory.textMaxWidth(8f),
-                    PropertyFactory.textAllowOverlap(false),
-                    PropertyFactory.textOptional(true)
+                    PropertyFactory.iconSize(1f)
                 )
             )
+            addWaypointLabelLayer(style, LAYER_LABEL_USER_WAYPOINTS, SOURCE_USER_WAYPOINTS, LAYER_USER_WAYPOINTS)
         }
 
         // Same layout-timing rule as the full-load path: defer the camera fit
@@ -1384,7 +1398,9 @@ private fun handleMapTap(
     screenPoint: android.graphics.PointF,
     handlers: SharedMapHolder.TapHandlers
 ): Boolean {
-    val gpxHits = map.queryRenderedFeatures(screenPoint, LAYER_WAYPOINTS)
+    // Include the label layers in hit-testing: a tap on the label text must
+    // behave exactly like a tap on its pin (they're separate layers now).
+    val gpxHits = map.queryRenderedFeatures(screenPoint, LAYER_WAYPOINTS, LAYER_LABEL_WAYPOINTS)
     val gpxHit = gpxHits.firstOrNull()
     if (gpxHit != null) {
         val name = gpxHit.getStringProperty(PROP_WP_NAME)
@@ -1398,7 +1414,7 @@ private fun handleMapTap(
         }
     }
 
-    val userHits = map.queryRenderedFeatures(screenPoint, LAYER_USER_WAYPOINTS)
+    val userHits = map.queryRenderedFeatures(screenPoint, LAYER_USER_WAYPOINTS, LAYER_LABEL_USER_WAYPOINTS)
     val userHit = userHits.firstOrNull()
     if (userHit != null) {
         val id = userHit.getStringProperty(PROP_UWP_ID)

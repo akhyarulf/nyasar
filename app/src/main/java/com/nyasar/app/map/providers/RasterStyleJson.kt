@@ -88,10 +88,20 @@ object RasterStyleJson {
         // resolved style URI while debugging immediately shows which
         // entry it came from, instead of two visually-similar raster
         // styles being indistinguishable in a log.
+        // "glyphs" is REQUIRED for any symbol layer carrying text: without
+        // it, MapLibre's style validation REJECTS text-bearing symbol layers
+        // WHOLE — icon included — which is the final root cause of "waypoint
+        // pins never rendered on raster basemaps" (line layers like the
+        // route track were fine, which is why the track always showed but
+        // pins never did). OpenFreeMap's public font endpoint serves the
+        // full Noto family with no API key; the app's own label layers also
+        // degrade to icon-only via textOptional if font fetching fails, so
+        // this URL is a robustness net, not a pin-rendering dependency.
         val json = """
             {
               "version": 8,
               "name": "${entry.gpxName} (${entry.gpxKey})",
+              "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
               "sources": {
                 "basemap-raster": {
                   "type": "raster",
@@ -200,10 +210,18 @@ object RasterStyleJson {
             }
             """
         }
+        // "glyphs" added for the same reason as the plain raster style
+        // above (text-bearing symbol layers — including app-added waypoint
+        // labels — need a font endpoint or the layer is rejected whole).
+        // The two road/place label layers below used the Open Sans family,
+        // which OpenFreeMap's font endpoint does NOT serve (verified 404) —
+        // those labels silently never rendered. Noto Sans is the family the
+        // endpoint actually serves (200 OK).
         val json = """
             {
               "version": 8,
               "name": "Liberty Satellite",
+              "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
               "sources": {
                 "liberty-overlay": {
                   "type": "vector",
@@ -260,7 +278,7 @@ object RasterStyleJson {
                     "text-field": { "type": "identity", "property": "name" },
                     "text-size": 11,
                     "text-anchor": "center",
-                    "text-font": ["Open Sans Regular"]
+                    "text-font": ["Noto Sans Regular"]
                   },
                   "paint": { "text-color": "#ffffff", "text-halo-color": "rgba(0,0,0,0.55)", "text-halo-width": 1.4 }
                 },
@@ -273,7 +291,7 @@ object RasterStyleJson {
                     "text-field": { "type": "identity", "property": "name" },
                     "text-size": 11,
                     "text-anchor": "center",
-                    "text-font": ["Open Sans Regular"]
+                    "text-font": ["Noto Sans Regular"]
                   },
                   "paint": { "text-color": "#ffffff", "text-halo-color": "rgba(0,0,0,0.55)", "text-halo-width": 1.4 }
                 }

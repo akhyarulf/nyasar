@@ -34,6 +34,12 @@ class WaypointRepository(context: Context) {
     fun observeForRoute(routeId: String): Flow<List<WaypointEntity>> =
         dao.observeForRoute(routeId)
 
+    /** Waypoints linked to ACTIVITIES recorded along [routeId] — reactive
+     *  counterpart of [getForActivity] from the route's perspective (see
+     *  WaypointDao.observeForRouteActivities for why RoutePreview needs it). */
+    fun observeForRouteActivities(routeId: String): Flow<List<WaypointEntity>> =
+        dao.observeForRouteActivities(routeId)
+
     suspend fun getById(id: String): WaypointEntity? = withContext(Dispatchers.IO) {
         dao.getById(id)
     }

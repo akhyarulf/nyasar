@@ -116,6 +116,15 @@ fun NyasarMapView(
      *  route is active, every line renders inactive. */
     activeRouteId: String? = null,
     track: List<TrackPoint>,
+    /** Explicit color for the [track] line. Null (default) = legacy
+     *  heuristic — green when [actualTrack] is empty ("this list is the
+     *  walked path", ActivityDetail/Navigation legend semantics), blue
+     *  otherwise. RoutePreview passes the app blue: its track is ALWAYS
+     *  the planned route, and that is the color the screen has always
+     *  shown (the shared fast path it migrated from hardcoded blue).
+     *  Without this, migrating RoutePreview onto the full-load pipeline
+     *  would silently recolor every route green. */
+    trackColorOverride: String? = null,
     /** The track actually walked so far (recording), drawn as a second line in
      *  a different color from [track] (the planned route). Updates on every
      *  GPS fix — kept in its own source/effect so it never touches the
@@ -592,7 +601,8 @@ fun NyasarMapView(
                 // When there's a planned route, track goes in blue (#42A5F5);
                 // when there's no planned route, track is actual walked path —
                 // shown in the same muted green (#5A7562) everywhere.
-                val trackColor = if (track.isNotEmpty() && actualTrack.isEmpty()) "#5A7562" else "#42A5F5"
+                val trackColor = trackColorOverride
+                    ?: if (track.isNotEmpty() && actualTrack.isEmpty()) "#5A7562" else "#42A5F5"
                 val trackSource = style.getSourceAs<GeoJsonSource>(SOURCE_TRACK)
                 if (trackSource != null) {
                     trackSource.setGeoJson(lineString)

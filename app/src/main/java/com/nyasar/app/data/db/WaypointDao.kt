@@ -28,6 +28,19 @@ interface WaypointDao {
     @Query("SELECT * FROM waypoints WHERE linkedRouteId = :routeId ORDER BY createdAtEpochMs ASC")
     fun observeForRoute(routeId: String): Flow<List<WaypointEntity>>
 
+    /** Waypoints whose ACTIVITY link points at an activity recorded along
+     *  [routeId] (activities.routeId). RoutePreview must include these: a
+     *  pin dropped DURING a recording is activity-attached (the recording
+     *  context seeds linkedActivityId, not linkedRouteId), and Route
+     *  Viewer showing only route-linked rows is exactly the "pin muncul
+     *  di Activity Detail tapi tidak di Route Viewer" asymmetry — same
+     *  row, visible on one screen, missing on the other. */
+    @Query(
+        "SELECT w.* FROM waypoints w JOIN activities a ON w.linkedActivityId = a.id " +
+            "WHERE a.routeId = :routeId ORDER BY w.createdAtEpochMs ASC"
+    )
+    fun observeForRouteActivities(routeId: String): Flow<List<WaypointEntity>>
+
     @Query("SELECT * FROM waypoints WHERE linkedRouteId = :routeId ORDER BY createdAtEpochMs ASC")
     suspend fun getForRoute(routeId: String): List<WaypointEntity>
 

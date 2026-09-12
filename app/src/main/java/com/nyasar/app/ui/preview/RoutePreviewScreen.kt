@@ -199,6 +199,12 @@ fun RoutePreviewScreen(
                 myRoutes = myRouteLines,
                 activeRouteId = routeId,
                 track = state.track,
+                // This screen always shows the PLANNED route — keep the app
+                // blue. The full-load heuristic without an actualTrack reads
+                // the list as a walked path (green, ActivityDetail semantics)
+                // which was never this screen's look (its old shared fast
+                // path hardcoded blue).
+                trackColorOverride = "#42A5F5",
                 // v7 merge filter: the GPX layer keeps only waypoints WITHOUT
                 // a DB counterpart for this route (name + coords within
                 // WaypointEntity.GPX_COORD_MATCH_DEGREES) — every merged one

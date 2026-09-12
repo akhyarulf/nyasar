@@ -135,15 +135,40 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // v7: DB waypoints for THIS route (GPX-imported rows + user pins linked
-    // from preview) — reactive, so a categorize/edit/delete made right here
+    // here) — reactive, so a categorize/edit/delete made right here
     // updates the markers without re-parsing the GPX file.
+    // BUG FIX ("pin muncul di Activity Detail tapi tidak di Route Viewer"):
+    // this flow used to be observeForRoute ONLY. A pin dropped DURING a
+    // recording is linked to the ACTIVITY (the recording context seeds
+    // linkedActivityId, not linkedRouteId — see WaypointContext.Recording),
+    // and ActivityDetail finds it via its activity union — so the same row
+    // rendered there but never here. Route Viewer now also pulls waypoints
+    // whose activity link points at an activity recorded along this route
+    // (activities.routeId), merged + deduped with the route-linked set.
     private val _currentRouteId = MutableStateFlow<String?>(null)
     internal val currentRouteId: StateFlow<String?> = _currentRouteId.asStateFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val dbWaypoints: StateFlow<List<WaypointEntity>> = currentRouteId
         .flatMapLatest { id ->
-            if (id != null) waypointRepository.observeForRoute(id) else flowOf(emptyList())
+            if (id == null) {
+                flowOf(emptyList())
+            } else {
+                kotlinx.coroutines.flow.combine(
+                    waypointRepository.observeForRoute(id),
+                    waypointRepository.observeForRouteActivities(id)
+                ) { routeLinked, activityLinked ->
+                    // DISTINCT BY id because a row CAN be in both sets: a
+                    // user pin may carry linkedRouteId AND its linkedActivity
+                    // may still point at this route's activity (either link
+                    // changed via the edit form, or the recording context
+                    // attached it to the route while the activity stayed
+                    // linked). Order matters for stable list rendering:
+                    // route-linked first (GPX import order), then the
+                    // activity-only drops by creation time.
+                    (routeLinked + activityLinked).distinctBy { it.id }
+                }
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

@@ -1,8 +1,8 @@
 package com.nyasar.app.ui.preview
 
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -16,10 +16,9 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.UnfoldLess
-import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,7 +47,6 @@ import com.nyasar.app.ui.components.ElevationProfile
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarElevation
-import com.nyasar.app.ui.theme.NyasarMotion
 import com.nyasar.app.ui.theme.NyasarRadius
 import com.nyasar.app.ui.waypoint.WaypointCrosshairScreen
 import com.nyasar.app.ui.waypoint.WaypointFormSheet
@@ -58,24 +56,31 @@ import org.maplibre.android.geometry.LatLng
 import kotlin.math.roundToInt
 
 /**
- * Route Viewer — Komoot/ActivityDetail-style layout:
+ * Route Viewer — Komoot/ActivityDetail-style layout with a Wikiloc-style
+ * full-screen map mode:
  *
- * - MAP ON TOP: a fixed-height map block (~38% of the screen, matching the
- *   reference screenshot's balance). An expand toggle grows it to nearly the
- *   full screen; the elevation profile appears on the map as a floating card
- *   ONLY in the expanded state (spec: "ketika map penuh baru terlihat
- *   elevasinya"). The camera keeps its center across the resize so the route
- *   stays under the user's eyes.
+ * - MAP ON TOP (collapsed): a fixed-height map block (~38% of the screen,
+ *   matching the reference screenshot's balance). TWO entry points, ONE
+ *   destination: the expand button (bottom-right control stack, launcher
+ *   icon per the project's own Recording-stats convention) OR tapping
+ *   anywhere on the collapsed map opens FULL-SCREEN MAP MODE. Full-screen
+ *   is a separate full-size overlay Box (the established project pattern
+ *   for over-the-page viewers: WaypointCrosshairScreen, PhotoViewer) that
+ *   re-hosts the same map state with the SAME control set, plus the
+ *   floating elevation card ("ketika map penuh baru terlihat elevasinya").
+ *   It closes via its own back arrow or the system back gesture
+ *   (BackHandler) — returning to Route Detail with all state intact.
  * - DATA BELOW: a scrollable section styled like ActivityDetailScreen —
  *   title, stat tiles (same soft-tile visual), waypoint list with category
  *   icons, offline-map entry — so both detail screens read as siblings.
  * - PINNED CTA: Start Navigation lives in a bottom bar (never scrolls away),
- *   padded for the navigation bar like Recording's controls.
+ *   padded for the navigation bar like Recording's controls. Stats tiles,
+ *   waypoint list and Start Navigation belong ONLY to the collapsed Route
+ *   Detail — full-screen mode deliberately omits them.
  * - Fully localized (strings.xml only) and theme-tokenized
  *   (NyasarRadius/NyasarElevation/NyasarMotion + shared RoundIconButton
  *   recipe with AnimatedAppear + pressScale), responsive on small and large
- *   phones: collapsed map is a fraction of screen height, data column scrolls,
- *   nothing overflows.
+ *   phones.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,76 +131,83 @@ fun RoutePreviewScreen(
     // Highlight marker position when user scrubs the elevation chart
     var highlightLatLng by remember { mutableStateOf<LatLng?>(null) }
 
-    var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
+    // ---------------------------------------------------------------------------
+    // Full-screen map mode (Wikiloc pattern). mapExpanded is the single source
+    // of truth for BOTH entry points — the expand control button and a tap
+    // anywhere on the collapsed map. While it's true, the screen draws a
+    // full-size overlay Box AFTER (on top of) the collapsed layout; the
+    // collapsed layout keeps composing underneath unchanged, so closing
+    // restores Route Detail exactly as the user left it. The system back
+    // gesture and the overlay's own back arrow both just clear the flag.
+    // ---------------------------------------------------------------------------
+    var mapExpanded by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = mapExpanded) { mapExpanded = false }
+    // Two live MapView instances (collapsed + full-screen overlay): each
+    // NyasarMapView(shared = false) owns a real GL surface, so when the
+    // overlay mounts it must NOT steal the shared `activeMap` routing —
+    // after close, the collapsed map is the one still alive.
+    var collapsedMapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
+    var fullscreenMapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
+    val activeMap = if (mapExpanded) fullscreenMapInstance else collapsedMapInstance
+    // Camera handoff: snapshotted from the collapsed map the moment
+    // full-screen opens, applied to the overlay map on its onMapReady (which
+    // fires after the pipeline's own track-bounds fit, so this wins).
+    var fullscreenStartCamera by remember { mutableStateOf<org.maplibre.android.camera.CameraPosition?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }
     var showBasemapSheet by remember { mutableStateOf(false) }
     var currentStyleVariant by remember { mutableStateOf(StyleVariant.OUTDOOR) }
+    // Elevation card height (full-screen mode) — right-side controls lift above it.
+    var elevationCardHeightDp by remember { mutableStateOf(0.dp) }
 
-    // ---------------------------------------------------------------------------
-    // Map expand state. Collapsed: a screen-height fraction so the data list
-    // gets a real share on every device. Expanded: as tall as the screen
-    // allows while the pinned CTA bar and its padding stay visible. The height
-    // change animates with the shared motion spec; the camera center is kept
-    // across the resize so the route doesn't jump.
-    // ---------------------------------------------------------------------------
-    var mapExpanded by remember { mutableStateOf(false) }
+    // v7 "layar terakhir": the crosshair overlay reads the ACTIVE map's live
+    // camera, so it opens at exactly the last position+zoom the user was
+    // viewing — no teleport, no re-zoom.
+    val crosshairTarget by rememberCrosshairCameraState(activeMap, showCrosshair)
+
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp.dp
     val collapsedMapHeight = screenHeightDp * 0.38f
-    val expandedMapHeight = (screenHeightDp - 200.dp).coerceIn(320.dp, 720.dp)
-    val mapHeight by animateDpAsState(
-        targetValue = if (mapExpanded) expandedMapHeight else collapsedMapHeight,
-        animationSpec = NyasarMotion.enter(),
-        label = "routeMapHeight"
-    )
-    // Camera snapshot taken at toggle time, re-applied after the resize.
-    var cameraKeep by remember { mutableStateOf<org.maplibre.android.camera.CameraPosition?>(null) }
-    LaunchedEffect(mapExpanded) {
-        val map = mapInstance ?: return@LaunchedEffect
-        cameraKeep?.let { keep ->
-            map.animateCamera(CameraUpdateFactory.newCameraPosition(keep), 220)
+
+    // Waypoint tap plumbing shared by both map hosts (values captured once).
+    val gpxWaypointsForMap = state.waypoints.filter { gpxWp ->
+        dbWaypoints.none { db ->
+            db.source == WaypointEntity.SOURCE_GPX &&
+                db.name == gpxWp.name &&
+                kotlin.math.abs(db.lat - gpxWp.lat) <= WaypointEntity.GPX_COORD_MATCH_DEGREES &&
+                kotlin.math.abs(db.lon - gpxWp.lon) <= WaypointEntity.GPX_COORD_MATCH_DEGREES
         }
     }
-    // Elevation card height (expanded mode) — right-side controls lift above it.
-    var elevationCardHeightDp by remember { mutableStateOf(0.dp) }
-
-    // v7 "layar terakhir": the crosshair overlay reads THIS screen's live
-    // camera, so it opens at exactly the last position+zoom the user was
-    // viewing — no teleport, no re-zoom.
-    val crosshairTarget by rememberCrosshairCameraState(mapInstance, showCrosshair)
+    val allDbWaypoints = dbWaypoints + userWaypoints
 
     Column(Modifier.fillMaxSize()) {
         // =============================== MAP BLOCK ===============================
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(mapHeight)
+                .height(collapsedMapHeight)
         ) {
             val userLatLng = currentLocation?.let { LatLng(it.lat, it.lon) }
 
+            // Tap-anywhere-on-map opens full-screen (Wikiloc pattern), via
+            // NyasarMapView's own onMapClick hook: its listeners fire for
+            // taps the map itself didn't treat as a marker click (marker
+            // taps route to the waypoint handlers instead), and pans/zooms
+            // never count as clicks. Using the map-level hook avoids relying
+            // on Compose clickable above an AndroidView touch surface.
             NyasarMapView(
                 modifier = Modifier.fillMaxSize(),
+                onMapClick = { _, _ ->
+                    // Entry point (b): tap anywhere on the collapsed map.
+                    fullscreenStartCamera = collapsedMapInstance?.cameraPosition
+                    mapExpanded = true
+                },
                 provider = currentProvider,
                 styleVariant = currentStyleVariant,
                 basemapEntry = currentBasemap,
                 // BUG FIX ("pin gak muncul di Route Viewer padahal di Activity
-                // Detail muncul"): this screen used to opt into the SHARED
-                // MapView (shared = true). ActivityDetailScreen — where pins
-                // provably render — uses a PRIVATE instance via the full
-                // setStyle pipeline. The shared fast path (refreshSharedContent)
-                // was audited line-by-line and produces the identical sources,
-                // layers, images, and properties — and the track line FROM THE
-                // SAME CALLBACK visibly renders, so the callback runs to
-                // completion. The only remaining variable is persistent state
-                // carried by the process-wide shared instance (style + content
-                // + images installed by other screens), which this screen
-                // inherits instead of building fresh. The pragmatic fix is to
-                // give RoutePreview its own instance on the EXACT pipeline
-                // that is proven to work on-device — the ActivityDetail
-                // pipeline — at the cost of one style/tile load per entry
-                // (acceptable: it's a detail screen reached from Library, not
-                // a tab users flip between constantly; Home ↔ Recording keep
-                // the shared optimization where it matters most).
+                // Detail muncul"): this screen uses a PRIVATE instance via the
+                // full setStyle pipeline — the exact pipeline proven to render
+                // pins on-device (see the longer historical note in git).
                 shared = false,
                 activeOverlays = activeOverlays,
                 // "Jalur Saya" overlay — this screen's route renders solid
@@ -209,30 +221,24 @@ fun RoutePreviewScreen(
                 // This screen always shows the PLANNED route — keep the app
                 // blue. The full-load heuristic without an actualTrack reads
                 // the list as a walked path (green, ActivityDetail semantics)
-                // which was never this screen's look (its old shared fast
-                // path hardcoded blue).
+                // which was never this screen's look.
                 trackColorOverride = "#42A5F5",
                 // v7 merge filter: the GPX layer keeps only waypoints WITHOUT
-                // a DB counterpart for this route (name + coords within
-                // WaypointEntity.GPX_COORD_MATCH_DEGREES) — every merged one
-                // is already in dbWaypoints. Without this, each imported
-                // waypoint would render twice after the merge feature.
-                waypoints = state.waypoints.filter { gpxWp ->
-                    dbWaypoints.none { db ->
-                        db.source == WaypointEntity.SOURCE_GPX &&
-                            db.name == gpxWp.name &&
-                            kotlin.math.abs(db.lat - gpxWp.lat) <= WaypointEntity.GPX_COORD_MATCH_DEGREES &&
-                            kotlin.math.abs(db.lon - gpxWp.lon) <= WaypointEntity.GPX_COORD_MATCH_DEGREES
-                    }
-                },
-                userWaypoints = dbWaypoints + userWaypoints,
+                // a DB counterpart for this route — every merged one is
+                // already in dbWaypoints, without this each imported waypoint
+                // would render twice after the merge feature.
+                waypoints = gpxWaypointsForMap,
+                userWaypoints = allDbWaypoints,
                 waypointsVisible = waypointsVisible,
                 highlightPoint = highlightLatLng,
                 onWaypointClick = { selectedWaypoint = it },
                 onUserWaypointClick = { id ->
-                    (dbWaypoints + userWaypoints).firstOrNull { it.id == id }?.let { selectedDbWaypoint = it }
+                    allDbWaypoints.firstOrNull { it.id == id }?.let { selectedDbWaypoint = it }
                 },
-                onMapReady = { mapInstance = it },
+                onMapReady = {
+                    collapsedMapInstance = it
+                    mapBearing = it.cameraPosition.bearing
+                },
                 onBearingChanged = { mapBearing = it },
                 userLocation = userLatLng,
                 userHeadingDeg = currentLocation?.bearingDeg,
@@ -244,7 +250,7 @@ fun RoutePreviewScreen(
 
             // Follow the elevation-chart scrub with a short camera nudge
             LaunchedEffect(highlightLatLng) {
-                val map = mapInstance ?: return@LaunchedEffect
+                val map = activeMap ?: return@LaunchedEffect
                 val point = highlightLatLng ?: return@LaunchedEffect
                 map.animateCamera(
                     CameraUpdateFactory.newLatLngZoom(point, map.cameraPosition.zoom),
@@ -288,7 +294,7 @@ fun RoutePreviewScreen(
 
             CompassButton(
                 bearingDeg = mapBearing,
-                onClick = { mapInstance?.let { it.animateCamera(CameraUpdateFactory.bearingTo(0.0)) } },
+                onClick = { activeMap?.let { it.animateCamera(CameraUpdateFactory.bearingTo(0.0)) } },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
@@ -296,13 +302,12 @@ fun RoutePreviewScreen(
                     .size(48.dp)
             )
 
-            // --- Right-side controls. In expanded mode they lift above the
-            // --- floating elevation card so nothing hides behind it.
+            // --- Right-side controls. The expand button is one of TWO ways
+            // --- into full-screen mode (the other: tapping the map itself).
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 12.dp)
-                    .offset(y = -(elevationCardHeightDp + 12.dp)),
+                    .padding(end = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -318,41 +323,21 @@ fun RoutePreviewScreen(
                     tint = if (followMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     onClick = { viewModel.centerOnLocation() }
                 )
-                // Expand/collapse the map — Komoot-style full-map mode. The
-                // camera center is snapshotted first so the resize doesn't
-                // shove the route off-screen.
+                // Launch full-screen map mode (same state the map-tap sets).
+                // Icon follows the project's own expand convention (Recording
+                // stats use OpenInFull for the same "grow this view" action);
+                // UnfoldMore/UnfoldLess described an in-place resizer this
+                // button no longer is.
                 RoundIconButton(
-                    icon = if (mapExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
-                    contentDescription = stringResource(
-                        if (mapExpanded) R.string.map_collapse_cd else R.string.map_expand_cd
-                    ),
+                    icon = Icons.Default.OpenInFull,
+                    contentDescription = stringResource(R.string.map_expand_cd),
                     onClick = {
-                        cameraKeep = mapInstance?.cameraPosition
-                        mapExpanded = !mapExpanded
+                        // Entry point (a): the launcher button. Same snapshot
+                        // + same state as the map-tap entry — one destination.
+                        fullscreenStartCamera = collapsedMapInstance?.cameraPosition
+                        mapExpanded = true
                     }
                 )
-            }
-
-            // --- Elevation card: ONLY in expanded mode (spec), floating at
-            // --- the bottom of the full map like the reference screenshot.
-            if (mapExpanded) {
-                AnimatedAppear(modifier = Modifier.align(Alignment.BottomCenter)) {
-                    val density = LocalDensity.current
-                    Surface(
-                        shape = RoundedCornerShape(NyasarRadius.lg),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        tonalElevation = NyasarElevation.cardTonal,
-                        shadowElevation = NyasarElevation.floatingShadow,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .onSizeChanged { with(density) { elevationCardHeightDp = it.height.toDp() } }
-                    ) {
-                        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                            ElevationSection(state) { highlightLatLng = it }
-                        }
-                    }
-                }
             }
         }
 
@@ -449,6 +434,142 @@ fun RoutePreviewScreen(
         }
     }
 
+    // ===================== FULL-SCREEN MAP MODE OVERLAY =====================
+    // Drawn AFTER (so ON TOP of) the whole collapsed layout when active —
+    // the same in-place overlay pattern as WaypointCrosshairScreen and the
+    // photo viewer. Reuses the identical map state (same ViewModel flows,
+    // same basemap/overlays/track) and the same control set; adds the
+    // floating elevation card. Deliberately omits stat tiles, the waypoint
+    // LIST, and Start Navigation — those stay Route-Detail-only (spec).
+    if (mapExpanded) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            val userLatLng = currentLocation?.let { LatLng(it.lat, it.lon) }
+
+            NyasarMapView(
+                modifier = Modifier.fillMaxSize(),
+                provider = currentProvider,
+                styleVariant = currentStyleVariant,
+                basemapEntry = currentBasemap,
+                shared = false,
+                activeOverlays = activeOverlays,
+                myRoutes = myRouteLines,
+                offlineAreas = if (offlineOverlayEnabled) offlineAreas else emptyList(),
+                activeRouteId = routeId,
+                track = state.track,
+                trackColorOverride = "#42A5F5",
+                waypoints = gpxWaypointsForMap,
+                userWaypoints = allDbWaypoints,
+                waypointsVisible = waypointsVisible,
+                highlightPoint = highlightLatLng,
+                onWaypointClick = { selectedWaypoint = it },
+                onUserWaypointClick = { id ->
+                    allDbWaypoints.firstOrNull { it.id == id }?.let { selectedDbWaypoint = it }
+                },
+                onMapReady = { map ->
+                    fullscreenMapInstance = it
+                    // Camera handoff: the map pipeline just fit the track's
+                    // bounds; re-apply the collapsed map's exact camera so
+                    // full-screen opens where the user was looking.
+                    fullscreenStartCamera?.let { keep ->
+                        map.moveCamera(CameraUpdateFactory.newCameraPosition(keep))
+                    }
+                },
+                onBearingChanged = { mapBearing = it },
+                userLocation = userLatLng,
+                userHeadingDeg = currentLocation?.bearingDeg,
+                accuracyMeters = currentLocation?.accuracyMeters,
+                followUser = followMode,
+                rotateWithHeading = rotateWithHeading,
+                onUserGesture = viewModel::onUserPanned
+            )
+
+            // Elevation-chart scrub keeps nudging the camera in full-screen.
+            LaunchedEffect(highlightLatLng) {
+                val map = activeMap ?: return@LaunchedEffect
+                val point = highlightLatLng ?: return@LaunchedEffect
+                map.animateCamera(
+                    CameraUpdateFactory.newLatLngZoom(point, map.cameraPosition.zoom),
+                    200
+                )
+            }
+
+            // --- Floating top pills (status-bar aware). Back HERE means
+            // --- "leave full-screen", not "leave Route Detail".
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(start = 12.dp, top = 8.dp)
+            ) {
+                RoundIconButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.back),
+                    onClick = { mapExpanded = false }
+                )
+            }
+
+            CompassButton(
+                bearingDeg = mapBearing,
+                onClick = { activeMap?.let { it.animateCamera(CameraUpdateFactory.bearingTo(0.0)) } },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 16.dp, top = 76.dp)
+                    .size(48.dp)
+            )
+
+            // --- Same right-side control set as the collapsed map, minus the
+            // --- expand launcher (already full-screen). Controls lift above
+            // --- the floating elevation card so nothing hides behind it.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 12.dp)
+                    .offset(y = -(elevationCardHeightDp + 12.dp)),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
+                    showBasemapSheet = true
+                }
+                RoundIconButton(icon = Icons.Default.Place, contentDescription = stringResource(R.string.add_waypoint_cd)) {
+                    showCrosshair = true
+                }
+                RoundIconButton(
+                    icon = if (rotateWithHeading) Icons.Default.Navigation else Icons.Default.MyLocation,
+                    contentDescription = if (rotateWithHeading) stringResource(R.string.heading_up_mode_cd) else stringResource(R.string.go_to_location_cd),
+                    tint = if (followMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    onClick = { viewModel.centerOnLocation() }
+                )
+            }
+
+            // --- Elevation card: floating at the bottom of the full map —
+            // --- same ElevationSection chart as before (identical component,
+            // --- same scrub→highlight camera link), just re-hosted here.
+            AnimatedAppear(modifier = Modifier.align(Alignment.BottomCenter)) {
+                val density = LocalDensity.current
+                Surface(
+                    shape = RoundedCornerShape(NyasarRadius.lg),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = NyasarElevation.cardTonal,
+                    shadowElevation = NyasarElevation.floatingShadow,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .onSizeChanged { with(density) { elevationCardHeightDp = it.height.toDp() } }
+                ) {
+                    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        ElevationSection(state) { highlightLatLng = it }
+                    }
+                }
+            }
+        }
+    }
+
     // ============================ OVERLAYS / SHEETS ============================
     selectedWaypoint?.let { wp ->
         WaypointDetailSheet(waypoint = wp, onDismiss = { selectedWaypoint = null })
@@ -473,8 +594,8 @@ fun RoutePreviewScreen(
         )
     }
 
-    // v7 waypoint overlays (detail/crosshair/edit) — emitted after the main
-    // content so they draw on top of it.
+    // v7 waypoint overlays (detail/crosshair/edit) — emitted after everything
+    // so they draw on top of collapsed layout AND full-screen map alike.
     selectedDbWaypoint?.let { wp ->
         com.nyasar.app.ui.waypoint.WaypointDetailSheet(
             waypoint = wp,
@@ -581,7 +702,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
 @Composable
 private fun WaypointListRow(waypoint: WaypointEntity, onClick: () -> Unit) {
     val category = WaypointCategory.fromStorageValue(waypoint.category)
-    val rowInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val rowInteraction = remember { MutableInteractionSource() }
     Surface(
         shape = RoundedCornerShape(NyasarRadius.md),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -635,9 +756,9 @@ private fun WaypointListRow(waypoint: WaypointEntity, onClick: () -> Unit) {
     }
 }
 
-/** Elevation profile (expanded-map card content). Same chart component and
- *  data path as before; scrubbing reports the highlighted track point back
- *  to the map via [onHighlight]. */
+/** Elevation profile (full-screen floating card content). Same chart
+ *  component and data path as before; scrubbing reports the highlighted
+ *  track point back to the map via [onHighlight]. */
 @Composable
 private fun ElevationSection(state: RoutePreviewUiState, onHighlight: (LatLng) -> Unit) {
     val elevationResult = remember(state.track) {
@@ -694,7 +815,7 @@ private fun RoundIconButton(
     // theme surface over any basemap, app-wide CircleShape, the shared
     // NyasarElevation.mapControl* tokens, the standard press spring
     // (pressScale), and the shared fade-and-rise entrance.
-    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val interaction = remember { MutableInteractionSource() }
     AnimatedAppear(modifier = modifier) {
         Surface(
             shape = CircleShape,

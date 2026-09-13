@@ -22,8 +22,10 @@ data class AppSettings(
      *  recording, activity, navigation, statistics, history, and route info. */
     val speedUnit: String = "kmh",
     /** Last basemap picked in the in-map BasemapPickerSheet, persisted by
-     *  BasemapEntry.gpxKey (stable id, survives renames — see the catalog's
-     *  "OpenFreeMap" rename note). "libertyTopo" matches
+     *  BasemapEntry.gpxKey (stable id, survives renames and removals —
+     *  see BasemapEntry.fromId's fallback note: an id that no longer
+     *  exists in the catalog, e.g. the removed "osm" entry, lands on the
+     *  default). "libertyTopo" matches
      *  BasemapEntry.fromId(null)'s own fallback, so an unset key and the
      *  default entry agree. Read by Home/Recording/RoutePreview so ONE
      *  selection follows the user across all 3 map screens AND across

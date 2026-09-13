@@ -22,8 +22,8 @@ package com.nyasar.app.map
  *
  * Vector vs raster is determined from the real upstream source, not from
  * a guess:
- *  - VECTOR: Liberty Topo, Liberty Satellite, OpenFreeMap,
- *            OpenMapTiles OSM Topo, UtagawaMTB
+ *  - VECTOR: Liberty Topo, Liberty Satellite, OpenMapTiles OSM Topo,
+ *            UtagawaMTB
  *  - RASTER: OpenStreetMap, OpenTopoMap, OpenHikingMap, CyclOSM
  *
  * NyasarMapView resolves a [BasemapEntry] through
@@ -42,10 +42,11 @@ package com.nyasar.app.map
  *    basemap only.
  *  - OpenHikingMap tiles are hosted by openmaps.fr/tile.openmaps.fr and
  *    come with their own usage limits; treat as low-volume live tiles.
- *  - OpenFreeMap ("OSM" entry) is confirmed keyless and unlimited — see
- *    openfreemap.org. OpenMapTiles OSM Topo requires MAPTILER_API_KEY
- *    (MapTiler Free plan: 100K requests / 5K sessions per month, then
- *    pauses until next month — see isConfiguredFor()).
+ *  - The OpenFreeMap-hosted Liberty style ("Liberty Topo" entry) is
+ *    confirmed keyless and unlimited — see openfreemap.org.
+ *    OpenMapTiles OSM Topo requires MAPTILER_API_KEY (MapTiler Free
+ *    plan: 100K requests / 5K sessions per month, then pauses until
+ *    next month — see isConfiguredFor()).
  *  - UtagawaMTB style metadata could not be fully verified here; the entry
  *    points at the public style URL only if it continues to serve a
  *    MapLibre-compatible style.
@@ -156,64 +157,19 @@ enum class BasemapEntry(
         attribution = "© OpenMapTiles © OpenStreetMap contributors © MapTiler"
     ),
 
-    // OpenFreeMap — VECTOR
-    // OpenMapTiles-schema style, served keyless by OpenFreeMap
-    // (tiles.openfreemap.org). No API key, no request/session quota.
-    OSM(
-        // Fix: display name was "OpenMapTiles OSM", which reads as the
-        // provider being openmaptiles.org itself — it isn't. "OpenMapTiles"
-        // here only ever meant the vector tile SCHEMA this data follows;
-        // the actual host serving these tiles is OpenFreeMap (see
-        // styleUrl below). Every other raster/vector entry in this catalog
-        // is named after its real provider (OpenStreetMap, OpenTopoMap,
-        // CyclOSM, ...) — this one should be too, now that the attribution
-        // above correctly credits OpenFreeMap as well. gpxKey stays "osm"
-        // unchanged so a user's existing basemap selection (persisted by
-        // gpxKey, not display name) isn't reset by this rename.
-        "osm", "OpenFreeMap",
-        styleUrl = "https://tiles.openfreemap.org/styles/bright",
-        rasterUrl = null, maxZoom = 14,
-        // P3I audit fix: was styleUrl=null, which silently fell through
-        // TileProvider.styleUrlFor's `else` branch to whatever the active
-        // default TileProvider's Outdoor style is (MapTiler) - not
-        // OpenMapTiles, and silently required MAPTILER_API_KEY despite
-        // this entry's own doc claiming an unconfigured placeholder.
-        // OpenFreeMap's "Bright" style is a real, keyless, OpenMapTiles-
-        // schema rendering distinct from Liberty (used by LIBERTY_TOPO
-        // above) - a genuine second look at the same underlying OSM
-        // vector data, not a repeat of Liberty under a different name.
-        //
-        // Kept on OpenFreeMap rather than moved to MapTiler on purpose:
-        // OpenFreeMap is keyless with no monthly quota (MapTiler's Free
-        // plan pauses service once its 100K request/5K session monthly
-        // cap is hit), and two other entries here already depend on
-        // MAPTILER_API_KEY (OSM_TOPO, LIBERTY_SATELLITE) — keeping this
-        // one on a keyless source means the picker still has working
-        // basemaps if that key ever gets rate-limited or misconfigured.
-        // "OpenMapTiles" in the display name is accurate either way: it
-        // names the vector tile SCHEMA (OpenStreetMap data restructured
-        // per the OpenMapTiles spec), which OpenFreeMap explicitly states
-        // it serves unmodified — it isn't a claim that MapTiler
-        // specifically is the host.
-        attribution = "OpenFreeMap © OpenMapTiles © OpenStreetMap contributors"
-    ),
-
     // OpenMapTiles OSM Topo — VECTOR
     // OpenMapTiles vector data + contours + hillshading (per GPX Studio
-    // styles repo description). Unlike OpenFreeMap (above), no keyless
-    // topo/contour equivalent exists — this one genuinely requires
-    // MAPTILER_API_KEY (see isConfiguredFor() below).
+    // styles repo description). No keyless topo/contour equivalent exists
+    // (OpenFreeMap publishes no topo/contour style) — this one genuinely
+    // requires MAPTILER_API_KEY (see isConfiguredFor() below).
     OSM_TOPO(
         "osmTopo", "OpenMapTiles OSM Topo",
-        // P3I audit fix: OSM (above) has a real keyless OpenFreeMap
-        // equivalent (Bright); OSM_TOPO does not - OpenFreeMap publishes
-        // no topo/contour style at all. Rather than leave styleUrl=null
-        // and let this silently fall through TileProvider.styleUrlFor's
-        // `else` branch to whichever provider happens to be default
-        // (previously MapTiler, by accident), this is now an explicit,
-        // intentional MapTiler dependency - same tiles as before, but a
-        // deliberate choice with honest attribution instead of a bug's
-        // side effect. isConfiguredFor() below reflects the real
+        // P3I audit fix, retained: rather than leave styleUrl=null and
+        // let this silently fall through TileProvider.styleUrlFor's `else`
+        // branch to whichever provider happens to be default (previously
+        // MapTiler, by accident), this is an explicit, intentional MapTiler
+        // dependency - a deliberate choice with honest attribution instead
+        // of a bug's side effect. isConfiguredFor() below reflects the real
         // requirement so callers can detect "no key" instead of getting a
         // silently wrong substitute.
         styleUrl = null,
@@ -322,8 +278,8 @@ enum class BasemapEntry(
      *
      * Licensing/usage-policy decision, not a technical one — MapLibre can
      * technically bulk-download any of these styles:
-     *  - ALLOWED: the OpenFreeMap-hosted vector styles (Liberty Topo,
-     *    Bright) — keyless, no quota, offline caching explicitly welcome;
+     *  - ALLOWED: Liberty Topo — the OpenFreeMap-hosted Liberty vector
+     *    style, keyless, no quota, offline caching explicitly welcome;
      *    and OSM_TOPO — MapTiler's terms permit client-side caching within
      *    the plan quota.
      *  - BLOCKED: the community raster hosts (tile.openstreetmap.org,
@@ -332,10 +288,14 @@ enum class BasemapEntry(
      *    bulk download; UtagawaMTB has no published policy at all.
      */
     val supportsOfflineDownload: Boolean
-        get() = this == LIBERTY_TOPO || this == OSM || this == OSM_TOPO
+        get() = this == LIBERTY_TOPO || this == OSM_TOPO
 
     companion object {
-        /** Parse a persisted id back to an entry, falling back to Liberty Topo. */
+        /** Parse a persisted id back to an entry, falling back to Liberty Topo.
+         *  This fallback is also what covers users whose persisted selection
+         *  was the removed "osm" (OpenFreeMap/Bright) entry — "osm" no longer
+         *  matches any id, so they land on the default Liberty Topo, which is
+         *  the same tile host and the closest visual style. */
         fun fromId(id: String?): BasemapEntry =
             entries.firstOrNull { it.gpxKey == id } ?: LIBERTY_TOPO
 

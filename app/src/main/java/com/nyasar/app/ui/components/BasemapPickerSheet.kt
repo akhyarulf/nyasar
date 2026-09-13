@@ -76,15 +76,15 @@ import com.nyasar.app.ui.theme.NyasarRadius
  * sections, styled to match (spec: reference Strava screenshot — tiles are
  * small, 4 per row, and every option is visible at once instead of hiding
  * most of the catalog behind a horizontal swipe). Each section is a
- * FlowRow capped at 4 items per row: 9 basemaps render as 4+4+1 rows, so
+ * FlowRow capped at 4 items per row: 8 basemaps render as 4+4 rows, so
  * the full catalog is discoverable without scrolling sideways. The sheet
- * content itself scrolls vertically when 3 tile rows + the other sections
+ * content itself scrolls vertically when the tile rows + the other sections
  * exceed the available height. Tile width comes from the sheet's actual
  * content width (BoxWithConstraints) so "exactly 4 fit" is true on any
  * screen size, not just the reference device's.
  *
- * Basemaps: all 9 World [BasemapEntry] catalog entries (Liberty Topo,
- * Liberty Satellite, OpenMapTiles OSM, OpenMapTiles OSM Topo,
+ * Basemaps: all 8 World [BasemapEntry] catalog entries (Liberty Topo,
+ * Liberty Satellite, OpenMapTiles OSM Topo,
  * OpenStreetMap, OpenTopoMap, OpenHikingMap, CyclOSM, UtagawaMTB) —
  * country variants were removed from the catalog entirely
  * (BasemapCatalog.kt), not merely hidden here.
@@ -146,7 +146,7 @@ fun BasemapPickerSheet(
         MapSnapshotHelper.purgeStaleBasemapPreviews(purgeContext)
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        // verticalScroll: with all 9 basemaps wrapped into 3 rows the sheet
+        // verticalScroll: with all 8 basemaps wrapped into 2 rows the sheet
         // is taller than one screen on small devices — scroll instead of
         // clipping the Data section off the bottom.
         Column(
@@ -162,8 +162,8 @@ fun BasemapPickerSheet(
 
             // Shared tile-width formula for every section — Strava-style:
             // small tiles, exactly 4 per row, wrapped (not scrolled) so the
-            // WHOLE catalog is visible at once — 9 basemaps render as
-            // 4+4+1 rows. Width is computed from this Column's actual
+            // WHOLE catalog is visible at once — 8 basemaps render as
+            // 4+4 rows. Width is computed from this Column's actual
             // content width (already inset by the 20.dp horizontal padding
             // above) rather than a fixed dp constant, so "exactly 4 fit"
             // holds on any screen size, not just one reference width.

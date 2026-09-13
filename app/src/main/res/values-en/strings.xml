@@ -423,8 +423,8 @@
     <string name="offline_size_tiles">of %1$d tiles</string>
     <string name="offline_default_area_name">Area</string>
     <string name="offline_basemap_label">Map: %1$s</string>
-    <string name="offline_policy_blocked">This map can\'t be downloaded for offline use — its tile provider forbids bulk downloads. Use a vector map (Liberty Topo / OpenFreeMap / OpenMapTiles OSM Topo) for offline areas.</string>
-    <string name="offline_missing_key">This map needs a free MapTiler key. Set MAPTILER_API_KEY in the build, or pick the keyless OpenFreeMap vector maps.</string>
+    <string name="offline_policy_blocked">This map can\'t be downloaded for offline use — its tile provider forbids bulk downloads. Use a vector map (Liberty Topo / OpenMapTiles OSM Topo) for offline areas.</string>
+    <string name="offline_missing_key">This map needs a free MapTiler key. Set MAPTILER_API_KEY in the build, or pick the keyless Liberty Topo vector map.</string>
     <string name="offline_already_downloaded">This area is already downloaded for the selected map — no need to download again.</string>
     <string name="offline_already_downloaded_short">Already Downloaded</string>
     <string name="camera_storage_error">Cannot open camera — storage problem</string>

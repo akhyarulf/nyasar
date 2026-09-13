@@ -14,7 +14,7 @@ import com.nyasar.app.map.BasemapEntry
  *    (IGN France plan/topo/satellite), loaded inline.
  *
  * VECTOR World entries are intentionally NOT rendered here:
- *  - Liberty Topo / OpenMapTiles OSM / OpenMapTiles OSM Topo / UtagawaMTB
+ *  - Liberty Topo / OpenMapTiles OSM Topo / UtagawaMTB
  *    use a remote style URL directly from [BasemapCatalog].
  *  - Liberty Satellite now uses an inline Liberty-derived vector style
  *    built in Nyasar (Liberty-style overlay on an imagery source), not the

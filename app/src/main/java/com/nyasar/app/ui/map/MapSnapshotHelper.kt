@@ -512,7 +512,7 @@ object MapSnapshotHelper {
                     // silently failing here, hitting onSnapshotError for
                     // every one of these entries and NEVER for entries
                     // using a real remote styleUrl (Liberty Topo,
-                    // OpenMapTiles OSM, OpenMapTiles OSM Topo, UtagawaMTB —
+                    // OpenMapTiles OSM Topo, UtagawaMTB —
                     // which is exactly the split Sea observed). Remote
                     // http(s) styleUrls keep using withStyle() below
                     // unchanged since that path was never broken for them.

@@ -423,8 +423,8 @@
     <string name="offline_size_tiles">dari %1$d tile</string>
     <string name="offline_default_area_name">Area</string>
     <string name="offline_basemap_label">Peta: %1$s</string>
-    <string name="offline_policy_blocked">Peta ini tidak tersedia untuk diunduh offline — penyedia tile-nya melarang pengunduhan massal. Gunakan peta vector (Liberty Topo / OpenFreeMap / OpenMapTiles OSM Topo) untuk area offline.</string>
-    <string name="offline_missing_key">Peta ini butuh kunci MapTiler gratis. Isi MAPTILER_API_KEY di build, atau pilih peta vector OpenFreeMap (tanpa kunci).</string>
+    <string name="offline_policy_blocked">Peta ini tidak tersedia untuk diunduh offline — penyedia tile-nya melarang pengunduhan massal. Gunakan peta vector (Liberty Topo / OpenMapTiles OSM Topo) untuk area offline.</string>
+    <string name="offline_missing_key">Peta ini butuh kunci MapTiler gratis. Isi MAPTILER_API_KEY di build, atau pilih peta vector Liberty Topo (tanpa kunci).</string>
     <string name="offline_already_downloaded">Area ini sudah terunduh untuk peta yang dipilih — tidak perlu unduh ulang.</string>
     <string name="offline_already_downloaded_short">Sudah Terunduh</string>
     <string name="camera_storage_error">Tidak bisa membuka kamera — penyimpanan bermasalah</string>

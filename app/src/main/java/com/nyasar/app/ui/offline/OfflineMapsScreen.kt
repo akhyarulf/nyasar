@@ -262,8 +262,25 @@ private fun OfflineRegionCard(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(item.name, style = MaterialTheme.typography.titleMedium)
+                    // Which map style + when — the "sudah unduh yang mana," answer.
+                    // Both optional: legacy regions report nulls and simply skip
+                    // this line instead of showing "—" noise.
+                    listOfNotNull(
+                        item.basemapName,
+                        item.createdAtEpochMs?.let {
+                            java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM)
+                                .format(java.util.Date(it))
+                        }
+                    ).joinToString(" • ").takeIf { it.isNotBlank() }?.let { metaLine ->
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            metaLine,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
-                    
+
                     // Size and status info
                     Text(
                         when {

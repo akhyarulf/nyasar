@@ -112,6 +112,10 @@ fun OfflineDownloadScreen(
                                 mapInstance?.let { recomputeBoundsFromViewport(it) }
                             },
                         provider = provider,
+                        // Preview the basemap that will actually be
+                        // downloaded (the active one), not the default
+                        // provider style — what-you-see is what-you-get.
+                        basemapEntry = state.basemap,
                         track = emptyList(),
                         focusBounds = state.bounds,
                         onMapReady = { map ->
@@ -158,6 +162,17 @@ fun OfflineDownloadScreen(
 
             Surface(tonalElevation = 2.dp) {
                 Column(Modifier.padding(16.dp).fillMaxWidth()) {
+                    // Which basemap will actually be downloaded — previously
+                    // this screen never said, and the download silently used
+                    // a different style than the map the user was viewing.
+                    state.basemap?.let { basemap ->
+                        Text(
+                            stringResource(R.string.offline_basemap_label, basemap.gpxName),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
                     Text(
                         if (isFreeArea) {
                             stringResource(R.string.offline_free_area_hint)
@@ -219,12 +234,32 @@ fun OfflineDownloadScreen(
 
                     when (val ds = state.downloadState) {
                         is DownloadState.Idle -> {
+                            // Blocked states render as an explicit reason +
+                            // disabled button — never a silently dead button.
+                            state.blockedReason?.let { reason ->
+                                Text(
+                                    when (reason) {
+                                        DownloadBlockedReason.PolicyNotAllowed -> stringResource(R.string.offline_policy_blocked)
+                                        DownloadBlockedReason.MissingKey -> stringResource(R.string.offline_missing_key)
+                                        DownloadBlockedReason.AlreadyDownloaded -> stringResource(R.string.offline_already_downloaded)
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
                             Button(
                                 onClick = { viewModel.startDownload(routeId ?: "area") },
                                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                                enabled = state.bounds != null
+                                enabled = state.bounds != null && state.blockedReason == null
                             ) {
-                                Text(stringResource(R.string.download_area))
+                                Text(
+                                    stringResource(
+                                        if (state.blockedReason is DownloadBlockedReason.AlreadyDownloaded)
+                                            R.string.offline_already_downloaded_short
+                                        else R.string.download_area
+                                    )
+                                )
                             }
                         }
                         is DownloadState.Loading -> {

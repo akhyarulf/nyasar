@@ -41,21 +41,21 @@ class OfflineMapManager(context: Context) {
     }
 
     fun downloadRegion(
-        provider: TileProvider,
+        styleUrl: String,
         bounds: LatLngBounds,
         regionName: String,
         minZoom: Double = 10.0,
         maxZoom: Double = 16.0,
+        metadata: ByteArray = regionName.toByteArray(),
         callback: DownloadCallback
     ) {
         val definition = OfflineTilePyramidRegionDefinition(
-            provider.styleUrl(),
+            styleUrl,
             bounds,
             minZoom,
             maxZoom,
             context_density()
         )
-        val metadata = regionName.toByteArray()
 
         offlineManager.createOfflineRegion(
             definition,

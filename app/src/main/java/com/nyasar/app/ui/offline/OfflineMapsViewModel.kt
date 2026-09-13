@@ -4,7 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.nyasar.app.R
 import androidx.lifecycle.viewModelScope
+import com.nyasar.app.map.BasemapCatalog
 import com.nyasar.app.map.OfflineMapManager
+import com.nyasar.app.map.OfflineRegionMetadata
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +21,14 @@ data class OfflineRegionUi(
     val name: String,
     val sizeBytes: Long,
     val completed: Boolean,
+    /** Basemap this area was downloaded for (from the region's structured
+     *  metadata; null for regions created by older builds). Lets the list
+     *  answer "this is the Liberty Topo download" vs "this was for a map
+     *  style I'm not even using anymore" — the confusion the raw-name
+     *  metadata could never resolve. */
+    val basemapName: String? = null,
+    /** When the download was created (epoch ms), when known. */
+    val createdAtEpochMs: Long? = null,
     /** Null only if the region's definition isn't a tile-pyramid definition
      *  (the only kind this app creates via OfflineMapManager.downloadRegion,
      *  so in practice this is always present) — used to draw coverage on
@@ -66,16 +76,16 @@ class OfflineMapsViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.value = _uiState.value.copy(loading = true)
         offlineMapManager.listRegions { regions ->
             val items = regions.mapNotNull { region ->
-                // Force-close root cause: String(region.metadata) throws when
-                // metadata is empty/corrupt/non-UTF8 — happens for regions
-                // left over from an older schema, or ones this exact code
-                // never created (metadata format isn't enforced by MapLibre
-                // itself). One bad region must not take down the whole list.
-                val name = try {
-                    region.metadata?.let { String(it) }?.takeIf { it.isNotBlank() }
-                        ?: getApplication<Application>().getString(R.string.offline_map_unnamed) + " (#${System.identityHashCode(region)})"
-                } catch (e: Exception) {
+                // Structured metadata (v2 JSON: name + basemap + date) with
+                // graceful fallback to the legacy bare-name format, then to
+                // "unnamed" — one corrupt blob must never kill the list
+                // (see OfflineRegionMetadata.parse).
+                val meta = OfflineRegionMetadata.parse(region)
+                val name = meta.name.ifBlank {
                     getApplication<Application>().getString(R.string.offline_map_unnamed) + " (#${System.identityHashCode(region)})"
+                }
+                val basemapName = meta.basemapId?.let { id ->
+                    BasemapCatalog.fromId(id).takeIf { it.gpxKey == id }?.gpxName
                 }
                 val bounds = try {
                     (region.definition as? OfflineTilePyramidRegionDefinition)?.bounds
@@ -98,6 +108,8 @@ class OfflineMapsViewModel(app: Application) : AndroidViewModel(app) {
                     name = name,
                     sizeBytes = 0L,
                     completed = false,
+                    basemapName = basemapName,
+                    createdAtEpochMs = meta.createdAtEpochMs,
                     bounds = bounds
                 )
             }

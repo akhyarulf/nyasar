@@ -316,6 +316,24 @@ enum class BasemapEntry(
     /** Grouping section shown in the picker. */
     val section: String get() = country ?: "World"
 
+    /**
+     * Whether this basemap may be offered for OFFLINE download
+     * ([OfflineDownloadViewModel] gates its download button on this).
+     *
+     * Licensing/usage-policy decision, not a technical one — MapLibre can
+     * technically bulk-download any of these styles:
+     *  - ALLOWED: the OpenFreeMap-hosted vector styles (Liberty Topo,
+     *    Bright) — keyless, no quota, offline caching explicitly welcome;
+     *    and OSM_TOPO — MapTiler's terms permit client-side caching within
+     *    the plan quota.
+     *  - BLOCKED: the community raster hosts (tile.openstreetmap.org,
+     *    opentopomap.org, tile.openmaps.fr, tile-cyclosm.openstreetmap.fr)
+     *    all prohibit bulk/heavy downloads, and an offline region IS a
+     *    bulk download; UtagawaMTB has no published policy at all.
+     */
+    val supportsOfflineDownload: Boolean
+        get() = this == LIBERTY_TOPO || this == OSM || this == OSM_TOPO
+
     companion object {
         /** Parse a persisted id back to an entry, falling back to Liberty Topo. */
         fun fromId(id: String?): BasemapEntry =

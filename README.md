@@ -1,191 +1,103 @@
-# Nyasar (Android) — P0 + Fitur Tambahan
+# 🥾 Nyasar — Teman Hiking yang Kamu Butuhkan
 
-Aplikasi navigasi outdoor GPS buat ekosistem Nyasar Nyaman. Fokus konsisten: **GPX → Peta → GPS → Navigasi → Deteksi menyimpang**, plus rekaman aktivitas, cara offline, dan pengaturan peta.
+**Nyasar** artinya "tersesat" dalam bahasa Indonesia. Ironisnya, aplikasi ini dibuat justru supaya kamu *nggak* nyasar.
 
-## Keputusan teknis
+Nyasar adalah aplikasi navigasi outdoor gratis untuk Android, dibuat khusus untuk para pendaki dan trail runner Indonesia. Bawa file rute GPX-mu, unduh petanya sebelum berangkat, dan jalurmu akan tetap tampil di layar meskipun sinyal hilang di tengah hutan — karena semua peta dan navigasi berjalan langsung dari HP-mu.
 
-| Kebutuhan | Pilihan | Alasan singkat |
-|---|---|---|
-| Bahasa / UI | Kotlin + Jetpack Compose | standar Android modern, lifecycle-aware, cocok buat state navigasi real-time |
-| Map engine | **MapLibre GL Native (Android SDK)** | open-source, vector + raster tiles, `OfflineManager` bawaan, nggak vendor lock |
-| Tile / style provider | **MapTiler** (default), **OpenFreeMap** (alternatif tanpa key), dan **9 basemap World nyasar** yang sumbernya bukan GPX Studio | abstraksi di `map/TileProvider.kt`, bisa ganti di satu tempat |
-| GPX parser | `XmlPullParser` bawaan Android, nol library eksternal | parsing nggak butuh internet, nol dependency = nol risiko licensing/maintenance |
-| Local storage | Room (routes + aktivitas) + file GPX disalin ke `filesDir` | spec eksplisit: nggak ada cloud DB di MVP |
-| GPS | FusedLocationProviderClient, `PRIORITY_HIGH_ACCURACY` | tetap resolve dari GPS device saat offline |
-| Offline map | `MapLibre OfflineManager` (tile pyramid region) | provider-agnostic — jalan walau provider diganti |
-| Rekaman (recording) | Foreground service + `RecordingEngine` murni | satu sumber GPS buat rekaman + navigasi sekaligus |
+> Tanpa akun. Tanpa iklan. Tanpa data yang dikirim ke server. 100% gratis dan open source.
 
-## Arsitektur modular tile provider
+---
 
-```
-map/
-  TileProvider.kt            <- interface: styleUrl(), isConfigured(), id
-  providers/
-    MapTilerProvider.kt      <- satu-satunya file yang tahu tentang MapTiler
-    OpenFreeMapProvider.kt   <- implementasi kedua, TANPA API key
-    TileProviderFactory.kt   <- satu titik registrasi provider
-```
+## ✨ Apa yang Bisa Nyasar Lakukan?
 
-Aturan keras yang dijaga di seluruh codebase:
-- `navigation/`, `gpx/`, `data/` **tidak pernah** mengimpor apa pun dari `map.providers.*`.
-- `NyasarMapView` dan `OfflineMapManager` hanya menerima `TileProvider` sebagai parameter — tidak pernah membuat instance provider sendiri.
-- Ganti provider default → ubah satu baris di `TileProviderFactory.default()`. Tambah provider baru (mis. self-hosted tileserver) → satu file baru + satu baris registrasi. Navigation engine, deteksi menyimpang, GPX parser tidak tersentuh.
+### 🗺️ Navigasi jalur yang tetap jalan tanpa internet
+Impor file GPX rute pendakian (dari komunitas, teman, atau hasil export dari AllTrails/Gaia dan layanan sejenis), dan Nyasar akan menampilkannya di peta sambil melacak posisimu dengan GPS. Kamu langsung lihat:
+- Sudah sejauh mana kamu menempuh jalur, dan berapa sisa jaraknya
+- Naikan berapa, turunan berapa, dan sisa naikan ke puncak
+- Kecepatan, waktu bergerak, dan akurasi GPS
+- **Peringatan kalau kamu keluar dari jalur** — fitur penyelamat saat kabut turun
 
-Katalog basemap (`map/BasemapCatalog.kt`) punya 9 basemap World yang mengikuti daftar GPX Studio hanya sebagai referensi tampilan. Nyasar **tidak** me-proxy apa pun lewat `styles.gpx.studio`; setiap basemap pakai sumber upstream aslinya. Dari 9 itu, 5 vector (Liberty Topo, Liberty Satellite, OpenMapTiles OSM, OpenMapTiles OSM Topo, UtagawaMTB) dan 4 raster (OpenStreetMap, OpenTopoMap, OpenHikingMap, CyclOSM). Beberapa style IGN France (plan/topo/satellite) tetap di-bundle sebagai asset APK dan di-load inline lewat `RasterStyleJson`, bukan lewat URL eksternal.
+### 📴 Unduh peta sebelum berangkat
+Dari halaman rute, unduh area peta di sekitar jalur (otomatis mengikuti bentuk track). Di gunung tanpa sinyal, peta tetap terbuka mulus seperti biasa. Bisa kelola dan hapus area unduhan dari menu khusus.
 
-Navigasi (`NavigationEngine`, `TrackMatcher`) dan rekaman (`RecordingEngine`) adalah Kotlin murni tanpa dependency Android/network sama sekali — itu sebabnya bisa di-unit-test tanpa emulator (`app/src/test/`).
+### ⏱️ Rekam setiap perjalananmu
+Tekan rekam, dan Nyasar mencatat seluruh petualanganmu: jarak, waktu, naik/turun elevasi, kecepatan, sampai pace per kilometer. Ada auto-pause (nggak nyatat waktu kamu istirahat), peringatan GPS lemah, dan konfirmasi sebelum berhenti. Setelah selesai, kasih judul, tempel foto dari perjalanan, lalu simpan.
 
-## Offline-first
+### 📍 Waypoint: catat titik penting
+Spring water, persimpangan, spot foto bagus, pos pengamen — tandai semuanya di peta. Waypoint dari file GPX otomatis muncul juga, lengkap dengan namanya. Cukup tahan jari di peta untuk membuat titik baru dengan ikon kategori.
 
-- GPX yang diimpor **disalin** ke local storage saat import (`RouteRepository.importFromUri`), bukan dibaca langsung dari URI asal — supaya navigasi tidak pernah bergantung pada file manager / Google Drive / SAF URI yang mungkin tidak valid nanti.
-- GPS position selalu dari device (`LocationRepository`), tidak pernah lewat server.
-- Peta offline: user men-download area sebelum berangkat via `OfflineMapManager.downloadRegion()`, disimpan di database offline milik MapLibre sendiri. Saat tidak ada internet, MapLibre otomatis pakai tile lokal — kode navigasi tidak perlu tahu online/offline sama sekali.
-- Layar download area (`OfflineDownloadScreen`) sudah terhubung penuh ke `OfflineMapManager` — bounding box otomatis dari track (padding ±1.5km), progress %, dan status selesai/gagal.
+### 🎨 Pilih peta sesuai seleramu
+Belasan pilihan basemap dunia: OpenStreetMap, OpenTopoMap, CyclOSM, peta hiking, citra satelit, dan lainnya — plus lapisan overlay jalur pendakian (Waymarked Trails) dan **"Jalur Saya"** yang menampilkan semua rute tersimpanmu di atas peta. Pilihanmu diingat, bahkan setelah aplikasi ditutup.
 
-## Yang sudah jalan
+### 🖼️ Bagikan dengan bangga
+Buat kartu aktivitas yang bisa langsung dibagikan ke story/grup — jarak, waktu, dan peta jalur yang kamu taklukkan. Rute juga bisa diekspor kembali ke GPX buat dibagikan ke rekan seperjalanan.
 
-1. Import GPX (file picker + Open With / Share intent) → parse → disimpan lokal → muncul di Home.
-2. **Open With / Share GPX dari app lain** → langsung parse, simpan lokal, dan buka Route Preview otomatis (`MainActivity` tangkap intent, `HomeScreen` konsumsi sekali lalu navigasi).
-3. Route Preview (jarak, elevation gain/loss, waypoint count, peta, tombol mulai aktivitas, download offline, share/export GPX).
-4. Mulai Navigasi → live map, posisi GPS, jarak tempuh/sisa, elevation saat ini, elevation gain, kecepatan, moving time, GPS accuracy ±X m, sisa elevation gain.
-5. Rekaman aktivitas (RecordingService foreground + `RecordingEngine`) dengan: timer, jarak, elevation gain/loss, kecepatan, rata-rata, split pace, auto-pause, indikator GPS lemah/hilang, peringatan storage penuh, konfirmasi stop, summary pasca-rekaman, pilih foto dari galeri / kamera, simpan atau buang.
-6. **Pilih Jalur** dari layar recording (IDLE) → preview garis GPX di map sebelum mulai rekam, dengan lapisan `Track & Peta` yang terpisah dari Library.
-7. **Gambar rute sendiri** (draw-route) → titik-tahan di map → hasilkan file GPX + `RouteEntity` lokal yang identik dengan rute hasil import, jadi preview / mulai aktivitas / offline download semua jalan tanpa kode khusus.
-8. **Settings screen** — pilih map provider (MapTiler / OpenFreeMap), pilih 9 basemap World (world + country section, thumbnail procedural; sumber upstream asli, bukan proxy GPX Studio), atur threshold? (tergantung versi kode), pilih tema (system / terang / gelap), bahasa (system / id / en), speed unit (kmh / mph), keep screen on, auto-pause on/off — tersimpan di DataStore, dipakai ulang saat Route Preview dan Navigation dibuka.
-9. **Offline map download** — dari Route Preview atau layar khusus, area di sekitar track (dipadding ±1.5km) bisa diunduh lewat `OfflineMapManager` sebelum berangkat, progress ditampilkan, dan hasilnya otomatis dipakai MapLibre saat offline tanpa perubahan kode navigasi. Ada layar `OfflineMapsScreen` buat lihat / hapus area yang sudah diunduh.
-10. **Waypoint**:
-    - GPX waypoint (baca dari file, tampil di peta, tap → lihat detail nama/koordinat/elevation/deskripsi).
-    - User waypoint (buat sendiri: long-press di map → nama, kategori, catatan, elevasi opsional; icon berbedaan per kategori; tap → detail + jarak dari lokasi; edit / hapus). Bisa dibuat dari Home, Navigation, maupun Recording.
-11. **Kompas / heading**: `GpsFix` menyimpan `bearingDeg`, `LocationRepository` membaca `Location.bearing()`, dipakai buat panah heading di marker user, tombol kompas reset ke north, dan recenter 3-state (bebas / ikut posisi utara / ikut posisi + arah hadap).
-12. **Layar History** — list aktivitas rekaman, share GPX aktivitas, buka detail.
-13. **Layar Activity Detail** — rename, hapus, rencana vs aktual, elevation profile, waypoint rekaman, export/share.
-14. **Share card** — generator kartu aktivitas dari data Room.
-15. Unit test untuk off-route detector, track matcher, elevation stats, dan recording engine.
-16. **Overlay "Jalur Saya"** — toggle di BasemapPickerSheet (section sendiri, terpisah dari Overlays Waymarked Trails) yang menampilkan semua rute tersimpan di Library sebagai garis di peta (Home/RoutePreview/Recording). Data langsung dari RouteRepository (GPX lokal yang sudah ada, tanpa penyimpanan baru), di-parse di Dispatchers.IO hanya saat overlay ON, di-decimate maks ±1500 vertex/rute biar tetap ringan. Route aktif (Pilih Jalur / route yang dibuka) digambar biru solid; rute lain abu-abu putus-putus. Pilihan ON/OFF persist di DataStore dan berlaku di ketiga screen (satu MapView bersama).
+### 🧭 Lain-lain yang bikin nyaman
+- Gambar rute sendiri langsung di peta (tanpa file GPX sekalipun)
+- Kompas dengan arah hadap, tombol recenter pintar
+- Riwayat aktivitas dengan detail lengkap dan profil elevasi
+- Tema terang/gelap, bahasa Indonesia/Inggris, satuan km/h atau mph
 
-## Patch / perbaikan yang sudah masuk
+---
 
-1. User location marker muncul di peta — `NyasarMapView` sekarang punya `SOURCE_USER` dengan halo + dot biru + panah heading, plus accuracy circle geografis.
-2. Heading/compass ada — bukan cuma UI, `GpsFix` dan `LocationRepository` sekarang menyimpan/membaca bearing.
-3. Tap waypoint menampilkan detail lengkap (nama, koordinat, elevation, deskripsi) — `NyasarMapView` punya click listener lewat `addOnMapClickListener` + `queryRenderedFeatures`, dipakai di Route Preview dan Navigation.
-4. GPS accuracy (±X m) muncul di status bar navigasi.
-5. Status rekaman lebih eksplisit: SIAP / ● RECORDING / ❚❚ DIJEDA / ❚❚ DIJEDA OTOMATIS / SELESAI, plus GPS HILANG / GPS LEMAH.
-6. Recovery dialog — kalau proses mati saat rekaman berjalan, layar nge-check dan tunjukkin sisa session buat dilanjutkan / dihentikan / dibuang.
-7. Stop rekaman butuh konfirmasi, dan kalau user belum gerak (<5m selama >5 detik) muncul prompt "Belum bergerak?" alih-alih langsung cut.
-8. Auto-start dari Route Preview / Start Activity / routeId sekarang lebih aman — ada guard status dan retry terbatas biar nggak mulai session sendiri tanpa tindakan user.
-9. Pembaruan kamera diikuti throttle (minimal 300ms antar animasi) supaya heading-up / follow tidak jitter.
-10. Actual track (jejak rekaman) di-redraw lewat `Dispatchers.Default` biar nggak makin berat di main thread seiring panjang rekaman.
-11. Bottom bar dan navigasi tab pakai pola `popUpTo(start) + saveState/restoreState` yang konsisten, termasuk pemulihan tab terakhir sebelum masuk Recording.
-12. **Satu MapView untuk Home ↔ RoutePreview ↔ Recording** (`SharedMapHolder` + flag `shared` di `NyasarMapView`): instance MapView dibuat sekali per proses, dipinjam screen yang aktif (detach/attach antar screen, tanpa onDestroy), dan `setStyle()` dilewati kalau style yang diminta sudah dimuat (key = provider + basemap). Hasilnya pindah antar 3 screen itu tidak reload style/tile lagi. Listener tap/gesture/bearing dipasang sekali dan diteruskan lewat slot `TapHandlers` (add*Listener MapLibre tidak bisa di-remove — tanpa ini listener bakal numpuk tiap ganti screen). 7 screen lain (Navigation, DrawRoute, ActivityDetail, offline, dll) tetap punya instance peta sendiri, tidak diubah.
-13. **Basemap + overlay + provider diingat lintas screen & restart**: pilihan basemap (9 World), overlay Waymarked Trails, dan map provider disimpan di DataStore (`SettingsRepository`) dan dibaca ketiga screen — sebelumnya tiap screen punya state sendiri-sendiri (HomeViewModel, RecordingViewModel, `remember` lokal di RoutePreview) yang reset tiap restart dan tidak nyambung antar screen. Overlay ikut di-share karena ketiga screen kini memakai satu style peta yang sama — overlay per-screen bakal saling menghapus. Follow/heading mode sengaja tetap per-screen (default Recording memang beda dari Home, sesuai spec §15).
+## 🚀 Cara Mulai (Android 8.0+)
 
-## Yang sengaja BELUM dikerjakan (P2+)
+1. **Unduh APK Nyasar** dari tab [Actions](https://github.com/akhyarulf/nyasar/actions) repo ini: buka run terbaru yang hijau (berhasil), masuk ke halaman run-nya, lalu unduh artifact `nyasar-debug-apk` di bagian bawah. Ekstrak zip-nya untuk mendapatkan file APK.
+2. Buka file APK-nya di HP. Kalau muncul peringatan, izinkan *"Install dari sumber tidak dikenal"* — normal untuk aplikasi di luar Play Store.
+3. Berikan izin **lokasi** saat diminta (wajib, karena inti aplikasi adalah GPS). Izin notifikasi opsional.
+4. Impor GPX pertamamu dari tab **Library**, atau langsung buka file GPX dari aplikasi lain dengan *"Open with → Nyasar"*.
+5. Selamat menjelajah. Dan semoga nggak jadi nyasar. 🧭
 
-- Background navigation penuh (kerangka `RecordingService`/`NavigationService` ada, tapi collection GPS milik ViewModel saat app di-minimize belum diganti sepenuhnya sesuai spec P1 item 18).
-- Tap waypoint di layar Navigation (baru ada di Route Preview — sengaja, supaya bottom sheet tidak mengganggu sesi navigasi aktif).
-- Format selain GPX (KML / GeoJSON / dst) — sesuai instruksi, MVP fokus GPX saja.
-- Ubah threshold off-route di tengah sesi navigasi yang sedang berjalan (saat ini dibaca sekali di awal `NavigationScreen`).
-- List/hapus offline region yang sudah diunduh (method `listRegions`/`deleteRegion` sudah ada di `OfflineMapManager`, belum ada UI-nya di versi ini).
-- Hubungan ke Nyasar Nyaman / GitHub — belum ada koneksi apa pun di P0, sesuai spec, itu hanya sumber file GPX opsional, bukan dependency runtime.
+### Soal kunci MapTiler (opsional)
+Beberapa pilihan gaya peta berjalan lewat layanan MapTiler yang butuh kunci gratis dari [cloud.maptiler.com](https://cloud.maptiler.com). **Tanpa kunci apa pun, aplikasi tetap berfungsi penuh** — otomatis memakai OpenFreeMap. Pasang kunci hanya jika kamu ingin membuka pilihan gaya peta dari MapTiler.
 
-## Struktur
+---
 
-```
-app/src/main/java/com/nyasar/app/
-  MainActivity.kt            <- entry, intent filter .gpx, request lokasi + POST_NOTIFICATIONS
-  NyasarApp.kt               <- Application, inisialisasi MapLibre sekali
+## ❓ Tanya Jawab
 
-  gpx/
-    GpxParser.kt             <- streaming parser GPX 1.1 (XmlPullParser)
-    GpxExporter.kt           <- export GPX aktivitas
-    model/GpxModels.kt       <- GpxDocument, GpxTrack, GpxWaypoint, TrackPoint
+**Apakah butuh internet saat di gunung?**
+Tidak — selama kamu sudah mengunduh area peta sebelumnya. GPS bekerja tanpa internet; internet hanya untuk mengunduh tile peta.
 
-  navigation/
-    NavigationEngine.kt      <- jarak tempuh/sisa, elevation gain, kecepatan, moving time; pure Kotlin
-    TrackMatcher.kt          <- match GPS ke garis track + jarak sepanjang track
-    OffRouteDetector.kt      <- deteksi menyimpang (kalau masih dipakai)
-    ElevationStats.kt        <- ringkasan elevasi dari list titik
-    GeoMath.kt               <- geometri dasar (distance, bounds)
+**Data saya dikirim ke mana?**
+Tidak ke mana-mana. Rute, rekaman, foto, dan waypoint tersimpan hanya di penyimpanan HP-mu. Nyasar tidak punya server dan tidak butuh akun.
 
-  recording/
-    RecordingEngine.kt       <- logika statistik rekaman murni
-    RecordingService.kt      <- foreground service, pengumpulan GPS, auto-pause, GPS health watchdog
-    RecordingServiceConnection.kt
-    SportType.kt
+**Kenapa posisi GPS saya "melompat"?**
+Di antara tebing atau kanopi lebat, GPS memang bisa kurang akurat. Nyasar menampilkan estimasi akurasi (±X m) supaya kamu bisa menilai sendiri seberapa percaya pada posisi tersebut.
 
-  location/
-    LocationRepository.kt    <- FusedLocationProvider
-    HeadingProvider.kt       <- pembaca bearing device
-    NavigationService.kt     <- kerangka layanan navigasi
+**Apa bedanya biru dan hijau di peta?**
+Jalur rute terencana digambar biru; jejak aktual yang terekam saat aktivitas digambar hijau — jadi kamu bisa membandingkan rencana vs kenyataan.
 
-  map/
-    TileProvider.kt          <- interface abstraksi provider
-    BasemapCatalog.kt        <- katalog 9 basemap World + country list
-    OfflineMapManager.kt     <- download region MapLibre offline
-    providers/
-      MapTilerProvider.kt
-      OpenFreeMapProvider.kt
-      TileProviderFactory.kt
-      RasterStyleJson.kt    <- style inline untuk asset-backed + raster
+**Hape saya Android 7 bisa?**
+Mohon maaf, Nyasar butuh Android 8.0 (Oreo) ke atas.
 
-  data/
-    db/  (Room)
-      RouteEntity, RouteDao, ActivityEntity, ActivityPointEntity, ActivityDao,
-      ActivityPhotoEntity, ActivityPhotoDao, WaypointEntity, WaypointDao, WaypointCategory,
-      AppDatabase
-    repository/
-      RouteRepository.kt     <- import GPX → local copy → persist
-      ActivityPhotoRepository.kt
-      WaypointRepository.kt
-    settings/
-      SettingsRepository.kt  <- DataStore: provider, tema, bahasa, speed unit, keep screen on, auto-pause
+**Berapa banyak memori untuk peta offline?**
+Tergantung area yang kamu unduh — satu gunung umumnya cuma puluhan MB. Bisa dilihat dan dihapus kapan saja dari menu peta offline.
 
-  ui/
-    components/              <- NyasarMapView, NyasarBottomBar, CompassButton, ZoomControls,
-                                 CameraFollowMode, BasemapPickerSheet, ElevationProfile, SplitsTable
-    home/HomeScreen + HomeViewModel
-    preview/RoutePreviewScreen + RoutePreviewViewModel + OfflineDownloadScreen + OfflineDownloadViewModel
-    navigation/NavigationScreen + NavigationViewModel
-    recording/RecordingScreen + RecordingViewModel + PostRecordingForm + SportFilterSheet
-    history/ActivityHistoryScreen + ActivityHistoryViewModel + ActivityDetailScreen + ActivityDetailViewModel + ActivityPhotosSection
-    trackmaps/TrackAndMapsScreen + TrackAndMapsViewModel
-    routepicker/RoutePickerScreen
-    offline/OfflineMapsScreen + OfflineMapsViewModel
-    settings/SettingsScreen + SettingsViewModel
-    drawroute/DrawRouteScreen + DrawRouteViewModel
-    startActivity/StartActivityScreen
-    waypoint/WaypointViewModel + WaypointSheets + WaypointCrosshairScreen
-    share/ShareCardScreen + ShareCardGenerator
-    theme/Theme + Type
+---
 
-  util/SpeedUtils.kt
-  media/PhotoStorageManager.kt
+## 🙏 Kredit
+
+- Peta, tile, dan data geografis: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), [OpenTopoMap](https://opentopomap.org), [CyclOSM](https://cyclosm.org), [Waymarked Trails](https://waymarkedtrails.org), [OpenFreeMap](https://openfreemap.org), dan [MapTiler](https://www.maptiler.com) — masing-masing sesuai ketentuan lisensinya.
+- Mesin peta: [MapLibre GL Native](https://maplibre.org) — open source.
+- Nyasar mengidentifikasi diri pada server peta dengan User-Agent khusus, sesuai kebijakan penggunaan tile OpenStreetMap.
+
+Nyasar adalah bagian dari keluarga besar **Nyasar Nyaman**. Dibuat dengan ❤️ oleh [akhyarulf](https://github.com/akhyarulf) dan kontributor.
+
+---
+
+## 🛠️ Untuk Pengembang
+
+Kamu bisa membangun Nyasar dari kode sumber:
+
+```bash
+# butuh Android Studio (Koala+) atau Android SDK 34
+git clone https://github.com/akhyarulf/nyasar.git
+cd nyasar
+# opsional: isi MAPTILER_API_KEY di local.properties
+./gradlew assembleDebug        # APK debug di app/build/outputs/apk/debug/
+./gradlew testDebugUnitTest    # jalankan unit test
 ```
 
-## Dapat APK tanpa install apa pun (GitHub Actions)
+Stack singkat: Kotlin + Jetpack Compose, MapLibre GL, Room, dan arsitektur offline-first. Setiap push ke `main` otomatis di-build oleh GitHub Actions (APK debug + AAB rilis).
 
-Repo ini sudah punya `.github/workflows/build.yml`. Caranya:
-
-1. Push project ini ke repo GitHub baru (public atau private, keduanya gratis untuk Actions).
-2. *(Opsional tapi disarankan)* Buka **Settings → Secrets and variables → Actions → New repository secret**, buat secret bernama `MAPTILER_API_KEY` isi dengan key dari cloud.maptiler.com. Kalau dilewati, APK tetap ke-build dan tetap jalan — cuma otomatis fallback pakai OpenFreeMap (tanpa key) sampai kamu isi key-nya.
-3. Buka tab **Actions** di repo → workflow "Build Nyasar APK" akan otomatis jalan setiap push ke `main`/`master`, atau klik **Run workflow** untuk trigger manual.
-4. Setelah selesai (~5–8 menit build pertama kali), buka run tersebut → bagian **Artifacts** → download `nyasar-debug-apk`.
-5. Extract zip-nya, dapat `app-debug.apk` → transfer ke HP (via USB/Drive/dsb) → install (aktifkan "Install dari sumber tidak dikenal" kalau diminta).
-
-Catatan: ini debug build (signing pakai debug key bawaan Android), pas untuk testing di HP sendiri. Untuk rilis ke Play Store nanti perlu signing config terpisah — belum termasuk di P0 ini.
-
-## Setup lokal (alternatif — kalau sudah punya Android Studio)
-
-1. Copy `local.properties.example` → `local.properties`, isi `sdk.dir` dan `MAPTILER_API_KEY` (gratis di cloud.maptiler.com).
-2. Buka di Android Studio (Koala+), sync Gradle.
-3. Run di device fisik untuk testing GPS/offline yang realistis — emulator tidak merepresentasikan kondisi GPS di gunung.
-4. `./gradlew testDebugUnitTest` untuk unit test navigation/off-route/recording.
-
-## Build / dependency
-
-- Plugin Android Gradle `8.5.2`, Kotlin `1.9.24`, KSP `1.9.24-1.0.20` (lihat `build.gradle.kts`).
-- ProGuard rules minimal: `-keep class org.maplibre.** { *; }` (lihat `app/proguard-rules.pro`).
-
-## Catatan tentang README ini
-
-Versi README sebelumnya ada beberapa kalimat yang sudah bertambah/berubah sejak pertama kali ditulis (misalnya bagian offline yang sempat tertulis "belum disambungkan" padahal sudah, dan fitur waypoint/user/recording yang sudah masuk di kode tapi belum tercermin di README). Versi sekarang dicoba update sejalan dengan isi file di `app/src/main/java/com/nyasar/app/` yang ada saat ini.
+Punya ide fitur atau menemukan bug? [Buka issue](https://github.com/akhyarulf/nyasar/issues) — kontribusi sangat diterima!

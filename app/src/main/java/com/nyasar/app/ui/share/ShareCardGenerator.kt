@@ -9,6 +9,12 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas as ComposeCanvas
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.vector.drawVector
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.res.ResourcesCompat
 import com.nyasar.app.R
 import com.nyasar.app.data.db.ActivityEntity
@@ -25,6 +31,14 @@ import kotlin.math.roundToInt
  * Generates share card bitmaps for activities.
  * 6 template styles — all free, no subscription/paywall.
  *
+ * Visual language (Strava-style redesign):
+ *   - map/dark_card: the whole map area carries a top-transparent → dark
+ *     scrim (not just behind the text), stat VALUES are ~3x their labels,
+ *     the route line is bright orange on dark/photo backgrounds.
+ *   - every template: a small "Nyasar" watermark bottom-right and a
+ *     circular white chip with the activity's SportType icon (the exact
+ *     ImageVector set RecordingScreen/SportFilterSheet render).
+ *
  * Templates:
  *   "map"         — real map snapshot (or gradient fallback) + route + stats at bottom
  *   "stats"       — transparent (checkerboard) + large centered stats + small route
@@ -40,10 +54,31 @@ object ShareCardGenerator {
 
     private val PRIMARY = Color.parseColor("#5A7562")
     private val DARK = Color.parseColor("#2A3A30")
-    private val TRACK_COLOR = Color.parseColor("#5A7562") // muted green — matches History List primary color
+
+    /**
+     * Route line on dark/photo backgrounds: bright orange (#FF6B35). The old
+     * muted green (#5A7562) melted into the full-map dark scrim and into dark
+     * story backgrounds; orange is the warm accent already used in the app's
+     * wayfinding palette (DANGER waypoint amber/red family) and keeps high
+     * contrast against both the scrim and typical map tiles.
+     */
+    private val TRACK_COLOR = Color.parseColor("#FF6B35")
+
+    /** Route line on LIGHT map fallbacks — dark green stays legible there. */
+    private val TRACK_COLOR_LIGHT_BG = Color.parseColor("#2A5546")
+
     private val WHITE = Color.WHITE
     private val LIGHT = Color.parseColor("#CCCCCC")
-    private val GRAY = Color.parseColor("#999999")
+
+    // Watermark: small "Nyasar" wordmark, bottom-right of EVERY template
+    // (same values across all six — Strava-style branding).
+    private const val WATERMARK_TEXT = "Nyasar"
+    private const val WATERMARK_SIZE = 36f
+    private val WATERMARK_COLOR = 0xCCFFFFFF.toInt()
+
+    // Stat typography: value is ≥ 2.5x the label size (76f vs 26f ≈ 2.9x).
+    private const val STAT_LABEL_SIZE = 26f
+    private const val STAT_VALUE_SIZE = 76f
 
     val TEMPLATES = listOf("map", "stats", "dark_card", "route", "grid", "minimal")
 
@@ -95,6 +130,57 @@ object ShareCardGenerator {
     private fun formatElevGain(a: ActivityEntity): String =
         a.elevationGainM?.let { "${it.roundToInt()} m" } ?: "0 m"
 
+    /** The 2–3 label/value columns every stats bar shows, per sport metric. */
+    private fun statColumns(ctx: android.content.Context, a: ActivityEntity): List<Pair<String, String>> = buildList {
+        add(ctx.getString(R.string.share_stat_distance) to "%.2f km".format(a.distanceMeters / 1000.0))
+        add(ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs))
+        if (sportMetric(a) == ShareMetric.PACE) {
+            add(ctx.getString(R.string.share_stat_pace) to formatPace(a))
+        } else {
+            add(ctx.getString(R.string.share_stat_elev_gain) to "\u2191 ${formatElevGain(a)}")
+        }
+    }
+
+    // ── Sport icon badge (reuses the exact ImageVector set from SportType —
+    //    the same icons RecordingScreen/SportFilterSheet render) ──
+
+    private val _sportIconCache = HashMap<String, Bitmap>()
+
+    /**
+     * Rasterizes a [SportType]'s ImageVector at [sizePx] px. Density is set
+     * to sizePx/24 so the 24.dp vector fills the bitmap exactly; the glyph
+     * renders with its native Material black fill (same monochrome look as
+     * an untinted Material icon in the app UI) on the white chip.
+     */
+    private fun sportIconBitmap(type: SportType, sizePx: Int): Bitmap {
+        val key = "${type.name}|$sizePx"
+        _sportIconCache[key]?.let { return it }
+        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        CanvasDrawScope().draw(
+            Density(density = sizePx / 24f),
+            LayoutDirection.Ltr,
+            ComposeCanvas(bmp),
+            Size(sizePx.toFloat(), sizePx.toFloat())
+        ) {
+            drawVector(type.icon)
+        }
+        _sportIconCache[key] = bmp
+        return bmp
+    }
+
+    /** White circular chip + sport glyph — Strava-style activity badge. */
+    private fun drawSportIcon(c: Canvas, type: SportType, cx: Float, cy: Float, radius: Float) {
+        c.drawCircle(cx, cy, radius, Paint().apply { color = WHITE; isAntiAlias = true })
+        val iconPx = (radius * 2f * 0.58f).roundToInt().coerceAtLeast(8)
+        val bmp = sportIconBitmap(type, iconPx)
+        val half = iconPx / 2f
+        c.drawBitmap(
+            bmp, null,
+            RectF(cx - half, cy - half, cx + half, cy + half),
+            Paint().apply { isFilterBitmap = true; isAntiAlias = true }
+        )
+    }
+
     // ── Template 1: Map — real map snapshot + route + stats ──
 
     private fun drawMapTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?, mapBounds: LatLngBounds?) {
@@ -103,20 +189,24 @@ object ShareCardGenerator {
         val snapBottom = CARD_H * 0.70f
 
         if (mapSnapshot != null) {
-            // Draw real map snapshot, scaled to fill the upper 65% of the card
+            // Draw real map snapshot, scaled to fill the upper 70% of the card
             val snapRect = RectF(0f, snapTop, CARD_W.toFloat(), snapBottom)
             c.drawBitmap(mapSnapshot, null, snapRect, null)
-            // Dark gradient overlay at bottom of map for text readability
-            val gradientH = CARD_H * 0.25f
-            val gradTop = CARD_H * 0.50f
+            // Full-map dark scrim: transparent at the very top, already
+            // #66000000 by 40% down, deepening to #DD000000 at the map's
+            // bottom edge — the whole map reads "dimmed" while the darkest
+            // area still sits behind the stats bar (Strava-style).
             val mapGradient = LinearGradient(
-                0f, gradTop, 0f, gradTop + gradientH,
-                intArrayOf(Color.TRANSPARENT, Color.parseColor("#CC000000")),
-                floatArrayOf(0f, 1f),
+                0f, snapTop, 0f, snapBottom,
+                intArrayOf(
+                    Color.parseColor("#00000000"),
+                    Color.parseColor("#66000000"),
+                    Color.parseColor("#DD000000")
+                ),
+                floatArrayOf(0f, 0.40f, 1f),
                 Shader.TileMode.CLAMP
             )
-            c.drawRect(0f, gradTop, CARD_W.toFloat(), gradTop + gradientH,
-                Paint().apply { shader = mapGradient })
+            c.drawRect(snapRect, Paint().apply { shader = mapGradient })
         } else {
             // Fallback: gradient + grid (no network or snapshot failed)
             fillGradient(c, PRIMARY, DARK)
@@ -133,11 +223,11 @@ object ShareCardGenerator {
                     canvas = c, trackPoints = track, bounds = mapBounds,
                     canvasLeft = 0f, canvasTop = snapTop,
                     canvasRight = CARD_W.toFloat(), canvasBottom = snapBottom,
-                    strokeWidth = 10f, color = TRACK_COLOR
+                    strokeWidth = 15f, color = TRACK_COLOR
                 )
             } else {
                 // Fallback: proportional scaling when no snapshot bounds
-                drawRouteProportional(c, track, 100f, 80f, CARD_W - 100f, snapBottom, 10f, TRACK_COLOR)
+                drawRouteProportional(c, track, 100f, 80f, CARD_W - 100f, snapBottom, 15f, TRACK_COLOR)
             }
         }
 
@@ -146,34 +236,27 @@ object ShareCardGenerator {
         val barPaint = Paint().apply { color = Color.parseColor("#99000000"); style = Paint.Style.FILL }
         c.drawRoundRect(RectF(40f, barTop, CARD_W - 40f, CARD_H - 120f), 28f, 28f, barPaint)
 
-        val nameP = textPaint(56f, interBold(ctx), WHITE)
-        c.drawText(a.name, 80f, barTop + 72f, nameP)
+        // Activity title with its sport icon chip to its left (the spot the
+        // reference design puts its shoe icon).
+        val nameP = textPaint(64f, interBold(ctx), WHITE)
+        val chipR = 30f
+        val nameBaseline = barTop + 96f
+        drawSportIcon(c, SportType.fromString(a.sportType), 80f + chipR, nameBaseline - 22f, chipR)
+        val nameX = 80f + chipR * 2 + 20f
+        c.drawText(ellipsize(a.name, CARD_W - nameX - 60f, nameP), nameX, nameBaseline, nameP)
 
-        val statP = textPaint(46f, interBold(ctx), WHITE)
-        val labelP = textPaint(26f, interRegular(ctx), LIGHT)
-        val y1 = barTop + 140f
-        val y2 = barTop + 188f
-        val dist = "%.2f km".format(a.distanceMeters / 1000.0)
-        val dur = formatDuration(a.movingTimeMs)
+        // Stats: small label over a much larger value, auto-shrinking only
+        // for pathological three-long-column cases.
+        drawStatRow(
+            c, ctx,
+            columns = statColumns(ctx, a),
+            leftX = 80f, rightX = CARD_W - 80f,
+            labelBaselineY = barTop + 178f, valueGap = 76f
+        )
 
-        val lblDistance = ctx.getString(R.string.share_stat_distance)
-        val lblTime = ctx.getString(R.string.share_stat_time)
-        c.drawText(lblDistance, 80f, y1, labelP); c.drawText(dist, 80f, y2, statP)
-        c.drawText(lblTime, 420f, y1, labelP); c.drawText(dur, 420f, y2, statP)
-
-        if (sportMetric(a) == ShareMetric.PACE) {
-            c.drawText(ctx.getString(R.string.share_stat_pace), 720f, y1, labelP); c.drawText(formatPace(a), 720f, y2, statP)
-        } else {
-            val gain = formatElevGain(a)
-            c.drawText(ctx.getString(R.string.share_stat_elev_gain), 720f, y1, labelP); c.drawText("\u2191 $gain", 720f, y2, statP)
-        }
-
-        // Branding
-        c.drawText("Nyasar", 80f, CARD_H - 50f, textPaint(30f, interRegular(ctx), Color.parseColor("#88FFFFFF")))
+        // Watermark bottom-right, inside the stats bar
+        drawWatermark(c, ctx, xRight = CARD_W - 64f, yBaseline = CARD_H - 140f)
     }
-
-    // Legacy formatDuration kept for templates that still reference it;
-    // new code should use the one above which handles hours.
 
     // ── Template 2: Stats — transparent + large centered stats + small route ──
 
@@ -181,39 +264,40 @@ object ShareCardGenerator {
         c.drawColor(Color.TRANSPARENT)
 
         val cx = CARD_W / 2f
-        val big = textPaint(120f, interBold(ctx), WHITE)
-        val med = textPaint(48f, interRegular(ctx), WHITE)
-        val sm = textPaint(32f, interRegular(ctx), LIGHT)
+        val big = textPaint(152f, interBold(ctx), WHITE)
+        val sm = textPaint(34f, interRegular(ctx), LIGHT)
+
+        // Sport badge top-left (this template draws no title).
+        drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
         val lblDistance = ctx.getString(R.string.share_stat_distance)
         val lblTime = ctx.getString(R.string.share_stat_time)
-        c.drawText(lblDistance, cx - sm.measureText(lblDistance) / 2, CARD_H * 0.32f, sm)
+        c.drawText(lblDistance, cx - sm.measureText(lblDistance) / 2, CARD_H * 0.30f, sm)
         c.drawText(dist, cx - big.measureText(dist) / 2, CARD_H * 0.38f, big)
 
         c.drawText(lblTime, cx - sm.measureText(lblTime) / 2, CARD_H * 0.48f, sm)
-        c.drawText(dur, cx - big.measureText(dur) / 2, CARD_H * 0.54f, big)
+        c.drawText(dur, cx - big.measureText(dur) / 2, CARD_H * 0.56f, big)
 
         if (sportMetric(a) == ShareMetric.PACE) {
             val pace = formatPace(a)
             val lblPace = ctx.getString(R.string.share_stat_pace)
             c.drawText(lblPace, cx - sm.measureText(lblPace) / 2, CARD_H * 0.64f, sm)
-            c.drawText(pace, cx - big.measureText(pace) / 2, CARD_H * 0.70f, big)
+            c.drawText(pace, cx - big.measureText(pace) / 2, CARD_H * 0.72f, big)
         } else {
             val gain = formatElevGain(a)
             val lblElev = ctx.getString(R.string.share_stat_elev_gain)
             c.drawText(lblElev, cx - sm.measureText(lblElev) / 2, CARD_H * 0.64f, sm)
-            c.drawText("\u2191 $gain", cx - big.measureText("\u2191 $gain") / 2, CARD_H * 0.70f, big)
+            c.drawText("\u2191 $gain", cx - big.measureText("\u2191 $gain") / 2, CARD_H * 0.72f, big)
         }
 
         if (track.size >= 2) {
-            drawRouteProportional(c, track, 200f, CARD_H * 0.78f, CARD_W - 200f, CARD_H * 0.92f, 10f, TRACK_COLOR)
+            drawRouteProportional(c, track, 200f, CARD_H * 0.79f, CARD_W - 200f, CARD_H * 0.91f, 12f, TRACK_COLOR)
         }
 
-        c.drawText("Nyasar", cx - textPaint(28f, interRegular(ctx), LIGHT).measureText("Nyasar") / 2,
-            CARD_H - 60f, textPaint(28f, interRegular(ctx), LIGHT))
+        drawWatermark(c, ctx)
     }
 
     // ── Template 3: Dark Card — dark textured bg + inset map card ──
@@ -260,17 +344,20 @@ object ShareCardGenerator {
 
             c.drawBitmap(mapSnapshot, null, destRect, null)
 
-            // Dark gradient overlay at bottom of map for readability
-            val gradientH = cardRect.height() * 0.3f
-            val gradTop = cardRect.bottom - gradientH
+            // Full-card dark scrim (same profile as the "map" template):
+            // transparent at the card's top, #66000000 by 40% down, #DD000000
+            // at its bottom edge — the map reads dimmed end to end.
             val mapGradient = LinearGradient(
-                0f, gradTop, 0f, cardRect.bottom,
-                intArrayOf(Color.TRANSPARENT, Color.parseColor("#CC000000")),
-                floatArrayOf(0f, 1f),
+                0f, cardRect.top, 0f, cardRect.bottom,
+                intArrayOf(
+                    Color.parseColor("#00000000"),
+                    Color.parseColor("#66000000"),
+                    Color.parseColor("#DD000000")
+                ),
+                floatArrayOf(0f, 0.40f, 1f),
                 Shader.TileMode.CLAMP
             )
-            c.drawRect(cardRect.left, gradTop, cardRect.right, cardRect.bottom,
-                Paint().apply { shader = mapGradient })
+            c.drawRect(destRect, Paint().apply { shader = mapGradient })
 
             // Route overlay — MUST use destRect (same space as bitmap),
             // NOT cardRect. When destRect differs from cardRect due to
@@ -280,7 +367,7 @@ object ShareCardGenerator {
                     canvas = c, trackPoints = track, bounds = mapBounds,
                     canvasLeft = destRect.left, canvasTop = destRect.top,
                     canvasRight = destRect.right, canvasBottom = destRect.bottom,
-                    strokeWidth = 10f, color = TRACK_COLOR
+                    strokeWidth = 15f, color = TRACK_COLOR
                 )
             }
 
@@ -295,7 +382,9 @@ object ShareCardGenerator {
             }
             c.drawRoundRect(cardRect, 24f, 24f, borderPaint)
         } else {
-            // Fallback: gradient + route when no snapshot
+            // Fallback: light map-colored card + route when no snapshot.
+            // LIGHT background → keep the dark-green track here, only the
+            // stroke thickens (15f) like the snapshot path.
             val cardBg = Paint().apply { style = Paint.Style.FILL }
             val cardGradient = LinearGradient(
                 cardRect.left, cardRect.top, cardRect.left, cardRect.bottom,
@@ -307,31 +396,26 @@ object ShareCardGenerator {
             c.drawRoundRect(cardRect, 24f, 24f, cardBg)
             if (track.size >= 2) {
                 drawRouteProportional(c, track, cardRect.left + 50f, cardRect.top + 50f,
-                    cardRect.right - 50f, cardRect.bottom - 50f, 10f, TRACK_COLOR)
+                    cardRect.right - 50f, cardRect.bottom - 50f, 15f, TRACK_COLOR_LIGHT_BG)
             }
         }
 
+        // Title + sport icon chip to its left (same row as before, bigger).
         val sy = CARD_H * 0.56f
-        c.drawText(a.name, 80f, sy, textPaint(54f, interBold(ctx), WHITE))
+        val nameP = textPaint(62f, interBold(ctx), WHITE)
+        val chipR = 30f
+        drawSportIcon(c, SportType.fromString(a.sportType), 80f + chipR, sy - 20f, chipR)
+        val nameX = 80f + chipR * 2 + 20f
+        c.drawText(ellipsize(a.name, CARD_W - nameX - 60f, nameP), nameX, sy, nameP)
 
-        val statP = textPaint(44f, interBold(ctx), WHITE)
-        val labelP = textPaint(26f, interRegular(ctx), LIGHT)
-        val dist = "%.2f km".format(a.distanceMeters / 1000.0)
-        val dur = formatDuration(a.movingTimeMs)
+        drawStatRow(
+            c, ctx,
+            columns = statColumns(ctx, a),
+            leftX = 80f, rightX = CARD_W - 80f,
+            labelBaselineY = sy + 64f, valueGap = 76f
+        )
 
-        val lblDistance = ctx.getString(R.string.share_stat_distance)
-        val lblTime = ctx.getString(R.string.share_stat_time)
-        c.drawText(lblDistance, 80f, sy + 70f, labelP); c.drawText(dist, 80f, sy + 120f, statP)
-        c.drawText(lblTime, 440f, sy + 70f, labelP); c.drawText(dur, 440f, sy + 120f, statP)
-
-        if (sportMetric(a) == ShareMetric.PACE) {
-            c.drawText(ctx.getString(R.string.share_stat_pace), 780f, sy + 70f, labelP); c.drawText(formatPace(a), 780f, sy + 120f, statP)
-        } else {
-            val gain = formatElevGain(a)
-            c.drawText(ctx.getString(R.string.share_stat_elev_gain), 780f, sy + 70f, labelP); c.drawText("\u2191 $gain", 780f, sy + 120f, statP)
-        }
-
-        c.drawText("Nyasar", 80f, CARD_H - 80f, textPaint(30f, interRegular(ctx), Color.parseColor("#66FFFFFF")))
+        drawWatermark(c, ctx)
     }
 
     // ── Template 4: Route — transparent + large centered route ──
@@ -339,21 +423,23 @@ object ShareCardGenerator {
     private fun drawRouteTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
 
+        // Sport badge top-left (this template draws no title).
+        drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
+
         if (track.size >= 2) {
             drawRouteProportional(c, track, 120f, CARD_H * 0.12f, CARD_W - 120f, CARD_H * 0.62f, 14f, TRACK_COLOR)
         }
 
         val sy = CARD_H * 0.75f
-        val statP = textPaint(52f, interBold(ctx), WHITE)
-        val labelP = textPaint(28f, interRegular(ctx), LIGHT)
+        val labelP = textPaint(30f, interRegular(ctx), LIGHT)
+        val statP = textPaint(112f, interBold(ctx), WHITE)
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
-        c.drawText(ctx.getString(R.string.share_stat_distance), 80f, sy, labelP); c.drawText(dist, 80f, sy + 55f, statP)
-        c.drawText(ctx.getString(R.string.share_stat_time), 500f, sy, labelP); c.drawText(dur, 500f, sy + 55f, statP)
+        c.drawText(ctx.getString(R.string.share_stat_distance), 80f, sy, labelP); c.drawText(dist, 80f, sy + 96f, statP)
+        c.drawText(ctx.getString(R.string.share_stat_time), 600f, sy, labelP); c.drawText(dur, 600f, sy + 96f, statP)
 
-        c.drawText("Nyasar", CARD_W / 2f - textPaint(28f, interRegular(ctx), LIGHT).measureText("Nyasar") / 2,
-            CARD_H - 60f, textPaint(28f, interRegular(ctx), LIGHT))
+        drawWatermark(c, ctx)
     }
 
     // ── Template 5: Grid — transparent + stat grid ──
@@ -361,13 +447,16 @@ object ShareCardGenerator {
     private fun drawGridTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity) {
         c.drawColor(Color.TRANSPARENT)
 
+        // Sport badge top-left.
+        drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
+
         val col1 = CARD_W * 0.17f
         val col2 = CARD_W * 0.50f
         val col3 = CARD_W * 0.83f
-        val row1 = CARD_H * 0.33f
-        val row2 = CARD_H * 0.52f
-        val valP = textPaint(54f, interBold(ctx), WHITE)
-        val lblP = textPaint(26f, interRegular(ctx), LIGHT)
+        val row1 = CARD_H * 0.30f
+        val row2 = CARD_H * 0.50f
+        val valP = textPaint(70f, interBold(ctx), WHITE)
+        val lblP = textPaint(28f, interRegular(ctx), LIGHT)
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
@@ -390,24 +479,26 @@ object ShareCardGenerator {
         val lblMaxSpeed = ctx.getString(R.string.share_stat_max_speed)
         val lblPoints = ctx.getString(R.string.share_stat_points)
         c.drawText(lblDistance, col1 - lblP.measureText(lblDistance) / 2, row1, lblP)
-        c.drawText(dist, col1 - valP.measureText(dist) / 2, row1 + 52f, valP)
+        c.drawText(dist, col1 - valP.measureText(dist) / 2, row1 + 92f, valP)
         c.drawText(primaryLabel, col2 - lblP.measureText(primaryLabel) / 2, row1, lblP)
-        c.drawText(primaryValue, col2 - valP.measureText(primaryValue) / 2, row1 + 52f, valP)
+        c.drawText(primaryValue, col2 - valP.measureText(primaryValue) / 2, row1 + 92f, valP)
         c.drawText(lblDuration, col3 - lblP.measureText(lblDuration) / 2, row1, lblP)
-        c.drawText(dur, col3 - valP.measureText(dur) / 2, row1 + 52f, valP)
+        c.drawText(dur, col3 - valP.measureText(dur) / 2, row1 + 92f, valP)
 
         // Row 2: Elev Gain | Max Speed | Point Count
         c.drawText(lblElev, col1 - lblP.measureText(lblElev) / 2, row2, lblP)
-        c.drawText("\u2191 $gain", col1 - valP.measureText("\u2191 $gain") / 2, row2 + 52f, valP)
+        c.drawText("\u2191 $gain", col1 - valP.measureText("\u2191 $gain") / 2, row2 + 92f, valP)
 
         c.drawText(lblMaxSpeed, col2 - lblP.measureText(lblMaxSpeed) / 2, row2, lblP)
-        c.drawText("%.1f km/h".format(a.maxSpeedKmh), col2 - valP.measureText("%.1f km/h".format(a.maxSpeedKmh)) / 2, row2 + 52f, valP)
+        // maxSpeedKmh is nullable (null on recordings with no speed sample):
+        // String.format on a null Double? throws NPE — render 0.0 instead.
+        val maxSpeed = "%.1f km/h".format(a.maxSpeedKmh ?: 0.0)
+        c.drawText(maxSpeed, col2 - valP.measureText(maxSpeed) / 2, row2 + 92f, valP)
 
         c.drawText(lblPoints, col3 - lblP.measureText(lblPoints) / 2, row2, lblP)
-        c.drawText("${pointCount(a)}", col3 - valP.measureText("${pointCount(a)}") / 2, row2 + 52f, valP)
+        c.drawText("${pointCount(a)}", col3 - valP.measureText("${pointCount(a)}") / 2, row2 + 92f, valP)
 
-        c.drawText("Nyasar", CARD_W / 2f - lblP.measureText("Nyasar") / 2,
-            CARD_H - 60f, textPaint(28f, interRegular(ctx), LIGHT))
+        drawWatermark(c, ctx)
     }
 
     // ── Template 6: Minimal — solid green + name + big distance ──
@@ -415,26 +506,75 @@ object ShareCardGenerator {
     private fun drawMinimalTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity) {
         fillGradient(c, PRIMARY, Color.parseColor("#1A2A20"))
 
+        // Sport badge top-left.
+        drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
+
         val cx = CARD_W / 2f
-        c.drawText(a.name, cx - textPaint(48f, interBold(ctx), WHITE).measureText(a.name) / 2,
-            CARD_H * 0.36f, textPaint(48f, interBold(ctx), WHITE))
+        val nameP = textPaint(56f, interBold(ctx), WHITE)
+        val name = ellipsize(a.name, CARD_W - 160f, nameP)
+        c.drawText(name, cx - nameP.measureText(name) / 2, CARD_H * 0.36f, nameP)
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
-        c.drawText(dist, cx - textPaint(140f, interBold(ctx), WHITE).measureText(dist) / 2,
-            CARD_H * 0.50f, textPaint(140f, interBold(ctx), WHITE))
+        val distP = textPaint(150f, interBold(ctx), WHITE)
+        c.drawText(dist, cx - distP.measureText(dist) / 2, CARD_H * 0.50f, distP)
 
-        c.drawText(ctx.getString(R.string.share_stat_distance), cx - textPaint(32f, interRegular(ctx), LIGHT).measureText(ctx.getString(R.string.share_stat_distance)) / 2,
-            CARD_H * 0.55f, textPaint(32f, interRegular(ctx), LIGHT))
+        val lblDistP = textPaint(34f, interRegular(ctx), LIGHT)
+        val lblDist = ctx.getString(R.string.share_stat_distance)
+        c.drawText(lblDist, cx - lblDistP.measureText(lblDist) / 2, CARD_H * 0.55f, lblDistP)
 
         val dur = formatDuration(a.movingTimeMs)
-        c.drawText(dur, cx - textPaint(64f, interBold(ctx), WHITE).measureText(dur) / 2,
-            CARD_H * 0.66f, textPaint(64f, interBold(ctx), WHITE))
+        val durP = textPaint(76f, interBold(ctx), WHITE)
+        c.drawText(dur, cx - durP.measureText(dur) / 2, CARD_H * 0.66f, durP)
 
-        c.drawText("Nyasar", cx - textPaint(28f, interRegular(ctx), Color.parseColor("#88FFFFFF")).measureText("Nyasar") / 2,
-            CARD_H - 80f, textPaint(28f, interRegular(ctx), Color.parseColor("#88FFFFFF")))
+        drawWatermark(c, ctx)
     }
 
     // ── Helpers ──
+
+    /**
+     * Draws a label-over-value stat row that always fits [leftX]..[rightX]:
+     * values start at [STAT_VALUE_SIZE] and step down (min 56f) only for
+     * pathological three-long-column cases — typical cards keep the full
+     * Strava-style ratio (76f value vs 26f label ≈ 2.9x).
+     */
+    private fun drawStatRow(
+        c: Canvas, ctx: android.content.Context,
+        columns: List<Pair<String, String>>,
+        leftX: Float, rightX: Float, labelBaselineY: Float, valueGap: Float
+    ) {
+        val gap = 44f
+        val lblP = textPaint(STAT_LABEL_SIZE, interRegular(ctx), LIGHT)
+        var valueSize = STAT_VALUE_SIZE
+        var valP = textPaint(valueSize, interBold(ctx), WHITE)
+        fun colWidths(): List<Float> =
+            columns.map { maxOf(lblP.measureText(it.first), valP.measureText(it.second)) }
+        var widths = colWidths()
+        while (widths.sum() + gap * (columns.size - 1) > rightX - leftX && valueSize > 56f) {
+            valueSize -= 4f
+            valP = textPaint(valueSize, interBold(ctx), WHITE)
+            widths = colWidths()
+        }
+        var x = leftX
+        columns.forEachIndexed { i, (label, value) ->
+            c.drawText(label, x, labelBaselineY, lblP)
+            c.drawText(value, x, labelBaselineY + valueGap, valP)
+            x += widths[i] + gap
+        }
+    }
+
+    /** Small "Nyasar" wordmark, right-aligned at (xRight, yBaseline). */
+    private fun drawWatermark(c: Canvas, ctx: android.content.Context, xRight: Float = CARD_W - 56f, yBaseline: Float = CARD_H - 56f) {
+        val p = textPaint(WATERMARK_SIZE, interBold(ctx), WATERMARK_COLOR)
+        c.drawText(WATERMARK_TEXT, xRight - p.measureText(WATERMARK_TEXT), yBaseline, p)
+    }
+
+    /** Ellipsizes [text] with "…" so it never exceeds [maxWidthPx]. */
+    private fun ellipsize(text: String, maxWidthPx: Float, p: Paint): String {
+        if (p.measureText(text) <= maxWidthPx) return text
+        var t = text
+        while (t.isNotEmpty() && p.measureText("$t…") > maxWidthPx) t = t.dropLast(1)
+        return "$t…"
+    }
 
     /** Format duration with hours when applicable. */
     private fun formatDuration(ms: Long): String {

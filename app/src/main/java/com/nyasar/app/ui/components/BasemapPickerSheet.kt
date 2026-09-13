@@ -74,14 +74,23 @@ import com.nyasar.app.ui.theme.NyasarRadius
 /**
  * Basemap + overlay + data picker — bottom sheet with three WRAPPED GRID
  * sections, styled to match (spec: reference Strava screenshot — tiles are
- * small, 4 per row, and every option is visible at once instead of hiding
- * most of the catalog behind a horizontal swipe). Each section is a
+ * small, exactly 4 per row, and every option is visible at once instead of
+ * hiding most of the catalog behind a horizontal swipe). Each section is a
  * FlowRow capped at 4 items per row: 8 basemaps render as 4+4 rows, so
- * the full catalog is discoverable without scrolling sideways. The sheet
- * content itself scrolls vertically when the tile rows + the other sections
- * exceed the available height. Tile width comes from the sheet's actual
- * content width (BoxWithConstraints) so "exactly 4 fit" is true on any
- * screen size, not just the reference device's.
+ * the full catalog is discoverable without scrolling sideways.
+ *
+ * Two compactness guarantees, both hard-won from device testing:
+ *  - EXACTLY 4 per row: tile width is computed in whole PIXELS
+ *    (BoxWithConstraints maxWidth minus 3 gutters, divided by 4, floored)
+ *    instead of raw dp — dp values round-trip through Modifier.width's
+ *    pixel rounding, and a fraction-of-a-pixel overflow per row was enough
+ *    for FlowRow to wrap the 4th tile (the 3+3+2 bug). Flooring can only
+ *    underflow, so 4 tiles + 3 gaps always fit, on every density.
+ *  - NO-EXPAND fit: the vertical rhythm is compact (titleMedium headers,
+ *    labelSmall labels, 8dp gutters, tight spacers) so Map Types (2 rows)
+ *    + Overlays (1 row) + Data (1 row) fit inside the sheet's default
+ *    height on normal phones — nothing hidden below the fold.
+ *    verticalScroll remains only as a fallback for very short screens.
  *
  * Basemaps: all 8 World [BasemapEntry] catalog entries (Liberty Topo,
  * Liberty Satellite, OpenMapTiles OSM Topo,
@@ -146,30 +155,35 @@ fun BasemapPickerSheet(
         MapSnapshotHelper.purgeStaleBasemapPreviews(purgeContext)
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        // verticalScroll: with all 8 basemaps wrapped into 2 rows the sheet
-        // is taller than one screen on small devices — scroll instead of
-        // clipping the Data section off the bottom.
+        // verticalScroll: FALLBACK for very short screens only — the compact
+        // rhythm below (2+1+1 tile rows, small headers, tight spacers) is
+        // designed to fit the sheet's default height WITHOUT scrolling, so
+        // every section is visible the moment the sheet opens. On tiny
+        // screens this scroll prevents the Data section from clipping.
         Column(
             Modifier
                 .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
+                .padding(bottom = 20.dp)
         ) {
-            Text(stringResource(R.string.map_types_title), style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.map_types_title), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(10.dp))
 
-            // Shared tile-width formula for every section — Strava-style:
-            // small tiles, exactly 4 per row, wrapped (not scrolled) so the
-            // WHOLE catalog is visible at once — 8 basemaps render as
-            // 4+4 rows. Width is computed from this Column's actual
-            // content width (already inset by the 20.dp horizontal padding
-            // above) rather than a fixed dp constant, so "exactly 4 fit"
-            // holds on any screen size, not just one reference width.
+            // Shared tile-width formula for every section — Strava-style
+            // small tiles, exactly 4 per row, wrapped (not scrolled). Width
+            // is derived from this Column's real content width in whole
+            // PIXELS: dp-perfect arithmetic still round-trips through
+            // Modifier.width's pixel rounding, and a fractional-px overflow
+            // was silently wrapping rows to 3+3+2 on some densities. Flooring
+            // can only underflow, never overflow, so 4 tiles + 3 gaps always
+            // fit regardless of screen width/density.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val spacing = 10.dp
-                val tileWidth = (maxWidth - spacing * 3) / 4
+                val spacing = 8.dp
+                val tileWidth = with(LocalDensity.current) {
+                    ((maxWidth - spacing * 3).toPx() / 4).toInt().toDp()
+                }
 
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing),
@@ -188,23 +202,25 @@ fun BasemapPickerSheet(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(14.dp))
             HorizontalDivider()
-            Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.overlays_title), style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(10.dp))
+            Text(stringResource(R.string.overlays_title), style = MaterialTheme.typography.titleMedium)
             Text(
                 stringResource(R.string.overlays_subtitle),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
 
             // Overlays grid: the 3 Waymarked Trails layers — third-party map
             // content, same for every user. User-owned layers (routes/
             // waypoints/downloaded areas) live in the "Data" section below.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val spacing = 10.dp
-                val tileWidth = (maxWidth - spacing * 3) / 4
+                val spacing = 8.dp
+                val tileWidth = with(LocalDensity.current) {
+                    ((maxWidth - spacing * 3).toPx() / 4).toInt().toDp()
+                }
 
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing),
@@ -223,24 +239,26 @@ fun BasemapPickerSheet(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(14.dp))
             HorizontalDivider()
-            Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.data_title), style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(10.dp))
+            Text(stringResource(R.string.data_title), style = MaterialTheme.typography.titleMedium)
             Text(
                 stringResource(R.string.data_subtitle),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
 
             // Data grid: the user's own layers — Jalur Saya (saved routes),
             // waypoint pins, downloaded-area coverage. Same 4-per-row wrap;
             // same border+check-badge toggle language as the sections above;
             // each toggle persists app-wide via SettingsRepository.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val spacing = 10.dp
-                val tileWidth = (maxWidth - spacing * 3) / 4
+                val spacing = 8.dp
+                val tileWidth = with(LocalDensity.current) {
+                    ((maxWidth - spacing * 3).toPx() / 4).toInt().toDp()
+                }
 
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing),
@@ -312,10 +330,10 @@ private fun BasemapTile(
                 modifier = Modifier.fillMaxWidth().aspectRatio(1f)
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             entry.gpxName,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = if (isSelected) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
@@ -406,10 +424,10 @@ private fun DataToggleTile(
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = if (isChecked) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,

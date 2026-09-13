@@ -1,6 +1,7 @@
 package com.nyasar.app.map
 
 import android.content.Context
+import org.maplibre.android.offline.OfflineManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

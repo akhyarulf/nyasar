@@ -190,8 +190,23 @@ fun PostRecordingForm(
             Spacer(Modifier.height(24.dp))
 
             // Action buttons
+            // v7 fix: an empty recording ("0m01s / 0.00 km") must not be
+            // saveable — Save stays disabled until there is actual content
+            // (real distance, real duration, or at least a photo). The Stop
+            // dialog already offers Buang before we ever get here; this is
+            // the last line of defense.
+            val canSave = summary.distanceMeters >= 10.0 ||
+                summary.elapsedTimeMs >= 10_000L ||
+                photos.isNotEmpty()
             Button(
-                onClick = { onSave(title) },
+                onClick = {
+                    onSave(
+                        title.ifBlank {
+                            context.getString(R.string.activity_title_format, formatTimeForTitle(summary.elapsedTimeMs))
+                        }
+                    )
+                },
+                enabled = canSave,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
@@ -200,6 +215,15 @@ fun PostRecordingForm(
                 Icon(Icons.Default.Check, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.save_activity))
+            }
+            if (!canSave) {
+                Text(
+                    stringResource(R.string.save_activity_disabled_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    textAlign = TextAlign.Center
+                )
             }
 
             Spacer(Modifier.height(12.dp))

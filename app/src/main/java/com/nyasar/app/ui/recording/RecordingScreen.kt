@@ -472,6 +472,12 @@ fun RecordingScreen(
     // for a future session while the user is still looking at it.
     var stopRequested by remember { mutableStateOf(false) }
     var summarySnapshot by remember { mutableStateOf<RecordingUiState?>(null) }
+    // Live state captured the moment the user confirms Stop. The service's
+    // final STOPPED emission zeroes stats and nulls activityId (see
+    // publishState), so the review form must be built from THIS pre-stop
+    // snapshot — otherwise Save renamed nothing and Discard deleted
+    // nothing (silent no-ops against a null id).
+    var pendingStopSnapshot by remember { mutableStateOf<RecordingUiState?>(null) }
     var postRecordingPhotos by remember { mutableStateOf<List<com.nyasar.app.data.db.ActivityPhotoEntity>>(emptyList()) }
     var showPostRecordingPhotoChooser by remember { mutableStateOf(false) }
     var pendingPostRecordingCameraFile by remember { mutableStateOf<java.io.File?>(null) }
@@ -516,10 +522,15 @@ fun RecordingScreen(
 
     LaunchedEffect(stopRequested, state.status) {
         if (stopRequested && state.status == RecordingStatus.STOPPED) {
-            summarySnapshot = state
+            // Prefer the pre-stop snapshot: the STOPPED emission here has
+            // already zeroed stats and nulled activityId (publishState),
+            // which used to leave the review form with a null activity id.
+            val snap = pendingStopSnapshot?.takeIf { it.activityId != null } ?: state
+            summarySnapshot = snap
+            pendingStopSnapshot = null
             stopRequested = false
             // Load existing photos (should be empty for new recordings)
-            state.activityId?.let { activityId ->
+            snap.activityId?.let { activityId ->
                 postRecordingScope.launch {
                     postRecordingPhotos = postRecordingPhotoRepository.getPhotosForActivity(activityId)
                 }
@@ -1306,16 +1317,17 @@ fun RecordingScreen(
                 TextButton(onClick = {
                     showStopConfirm = false
                     // Check if user never moved before actually stopping.
-                    // If distance < 5m AND recording has been running > 5s,
-                    // show "Belum bergerak?" instead of stopping.
+                    // Distance-only check (no elapsed-time qualifier): a
+                    // start→stop within a few seconds used to bypass this
+                    // guard entirely and persist an empty "0m01s / 0.00 km"
+                    // activity. Now ANY stop below 5m total distance gets
+                    // the "Belum bergerak?" choice first.
                     val totalDistance = state.distanceMeters
-                    val elapsedMs = state.elapsedTimeMs
-                    if (totalDistance < RecordingService.NOT_MOVING_DISTANCE_THRESHOLD_METERS
-                        && elapsedMs > 5_000L
-                    ) {
+                    if (totalDistance < RecordingService.NOT_MOVING_DISTANCE_THRESHOLD_METERS) {
                         showNotMovingFromStop = true
                     } else {
                         stopRequested = true
+                        pendingStopSnapshot = state
                         viewModel.stopRecording()
                     }
                 }) { Text(stringResource(R.string.stop_and_save)) }

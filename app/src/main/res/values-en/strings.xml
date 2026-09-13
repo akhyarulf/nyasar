@@ -48,6 +48,7 @@
     <string name="discard_activity">Discard Activity</string>
     <string name="discard_confirm">Discard Activity?</string>
     <string name="discard_message">This activity will be permanently deleted. This action cannot be undone.</string>
+    <string name="save_activity_disabled_hint">This activity is empty — record some distance before saving.</string>
 
     <!-- Track & Maps -->
     <string name="track_maps">Track &amp; Map</string>

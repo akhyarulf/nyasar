@@ -48,6 +48,7 @@
     <string name="discard_activity">Buang Aktivitas</string>
     <string name="discard_confirm">Buang Aktivitas?</string>
     <string name="discard_message">Aktivitas ini akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="save_activity_disabled_hint">Aktivitas masih kosong — rekam jaraknya dulu sebelum disimpan.</string>
 
     <!-- Track & Maps -->
     <string name="track_maps">Track &amp; Peta</string>

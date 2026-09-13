@@ -394,7 +394,20 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         val activityId = _uiState.value.activityId
         stopRecording()
         if (activityId != null) {
-            discardRecording(activityId)
+            // The service's final persistSummary(COMPLETED) write races
+            // this delete — and persistSummary actively RE-CREATES the row
+            // when getById returns null (its stop-immediately fallback),
+            // so deleting too early gets resurrected by the late write.
+            // Let the service's write land first, then delete; one extra
+            // sweep catches a straggler write (every cleanup step in
+            // discardRecording is idempotent, so running it twice is safe).
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(500)
+                discardRecording(activityId)
+                kotlinx.coroutines.delay(1_500)
+                dao.deletePointsForActivity(activityId)
+                dao.deleteById(activityId)
+            }
         }
     }
 

@@ -4,18 +4,14 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Canvas as ComposeCanvas
-import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
-import androidx.compose.ui.graphics.vector.drawVector
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.PathParser
 import com.nyasar.app.R
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.model.TrackPoint
@@ -141,30 +137,46 @@ object ShareCardGenerator {
         }
     }
 
-    // ── Sport icon badge (reuses the exact ImageVector set from SportType —
-    //    the same icons RecordingScreen/SportFilterSheet render) ──
+    // ── Sport icon badge — the exact Material glyph set behind
+    //    SportType.icon (the ImageVector set RecordingScreen/SportFilterSheet
+    //    render): the map below embeds the official Material Icons
+    //    "filled 24px" path data for each sport, drawn with
+    //    androidx.core.graphics.PathParser. DrawScope.drawVector only exists
+    //    in Compose UI 1.7+ (this project pins 1.6.x via BOM 2024.06), so
+    //    rasterizing ImageVectors via CanvasDrawScope does not compile here;
+    //    identical glyphs, version-proof rendering. ──
 
+    // Card generation can run on a background thread (export flows); guard
+    // the raster cache against concurrent reads/writes.
     private val _sportIconCache = HashMap<String, Bitmap>()
 
+    private val SPORT_ICON_PATHS = mapOf(
+        SportType.RUN to "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1.5 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1m2.5 6c-.7 0-2.01-.54-2.91-1.76l-.41 2.35L14 14.03V18h-1v-3.58l-1.11-1.21-.52 2.64-3.77-.77.2-.98 2.78.57.96-4.89-1.54.57V12H9V9.65l3.28-1.21c.49-.18 1.03.06 1.26.53.83 1.7 2.05 2.03 2.46 2.03z",
+        SportType.TRAIL_RUN to "M11.23 6c-1.66 0-3.22.66-4.36 1.73C6.54 6.73 5.61 6 4.5 6 3.12 6 2 7.12 2 8.5S3.12 11 4.5 11c.21 0 .41-.03.61-.08-.05.25-.09.51-.1.78-.18 3.68 2.95 6.68 6.68 6.27 2.55-.28 4.68-2.26 5.19-4.77.15-.71.15-1.4.06-2.06-.09-.6.38-1.13.99-1.13H22V6zM4.5 9c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5m6.5 6c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3",
+        SportType.WALK to "M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2M9.8 8.9 7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6z",
+        SportType.HIKE to "M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m4 5.28c-1.23-.37-2.22-1.17-2.8-2.18l-1-1.6c-.41-.65-1.11-1-1.84-1-.78 0-1.59.5-1.78 1.44S7 23 7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3c1 1.15 2.41 2.01 4 2.34V23H19V9h-1.5zM7.43 13.13l-2.12-.41c-.54-.11-.9-.63-.79-1.17l.76-3.93c.21-1.08 1.26-1.79 2.34-1.58l1.16.23z",
+        SportType.WHEELCHAIR to "M4.5 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2m5.5 6.95V9c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v6h2v7h3.5v-.11c-1.24-1.26-2-2.99-2-4.89 0-2.58 1.41-4.84 3.5-6.05M16.5 17c0 1.65-1.35 3-3 3s-3-1.35-3-3c0-1.11.61-2.06 1.5-2.58v-2.16c-2.02.64-3.5 2.51-3.5 4.74 0 2.76 2.24 5 5 5s5-2.24 5-5zm3.04-3H15V8h-2v8h5.46l2.47 3.71 1.66-1.11z",
+        SportType.RIDE to "M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2M5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5m0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5m5.8-10 2.4-2.4.8.8c1.3 1.3 3 2.1 5.1 2.1V9c-1.5 0-2.7-.6-3.6-1.5l-1.9-1.9c-.5-.4-1-.6-1.6-.6s-1.1.2-1.4.6L7.8 8.4c-.4.4-.6.9-.6 1.4 0 .6.2 1.1.6 1.4L11 14v5h2v-6.2zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5m0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5"
+    )
+
     /**
-     * Rasterizes a [SportType]'s ImageVector at [sizePx] px. Density is set
-     * to sizePx/24 so the 24.dp vector fills the bitmap exactly; the glyph
-     * renders with its native Material black fill (same monochrome look as
-     * an untinted Material icon in the app UI) on the white chip.
+     * Rasterizes a [SportType]'s Material glyph at [sizePx] px. The glyph
+     * renders in its native Material black fill (same monochrome look as an
+     * untinted Material icon in the app UI) on the white chip.
      */
     private fun sportIconBitmap(type: SportType, sizePx: Int): Bitmap {
         val key = "${type.name}|$sizePx"
-        _sportIconCache[key]?.let { return it }
+        synchronized(_sportIconCache) { _sportIconCache[key] }?.let { return it }
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-        CanvasDrawScope().draw(
-            Density(density = sizePx / 24f),
-            LayoutDirection.Ltr,
-            ComposeCanvas(bmp),
-            Size(sizePx.toFloat(), sizePx.toFloat())
-        ) {
-            drawVector(type.icon)
+        SPORT_ICON_PATHS[type]?.let { d ->
+            val path = PathParser.createPathFromPathData(d)
+            path.transform(Matrix().apply { setScale(sizePx / 24f, sizePx / 24f) })
+            Canvas(bmp).drawPath(
+                path,
+                Paint().apply { color = Color.BLACK; isAntiAlias = true }
+            )
         }
-        _sportIconCache[key] = bmp
+        synchronized(_sportIconCache) { _sportIconCache[key] = bmp }
         return bmp
     }
 

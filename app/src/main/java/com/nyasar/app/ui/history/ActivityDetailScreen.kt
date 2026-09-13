@@ -327,7 +327,8 @@ fun ActivityDetailScreen(
                             photos = photos,
                             onAddPhotoClick = { showAddPhotoChooser = true },
                             onPhotoClick = { index -> viewerStartIndex = index },
-                            speedUnit = speedUnit
+                            speedUnit = speedUnit,
+                            waypointsVisible = waypointsVisible
                         )
                     }
                 }
@@ -474,7 +475,8 @@ private fun ActivityDetailContent(
     photos: List<com.nyasar.app.data.db.ActivityPhotoEntity>,
     onAddPhotoClick: () -> Unit,
     onPhotoClick: (Int) -> Unit,
-    speedUnit: String = "kmh"
+    speedUnit: String = "kmh",
+    waypointsVisible: Boolean = true
 ) {
     var scrubbedPoint by remember { mutableStateOf<ElevationPoint?>(null) }
     var showSplits by remember { mutableStateOf(false) }

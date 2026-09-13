@@ -172,6 +172,10 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { settingsRepository.setWaypointsVisible(visible) }
     }
 
+    fun setOfflineOverlayEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setOfflineOverlayEnabled(enabled) }
+    }
+
     /** Saved routes as render-ready lines for the map — the enabled gate
      *  and route-id null filter live inside the repository flow; GPX
      *  parsing/decimation happens there on Dispatchers.IO and only runs

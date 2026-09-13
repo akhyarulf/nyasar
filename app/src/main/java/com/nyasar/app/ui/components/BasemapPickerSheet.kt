@@ -5,10 +5,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,8 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -70,13 +72,16 @@ import com.nyasar.app.ui.map.MapSnapshotHelper
 import com.nyasar.app.ui.theme.NyasarRadius
 
 /**
- * Basemap + overlay + data picker — bottom sheet with three horizontally-
- * scrollable rows, one per section, styled to match (spec: reference Strava
- * screenshot — "Map Types" row shows exactly 4 tiles on screen at once with
- * the rest reachable by swipe; the other rows use the identical tile
- * layout/sizing). All rows share one tile-width formula computed from the
- * sheet's actual content width (BoxWithConstraints) so "exactly 4 fit" is
- * true on any screen size, not just the reference device's.
+ * Basemap + overlay + data picker — bottom sheet with three WRAPPED GRID
+ * sections, styled to match (spec: reference Strava screenshot — tiles are
+ * small, 4 per row, and every option is visible at once instead of hiding
+ * most of the catalog behind a horizontal swipe). Each section is a
+ * FlowRow capped at 4 items per row: 9 basemaps render as 4+4+1 rows, so
+ * the full catalog is discoverable without scrolling sideways. The sheet
+ * content itself scrolls vertically when 3 tile rows + the other sections
+ * exceed the available height. Tile width comes from the sheet's actual
+ * content width (BoxWithConstraints) so "exactly 4 fit" is true on any
+ * screen size, not just the reference device's.
  *
  * Basemaps: all 9 World [BasemapEntry] catalog entries (Liberty Topo,
  * Liberty Satellite, OpenMapTiles OSM, OpenMapTiles OSM Topo,
@@ -104,7 +109,7 @@ import com.nyasar.app.ui.theme.NyasarRadius
  * none of them are standalone basemaps, so an icon says what the layer
  * *is* more clearly than a mostly-empty snapshot would.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BasemapPickerSheet(
     selected: BasemapEntry,
@@ -141,30 +146,38 @@ fun BasemapPickerSheet(
         MapSnapshotHelper.purgeStaleBasemapPreviews(purgeContext)
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        // verticalScroll: with all 9 basemaps wrapped into 3 rows the sheet
+        // is taller than one screen on small devices — scroll instead of
+        // clipping the Data section off the bottom.
         Column(
             Modifier
                 .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
         ) {
             Text(stringResource(R.string.map_types_title), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(16.dp))
 
-            // Shared tile-width formula for every row — "exactly 4 visible
-            // at once, rest reachable by swipe" (spec), computed from this
-            // Column's actual content width (already inset by the 20.dp
-            // horizontal padding above) rather than a fixed dp constant, so
-            // it holds on any screen size, not just one reference width.
+            // Shared tile-width formula for every section — Strava-style:
+            // small tiles, exactly 4 per row, wrapped (not scrolled) so the
+            // WHOLE catalog is visible at once — 9 basemaps render as
+            // 4+4+1 rows. Width is computed from this Column's actual
+            // content width (already inset by the 20.dp horizontal padding
+            // above) rather than a fixed dp constant, so "exactly 4 fit"
+            // holds on any screen size, not just one reference width.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val spacing = 10.dp
                 val tileWidth = (maxWidth - spacing * 3) / 4
 
-                LazyRow(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
+                    maxItemsInEachRow = 4,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(BasemapEntry.ordered) { entry ->
+                    BasemapEntry.ordered.forEach { entry ->
                         BasemapTile(
                             entry = entry,
                             isSelected = entry == selected,
@@ -186,18 +199,20 @@ fun BasemapPickerSheet(
             )
             Spacer(Modifier.height(16.dp))
 
-            // Overlays row: the 3 Waymarked Trails layers — third-party map
+            // Overlays grid: the 3 Waymarked Trails layers — third-party map
             // content, same for every user. User-owned layers (routes/
             // waypoints/downloaded areas) live in the "Data" section below.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val spacing = 10.dp
                 val tileWidth = (maxWidth - spacing * 3) / 4
 
-                LazyRow(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
+                    maxItemsInEachRow = 4,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(OverlayLayer.entries.toList()) { overlay ->
+                    OverlayLayer.entries.forEach { overlay ->
                         OverlayTile(
                             overlay = overlay,
                             isChecked = overlay in activeOverlays,
@@ -219,49 +234,44 @@ fun BasemapPickerSheet(
             )
             Spacer(Modifier.height(16.dp))
 
-            // Data row: the user's own layers — Jalur Saya (saved routes),
-            // waypoint pins, downloaded-area coverage. Exactly 4 tiles at
-            // the shared width; the row only scrolls if more are ever
-            // added. Same border+check-badge toggle language as the rows
-            // above; each toggle persists app-wide via SettingsRepository.
+            // Data grid: the user's own layers — Jalur Saya (saved routes),
+            // waypoint pins, downloaded-area coverage. Same 4-per-row wrap;
+            // same border+check-badge toggle language as the sections above;
+            // each toggle persists app-wide via SettingsRepository.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val spacing = 10.dp
                 val tileWidth = (maxWidth - spacing * 3) / 4
 
-                LazyRow(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
+                    maxItemsInEachRow = 4,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    item {
-                        DataToggleTile(
-                            label = stringResource(R.string.data_my_routes),
-                            icon = Icons.Filled.Route,
-                            tint = Color(0xFF42A5F5),
-                            isChecked = myRoutesEnabled,
-                            onClick = onToggleMyRoutes,
-                            width = tileWidth
-                        )
-                    }
-                    item {
-                        DataToggleTile(
-                            label = stringResource(R.string.data_waypoints),
-                            icon = Icons.Filled.Place,
-                            tint = Color(0xFFE8734D),
-                            isChecked = waypointsVisible,
-                            onClick = onToggleWaypoints,
-                            width = tileWidth
-                        )
-                    }
-                    item {
-                        DataToggleTile(
-                            label = stringResource(R.string.data_offline_areas),
-                            icon = Icons.Filled.Layers,
-                            tint = Color(0xFF6BAE4D),
-                            isChecked = offlineAreasEnabled,
-                            onClick = onToggleOfflineAreas,
-                            width = tileWidth
-                        )
-                    }
+                    DataToggleTile(
+                        label = stringResource(R.string.data_my_routes),
+                        icon = Icons.Filled.Route,
+                        tint = Color(0xFF42A5F5),
+                        isChecked = myRoutesEnabled,
+                        onClick = onToggleMyRoutes,
+                        width = tileWidth
+                    )
+                    DataToggleTile(
+                        label = stringResource(R.string.data_waypoints),
+                        icon = Icons.Filled.Place,
+                        tint = Color(0xFFE8734D),
+                        isChecked = waypointsVisible,
+                        onClick = onToggleWaypoints,
+                        width = tileWidth
+                    )
+                    DataToggleTile(
+                        label = stringResource(R.string.data_offline_areas),
+                        icon = Icons.Filled.Layers,
+                        tint = Color(0xFF6BAE4D),
+                        isChecked = offlineAreasEnabled,
+                        onClick = onToggleOfflineAreas,
+                        width = tileWidth
+                    )
                 }
             }
         }

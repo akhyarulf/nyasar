@@ -167,6 +167,11 @@ fun RoutePreviewScreen(
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp.dp
     val collapsedMapHeight = screenHeightDp * 0.38f
+    // Default fit zooms out a bit more than the app-wide 80px so the track
+    // doesn't run under the floating controls (expand button, elevation
+    // card edge) — same margin applies to the full-screen map's larger
+    // right-side control stack. Both this screen's instances share it.
+    val fitBoundsPaddingPx = with(LocalDensity.current) { 72.dp.toPx() }.toInt()
 
     // Waypoint tap plumbing shared by both map hosts (values captured once).
     val gpxWaypointsForMap = state.waypoints.filter { gpxWp ->
@@ -196,6 +201,7 @@ fun RoutePreviewScreen(
             // on Compose clickable above an AndroidView touch surface.
             NyasarMapView(
                 modifier = Modifier.fillMaxSize(),
+                fitBoundsPaddingPx = fitBoundsPaddingPx,
                 onMapClick = { _, _ ->
                     // Entry point (b): tap anywhere on the collapsed map.
                     fullscreenStartCamera = collapsedMapInstance?.cameraPosition
@@ -302,8 +308,13 @@ fun RoutePreviewScreen(
                     .size(48.dp)
             )
 
-            // --- Right-side controls. The expand button is one of TWO ways
-            // --- into full-screen mode (the other: tapping the map itself).
+            // --- Right-side controls. Route Detail's collapsed map is kept
+            // --- MINIMAL by design: ONLY the full-screen launcher. The
+            // --- layers / add-waypoint / location trio lives in full-screen
+            // --- mode alone — on the small preview map it crowded the
+            // --- track and duplicated controls users reach again in one
+            // --- tap anyway. The expand button is one of TWO ways into
+            // --- full-screen mode (the other: tapping the map itself).
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -311,18 +322,6 @@ fun RoutePreviewScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
-                    showBasemapSheet = true
-                }
-                RoundIconButton(icon = Icons.Default.Place, contentDescription = stringResource(R.string.add_waypoint_cd)) {
-                    showCrosshair = true
-                }
-                RoundIconButton(
-                    icon = if (rotateWithHeading) Icons.Default.Navigation else Icons.Default.MyLocation,
-                    contentDescription = if (rotateWithHeading) stringResource(R.string.heading_up_mode_cd) else stringResource(R.string.go_to_location_cd),
-                    tint = if (followMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    onClick = { viewModel.centerOnLocation() }
-                )
                 // Launch full-screen map mode (same state the map-tap sets).
                 // Icon follows the project's own expand convention (Recording
                 // stats use OpenInFull for the same "grow this view" action);
@@ -451,6 +450,7 @@ fun RoutePreviewScreen(
 
             NyasarMapView(
                 modifier = Modifier.fillMaxSize(),
+                fitBoundsPaddingPx = fitBoundsPaddingPx,
                 provider = currentProvider,
                 styleVariant = currentStyleVariant,
                 basemapEntry = currentBasemap,

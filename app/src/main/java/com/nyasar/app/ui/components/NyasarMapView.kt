@@ -258,7 +258,14 @@ fun NyasarMapView(
      *     SharedMapHolder.TapHandlers slots that each screen swaps on entry —
      *     no stacking, no stale handlers from a previous screen. */
     shared: Boolean = false,
-    onMapReady: (MapLibreMap) -> Unit = {}
+    onMapReady: (MapLibreMap) -> Unit = {},
+    /** Pixel padding around the track when the camera auto-fits the route
+     *  bounds. Larger values zoom the default view OUT a bit so the track
+     *  doesn't run under floating UI (control buttons, cards) — requested
+     *  for RoutePreview after its control column started covering the
+     *  track's east end at the old 80px. Default 80 keeps every other
+     *  call site pixel-identical to before. */
+    fitBoundsPaddingPx: Int = 80
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // Shared mode: one process-wide MapView (see SharedMapHolder + [shared]).
@@ -916,7 +923,7 @@ fun NyasarMapView(
                             val bounds = boundsOf(track)
                             val hasRealSpan = bounds.latitudeSpan > 0.0005 || bounds.longitudeSpan > 0.0005
                             if (hasRealSpan) {
-                                map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
+                                map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, fitBoundsPaddingPx))
                             } else {
                                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(bounds.center, 17.5))
                             }

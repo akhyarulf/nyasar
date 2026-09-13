@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Terrain
@@ -69,12 +70,11 @@ import com.nyasar.app.ui.map.MapSnapshotHelper
 import com.nyasar.app.ui.theme.NyasarRadius
 
 /**
- * Basemap + overlay picker — bottom sheet with two horizontally-scrollable
- * rows, one per section, styled to match (spec: reference Strava screenshot
- * — "Map Types" row shows exactly 4 tiles on screen at once with the rest
- * reachable by swipe; "Overlays" uses the identical tile layout/sizing,
- * just with however many entries it actually has rather than being padded
- * out to 4). Both rows share one tile-width formula computed from the
+ * Basemap + overlay + data picker — bottom sheet with three horizontally-
+ * scrollable rows, one per section, styled to match (spec: reference Strava
+ * screenshot — "Map Types" row shows exactly 4 tiles on screen at once with
+ * the rest reachable by swipe; the other rows use the identical tile
+ * layout/sizing). All rows share one tile-width formula computed from the
  * sheet's actual content width (BoxWithConstraints) so "exactly 4 fit" is
  * true on any screen size, not just the reference device's.
  *
@@ -84,21 +84,25 @@ import com.nyasar.app.ui.theme.NyasarRadius
  * country variants were removed from the catalog entirely
  * (BasemapCatalog.kt), not merely hidden here.
  *
- * Overlays: the 3 Waymarked Trails layers (Hiking, Cycling, MTB) — was
- * previously a vertical checkbox list; now the same tile shape as
+ * Overlays: the 3 Waymarked Trails layers (Hiking, Cycling, MTB) —
+ * third-party map content, same for every user. Styled identically to
  * basemaps (icon tile + label, selection shown as a border + check badge
- * rather than a Material Checkbox) so the two sections read as one
- * consistent picker UI rather than two different UI languages on the same
- * sheet.
+ * rather than a Material Checkbox) so the sections read as one picker UI.
+ *
+ * Data: the user's OWN map data — "Jalur Saya" (all saved Library routes),
+ * Waypoint pins, and downloaded-area coverage. Split out from the Waymarked
+ * row because it's a different category (personal data vs third-party map
+ * content), and to give the downloaded-areas overlay a discoverable home
+ * screen-side (previously reachable only via Settings → Offline). All three
+ * toggles are persisted app-wide in DataStore (see SettingsRepository) and
+ * default OFF.
  *
  * Thumbnails: real map previews backed by
  * [com.nyasar.app.ui.map.MapSnapshotHelper.generateBasemapPreview] (each
  * entry's own real upstream style/tiles via MapLibre's snapshotter, disk
- * cached). Overlay tiles use a plain Material icon per layer instead —
- * Waymarked Trails' tile endpoints are transparent line overlays, not
- * standalone basemaps, so a snapshot of one alone renders as a mostly
- * empty image; an icon says what the layer *is* more clearly than that
- * would.
+ * cached). Overlay/Data tiles use a plain Material icon per layer instead —
+ * none of them are standalone basemaps, so an icon says what the layer
+ * *is* more clearly than a mostly-empty snapshot would.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,12 +117,17 @@ fun BasemapPickerSheet(
     /** "Jalur Saya" overlay — draws every saved Library route as a line
      *  on the map. Independent of the Waymarked Trails set: those are
      *  raster tile layers from a server, this is the user's own GPX data
-     *  (see MyRoutesOverlay), so it gets its own persisted boolean. Its
-     *  tile sits in the SAME row as the Waymarked tiles (one overlays
-     *  row) but the toggles stay fully independent. Defaults off/no-op
-     *  so call sites that don't opt in see nothing new. */
+     *  (see MyRoutesOverlay), so it gets its own persisted boolean. */
     myRoutesEnabled: Boolean = false,
     onToggleMyRoutes: () -> Unit = {},
+    /** Waypoint pins on the map (GPX route waypoints + user-created
+     *  waypoints). Hidden on every screen while false. */
+    waypointsVisible: Boolean = false,
+    onToggleWaypoints: () -> Unit = {},
+    /** Downloaded-area coverage overlay — green = complete, gray =
+     *  incomplete, only for the active basemap's style. */
+    offlineAreasEnabled: Boolean = false,
+    onToggleOfflineAreas: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val purgeContext = LocalContext.current
@@ -142,7 +151,7 @@ fun BasemapPickerSheet(
             Text(stringResource(R.string.map_types_title), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(16.dp))
 
-            // Shared tile-width formula for both rows — "exactly 4 visible
+            // Shared tile-width formula for every row — "exactly 4 visible
             // at once, rest reachable by swipe" (spec), computed from this
             // Column's actual content width (already inset by the 20.dp
             // horizontal padding above) rather than a fixed dp constant, so
@@ -177,17 +186,9 @@ fun BasemapPickerSheet(
             )
             Spacer(Modifier.height(16.dp))
 
-            // Same tile width formula as the basemap row above (spec:
-            // "mirip untuk UI antara jenis peta dan overlay") — recomputed
-            // from this row's own BoxWithConstraints rather than hoisted
-            // out of the one above, since the two rows aren't guaranteed
-            // to share a composition scope, but the formula (and therefore
-            // the resulting width) is identical given the same content
-            // width, so the tiles still end up pixel-for-pixel the same
-            // size. The 3 Waymarked layers + "Jalur Saya" make exactly 4
-            // tiles — one full row at the shared formula width, no
-            // scrolling; the row only starts scrolling if more entries
-            // are ever added.
+            // Overlays row: the 3 Waymarked Trails layers — third-party map
+            // content, same for every user. User-owned layers (routes/
+            // waypoints/downloaded areas) live in the "Data" section below.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val spacing = 10.dp
                 val tileWidth = (maxWidth - spacing * 3) / 4
@@ -204,16 +205,60 @@ fun BasemapPickerSheet(
                             width = tileWidth
                         )
                     }
-                    // "Jalur Saya" rides in the SAME row as the Waymarked
-                    // tiles — same shape, same border+check-badge toggle
-                    // language, same width formula — instead of its own
-                    // section below. It stays an independent toggle (own
-                    // persisted boolean, own data source — see
-                    // MyRoutesOverlay) — only its placement is shared.
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.data_title), style = MaterialTheme.typography.titleLarge)
+            Text(
+                stringResource(R.string.data_subtitle),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(16.dp))
+
+            // Data row: the user's own layers — Jalur Saya (saved routes),
+            // waypoint pins, downloaded-area coverage. Exactly 4 tiles at
+            // the shared width; the row only scrolls if more are ever
+            // added. Same border+check-badge toggle language as the rows
+            // above; each toggle persists app-wide via SettingsRepository.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val spacing = 10.dp
+                val tileWidth = (maxWidth - spacing * 3) / 4
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     item {
-                        MyRoutesTile(
+                        DataToggleTile(
+                            label = stringResource(R.string.data_my_routes),
+                            icon = Icons.Filled.Route,
+                            tint = Color(0xFF42A5F5),
                             isChecked = myRoutesEnabled,
                             onClick = onToggleMyRoutes,
+                            width = tileWidth
+                        )
+                    }
+                    item {
+                        DataToggleTile(
+                            label = stringResource(R.string.data_waypoints),
+                            icon = Icons.Filled.Place,
+                            tint = Color(0xFFE8734D),
+                            isChecked = waypointsVisible,
+                            onClick = onToggleWaypoints,
+                            width = tileWidth
+                        )
+                    }
+                    item {
+                        DataToggleTile(
+                            label = stringResource(R.string.data_offline_areas),
+                            icon = Icons.Filled.Layers,
+                            tint = Color(0xFF6BAE4D),
+                            isChecked = offlineAreasEnabled,
+                            onClick = onToggleOfflineAreas,
                             width = tileWidth
                         )
                     }
@@ -283,74 +328,26 @@ private fun OverlayTile(
     onClick: () -> Unit,
     width: Dp
 ) {
-    Column(
-        Modifier
-            .width(width)
-            .clip(RoundedCornerShape(NyasarRadius.sm))
-            .clickable(onClick = onClick)
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Surface(
-            shape = RoundedCornerShape(NyasarRadius.md),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            tonalElevation = 1.dp,
-            border = if (isChecked) {
-                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-            } else {
-                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            }
-        ) {
-            Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
-                Icon(
-                    imageVector = overlayIcon(overlay),
-                    contentDescription = null,
-                    tint = overlayTint(overlay),
-                    modifier = Modifier.fillMaxSize(0.42f).align(Alignment.Center)
-                )
-                if (isChecked) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .size(18.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(3.dp)
-                        )
-                    }
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(overlay.labelRes),
-            style = MaterialTheme.typography.labelMedium,
-            color = if (isChecked) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-    }
+    DataToggleTile(
+        label = stringResource(overlay.labelRes),
+        icon = overlayIcon(overlay),
+        tint = overlayTint(overlay),
+        isChecked = isChecked,
+        onClick = onClick,
+        width = width
+    )
 }
 
-private fun overlayIcon(overlay: OverlayLayer): ImageVector = when (overlay) {
-    OverlayLayer.HIKING -> Icons.Default.DirectionsWalk
-    OverlayLayer.CYCLING -> Icons.Default.DirectionsBike
-    OverlayLayer.MTB -> Icons.Default.Terrain
-}
-
-/** The "Jalur Saya" tile — same shape/selection language as [OverlayTile]
- *  (border + check badge) but with its own icon/tint and no per-layer
- *  variants: it's a single on/off switch over the user's saved routes, not
- *  a family of server layers. */
+/** One Data-section tile — the user's own layers (Jalur Saya, waypoint
+ *  pins, downloaded-area coverage). Same shape/selection language as
+ *  [OverlayTile] (border + check badge) with its own icon/tint and no
+ *  per-layer variants: each is a single on/off switch over one data
+ *  source, persisted app-wide via SettingsRepository. */
 @Composable
-private fun MyRoutesTile(
+private fun DataToggleTile(
+    label: String,
+    icon: ImageVector,
+    tint: Color,
     isChecked: Boolean,
     onClick: () -> Unit,
     width: Dp
@@ -375,9 +372,9 @@ private fun MyRoutesTile(
         ) {
             Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
                 Icon(
-                    imageVector = Icons.Filled.Route,
+                    imageVector = icon,
                     contentDescription = null,
-                    tint = Color(0xFF42A5F5),
+                    tint = tint,
                     modifier = Modifier.fillMaxSize(0.42f).align(Alignment.Center)
                 )
                 if (isChecked) {
@@ -401,7 +398,7 @@ private fun MyRoutesTile(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "Jalur Saya",
+            label,
             style = MaterialTheme.typography.labelMedium,
             color = if (isChecked) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -409,6 +406,12 @@ private fun MyRoutesTile(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
+}
+
+private fun overlayIcon(overlay: OverlayLayer): ImageVector = when (overlay) {
+    OverlayLayer.HIKING -> Icons.Default.DirectionsWalk
+    OverlayLayer.CYCLING -> Icons.Default.DirectionsBike
+    OverlayLayer.MTB -> Icons.Default.Terrain
 }
 
 @Composable

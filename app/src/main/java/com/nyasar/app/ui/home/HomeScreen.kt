@@ -142,6 +142,8 @@ fun HomeScreen(
     // the same repository the Library reads. The lines flow only parses GPX
     // while the switch is ON (see HomeViewModel.myRouteLines).
     val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    // Data-section toggles (picker sheet) — waypoint pins gate, app-wide.
+    val waypointsVisible by viewModel.waypointsVisible.collectAsState()
     val myRouteLines by viewModel.myRouteLines.collectAsState()
 
     val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -222,6 +224,7 @@ fun HomeScreen(
             // v7: Home shows INDEPENDENT pins only — route/activity-linked
             // waypoints belong to their own screens (context filtering).
             userWaypoints = independentWaypoints,
+            waypointsVisible = waypointsVisible,
             onUserWaypointClick = { id ->
                 waypointViewModel.selectWaypoint(independentWaypoints.firstOrNull { it.id == id })
             },
@@ -562,6 +565,10 @@ fun HomeScreen(
             },
             myRoutesEnabled = myRoutesEnabled,
             onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
+            waypointsVisible = waypointsVisible,
+            onToggleWaypoints = { viewModel.setWaypointsVisible(!waypointsVisible) },
+            offlineAreasEnabled = offlineOverlayEnabled,
+            onToggleOfflineAreas = { viewModel.setOfflineOverlayEnabled(!offlineOverlayEnabled) },
             onDismiss = { showBasemapSheet = false }
         )
     }

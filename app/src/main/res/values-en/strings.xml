@@ -407,10 +407,15 @@
 
     <!-- Basemap picker sheet -->
     <string name="overlays_title">Overlays</string>
-    <string name="overlays_subtitle">Waymarked Trails · My Routes</string>
+    <string name="overlays_subtitle">Extra map content (Waymarked Trails)</string>
     <string name="overlay_hiking">Hiking</string>
     <string name="overlay_cycling">Cycling</string>
     <string name="overlay_mtb">MTB</string>
+    <string name="data_title">My Data</string>
+    <string name="data_subtitle">Your own layers</string>
+    <string name="data_my_routes">My Routes</string>
+    <string name="data_waypoints">Waypoints</string>
+    <string name="data_offline_areas">Offline Areas</string>
 
     <!-- Offline download screen -->
     <string name="offline_free_area_hint">Drag and zoom the map to choose the area to download — the area inside the box will be available offline.</string>

@@ -101,6 +101,15 @@ fun NavigationScreen(
     // the surface literally draws on top of them.
     val density = androidx.compose.ui.platform.LocalDensity.current
     var statBarHeight by remember { mutableStateOf(180.dp) }
+    // Data-section "Waypoint" toggle (picker sheet) — hides ALL waypoint pins
+    // while navigating too, same app-wide flag as the other map screens.
+    // Navigation's next-waypoint GUIDANCE is unaffected (it reads data,
+    // not pins). Local read-only collect on the existing settingsRepository —
+    // NavigationViewModel deliberately exposes no DataStore flows today;
+    // adding one for a single UI gate is more churn than this.
+    val waypointsVisible by settingsRepository.settings
+        .map { it.waypointsVisible }
+        .collectAsState(initial = false)
     val bottomClearance = statBarHeight + 12.dp
 
     Box(Modifier.fillMaxSize()) {
@@ -116,6 +125,7 @@ fun NavigationScreen(
             actualTrack = if (withRecording) recordingState.recordedTrack else emptyList(),
             waypoints = state.waypoints,
             userWaypoints = dbUserWaypoints,
+            waypointsVisible = waypointsVisible,
             onUserWaypointClick = { id ->
                 waypointViewModel.selectWaypoint(dbUserWaypoints.firstOrNull { it.id == id })
             },

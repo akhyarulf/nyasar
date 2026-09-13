@@ -153,6 +153,15 @@ fun NyasarMapView(
      *  route yet either). */
     drawnPoints: List<TrackPoint> = emptyList(),
     waypoints: List<GpxWaypoint> = emptyList(),
+    /** Master visibility for ALL waypoint pins (the GPX [waypoints] above
+     *  AND [userWaypoints] below) — the "Waypoint" toggle in the picker
+     *  sheet's Data section, persisted app-wide. When false the pins are
+     *  dropped at the data level (empty feature lists), so both the shared
+     *  fast path and the full-load path simply render nothing — no extra
+     *  visibility machinery on the layers themselves. Default TRUE so
+     *  call sites that don't opt into the toggle (DrawRoute, Offline
+     *  screens, WaypointCrosshair) keep showing pins exactly as before. */
+    waypointsVisible: Boolean = true,
     /** User-created waypoints (spec P3E2) — rendered as a distinct layer
      *  from [waypoints] (GPX-parsed, read-only) so this feature never
      *  shares rendering/tap-hit state with the existing route-waypoint
@@ -503,7 +512,7 @@ fun NyasarMapView(
     // first composition's focusBounds value is applied once inside this
     // effect and never again after — see the one-shot effect further below
     // for handling subsequent focusBounds changes intentionally.
-    LaunchedEffect(provider.id, styleVariant, basemapEntry, track, waypoints, userWaypoints) {
+    LaunchedEffect(provider.id, styleVariant, basemapEntry, track, waypoints, userWaypoints, waypointsVisible) {
         // Compute the style identity FIRST. In shared mode this is compared
         // against what the shared instance currently has loaded: a match means
         // the whole setStyle pipeline below is skipped and the effect only
@@ -564,7 +573,12 @@ fun NyasarMapView(
                 val trackSignature = if (track.isEmpty()) "0" else
                     "${track.size}:${track.first().lat},${track.first().lon}:${track.last().lat},${track.last().lon}"
                 val needsCameraFit = lastFittedTrackSignature != trackSignature
-                refreshSharedContent(map, mapView, track, waypoints, userWaypoints, focusBounds, refitCamera = needsCameraFit)
+                refreshSharedContent(
+                    map, mapView, track,
+                    if (waypointsVisible) waypoints else emptyList(),
+                    if (waypointsVisible) userWaypoints else emptyList(),
+                    focusBounds, refitCamera = needsCameraFit
+                )
                 if (needsCameraFit) lastFittedTrackSignature = trackSignature
                 onMapReady(map)
                 return@getMapAsync
@@ -684,7 +698,10 @@ fun NyasarMapView(
 
                 // Waypoint markers — properties carry everything needed for a
                 // detail view (spec section 13) so a tap doesn't need a second lookup.
-                val features = waypoints.map { wp ->
+                // Data-section toggle: when OFF the pins are dropped at the data
+                // level (empty features) — sources/layers stay registered but
+                // render nothing, so toggling back ON is a cheap setGeoJson.
+                val features = if (waypointsVisible) waypoints.map { wp ->
                     Feature.fromGeometry(Point.fromLngLat(wp.lon, wp.lat)).apply {
                         addStringProperty(PROP_WP_NAME, wp.name)
                         addNumberProperty(PROP_WP_LAT, wp.lat)
@@ -692,7 +709,7 @@ fun NyasarMapView(
                         wp.elevationM?.let { addNumberProperty(PROP_WP_ELEVATION, it) }
                         wp.description?.let { addStringProperty(PROP_WP_DESCRIPTION, it) }
                     }
-                }
+                } else emptyList()
                 // REUSE the source/layer — same rule as refreshSharedContent
                 // below. removeLayer/removeSource + re-add inside one style
                 // callback can throw mid-batch ("id already exists" against a
@@ -739,13 +756,13 @@ fun NyasarMapView(
                         style.addImage(imageName, userWaypointMarkerBitmap(cat.color.toArgb()))
                     }
                 }
-                val userWpFeatures = userWaypoints.map { wp ->
+                val userWpFeatures = if (waypointsVisible) userWaypoints.map { wp ->
                     Feature.fromGeometry(Point.fromLngLat(wp.lon, wp.lat)).apply {
                         addStringProperty(PROP_UWP_ID, wp.id)
                         addStringProperty(PROP_WP_NAME, wp.name)
                         addStringProperty(PROP_UWP_CATEGORY, wp.category)
                     }
-                }
+                } else emptyList()
                 // Same reuse rule as the GPX block above — update the existing
                 // source, add the layer only when genuinely missing. remove/re-add
                 // here can throw mid-batch and silently kill the rest of the callback.

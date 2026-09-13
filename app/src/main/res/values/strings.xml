@@ -407,10 +407,15 @@
 
     <!-- Basemap picker sheet -->
     <string name="overlays_title">Overlay</string>
-    <string name="overlays_subtitle">Waymarked Trails · Jalur Saya</string>
+    <string name="overlays_subtitle">Konten peta tambahan (Waymarked Trails)</string>
     <string name="overlay_hiking">Hiking</string>
     <string name="overlay_cycling">Sepeda</string>
     <string name="overlay_mtb">MTB</string>
+    <string name="data_title">Data Saya</string>
+    <string name="data_subtitle">Layer milik kamu sendiri</string>
+    <string name="data_my_routes">Jalur Saya</string>
+    <string name="data_waypoints">Waypoint</string>
+    <string name="data_offline_areas">Area Offline</string>
 
     <!-- Offline download screen -->
     <string name="offline_free_area_hint">Geser dan zoom map untuk memilih area yang ingin diunduh — area di dalam kotak akan tersedia offline.</string>

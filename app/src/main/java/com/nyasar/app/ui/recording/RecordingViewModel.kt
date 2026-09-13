@@ -161,6 +161,17 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { settingsRepository.setMyRoutesOverlayEnabled(enabled) }
     }
 
+    /** Waypoint pins (Data section of the picker sheet) — persisted app-wide
+     *  like the other Data toggles: with ONE shared MapView a per-screen flag
+     *  would let the last-mounted screen decide visibility for everyone. */
+    val waypointsVisible: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.waypointsVisible }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setWaypointsVisible(visible: Boolean) {
+        viewModelScope.launch { settingsRepository.setWaypointsVisible(visible) }
+    }
+
     /** Saved routes as render-ready lines for the map — the enabled gate
      *  and route-id null filter live inside the repository flow; GPX
      *  parsing/decimation happens there on Dispatchers.IO and only runs

@@ -46,6 +46,16 @@ data class AppSettings(
      *  gray = incomplete, only for the active basemap's style. User opt-in
      *  (off by default) since it draws on every map screen. */
     val offlineOverlayEnabled: Boolean = false,
+    /** Map waypoint pins (GPX route waypoints + user-created waypoints) —
+     *  when false the pins are hidden on EVERY map screen (Home, Recording,
+     *  RoutePreview, Navigation, ActivityDetail). One of the three "Data"
+     *  picker-sheet toggles, all persisted app-wide with the same rule: with
+     *  ONE shared MapView a per-screen flag would let the last-mounted
+     *  screen decide visibility for everyone. Default false (user opt-in,
+     *  consistent with the other Data toggles). NOTE: this hides the PINS
+     *  only — Navigation's next-waypoint guidance logic is functional, not
+     *  an overlay, and deliberately keeps working while pins are hidden. */
+    val waypointsVisible: Boolean = false,
     /** First-launch location onboarding ("why we need GPS" explainer before
      *  the system permission popup) has been shown+actioned. Once true it
      *  never shows again — the request itself lives in MainActivity. */
@@ -72,6 +82,7 @@ class SettingsRepository(private val context: Context) {
 
     private object Keys {
         val PROVIDER_ID = stringPreferencesKey("provider_id")
+        val WAYPOINTS_VISIBLE = androidx.datastore.preferences.core.booleanPreferencesKey("map_waypoints_visible")
         val THEME_MODE = stringPreferencesKey("theme_mode") // "system" | "light" | "dark"
         val LANGUAGE_MODE = stringPreferencesKey("language_mode") // "system" | "id" | "en"
         val KEEP_SCREEN_ON = androidx.datastore.preferences.core.booleanPreferencesKey("keep_screen_on_recording")
@@ -98,6 +109,7 @@ class SettingsRepository(private val context: Context) {
             overlayIds = prefs[Keys.OVERLAY_IDS] ?: emptySet(),
             myRoutesOverlayEnabled = prefs[Keys.MY_ROUTES_OVERLAY] ?: false,
             offlineOverlayEnabled = prefs[Keys.OFFLINE_OVERLAY] ?: false,
+            waypointsVisible = prefs[Keys.WAYPOINTS_VISIBLE] ?: false,
             locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false,
             notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false,
             batteryOptimizationOnboardingShown = prefs[Keys.BATTERY_ONBOARDING] ?: false
@@ -156,6 +168,12 @@ class SettingsRepository(private val context: Context) {
      *  app-wide reasoning as [setMyRoutesOverlayEnabled]. */
     suspend fun setOfflineOverlayEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.OFFLINE_OVERLAY] = enabled }
+    }
+
+    /** Persist the map-waypoint-pins switch — same shared, app-wide
+     *  reasoning as [setMyRoutesOverlayEnabled]. */
+    suspend fun setWaypointsVisible(visible: Boolean) {
+        context.dataStore.edit { it[Keys.WAYPOINTS_VISIBLE] = visible }
     }
 
     /** Mark the first-launch location onboarding as done so the explainer

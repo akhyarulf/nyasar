@@ -374,6 +374,8 @@ fun RecordingScreen(
     val activeOverlays by viewModel.activeOverlays.collectAsState()
     // "Jalur Saya" overlay: app-wide persisted switch + reactive lines.
     val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    // Data-section toggles (picker sheet) — waypoint pins gate, app-wide.
+    val waypointsVisible by viewModel.waypointsVisible.collectAsState()
     val myRouteLines by viewModel.myRouteLines.collectAsState()
     // Provider comes from the ViewModel (persisted setting, same source Home
     // uses) — the old `remember { TileProviderFactory.default() }` pinned
@@ -818,6 +820,7 @@ fun RecordingScreen(
             onBearingChanged = { mapBearing = it },
             onMapReady = { mapInstance = it },
             userWaypoints = visibleUserWaypoints,
+            waypointsVisible = waypointsVisible,
             onUserWaypointClick = { id ->
                 waypointViewModel.selectWaypoint(visibleUserWaypoints.firstOrNull { it.id == id })
             },
@@ -1302,6 +1305,10 @@ fun RecordingScreen(
             },
             myRoutesEnabled = myRoutesEnabled,
             onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
+            waypointsVisible = waypointsVisible,
+            onToggleWaypoints = { viewModel.setWaypointsVisible(!waypointsVisible) },
+            offlineAreasEnabled = offlineOverlayEnabled,
+            onToggleOfflineAreas = { viewModel.setOfflineOverlayEnabled(!offlineOverlayEnabled) },
             onDismiss = { showBasemapSheet = false }
         )
     }

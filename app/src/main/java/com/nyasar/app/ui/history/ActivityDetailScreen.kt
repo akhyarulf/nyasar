@@ -152,6 +152,14 @@ fun ActivityDetailScreen(
         .map { it.speedUnit }
         .collectAsState(initial = "kmh")
 
+    // Data-section "Waypoint" toggle (picker sheet) — local read-only
+    // collect (no VM changes); this screen is a private-instance viewer, so
+    // a local flow can't fight a shared map. Waypoints during THIS activity
+    // are part of the activity record being reviewed.
+    val waypointsVisible by settingsRepository.settings
+        .map { it.waypointsVisible }
+        .collectAsState(initial = false)
+
     // --- P3H: Activity Photos ---
     val photos by viewModel.photos.collectAsState()
     var showAddPhotoChooser by remember { mutableStateOf(false) }
@@ -483,6 +491,7 @@ private fun ActivityDetailContent(
                 actualTrack = if (plannedTrack.isNotEmpty()) actualTrack else emptyList(),
                 highlightPoint = scrubbedPoint?.let { org.maplibre.android.geometry.LatLng(it.lat, it.lon) },
                 userWaypoints = waypointsDuringActivity,
+                waypointsVisible = waypointsVisible,
                 onUserWaypointClick = { id ->
                     waypointsDuringActivity.firstOrNull { it.id == id }?.let(onWaypointTap)
                 }

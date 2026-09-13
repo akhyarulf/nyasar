@@ -111,6 +111,8 @@ fun RoutePreviewScreen(
     val currentProvider by viewModel.provider.collectAsState()
     val activeOverlays by viewModel.activeOverlays.collectAsState()
     val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    // Data-section toggles (picker sheet) — waypoint pins gate, app-wide.
+    val waypointsVisible by viewModel.waypointsVisible.collectAsState()
     val myRouteLines by viewModel.myRouteLines.collectAsState()
     val offlineOverlayEnabled by viewModel.offlineOverlayEnabled.collectAsState()
     val offlineAreas by viewModel.offlineAreas.collectAsState()
@@ -224,6 +226,7 @@ fun RoutePreviewScreen(
                     }
                 },
                 userWaypoints = dbWaypoints + userWaypoints,
+                waypointsVisible = waypointsVisible,
                 highlightPoint = highlightLatLng,
                 onWaypointClick = { selectedWaypoint = it },
                 onUserWaypointClick = { id ->
@@ -462,6 +465,10 @@ fun RoutePreviewScreen(
             onToggleOverlay = { overlay -> viewModel.toggleOverlay(overlay) },
             myRoutesEnabled = myRoutesEnabled,
             onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
+            waypointsVisible = waypointsVisible,
+            onToggleWaypoints = { viewModel.setWaypointsVisible(!waypointsVisible) },
+            offlineAreasEnabled = offlineOverlayEnabled,
+            onToggleOfflineAreas = { viewModel.setOfflineOverlayEnabled(!offlineOverlayEnabled) },
             onDismiss = { showBasemapSheet = false }
         )
     }

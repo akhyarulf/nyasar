@@ -94,6 +94,8 @@ fun HomeScreen(
     val provider by viewModel.provider.collectAsState()
     val styleVariant by viewModel.styleVariant.collectAsState()
     val selectedBasemap by viewModel.selectedBasemap.collectAsState()
+    val offlineOverlayEnabled by viewModel.offlineOverlayEnabled.collectAsState()
+    val offlineAreas by viewModel.offlineAreas.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
     // Task 4 gap (P3 audit): recovery was previously only checked once the
@@ -212,6 +214,9 @@ fun HomeScreen(
             // line data; no active route on Home, so every line renders
             // inactive (gray/dashed).
             myRoutes = myRouteLines,
+            // Downloaded-areas overlay (Settings → Offline): green = complete
+            // for the active basemap's style, gray = still downloading.
+            offlineAreas = if (offlineOverlayEnabled) offlineAreas else emptyList(),
             track = emptyList(),
             waypoints = emptyList(),
             // v7: Home shows INDEPENDENT pins only — route/activity-linked

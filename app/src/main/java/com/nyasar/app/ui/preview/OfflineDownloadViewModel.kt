@@ -300,6 +300,9 @@ class OfflineDownloadViewModel(app: Application) : AndroidViewModel(app) {
                         )
                     }
                     override fun onComplete(region: org.maplibre.android.offline.OfflineRegion) {
+                        // Overlay on the main maps updates live: bump the
+                        // process-wide store so every mounted map re-syncs.
+                        com.nyasar.app.map.OfflineCoverageStore.get(getApplication()).notifyChanged()
                         _uiState.value = _uiState.value.copy(downloadState = DownloadState.Done)
                     }
                     override fun onError(message: String) {

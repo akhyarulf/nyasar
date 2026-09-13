@@ -84,6 +84,18 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         .map { BasemapEntry.fromId(it.basemapId) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, BasemapEntry.LIBERTY_TOPO)
 
+    /** Downloaded-areas overlay on/off (Settings → Offline), shared app-wide
+     *  like every other map-level toggle so all 3 map screens agree. */
+    val offlineOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.offlineOverlayEnabled }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Live coverage snapshot from the process-wide store (refreshed on app
+     *  start and whenever a download completes / a region is deleted — the
+     *  store's StateFlow re-emits and every mounted map redraws). */
+    val offlineAreas: StateFlow<List<com.nyasar.app.map.OfflineCoverageArea>> =
+        com.nyasar.app.map.OfflineCoverageStore.get(getApplication()).areas
+
     fun setBasemap(entry: BasemapEntry) {
         viewModelScope.launch { settingsRepository.setBasemapId(entry.gpxKey) }
     }

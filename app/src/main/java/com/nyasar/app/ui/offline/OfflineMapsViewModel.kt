@@ -74,6 +74,9 @@ class OfflineMapsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() {
         _uiState.value = _uiState.value.copy(loading = true)
+        // Re-sync the process-wide overlay snapshot with this screen's
+        // authoritative re-list (covers resume-completed regions too).
+        com.nyasar.app.map.OfflineCoverageStore.get(getApplication()).refresh()
         offlineMapManager.listRegions { regions ->
             val items = regions.mapNotNull { region ->
                 // Structured metadata (v2 JSON: name + basemap + date) with
@@ -166,6 +169,8 @@ class OfflineMapsViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.value = _uiState.value.copy(deletingRegionKey = System.identityHashCode(item.region))
         viewModelScope.launch {
             offlineMapManager.deleteRegion(item.region) {
+                // Keep the main-map overlay in sync with this list.
+                com.nyasar.app.map.OfflineCoverageStore.get(getApplication()).notifyChanged()
                 _uiState.value = _uiState.value.copy(
                     deletingRegionKey = null,
                     regions = _uiState.value.regions.filterNot { it.region === item.region }

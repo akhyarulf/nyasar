@@ -112,6 +112,8 @@ fun RoutePreviewScreen(
     val activeOverlays by viewModel.activeOverlays.collectAsState()
     val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
     val myRouteLines by viewModel.myRouteLines.collectAsState()
+    val offlineOverlayEnabled by viewModel.offlineOverlayEnabled.collectAsState()
+    val offlineAreas by viewModel.offlineAreas.collectAsState()
 
     // Start location updates once permission is granted
     LaunchedEffect(Unit) { viewModel.startLocationUpdatesIfPermitted() }
@@ -197,6 +199,9 @@ fun RoutePreviewScreen(
                 // "Jalur Saya" overlay — this screen's route renders solid
                 // accent; other saved routes render gray/dashed when on.
                 myRoutes = myRouteLines,
+                // Downloaded-areas overlay (Settings → Offline): green =
+                // complete for the active basemap's style, gray = downloading.
+                offlineAreas = if (offlineOverlayEnabled) offlineAreas else emptyList(),
                 activeRouteId = routeId,
                 track = state.track,
                 // This screen always shows the PLANNED route — keep the app

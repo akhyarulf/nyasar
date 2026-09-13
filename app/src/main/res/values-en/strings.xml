@@ -115,6 +115,8 @@
     <string name="gps_permission_desc">Background recording requires location permission to be always granted to prevent stopping when screen is off.</string>
     <string name="offline_maps_setting">Offline Maps</string>
     <string name="offline_maps_desc">View, manage, and delete downloaded maps</string>
+    <string name="offline_overlay_title">Show downloaded areas on the map</string>
+    <string name="offline_overlay_desc">Green boxes = complete for the active map; gray = still downloading</string>
     <string name="keep_screen_on">Keep screen on</string>
     <string name="keep_screen_desc">Active during recording to keep distance/time visible</string>
     <string name="auto_pause">Auto Pause</string>

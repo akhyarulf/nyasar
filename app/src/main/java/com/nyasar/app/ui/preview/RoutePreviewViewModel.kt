@@ -75,6 +75,16 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
     // user across screens AND process restarts.
     val selectedBasemap: StateFlow<BasemapEntry> = settingsRepository.settings
         .map { BasemapEntry.fromId(it.basemapId) }
+
+    /** Downloaded-areas overlay flag — shared app-wide, same DataStore as
+     *  Home/Recording so all map screens render the same picture. */
+    val offlineOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.offlineOverlayEnabled }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Live coverage snapshot from the process-wide store. */
+    val offlineAreas: StateFlow<List<com.nyasar.app.map.OfflineCoverageArea>> =
+        com.nyasar.app.map.OfflineCoverageStore.get(getApplication()).areas
         .stateIn(viewModelScope, SharingStarted.Eagerly, BasemapEntry.LIBERTY_TOPO)
 
     fun setBasemap(entry: BasemapEntry) {

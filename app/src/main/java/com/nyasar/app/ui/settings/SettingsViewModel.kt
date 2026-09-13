@@ -45,6 +45,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repository.setSpeedUnit(unit) }
     }
 
+    fun setOfflineOverlayEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setOfflineOverlayEnabled(enabled) }
+    }
+
     /** DATA > "cache" (spec): app-private cache dir, mainly GPX exports
      *  written by [com.nyasar.app.gpx.GpxExporter]. Safe to wipe any time —
      *  nothing here is the source of truth (routes/activities live in Room

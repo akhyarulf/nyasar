@@ -57,8 +57,11 @@ private const val LAYER_USER_HALO = "nyasar-user-halo-layer"
 private const val LAYER_USER_DOT = "nyasar-user-dot-layer"
 private const val LAYER_USER_HEADING = "nyasar-user-heading-layer"
 private const val SOURCE_OFFLINE_COVERAGE = "nyasar-offline-coverage-source"
+private const val SOURCE_OFFLINE_AREAS = "nyasar-offline-areas-source"
 private const val LAYER_OFFLINE_COVERAGE_FILL = "nyasar-offline-coverage-fill-layer"
 private const val LAYER_OFFLINE_COVERAGE_OUTLINE = "nyasar-offline-coverage-outline-layer"
+private const val LAYER_OFFLINE_AREAS_FILL = "nyasar-offline-areas-fill-layer"
+private const val LAYER_OFFLINE_AREAS_OUTLINE = "nyasar-offline-areas-outline-layer"
 private const val PROP_WP_NAME = "name"
 private const val PROP_WP_ELEVATION = "elevationM"
 private const val PROP_WP_DESCRIPTION = "description"
@@ -185,6 +188,12 @@ fun NyasarMapView(
      *  §24, WAJIB — "user harus bisa melihat bagian map mana yang sudah
      *  didownload"). Empty list omits the layer entirely. */
     offlineCoverage: List<org.maplibre.android.geometry.LatLngBounds> = emptyList(),
+    /** Offline coverage with completion state for the live overlay — green
+     *  fill = complete area (usable offline right now), gray = still
+     *  downloading. Only meaningful when [offlineAreas] is set; the legacy
+     *  [offlineCoverage] rectangles (Offline Maps screen) render in the
+     *  old blue and take priority when both are passed. */
+    offlineAreas: List<com.nyasar.app.map.OfflineCoverageArea> = emptyList(),
     onWaypointClick: (GpxWaypoint) -> Unit = {},
     /** Fires for a plain map tap that didn't hit an existing waypoint —
      *  i.e. the same fallthrough case the waypoint-click listener below
@@ -988,6 +997,82 @@ fun NyasarMapView(
 
     // Offline coverage rectangles (spec §24) — separate effect so a refresh
     // of the downloaded-regions list never touches the route/track sources.
+    // Live overlay (offlineAreas): green fill = downloaded & complete for the
+    // ACTIVE basemap's style, gray = still downloading. Style-URL matching
+    // means the overlay never claims an area is usable offline when only a
+    // different map style's tiles were stored. Both visual states live in
+    // ONE source (per-feature fillColor); the source/layers are ensured
+    // idempotently here so the shared MapView — which skips the full-load
+    // path when the style is already loaded — still gets them.
+    LaunchedEffect(offlineAreas, basemapEntry, provider.id, styleVariant, styleGeneration) {
+        if (offlineAreas.isEmpty()) return@LaunchedEffect
+        mapView.getMapAsync { map ->
+            map.getStyle { style ->
+                if (style.getSourceAs<GeoJsonSource>(SOURCE_OFFLINE_AREAS) == null) {
+                    style.addSource(GeoJsonSource(SOURCE_OFFLINE_AREAS, FeatureCollection.fromFeatures(emptyArray())))
+                    style.addLayerBelow(
+                        org.maplibre.android.style.layers.FillLayer(LAYER_OFFLINE_AREAS_FILL, SOURCE_OFFLINE_AREAS).withProperties(
+                            PropertyFactory.fillColor("#2E7D32"),
+                            PropertyFactory.fillOpacity(0.14f)
+                        ),
+                        LAYER_TRACK
+                    )
+                    style.addLayerBelow(
+                        org.maplibre.android.style.layers.LineLayer(LAYER_OFFLINE_AREAS_OUTLINE, SOURCE_OFFLINE_AREAS).withProperties(
+                            PropertyFactory.lineColor("#2E7D32"),
+                            PropertyFactory.lineWidth(2f),
+                            PropertyFactory.lineDasharray(arrayOf(3f, 2f))
+                        ),
+                        LAYER_TRACK
+                    )
+                }
+                // Per-feature color: getBoolean("complete") decides green vs
+                // gray — both states in one source so a partial download
+                // flipping to complete only updates GeoJSON, never layers.
+                val fillLayer = style.getLayerAs<org.maplibre.android.style.layers.FillLayer>(LAYER_OFFLINE_AREAS_FILL)
+                val lineLayer = style.getLayerAs<org.maplibre.android.style.layers.LineLayer>(LAYER_OFFLINE_AREAS_OUTLINE)
+                if (fillLayer != null && lineLayer != null &&
+                    fillLayer.getFillColorAsInt() == null && lineLayer.getLineColorAsInt() == null
+                ) {
+                    fillLayer.setProperties(
+                        org.maplibre.android.style.layers.PropertyFactory.fillColor(
+                            org.maplibre.android.style.expressions.Expression.switchCase(
+                                org.maplibre.android.style.expressions.Expression.get("complete"),
+                                org.maplibre.android.style.expressions.Expression.rgb(46, 125, 50),
+                                org.maplibre.android.style.expressions.Expression.rgb(117, 117, 117)
+                            )
+                        )
+                    )
+                    lineLayer.setProperties(
+                        org.maplibre.android.style.layers.PropertyFactory.lineColor(
+                            org.maplibre.android.style.expressions.Expression.switchCase(
+                                org.maplibre.android.style.expressions.Expression.get("complete"),
+                                org.maplibre.android.style.expressions.Expression.rgb(46, 125, 50),
+                                org.maplibre.android.style.expressions.Expression.rgb(117, 117, 117)
+                            )
+                        )
+                    )
+                }
+                val features = offlineAreas.map { area ->
+                    val b = area.bounds
+                    val ring = listOf(
+                        Point.fromLngLat(b.longitudeWest, b.latitudeSouth),
+                        Point.fromLngLat(b.longitudeEast, b.latitudeSouth),
+                        Point.fromLngLat(b.longitudeEast, b.latitudeNorth),
+                        Point.fromLngLat(b.longitudeWest, b.latitudeNorth),
+                        Point.fromLngLat(b.longitudeWest, b.latitudeSouth)
+                    )
+                    Feature.fromGeometry(
+                        org.maplibre.geojson.Polygon.fromLngLats(listOf(ring)),
+                        com.google.gson.JsonObject().apply { addProperty("complete", area.complete) }
+                    )
+                }
+                style.getSourceAs<GeoJsonSource>(SOURCE_OFFLINE_AREAS)
+                    ?.setGeoJson(FeatureCollection.fromFeatures(features))
+            }
+        }
+    }
+
     LaunchedEffect(offlineCoverage) {
         mapView.getMapAsync { map ->
             val source = map.style?.getSourceAs<GeoJsonSource>(SOURCE_OFFLINE_COVERAGE) ?: return@getMapAsync

@@ -115,6 +115,8 @@
     <string name="gps_permission_desc">Recording di background membutuhkan izin lokasi selalu diizinkan agar tidak berhenti saat layar mati.</string>
     <string name="offline_maps_setting">Peta Offline</string>
     <string name="offline_maps_desc">Lihat, kelola, dan hapus peta yang sudah didownload</string>
+    <string name="offline_overlay_title">Tampilkan area terunduh di peta</string>
+    <string name="offline_overlay_desc">Kotak hijau = area sudah lengkap untuk peta aktif; abu-abu = masih mengunduh</string>
     <string name="keep_screen_on">Jaga layar tetap menyala</string>
     <string name="keep_screen_desc">Aktif saat recording berjalan, supaya jarak/waktu tetap terlihat</string>
     <string name="auto_pause">Jeda Otomatis</string>

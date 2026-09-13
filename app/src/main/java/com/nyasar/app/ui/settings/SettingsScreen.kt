@@ -173,6 +173,30 @@ fun SettingsScreen(
                 Icon(Icons.Default.ChevronRight, contentDescription = null)
             }
 
+            // Downloaded-areas overlay switch — draws green (complete) /
+            // gray (downloading) rectangles for the active basemap on every
+            // main map, so "mana yang sudah keunduh?" is visible in-place.
+            // Checked state derives straight from the settings flow this
+            // screen already collects (line ~33) — no duplicate collection.
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.offline_overlay_title))
+                    Text(
+                        stringResource(R.string.offline_overlay_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = settings?.offlineOverlayEnabled == true,
+                    onCheckedChange = { viewModel.setOfflineOverlayEnabled(it) }
+                )
+            }
+
             Spacer(Modifier.height(24.dp))
             HorizontalDivider()
             Spacer(Modifier.height(24.dp))

@@ -366,6 +366,8 @@ fun RecordingScreen(
     var showBasemapSheet by remember { mutableStateOf(false) }
     val styleVariant by viewModel.styleVariant.collectAsState()
     val selectedBasemap by viewModel.selectedBasemap.collectAsState()
+    val offlineOverlayEnabled by viewModel.offlineOverlayEnabled.collectAsState()
+    val offlineAreas by viewModel.offlineAreas.collectAsState()
     // Waymarked Trails overlays — shared persisted state from the ViewModel
     // (same DataStore row Home/RoutePreview read). With one shared MapView,
     // per-screen overlay sets would strip/restore overlays on every switch.
@@ -792,6 +794,9 @@ fun RecordingScreen(
             // dashed. The Pilih Jalur flow itself is untouched — this only
             // restyles the line it already draws via track = previewTrack.
             myRoutes = myRouteLines,
+            // Downloaded-areas overlay (Settings → Offline): green = complete
+            // for the active basemap's style, gray = still downloading.
+            offlineAreas = if (offlineOverlayEnabled) offlineAreas else emptyList(),
             activeRouteId = previewRouteId,
             // PART 4 fix: previously this only showed the picked GPX line
             // while IDLE, then went empty the moment recording started —

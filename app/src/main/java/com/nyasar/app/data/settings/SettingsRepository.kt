@@ -42,6 +42,10 @@ data class AppSettings(
      *  the last-mounted screen decide whether everyone's routes are
      *  visible. Default false (off) — it's a user opt-in layer. */
     val myRoutesOverlayEnabled: Boolean = false,
+    /** Show downloaded-areas overlay on the main maps: green = complete,
+     *  gray = incomplete, only for the active basemap's style. User opt-in
+     *  (off by default) since it draws on every map screen. */
+    val offlineOverlayEnabled: Boolean = false,
     /** First-launch location onboarding ("why we need GPS" explainer before
      *  the system permission popup) has been shown+actioned. Once true it
      *  never shows again — the request itself lives in MainActivity. */
@@ -76,6 +80,7 @@ class SettingsRepository(private val context: Context) {
         val BASEMAP_ID = stringPreferencesKey("basemap_id") // BasemapEntry.gpxKey
         val OVERLAY_IDS = androidx.datastore.preferences.core.stringSetPreferencesKey("overlay_ids") // OverlayLayer.id
         val MY_ROUTES_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("my_routes_overlay_enabled")
+        val OFFLINE_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("offline_coverage_overlay_enabled")
         val LOCATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("location_onboarding_shown")
         val NOTIFICATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("notification_onboarding_shown")
         val BATTERY_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("battery_optimization_onboarding_shown")
@@ -92,6 +97,7 @@ class SettingsRepository(private val context: Context) {
             basemapId = prefs[Keys.BASEMAP_ID] ?: "libertyTopo",
             overlayIds = prefs[Keys.OVERLAY_IDS] ?: emptySet(),
             myRoutesOverlayEnabled = prefs[Keys.MY_ROUTES_OVERLAY] ?: false,
+            offlineOverlayEnabled = prefs[Keys.OFFLINE_OVERLAY] ?: false,
             locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false,
             notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false,
             batteryOptimizationOnboardingShown = prefs[Keys.BATTERY_ONBOARDING] ?: false
@@ -144,6 +150,12 @@ class SettingsRepository(private val context: Context) {
      *  reasoning as [setOverlayIds]. */
     suspend fun setMyRoutesOverlayEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.MY_ROUTES_OVERLAY] = enabled }
+    }
+
+    /** Persist the downloaded-areas overlay switch — same shared,
+     *  app-wide reasoning as [setMyRoutesOverlayEnabled]. */
+    suspend fun setOfflineOverlayEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.OFFLINE_OVERLAY] = enabled }
     }
 
     /** Mark the first-launch location onboarding as done so the explainer

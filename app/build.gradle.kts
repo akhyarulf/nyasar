@@ -117,6 +117,14 @@ dependencies {
     // MapLibre itself has no vendor lock-in.
     implementation("org.maplibre.gl:android-sdk:12.0.1")
 
+    // Explicit OkHttp: MapLibre 12.0.1 publishes okhttp 4.12.0 only on its
+    // runtimeElements (not apiElements), so app code cannot reference
+    // okhttp3.* to build the custom Call.Factory passed to
+    // HttpRequestUtil.setOkHttpClient (custom User-Agent for tile
+    // requests, OSMF policy) without declaring it. Version pinned to the
+    // exact one MapLibre runs with — no version skew.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // Room — local storage for imported GPX/routes/waypoints/settings
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

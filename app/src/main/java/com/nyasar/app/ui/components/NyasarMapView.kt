@@ -265,7 +265,13 @@ fun NyasarMapView(
      *  for RoutePreview after its control column started covering the
      *  track's east end at the old 80px. Default 80 keeps every other
      *  call site pixel-identical to before. */
-    fitBoundsPaddingPx: Int = 80
+    fitBoundsPaddingPx: Int = 80,
+    /** Extra bottom-only padding (px) on the camera fit — for maps whose
+     *  bottom edge hosts a floating card (RoutePreview full-screen's
+     *  elevation chart) so the track's south end renders ABOVE the card
+     *  instead of underneath it. 0 keeps the uniform [fitBoundsPaddingPx]
+     *  fit every other call site relies on. */
+    fitBoundsExtraBottomPx: Int = 0
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // Shared mode: one process-wide MapView (see SharedMapHolder + [shared]).
@@ -923,7 +929,19 @@ fun NyasarMapView(
                             val bounds = boundsOf(track)
                             val hasRealSpan = bounds.latitudeSpan > 0.0005 || bounds.longitudeSpan > 0.0005
                             if (hasRealSpan) {
-                                map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, fitBoundsPaddingPx))
+                                // Per-edge overload: the extra bottom padding
+                                // (floating-card clearance) zooms the fit out
+                                // asymmetrically; with 0 extra this is exactly
+                                // the uniform-padding fit.
+                                map.moveCamera(
+                                    CameraUpdateFactory.newLatLngBounds(
+                                        bounds,
+                                        fitBoundsPaddingPx,
+                                        fitBoundsPaddingPx,
+                                        fitBoundsPaddingPx,
+                                        fitBoundsPaddingPx + fitBoundsExtraBottomPx
+                                    )
+                                )
                             } else {
                                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(bounds.center, 17.5))
                             }

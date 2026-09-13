@@ -156,8 +156,19 @@ fun RoutePreviewScreen(
     var mapBearing by remember { mutableStateOf(0f) }
     var showBasemapSheet by remember { mutableStateOf(false) }
     var currentStyleVariant by remember { mutableStateOf(StyleVariant.OUTDOOR) }
-    // Elevation card height (full-screen mode) — right-side controls lift above it.
+    // Elevation card height (full-screen mode) — right-side controls lift
+    // above it.
     var elevationCardHeightDp by remember { mutableStateOf(0.dp) }
+    val density = LocalDensity.current
+    // Full-screen default fit: same margin as the collapsed map PLUS fixed
+    // clearance under the floating elevation card. The card measures
+    // ≈152dp (120dp chart + 4×8dp paddings — keep in sync with
+    // ElevationSection below) + 16dp breathing room. Deliberately a
+    // CONSTANT, not the measured card height: the map pipeline captures
+    // its fit padding when the style effect launches, which happens before
+    // the card's size callback ever fires — a measured value would still
+    // be 0dp at capture time and the fix would silently no-op.
+    val fullscreenFitExtraBottomPx = with(density) { 168.dp.toPx() }.toInt()
 
     // v7 "layar terakhir": the crosshair overlay reads the ACTIVE map's live
     // camera, so it opens at exactly the last position+zoom the user was
@@ -171,7 +182,7 @@ fun RoutePreviewScreen(
     // doesn't run under the floating controls (expand button, elevation
     // card edge) — same margin applies to the full-screen map's larger
     // right-side control stack. Both this screen's instances share it.
-    val fitBoundsPaddingPx = with(LocalDensity.current) { 72.dp.toPx() }.toInt()
+    val fitBoundsPaddingPx = with(density) { 72.dp.toPx() }.toInt()
 
     // Waypoint tap plumbing shared by both map hosts (values captured once).
     val gpxWaypointsForMap = state.waypoints.filter { gpxWp ->
@@ -315,10 +326,13 @@ fun RoutePreviewScreen(
             // --- track and duplicated controls users reach again in one
             // --- tap anyway. The expand button is one of TWO ways into
             // --- full-screen mode (the other: tapping the map itself).
+            // Lifted off the map's bottom edge (match the top-row's 8dp
+            // status-bar rhythm) so the launcher floats free instead of
+            // hugging the map/data boundary.
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 12.dp),
+                    .padding(end = 12.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -451,6 +465,7 @@ fun RoutePreviewScreen(
             NyasarMapView(
                 modifier = Modifier.fillMaxSize(),
                 fitBoundsPaddingPx = fitBoundsPaddingPx,
+                fitBoundsExtraBottomPx = fullscreenFitExtraBottomPx,
                 provider = currentProvider,
                 styleVariant = currentStyleVariant,
                 basemapEntry = currentBasemap,
@@ -551,7 +566,6 @@ fun RoutePreviewScreen(
             // --- same ElevationSection chart as before (identical component,
             // --- same scrub→highlight camera link), just re-hosted here.
             AnimatedAppear(modifier = Modifier.align(Alignment.BottomCenter)) {
-                val density = LocalDensity.current
                 Surface(
                     shape = RoundedCornerShape(NyasarRadius.lg),
                     color = MaterialTheme.colorScheme.surfaceContainerLow,

@@ -37,13 +37,11 @@ class NyasarApp : Application() {
         val userAgent =
             "Nyasar/${com.nyasar.app.BuildConfig.VERSION_NAME} (Android; +https://github.com/akhyarulf/nyasar)"
         val client = OkHttpClient.Builder()
-            .apply {
-                // Mirror HttpRequestImpl's own DEFAULT_CLIENT dispatcher
-                // sizing (20 requests/host on Lollipop+) so parallel tile
-                // loading keeps its original throughput under this custom
-                // client instead of OkHttp's default 5/host.
-                dispatcher = Dispatcher().apply { maxRequestsPerHost = 20 }
-            }
+            // Mirror HttpRequestImpl's own DEFAULT_CLIENT dispatcher
+            // sizing (20 requests/host on Lollipop+) so parallel tile
+            // loading keeps its original throughput under this custom
+            // client instead of OkHttp's default 5/host.
+            .dispatcher(Dispatcher().apply { maxRequestsPerHost = 20 })
             .addInterceptor { chain ->
                 // Overwrite, not add: HttpRequestImpl has already stamped
                 // its own User-Agent header on the request before handing

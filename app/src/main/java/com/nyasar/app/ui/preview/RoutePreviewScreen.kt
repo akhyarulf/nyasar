@@ -237,7 +237,7 @@ fun RoutePreviewScreen(
                 },
                 onMapReady = {
                     collapsedMapInstance = it
-                    mapBearing = it.cameraPosition.bearing
+                    mapBearing = it.cameraPosition.bearing.toFloat()
                 },
                 onBearingChanged = { mapBearing = it },
                 userLocation = userLatLng,
@@ -470,7 +470,7 @@ fun RoutePreviewScreen(
                     allDbWaypoints.firstOrNull { it.id == id }?.let { selectedDbWaypoint = it }
                 },
                 onMapReady = { map ->
-                    fullscreenMapInstance = it
+                    fullscreenMapInstance = map
                     // Camera handoff: the map pipeline just fit the track's
                     // bounds; re-apply the collapsed map's exact camera so
                     // full-screen opens where the user was looking.

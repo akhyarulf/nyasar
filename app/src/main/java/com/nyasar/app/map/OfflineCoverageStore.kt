@@ -101,7 +101,7 @@ class OfflineCoverageStore private constructor(context: Context) {
                 }
             }
 
-            override fun onError(error: String?) {
+            override fun onError(error: String) {
                 // Keep the previous snapshot on transient listing errors.
             }
         })

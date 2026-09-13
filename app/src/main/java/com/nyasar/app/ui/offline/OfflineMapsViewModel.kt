@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.nyasar.app.R
 import androidx.lifecycle.viewModelScope
-import com.nyasar.app.map.BasemapCatalog
+import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.OfflineMapManager
 import com.nyasar.app.map.OfflineRegionMetadata
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,7 +85,7 @@ class OfflineMapsViewModel(app: Application) : AndroidViewModel(app) {
                     getApplication<Application>().getString(R.string.offline_map_unnamed) + " (#${System.identityHashCode(region)})"
                 }
                 val basemapName = meta.basemapId?.let { id ->
-                    BasemapCatalog.fromId(id).takeIf { it.gpxKey == id }?.gpxName
+                    BasemapEntry.fromId(id).takeIf { it.gpxKey == id }?.gpxName
                 }
                 val bounds = try {
                     (region.definition as? OfflineTilePyramidRegionDefinition)?.bounds

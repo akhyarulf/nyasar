@@ -6,12 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.settings.SettingsRepository
-import com.nyasar.app.map.BasemapCatalog
 import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.OfflineMapManager
 import com.nyasar.app.map.OfflineRegionMetadata
 import com.nyasar.app.map.covers
-import com.nyasar.app.map.styleUrlFor
 import com.nyasar.app.map.styleUrlOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -143,7 +141,7 @@ class OfflineDownloadViewModel(app: Application) : AndroidViewModel(app) {
             _uiState.value = _uiState.value.copy(
                 bounds = bounds,
                 routeName = routeName,
-                basemap = basemap,
+                basemap = basemap.entry,
                 estimatedTileCount = estimateTileCount(bounds, maxZoom = _uiState.value.maxZoom.toInt()),
                 blockedReason = blocked
             )
@@ -159,12 +157,16 @@ class OfflineDownloadViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** The app's currently selected basemap (BasemapPickerSheet choice,
-     *  persisted in DataStore) resolved through the same path the map
-     *  screens use. Falls back to the default-provider style entry only if
-     *  the persisted id is unknown (first launch). */
-    private suspend fun resolveActiveBasemap(): BasemapEntry {
+     *  persisted in DataStore) plus the exact style URL it resolves to
+     *  through the active provider — the same path NyasarMapView uses, so
+     *  what the download targets is pixel-identical to what the user sees. */
+    private data class ActiveBasemap(val entry: BasemapEntry, val styleUrl: String)
+
+    private suspend fun resolveActiveBasemap(): ActiveBasemap {
         val settings = settingsRepository.settings.first()
-        return BasemapCatalog.fromId(settings.basemapId)
+        val provider = com.nyasar.app.map.providers.TileProviderFactory.byId(settings.providerId)
+        val entry = BasemapEntry.fromId(settings.basemapId)
+        return ActiveBasemap(entry, provider.styleUrlFor(entry, getApplication()))
     }
 
     /** Full gate evaluation for [bounds] under [basemap]: policy flag,
@@ -172,13 +174,13 @@ class OfflineDownloadViewModel(app: Application) : AndroidViewModel(app) {
      *  already on disk. Suspend because the coverage scan hits MapLibre's
      *  region database through a callback API; called from [setBounds]'
      *  coroutine (camera-idle), never the main thread directly. */
-    private suspend fun evaluateBlocked(bounds: LatLngBounds, basemap: BasemapEntry?): DownloadBlockedReason? {
+    private suspend fun evaluateBlocked(bounds: LatLngBounds, basemap: ActiveBasemap?): DownloadBlockedReason? {
         if (basemap == null) return null
-        if (!basemap.supportsOfflineDownload) return DownloadBlockedReason.PolicyNotAllowed
-        if (!BasemapCatalog.isConfiguredFor(basemap, com.nyasar.app.BuildConfig.MAPTILER_API_KEY)) {
+        if (!basemap.entry.supportsOfflineDownload) return DownloadBlockedReason.PolicyNotAllowed
+        if (!BasemapEntry.isConfiguredFor(basemap.entry, com.nyasar.app.BuildConfig.MAPTILER_API_KEY)) {
             return DownloadBlockedReason.MissingKey
         }
-        if (existingRegionCovers(bounds, basemap)) return DownloadBlockedReason.AlreadyDownloaded
+        if (existingRegionCovers(bounds, basemap.styleUrl)) return DownloadBlockedReason.AlreadyDownloaded
         return null
     }
 
@@ -187,8 +189,7 @@ class OfflineDownloadViewModel(app: Application) : AndroidViewModel(app) {
      *  answer. Incomplete regions don't count (the user can finish those
      *  from the Offline Maps list); a re-download over an incomplete one
      *  would create a duplicate region, which MapLibre allows silently. */
-    private suspend fun existingRegionCovers(bounds: LatLngBounds, basemap: BasemapEntry): Boolean {
-        val targetStyle = styleUrlFor(basemap, getApplication())
+    private suspend fun existingRegionCovers(bounds: LatLngBounds, targetStyle: String): Boolean {
         return kotlinx.coroutines.suspendCancellableCoroutine { cont ->
             offlineMapManager.listRegions { regions ->
                 val covered = regions.any { region ->
@@ -237,7 +238,7 @@ class OfflineDownloadViewModel(app: Application) : AndroidViewModel(app) {
             // the settings' default provider happens to be — previously the
             // downloaded region silently didn't match the visible map.
             val basemap = resolveActiveBasemap()
-            val styleUrl = styleUrlFor(basemap, getApplication())
+            val styleUrl = basemap.styleUrl
             // Re-run the gate fresh: bounds may have changed since the last
             // evaluateBlocked, and a download may have completed elsewhere.
             when (evaluateBlocked(bounds, basemap)) {
@@ -285,7 +286,7 @@ class OfflineDownloadViewModel(app: Application) : AndroidViewModel(app) {
                 // belongs to, and the duplicate-coverage check keys on it.
                 metadata = OfflineRegionMetadata.encode(
                     name = displayName,
-                    basemapId = basemap.gpxKey,
+                    basemapId = basemap.entry.gpxKey,
                     createdAtEpochMs = System.currentTimeMillis()
                 ),
                 callback = object : OfflineMapManager.DownloadCallback {

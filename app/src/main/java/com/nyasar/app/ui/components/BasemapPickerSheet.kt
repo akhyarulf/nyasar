@@ -8,10 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -62,7 +59,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.R
 import com.nyasar.app.map.BasemapEntry
@@ -75,22 +71,20 @@ import com.nyasar.app.ui.theme.NyasarRadius
  * Basemap + overlay + data picker — bottom sheet with three WRAPPED GRID
  * sections, styled to match (spec: reference Strava screenshot — tiles are
  * small, exactly 4 per row, and every option is visible at once instead of
- * hiding most of the catalog behind a horizontal swipe). Each section is a
- * FlowRow capped at 4 items per row: 8 basemaps render as 4+4 rows, so
- * the full catalog is discoverable without scrolling sideways.
+ * hiding most of the catalog behind a horizontal swipe). Each section is
+ * laid out by [PickerGrid]: items chunked into rows of 4, each cell given
+ * Modifier.weight(1f) — the row DIVIDES its width between cells instead of
+ * measuring fixed-width children, so 4-per-row is true by construction on
+ * every screen and density. (The previous FlowRow + computed-dp approach
+ * wrapped to 3+3+2 on the user's device: FlowRow measures fixed-width
+ * children and wraps on any rounding overflow, so no dp arithmetic could
+ * guarantee it.)
  *
- * Two compactness guarantees, both hard-won from device testing:
- *  - EXACTLY 4 per row: tile width is computed in whole PIXELS
- *    (BoxWithConstraints maxWidth minus 3 gutters, divided by 4, floored)
- *    instead of raw dp — dp values round-trip through Modifier.width's
- *    pixel rounding, and a fraction-of-a-pixel overflow per row was enough
- *    for FlowRow to wrap the 4th tile (the 3+3+2 bug). Flooring can only
- *    underflow, so 4 tiles + 3 gaps always fit, on every density.
- *  - NO-EXPAND fit: the vertical rhythm is compact (titleMedium headers,
- *    labelSmall labels, 8dp gutters, tight spacers) so Map Types (2 rows)
- *    + Overlays (1 row) + Data (1 row) fit inside the sheet's default
- *    height on normal phones — nothing hidden below the fold.
- *    verticalScroll remains only as a fallback for very short screens.
+ * Compactness: the vertical rhythm is compact (titleMedium headers,
+ * labelSmall labels, 8dp gutters, tight spacers) so Map Types (2 rows)
+ * + Overlays (1 row) + Data (1 row) fit inside the sheet's default
+ * height on normal phones — nothing hidden below the fold.
+ * verticalScroll remains only as a fallback for very short screens.
  *
  * Basemaps: all 8 World [BasemapEntry] catalog entries (Liberty Topo,
  * Liberty Satellite, OpenMapTiles OSM Topo,
@@ -118,7 +112,7 @@ import com.nyasar.app.ui.theme.NyasarRadius
  * none of them are standalone basemaps, so an icon says what the layer
  * *is* more clearly than a mostly-empty snapshot would.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BasemapPickerSheet(
     selected: BasemapEntry,
@@ -171,35 +165,13 @@ fun BasemapPickerSheet(
             Text(stringResource(R.string.map_types_title), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(10.dp))
 
-            // Shared tile-width formula for every section — Strava-style
-            // small tiles, exactly 4 per row, wrapped (not scrolled). Width
-            // is derived from this Column's real content width in whole
-            // PIXELS: dp-perfect arithmetic still round-trips through
-            // Modifier.width's pixel rounding, and a fractional-px overflow
-            // was silently wrapping rows to 3+3+2 on some densities. Flooring
-            // can only underflow, never overflow, so 4 tiles + 3 gaps always
-            // fit regardless of screen width/density.
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val spacing = 8.dp
-                val tileWidth = with(LocalDensity.current) {
-                    ((maxWidth - spacing * 3).toPx() / 4).toInt().toDp()
-                }
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(spacing),
-                    verticalArrangement = Arrangement.spacedBy(spacing),
-                    maxItemsInEachRow = 4,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    BasemapEntry.ordered.forEach { entry ->
-                        BasemapTile(
-                            entry = entry,
-                            isSelected = entry == selected,
-                            onClick = { onSelect(entry) },
-                            width = tileWidth
-                        )
-                    }
-                }
+            // Exactly-4-per-row by construction — see PickerGrid's doc.
+            PickerGrid(items = BasemapEntry.ordered) { entry ->
+                BasemapTile(
+                    entry = entry,
+                    isSelected = entry == selected,
+                    onClick = { onSelect(entry) }
+                )
             }
 
             Spacer(Modifier.height(14.dp))
@@ -216,27 +188,12 @@ fun BasemapPickerSheet(
             // Overlays grid: the 3 Waymarked Trails layers — third-party map
             // content, same for every user. User-owned layers (routes/
             // waypoints/downloaded areas) live in the "Data" section below.
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val spacing = 8.dp
-                val tileWidth = with(LocalDensity.current) {
-                    ((maxWidth - spacing * 3).toPx() / 4).toInt().toDp()
-                }
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(spacing),
-                    verticalArrangement = Arrangement.spacedBy(spacing),
-                    maxItemsInEachRow = 4,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OverlayLayer.entries.forEach { overlay ->
-                        OverlayTile(
-                            overlay = overlay,
-                            isChecked = overlay in activeOverlays,
-                            onClick = { onToggleOverlay(overlay) },
-                            width = tileWidth
-                        )
-                    }
-                }
+            PickerGrid(items = OverlayLayer.entries) { overlay ->
+                OverlayTile(
+                    overlay = overlay,
+                    isChecked = overlay in activeOverlays,
+                    onClick = { onToggleOverlay(overlay) }
+                )
             }
 
             Spacer(Modifier.height(14.dp))
@@ -254,62 +211,71 @@ fun BasemapPickerSheet(
             // waypoint pins, downloaded-area coverage. Same 4-per-row wrap;
             // same border+check-badge toggle language as the sections above;
             // each toggle persists app-wide via SettingsRepository.
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val spacing = 8.dp
-                val tileWidth = with(LocalDensity.current) {
-                    ((maxWidth - spacing * 3).toPx() / 4).toInt().toDp()
-                }
+            val dataTiles = listOf(
+                DataTile(stringResource(R.string.data_my_routes), Icons.Filled.Route, Color(0xFF42A5F5), myRoutesEnabled, onToggleMyRoutes),
+                DataTile(stringResource(R.string.data_waypoints), Icons.Filled.Place, Color(0xFFE8734D), waypointsVisible, onToggleWaypoints),
+                DataTile(stringResource(R.string.data_offline_areas), Icons.Filled.Layers, Color(0xFF6BAE4D), offlineAreasEnabled, onToggleOfflineAreas)
+            )
+            PickerGrid(items = dataTiles) { tile ->
+                DataToggleTile(
+                    label = tile.label,
+                    icon = tile.icon,
+                    tint = tile.tint,
+                    isChecked = tile.isChecked,
+                    onClick = tile.onClick
+                )
+            }
+        }
+    }
+}
 
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(spacing),
-                    verticalArrangement = Arrangement.spacedBy(spacing),
-                    maxItemsInEachRow = 4,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    DataToggleTile(
-                        label = stringResource(R.string.data_my_routes),
-                        icon = Icons.Filled.Route,
-                        tint = Color(0xFF42A5F5),
-                        isChecked = myRoutesEnabled,
-                        onClick = onToggleMyRoutes,
-                        width = tileWidth
-                    )
-                    DataToggleTile(
-                        label = stringResource(R.string.data_waypoints),
-                        icon = Icons.Filled.Place,
-                        tint = Color(0xFFE8734D),
-                        isChecked = waypointsVisible,
-                        onClick = onToggleWaypoints,
-                        width = tileWidth
-                    )
-                    DataToggleTile(
-                        label = stringResource(R.string.data_offline_areas),
-                        icon = Icons.Filled.Layers,
-                        tint = Color(0xFF6BAE4D),
-                        isChecked = offlineAreasEnabled,
-                        onClick = onToggleOfflineAreas,
-                        width = tileWidth
-                    )
+/** Deterministic 4-per-row grid — the layout primitive behind every
+ *  section in this sheet. Items are chunked into rows of 4 and every cell
+ *  gets RowScope.weight(1f): the row DIVIDES its width evenly between its
+ *  cells instead of measuring fixed-width children, so exactly 4 per row
+ *  holds by construction on any screen width and density. (FlowRow was
+ *  replaced because it measures fixed-width children and wraps the 4th
+ *  tile on sub-pixel overflow — unfixable from dp arithmetic.) */
+@Composable
+private fun <T> PickerGrid(
+    items: List<T>,
+    content: @Composable (T) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.chunked(4).forEach { rowItems ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowItems.forEach { item ->
+                    // weight(1f): cell width = (rowWidth - gaps) / cellsInRow,
+                    // computed by the layout system itself — no rounding drift.
+                    Box(Modifier.weight(1f)) { content(item) }
                 }
             }
         }
     }
 }
 
+/** Plain data for one Data-section toggle so PickerGrid can map it. */
+private data class DataTile(
+    val label: String,
+    val icon: ImageVector,
+    val tint: Color,
+    val isChecked: Boolean,
+    val onClick: () -> Unit
+)
+
 /** One basemap tile — real map-snapshot thumbnail, label below, selection
  *  shown as a primary-color border (radio-style: exactly one basemap is
- *  ever selected). [width] comes from the shared formula in the sheet
- *  above so every tile in the row is identically sized. */
+ *  ever selected). Fills its PickerGrid cell, so every tile in a row is
+ *  identically sized by the grid itself. */
 @Composable
 private fun BasemapTile(
     entry: BasemapEntry,
     isSelected: Boolean,
-    onClick: () -> Unit,
-    width: Dp
+    onClick: () -> Unit
 ) {
     Column(
         Modifier
-            .width(width)
+            .fillMaxWidth()
             .clip(RoundedCornerShape(NyasarRadius.sm))
             .clickable(onClick = onClick)
             .padding(4.dp),
@@ -353,16 +319,14 @@ private fun BasemapTile(
 private fun OverlayTile(
     overlay: OverlayLayer,
     isChecked: Boolean,
-    onClick: () -> Unit,
-    width: Dp
+    onClick: () -> Unit
 ) {
     DataToggleTile(
         label = stringResource(overlay.labelRes),
         icon = overlayIcon(overlay),
         tint = overlayTint(overlay),
         isChecked = isChecked,
-        onClick = onClick,
-        width = width
+        onClick = onClick
     )
 }
 
@@ -377,12 +341,11 @@ private fun DataToggleTile(
     icon: ImageVector,
     tint: Color,
     isChecked: Boolean,
-    onClick: () -> Unit,
-    width: Dp
+    onClick: () -> Unit
 ) {
     Column(
         Modifier
-            .width(width)
+            .fillMaxWidth()
             .clip(RoundedCornerShape(NyasarRadius.sm))
             .clickable(onClick = onClick)
             .padding(4.dp),

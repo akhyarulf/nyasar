@@ -25,18 +25,27 @@ import kotlinx.coroutines.launch
  *
  * Registration flow and the non-skippable username gate:
  *   1. RegisterScreen → [signUp] succeeds → sessionStatus emits
- *      Authenticated(source = SignUp) → SessionState.NeedsUsername →
+ *      Authenticated → [applyAuthenticated] reads profiles.username_is_set
+ *      from the database → flag still false (the trigger row carries the
+ *      auto-generated temp username) → SessionState.NeedsUsername →
  *      ChooseUsernameScreen is forced by the NavHost gate.
- *   2. ChooseUsernameScreen → [confirmUsername] → server UPDATE profiles →
- *      state becomes SignedIn → Home is reachable.
+ *   2. ChooseUsernameScreen → [confirmUsername] → server UPDATE profiles
+ *      (username + username_is_set = true) → state becomes SignedIn →
+ *      Home is reachable.
  *   3. The gate is enforced in MainActivity's NavHost: while
  *      SessionState.NeedsUsername is active, the start destination IS the
  *      username screen and the back stack holds nothing else — there is no
  *      path to any other screen (this is what makes the step non-skippable,
  *      not UI politeness).
- * Ordinary sign-IN also emits Authenticated, but with source = SignIn —
- * deliberately NOT routed to NeedsUsername (a returning user must never
- * be re-gated).
+ * Why the DB flag and not SessionSource: on projects with email
+ * confirmation required, the first REAL session is an ordinary sign-IN
+ * (user clicks the emailed link, then logs in manually) — SessionSource
+ * is SignIn there, so gating on the source let fresh users through with
+ * their temp username. profiles.username_is_set is the durable source of
+ * truth instead: false → gated (fresh signup OR first login of a user
+ * who never picked a username), true → never re-gated. [AuthRepository.getProfileStatus]
+ * fails OPEN, so a transient network error can not lock a settled user
+ * out of the app.
  */
 class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -52,7 +61,9 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
         data object SignedOut : SessionState()
 
-        /** Fresh signup — username must be chosen before anything else. */
+        /** profiles.username_is_set = false — a real username must be
+         *  chosen before anything else (fresh signup, or the first login
+         *  of a user who never went through the picker). */
         data class NeedsUsername(val userId: String) : SessionState()
 
         data class SignedIn(
@@ -112,10 +123,10 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                             // re-emit. Surfaces nothing scary to the user.
                         }
                         is SessionStatus.Authenticated -> {
-                            // Gate ONLY on a fresh sign-UP. status.isNew would
-                            // also be true for source = SignIn (and External),
-                            // which would wrongly force every returning user
-                            // through the username chooser on each login.
+                            // The session source is NOT the gate — it only
+                            // seeds pendingEmail (see applyAuthenticated).
+                            // The gate is the DB flag profiles.username_is_set,
+                            // consulted for EVERY Authenticated emission.
                             applyAuthenticated(
                                 status.session,
                                 fromFreshSignUp = status.source is SessionSource.SignUp
@@ -135,19 +146,26 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             _sessionState.value = SessionState.SignedOut
             return
         }
-        if (fromFreshSignUp) {
-            // Fresh registration: the profile row exists (trigger) but still
-            // carries the auto-generated temp username → force the chooser.
-            pendingEmail = session.user?.email
+        // The gate is DATABASE state, not the session source: on email-
+        // confirmation projects the first real session is an ordinary sign-IN,
+        // so the source can not distinguish a fresh user from a settled one.
+        // profiles.username_is_set can — check it on every authenticated
+        // emission, whichever way the session was created.
+        val status = repo.getProfileStatus(userId)
+        if (!status.usernameIsSet) {
+            // Profile row exists (trigger) but the auto-generated temp
+            // username was never replaced → force the chooser.
+            if (fromFreshSignUp) {
+                pendingEmail = session.user?.email
+            }
             _sessionState.value = SessionState.NeedsUsername(userId)
             _usernameForm.value = UsernameFormState()
             return
         }
-        val username = repo.getUsername(userId)
         _sessionState.value = SessionState.SignedIn(
             userId = userId,
             email = session.user?.email,
-            username = username
+            username = status.username
         )
     }
 

@@ -18,16 +18,33 @@ import kotlinx.serialization.Serializable
  *
  * Key schema contract (from the user's Supabase setup): the
  * `handle_new_user` trigger creates a `profiles` row automatically on
- * signup with a temporary auto-generated username. [isUsernameAvailable]
+ * signup with a temporary auto-generated username. [checkUsername]
  * and [updateUsername] therefore only ever SELECT and UPDATE the existing
- * row — never INSERT.
+ * row — never INSERT. The `username_is_set` column (added by the user's
+ * SQL migration) marks whether the user has replaced that temp username;
+ * it is read by [getProfileStatus] and written by [updateUsername], and
+ * is the sole basis for the ChooseUsername gate (see AuthViewModel).
  */
 class AuthRepository {
 
     @Serializable
     data class Profile(
         val id: String,
-        val username: String
+        val username: String,
+        /** False until the user picks a real username (replaces the
+         *  trigger's auto-generated temp one). Default keeps decoding
+         *  working for selects that only request id+username. */
+        val username_is_set: Boolean = false
+    )
+
+    /**
+     * Gate status for a session user, read from the profiles row.
+     * [usernameIsSet] — not the session source — decides whether the
+     * ChooseUsername screen is forced (see AuthViewModel docs).
+     */
+    data class ProfileStatus(
+        val username: String?,
+        val usernameIsSet: Boolean
     )
 
     /** Neutral error categories the UI can localize. */
@@ -150,7 +167,8 @@ class AuthRepository {
      * Sets the username on the profile row that ALREADY EXISTS (created by
      * the handle_new_user trigger). UPDATE only — no INSERT — per the task
      * contract. userId comes from the current session, so RLS ("update own
-     * row") applies naturally.
+     * row") applies naturally. Also flips `username_is_set` to true — the
+     * flag that releases the ChooseUsername gate on every later session.
      */
     suspend fun updateUsername(userId: String, username: String): Outcome {
         if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
@@ -162,6 +180,7 @@ class AuthRepository {
             SupabaseClientProvider.client.postgrest["profiles"].update(
                 update = {
                     set("username", normalized)
+                    set("username_is_set", true)
                 }
             ) {
                 filter {
@@ -187,20 +206,31 @@ class AuthRepository {
         }
     }
 
-    /** Fetches the profile for a session user (username display, null = not set). */
-    suspend fun getUsername(userId: String): String? {
-        if (!SupabaseClientProvider.isConfigured) return null
+    /**
+     * Reads the gate state for a session user: the current username plus
+     * the username_is_set flag, queried together from the profiles row.
+     *
+     * Fails OPEN on any error (including "row missing", which shouldn't
+     * happen thanks to the trigger): usernameIsSet = true. Rationale — a
+     * transient network failure must never lock a user who already chose
+     * a username out of the app; the worst case is a stale/blank display
+     * name until the next successful read.
+     */
+    suspend fun getProfileStatus(userId: String): ProfileStatus {
+        if (!SupabaseClientProvider.isConfigured) return ProfileStatus(null, usernameIsSet = true)
         return try {
-            SupabaseClientProvider.client.postgrest["profiles"]
-                .select(columns = io.github.jan.supabase.postgrest.query.Columns.list("username")) {
+            val row = SupabaseClientProvider.client.postgrest["profiles"]
+                .select(columns = io.github.jan.supabase.postgrest.query.Columns.list("id", "username", "username_is_set")) {
                     filter {
                         eq("id", userId)
                     }
                 }
-                .decodeSingleOrNull<Profile>()?.username
+                .decodeSingleOrNull<Profile>()
+            row?.let { ProfileStatus(it.username, it.username_is_set) }
+                ?: ProfileStatus(null, usernameIsSet = true)
         } catch (e: Exception) {
-            Log.e(TAG, "getUsername failed", e)
-            null
+            Log.e(TAG, "getProfileStatus failed", e)
+            ProfileStatus(null, usernameIsSet = true)
         }
     }
 

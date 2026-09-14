@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
 
@@ -149,6 +150,23 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Supabase Kotlin SDK — auth (email/password) + Postgres access for the
+    // account feature. 2.2.2 is the newest line built against Kotlin
+    // 1.9.x (verified from its Maven POM: kotlin-stdlib 1.9.22, ktor
+    // 2.3.9); 2.3+ requires Kotlin 2.0 and would force a compiler bump.
+    // The BOM keeps gotrue/postgrest/core mutually version-locked. The
+    // serialization runtime + plugin are required by the SDK's JSON layer.
+    // Credentials come from local.properties via BuildConfig (same pattern
+    // as MAPTILER_API_KEY); when empty, SupabaseClientProvider reports an
+    // unconfigured state instead of crashing and every account feature
+    // degrades gracefully (see ui/auth/AuthViewModel).
+    implementation(platform("io.github.jan-tennert.supabase:bom:2.2.2"))
+    implementation("io.github.jan-tennert.supabase:supabase-kt")
+    implementation("io.github.jan-tennert.supabase:gotrue-kt")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.ktor:ktor-client-android:2.3.9")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")

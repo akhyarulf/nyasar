@@ -11,8 +11,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Info
@@ -41,9 +43,12 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
     onOpenOfflineMaps: () -> Unit = {},
+    onOpenAccount: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
+    val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
+    val sessionState by authViewModel.sessionState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -88,6 +93,54 @@ fun SettingsScreen(
                 val hasPermission = remember {
                     LocationRepository(viewModel.getApplication()).hasLocationPermission()
                 }
+                // ── Account section (Phase 1): signed-in status + logout, or
+                // a login entry point. Placed FIRST, matching how Strava-like
+                // apps put the account card at the top; layout/visuals reuse
+                // the exact SettingRow/SettingsSection language below.
+                SettingsSection(stringResource(R.string.account_section)) {
+                    when (val s = sessionState) {
+                        is com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn -> {
+                            SettingRow(
+                                icon = Icons.Default.AccountCircle,
+                                iconTint = MaterialTheme.colorScheme.primary,
+                                title = s.username ?: stringResource(R.string.account_no_username),
+                                subtitle = s.email
+                            )
+                            SettingRow(
+                                icon = Icons.Default.Logout,
+                                title = stringResource(R.string.account_logout),
+                                subtitle = stringResource(R.string.account_logout_desc),
+                                onClick = { authViewModel.signOut() }
+                            )
+                        }
+                        is com.nyasar.app.ui.auth.AuthViewModel.SessionState.Restoring -> {
+                            SettingRow(
+                                icon = Icons.Default.AccountCircle,
+                                title = stringResource(R.string.account_checking_session),
+                                subtitle = null
+                            )
+                        }
+                        else -> {
+                            // SignedOut + Unconfigured both offer the login
+                            // entry; Unconfigured builds simply land on a
+                            // screen explaining setup is missing (graceful).
+                            SettingRow(
+                                icon = Icons.Default.AccountCircle,
+                                title = stringResource(R.string.account_not_signed_in),
+                                subtitle = stringResource(R.string.account_sign_in_desc),
+                                onClick = onOpenAccount,
+                                trailing = {
+                                    Icon(
+                                        Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+
                 SettingsSection(stringResource(R.string.gps_section)) {
                     SettingRow(
                         icon = Icons.Default.Map,

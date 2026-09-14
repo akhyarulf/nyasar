@@ -538,4 +538,41 @@
     <!-- Settings > GPS > battery row -->
     <string name="battery_optimization_title">Pengecualian Baterai</string>
     <string name="battery_optimization_hint">Ketuk untuk minta pengecualian baterai — supaya recording tidak dimatikan oleh penghemat baterai HP</string>
+
+    <!-- ═══ Akun / Autentikasi (Fase 1) ═══ -->
+    <string name="account_section">Akun</string>
+    <string name="account_not_signed_in">Belum masuk akun</string>
+    <string name="account_sign_in_desc">Masuk atau daftar untuk sinkron &amp; publish rute</string>
+    <string name="account_no_username">Akun tanpa username</string>
+    <string name="account_logout">Keluar akun</string>
+    <string name="account_logout_desc">Sesi di perangkat ini dihapus</string>
+    <string name="account_checking_session">Memeriksa sesi…</string>
+    <string name="auth_login_title">Masuk</string>
+    <string name="auth_register_title">Daftar</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Kata sandi</string>
+    <string name="auth_confirm_password">Konfirmasi kata sandi</string>
+    <string name="auth_login_cta">Masuk</string>
+    <string name="auth_register_cta">Buat akun</string>
+    <string name="auth_no_account_yet">Belum punya akun? Daftar</string>
+    <string name="auth_have_account">Sudah punya akun? Masuk</string>
+    <string name="auth_show_password">Tampilkan kata sandi</string>
+    <string name="auth_hide_password">Sembunyikan kata sandi</string>
+    <string name="auth_error_password_mismatch">Kata sandi dan konfirmasinya tidak sama</string>
+    <string name="auth_error_email_in_use">Email sudah terdaftar — coba masuk saja</string>
+    <string name="auth_error_invalid_credentials">Email atau kata sandi salah</string>
+    <string name="auth_error_weak_password">Kata sandi terlalu lemah (minimal 6 karakter)</string>
+    <string name="auth_error_username_taken">Username sudah dipakai — coba yang lain</string>
+    <string name="auth_error_network">Koneksi bermasalah — cek internet lalu coba lagi</string>
+    <string name="auth_error_not_configured">Fitur akun belum dikonfigurasi di build ini</string>
+    <string name="auth_error_generic">Terjadi kesalahan — coba lagi</string>
+    <string name="auth_check_email">Registrasi berhasil — cek email untuk verifikasi sebelum masuk</string>
+    <string name="username_title">Pilih Username</string>
+    <string name="username_intro">Satu langkah lagi: pilih username unik untuk identitasmu. Username ini akan tampil di rute &amp; aktivitas yang kamu publish.</string>
+    <string name="username_label">Username</string>
+    <string name="username_checking">Memeriksa ketersediaan…</string>
+    <string name="username_available">Username tersedia</string>
+    <string name="username_invalid_chars">3–20 karakter, hanya huruf kecil, angka, dan _</string>
+    <string name="username_rules">3–20 karakter · huruf kecil, angka, underscore · tidak diawali/diakhiri _</string>
+    <string name="username_confirm_cta">Simpan &amp; Lanjut</string>
 </resources>

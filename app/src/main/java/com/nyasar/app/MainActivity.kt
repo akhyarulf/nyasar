@@ -280,6 +280,9 @@ private fun NyasarNavHost(
     val showBottomBar = when {
         // On a recording route: always hide to maximize map readability.
         isRecordingRoute -> false
+        // Auth screens (login/register/username gate): no bottom bar —
+        // especially the gate, which must look like the whole app until done.
+        currentRoute?.startsWith("auth/") == true -> false
         // On main tabs (Home, Library, History, Settings): always show.
         // On sub-screens (preview, activity detail, etc.): show if registered.
         currentRoute != null -> com.nyasar.app.ui.components.shouldShowBottomBar(currentRoute)
@@ -313,6 +316,43 @@ private fun NyasarNavHost(
     // carrying a routeId from Track & Peta (in pick mode) back to whatever
     // RecordingScreen instance is still sitting on the backstack beneath it.
     var pendingSelectedRouteId by remember { mutableStateOf<String?>(null) }
+
+    // ── Phase 1 (account): session-driven navigation gate ──
+    // The account/session state lives in AuthViewModel (StateFlow pattern);
+    // the NavHost observes it here because start-destination gating is a
+    // navigation-level concern. Two rules, both narrow:
+    //   1. NeedsUsername (fresh registration): wipe the whole back stack and
+    //      force the choose-username screen. Because the stack contains ONLY
+    //      that screen, the system back gesture exits the app — there is no
+    //      path to Home or any other screen until the username is set. This
+    //      is what makes the step non-skippable, by construction.
+    //   2. SignedIn while still on the gate screen (username just saved):
+    //      replace the stack with Home — the promised "after the gate, you
+    //      enter the app".
+    // Login-only users (or restored sessions) never pass through the gate:
+    // SignedIn outside it changes nothing here. Unconfigured builds (no
+    // Supabase credentials) never gate at all — the app stays fully usable.
+    val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
+    val sessionState by authViewModel.sessionState.collectAsState()
+    LaunchedEffect(sessionState) {
+        when (val s = sessionState) {
+            is com.nyasar.app.ui.auth.AuthViewModel.SessionState.NeedsUsername -> {
+                navController.navigate("auth/choose-username") {
+                    popUpTo(0) { inclusive = true } // wipe the stack: nothing behind the gate
+                    launchSingleTop = true
+                }
+            }
+            is com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn -> {
+                if (currentRoute == "auth/choose-username") {
+                    navController.navigate("home") {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
 
     // FIX: Use Scaffold's default contentWindowInsets so system insets
     // (status bar, navigation bar) are properly handled. The bottom bar
@@ -660,8 +700,37 @@ private fun NyasarNavHost(
         ) {
             SettingsScreen(
                 onOpenOfflineMaps = { navController.navigate("offline-maps") },
+                onOpenAccount = { navController.navigate("auth/login") },
                 onBack = { navController.popBackStack() }
             )
+        }
+
+        // ── Phase 1 (account): auth routes ──
+        composable("auth/login") {
+            com.nyasar.app.ui.auth.LoginScreen(
+                onLoginSuccess = { navController.popBackStack() },
+                onGoToRegister = { navController.navigate("auth/register") },
+                onLoginBack = { navController.popBackStack() }
+            )
+        }
+        composable("auth/register") {
+            com.nyasar.app.ui.auth.RegisterScreen(
+                // Success navigation is owned by the NeedsUsername gate above
+                // (it wipes the stack and forces the username screen).
+                onRegisterSuccess = {},
+                onBackToLogin = { navController.popBackStack() },
+                onRegisterBack = { navController.popBackStack() }
+            )
+        }
+        // Not reachable by normal navigation — the NeedsUsername gate pushes
+        // it with popUpTo(0). The Activity-scoped authViewModel is passed in
+        // explicitly: a default viewModel() here would be scoped to this nav
+        // destination, creating a SECOND AuthViewModel whose confirmUsername
+        // would flip a route-local state the gate below never observes (the
+        // SDK emits no Authenticated event after a profiles UPDATE), leaving
+        // the user permanently stuck behind the username gate.
+        composable("auth/choose-username") {
+            com.nyasar.app.ui.auth.ChooseUsernameScreen(viewModel = authViewModel)
         }
         composable(
             "track-and-maps",

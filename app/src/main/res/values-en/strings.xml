@@ -539,4 +539,41 @@
     <!-- Settings > GPS > battery row -->
     <string name="battery_optimization_title">Battery Exemption</string>
     <string name="battery_optimization_hint">Tap to request a battery exemption — so recording is not killed by your phone\'s battery saver</string>
+
+    <!-- ═══ Account / Authentication (Phase 1) ═══ -->
+    <string name="account_section">Account</string>
+    <string name="account_not_signed_in">Not signed in</string>
+    <string name="account_sign_in_desc">Sign in or register to sync &amp; publish routes</string>
+    <string name="account_no_username">Account without a username</string>
+    <string name="account_logout">Sign out</string>
+    <string name="account_logout_desc">Session is removed from this device</string>
+    <string name="account_checking_session">Checking session…</string>
+    <string name="auth_login_title">Sign in</string>
+    <string name="auth_register_title">Sign up</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_confirm_password">Confirm password</string>
+    <string name="auth_login_cta">Sign in</string>
+    <string name="auth_register_cta">Create account</string>
+    <string name="auth_no_account_yet">No account yet? Register</string>
+    <string name="auth_have_account">Already have an account? Sign in</string>
+    <string name="auth_show_password">Show password</string>
+    <string name="auth_hide_password">Hide password</string>
+    <string name="auth_error_password_mismatch">Password and confirmation don\'t match</string>
+    <string name="auth_error_email_in_use">Email already registered — try signing in instead</string>
+    <string name="auth_error_invalid_credentials">Wrong email or password</string>
+    <string name="auth_error_weak_password">Password too weak (minimum 6 characters)</string>
+    <string name="auth_error_username_taken">Username already taken — try another one</string>
+    <string name="auth_error_network">Connection problem — check your internet and try again</string>
+    <string name="auth_error_not_configured">Account feature is not configured in this build</string>
+    <string name="auth_error_generic">Something went wrong — please try again</string>
+    <string name="auth_check_email">Registration successful — check your email to verify before signing in</string>
+    <string name="username_title">Choose a Username</string>
+    <string name="username_intro">One more step: pick a unique username for your identity. It will appear on routes &amp; activities you publish.</string>
+    <string name="username_label">Username</string>
+    <string name="username_checking">Checking availability…</string>
+    <string name="username_available">Username available</string>
+    <string name="username_invalid_chars">3–20 characters, lowercase letters, numbers and _ only</string>
+    <string name="username_rules">3–20 chars · lowercase letters, numbers, underscore · no leading/trailing _</string>
+    <string name="username_confirm_cta">Save &amp; Continue</string>
 </resources>

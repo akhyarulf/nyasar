@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -364,6 +365,7 @@ fun ChooseUsernameScreen(
 // --- shared building blocks -------------------------------------------------
 
 /** Centered, width-capped scaffold used by all three auth screens. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AuthScaffold(
     title: String,

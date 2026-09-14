@@ -7,6 +7,7 @@ import com.nyasar.app.data.supabase.AuthRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.SessionSource
 import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.user.UserSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -4,8 +4,9 @@ import android.util.Log
 import io.github.jan.supabase.exceptions.BadRequestRestException
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.exceptions.UnauthorizedRestException
+import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
-import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.Serializable
 
 /**
@@ -130,7 +131,12 @@ class AuthRepository {
         return try {
             val existing = SupabaseClientProvider.client.postgrest["profiles"]
                 .select(columns = io.github.jan.supabase.postgrest.query.Columns.list("id", "username")) {
-                    eq("username", username)
+                    // 2.2.2: the request lambda's receiver is
+                    // PostgrestRequestBuilder — string-column filters go
+                    // through its filter { PostgrestFilterBuilder } wrapper.
+                    filter {
+                        eq("username", username)
+                    }
                 }
                 .decodeList<Profile>()
             if (existing.isEmpty()) UsernameCheck.Available else UsernameCheck.Taken
@@ -158,7 +164,9 @@ class AuthRepository {
                     set("username", normalized)
                 }
             ) {
-                eq("id", userId)
+                filter {
+                    eq("id", userId)
+                }
             }
             Outcome.Success
         } catch (e: RestException) {
@@ -185,7 +193,9 @@ class AuthRepository {
         return try {
             SupabaseClientProvider.client.postgrest["profiles"]
                 .select(columns = io.github.jan.supabase.postgrest.query.Columns.list("username")) {
-                    eq("id", userId)
+                    filter {
+                        eq("id", userId)
+                    }
                 }
                 .decodeSingleOrNull<Profile>()?.username
         } catch (e: Exception) {

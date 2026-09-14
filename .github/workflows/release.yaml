@@ -37,9 +37,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
+      # android-actions/setup-android@v3 removed: it tries to install the
+      # deprecated "tools" package, which Google deleted from the SDK repo
+      # ("Failed to find package 'tools'") and the job died in ~20s. The
+      # ubuntu-latest runner ships a full Android SDK at $ANDROID_SDK_ROOT
+      # with cmdline-tools preinstalled — just accept licenses and build.
+      - name: Accept Android SDK licenses (preinstalled runner SDK)
         if: steps.secrets.outputs.configured == 'true'
-        uses: android-actions/setup-android@v3
+        run: yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Decode release keystore from KEYSTORE_BASE64
         if: steps.secrets.outputs.configured == 'true'

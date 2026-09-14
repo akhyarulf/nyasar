@@ -19,8 +19,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # android-actions/setup-android@v3 removed: it tries to install the
+      # deprecated "tools" package, which Google deleted from the SDK repo
+      # ("Failed to find package 'tools'") and the job died in ~20s. The
+      # ubuntu-latest runner ships a full Android SDK at $ANDROID_SDK_ROOT
+      # with cmdline-tools preinstalled — just accept licenses and build.
+      - name: Accept Android SDK licenses (preinstalled runner SDK)
+        run: yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Write local.properties (MapTiler key from repo secret, if set)
         run: |

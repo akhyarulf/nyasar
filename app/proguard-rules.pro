@@ -11,37 +11,9 @@
 -dontwarn org.slf4j.impl.**
 -dontwarn org.slf4j.**
 
-# ── kotlinx.serialization (canonical R8 rules from the serialization README;
-#    AGP's defaults cover app code but library beans decoded reflectively —
-#    gotrue UserInfo/Session, postgrest error responses — need them here).
-#    NOTE: the <1> backreferences from the -if conditions belong in the CLASS
-#    position of the following keep rules, not in member names.
-
-# Keep the generated serializer() of @Serializable classes.
--if @kotlinx.serialization.Serializable class **
--keepclassmembers class <1> {
-    static <1>$Companion;
-}
-
-# Keep `Companion` of @Serializable classes.
--if @kotlinx.serialization.Serializable class ** {
-    static **$Companion;
-}
--keepclassmembers class <1> {
-    static <1>$Companion;
-}
-
-# Keep serializable primitive fields of @Serializable classes.
--keepclassmembers @kotlinx.serialization.Serializable class * {
-    *** Companion;
-    <fields>;
-}
-
-# Keep serializer() of @Serializable objects (object declarations).
--if @kotlinx.serialization.Serializable class ** {
-    public static ** INSTANCE;
-}
--keepclassmembers class <1> {
-    public static <1> INSTANCE;
-    kotlinx.serialization.KSerializer serializer(...);
-}
+# NOTE on kotlinx.serialization: no extra keep rules are needed here —
+# kotlinx-serialization (1.6.3) ships consumer rules inside its artifact
+# (META-INF/proguard/kotlinx-serialization.pro) which AGP merges
+# automatically, covering the SDK's @Serializable models (gotrue
+# UserInfo/Session, postgrest responses). Hand-writing backreference rules
+# for them is redundant AND rejected by R8's parser in member position.

@@ -18,17 +18,23 @@ import kotlinx.serialization.Serializable
  *
  * Key schema contract (from the user's Supabase setup): the
  * `handle_new_user` trigger creates a `profiles` row automatically on
- * signup with a temporary auto-generated username. [isUsernameAvailable]
- * and [updateUsername] therefore only ever SELECT and UPDATE the existing
- * row — never INSERT.
+ * signup with a temporary auto-generated username and
+ * `username_is_set = false`. [isUsernameAvailable] and [updateUsername]
+ * therefore only ever SELECT and UPDATE the existing row — never INSERT.
+ * `username_is_set` (not session source) is what [AuthViewModel] uses to
+ * decide whether the username-picker gate must show — see its class doc.
  */
 class AuthRepository {
 
     @Serializable
     data class Profile(
         val id: String,
-        val username: String
+        val username: String,
+        val username_is_set: Boolean = false
     )
+
+    /** Result of checking whether a user still needs to pick a username. */
+    data class ProfileStatus(val username: String?, val usernameIsSet: Boolean)
 
     /** Neutral error categories the UI can localize. */
     enum class AuthError {
@@ -103,6 +109,137 @@ class AuthRepository {
         } catch (e: RestException) {
             Outcome.Failure(AuthError.NETWORK)
         } catch (e: Exception) {
+            Log.e(TAG, "signIn failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /** Logout (local session clear + server revoke). Never throws. */
+    suspend fun signOut() {
+        try {
+            if (SupabaseClientProvider.isConfigured) {
+                SupabaseClientProvider.client.auth.signOut()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "signOut failed (session cleared locally regardless)", e)
+        }
+    }
+
+    /**
+     * Username availability — case-insensitive exact match against
+     * profiles.username. Only the id+username columns are fetched.
+     */
+    suspend fun checkUsername(username: String): UsernameCheck {
+        if (!SupabaseClientProvider.isConfigured) return UsernameCheck.Error(AuthError.NOT_CONFIGURED)
+        val invalid = validateUsernameFormat(username) ?: return UsernameCheck.Invalid(
+            com.nyasar.app.R.string.username_invalid_chars
+        )
+        return try {
+            val existing = SupabaseClientProvider.client.postgrest["profiles"]
+                .select(columns = io.github.jan.supabase.postgrest.query.Columns.list("id", "username")) {
+                    // 2.2.2: the request lambda's receiver is
+                    // PostgrestRequestBuilder — string-column filters go
+                    // through its filter { PostgrestFilterBuilder } wrapper.
+                    filter {
+                        eq("username", username)
+                    }
+                }
+                .decodeList<Profile>()
+            if (existing.isEmpty()) UsernameCheck.Available else UsernameCheck.Taken
+        } catch (e: Exception) {
+            Log.e(TAG, "checkUsername failed", e)
+            UsernameCheck.Error(AuthError.NETWORK)
+        }
+    }
+
+    /**
+     * Sets the username on the profile row that ALREADY EXISTS (created by
+     * the handle_new_user trigger). UPDATE only — no INSERT — per the task
+     * contract. userId comes from the current session, so RLS ("update own
+     * row") applies naturally.
+     */
+    suspend fun updateUsername(userId: String, username: String): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        val normalized = username.trim()
+        if (validateUsernameFormat(normalized) == null) {
+            return Outcome.Failure(AuthError.USERNAME_INVALID)
+        }
+        return try {
+            SupabaseClientProvider.client.postgrest["profiles"].update(
+                update = {
+                    set("username", normalized)
+                    set("username_is_set", true)
+                }
+            ) {
+                filter {
+                    eq("id", userId)
+                }
+            }
+            Outcome.Success
+        } catch (e: RestException) {
+            // A username taken between check and update surfaces as a Postgres
+            // unique-violation (23505). Postgrest maps 409 Conflict to
+            // UnknownRestException in 2.2.2 (no status code on the exception),
+            // so classification is by message content — both the raw driver
+            // wording and PostgREST's phrasing are matched.
+            val msg = "${e.error} ${e.description ?: ""} ${e.message ?: ""}"
+            Log.e(TAG, "updateUsername failed: $msg", e)
+            if (msg.contains("duplicate", ignoreCase = true) ||
+                msg.contains("unique", ignoreCase = true)
+            ) Outcome.Failure(AuthError.USERNAME_TAKEN)
+            else Outcome.Failure(AuthError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "updateUsername failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /**
+     * Fetches profile status for a session user — username display AND
+     * whether it's still the trigger's auto-generated placeholder.
+     * This, not [io.github.jan.supabase.gotrue.SessionSource], is the
+     * authority on whether the username picker gate must show: source
+     * only tells you HOW this session was created, not whether THIS
+     * particular account ever finished the picker (email-confirmation
+     * flows resume as an ordinary SignIn, which must still be gated if
+     * username_is_set is still false).
+     */
+    suspend fun getProfileStatus(userId: String): ProfileStatus {
+        if (!SupabaseClientProvider.isConfigured) return ProfileStatus(null, usernameIsSet = true)
+        return try {
+            val p = SupabaseClientProvider.client.postgrest["profiles"]
+                .select(columns = io.github.jan.supabase.postgrest.query.Columns.list("username", "username_is_set")) {
+                    filter {
+                        eq("id", userId)
+                    }
+                }
+                .decodeSingleOrNull<Profile>()
+            ProfileStatus(p?.username, usernameIsSet = p?.username_is_set ?: true)
+        } catch (e: Exception) {
+            Log.e(TAG, "getProfileStatus failed", e)
+            // Fail safe toward NOT re-gating an existing user on a flaky
+            // network — being stuck unable to reach Home is worse than
+            // occasionally missing a gate that a retry would have caught.
+            ProfileStatus(null, usernameIsSet = true)
+        }
+    }
+
+    // --- helpers ---
+
+    /** Non-null = normalized username, null = format invalid. Rules:
+     *  3-20 chars, a-z0-9_ (lowercased), no leading/trailing underscore. */
+    private fun validateUsernameFormat(raw: String): String? {
+        val u = raw.trim().lowercase()
+        if (u.length < 3 || u.length > 20) return null
+        if (!u.all { it in 'a'..'z' || it in '0'..'9' || it == '_' }) return null
+        if (u.startsWith("_") || u.endsWith("_")) return null
+        return u
+    }
+
+    private companion object {
+        const val TAG = "AuthRepository"
+    }
+}        } catch (e: Exception) {
             Log.e(TAG, "signIn failed", e)
             Outcome.Failure(AuthError.NETWORK)
         }

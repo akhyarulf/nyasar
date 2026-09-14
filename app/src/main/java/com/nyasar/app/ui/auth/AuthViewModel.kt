@@ -174,10 +174,14 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         if (_registerForm.value.busy) return
         _registerForm.value = FormState(busy = true)
         viewModelScope.launch {
-            when (val r = repo.signUp(email.trim(), password)) {
+            // signUp returns (outcome, newUserId?) — destructure it here;
+            // newUserId is what distinguishes "session created" from the
+            // email-confirmation-required path below.
+            val (outcome, newUserId) = repo.signUp(email.trim(), password)
+            when (outcome) {
                 is AuthRepository.Outcome.Success -> {
                     _registerForm.value = FormState()
-                    if (r.second == null &&
+                    if (newUserId == null &&
                         SupabaseClientProvider.client.auth.currentSessionOrNull() == null
                     ) {
                         // Project requires email confirmation: no session was
@@ -190,7 +194,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                     // routes to NeedsUsername automatically.
                 }
                 is AuthRepository.Outcome.Failure -> {
-                    _registerForm.value = FormState(busy = false, errorRes = r.error.messageRes())
+                    _registerForm.value = FormState(busy = false, errorRes = outcome.error.messageRes())
                 }
             }
         }

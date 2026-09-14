@@ -2,6 +2,7 @@ package com.nyasar.app.recording
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.RunCircle
 import androidx.compose.material.icons.filled.Sports
@@ -14,6 +15,8 @@ import com.nyasar.app.R
  * Metric utama yang ditonjolkan di share card per jenis olahraga.
  * Run/Trail Run/Walk → Pace (menit per km).
  * Hike/Wheelchair → Elevation Gain (total naik).
+ * UNSPECIFIED → Pace juga (metric paling netral yang tersedia; ShareMetric
+ * sengaja biner — ELEVATION terlalu terrain-spesifik untuk "belum ditentukan").
  */
 enum class ShareMetric { PACE, ELEVATION }
 
@@ -32,6 +35,11 @@ enum class SportType(
     val category: SportCategory,
     val primaryMetric: ShareMetric
 ) {
+    // Not a sport — explicit "belum ditentukan" default (sinkron dengan
+    // default UNSPECIFIED di sisi Supabase). Netral, bukan ikon/label
+    // olahraga tertentu.
+    UNSPECIFIED(R.string.sport_unspecified, "Unspecified", Icons.Default.HelpOutline, SportCategory.OTHER, ShareMetric.PACE),
+
     // Foot Sports
     RUN(R.string.sport_run, "Run", Icons.Default.RunCircle, SportCategory.FOOT, ShareMetric.PACE),
     TRAIL_RUN(R.string.sport_trail_run, "Trail Run", Icons.Default.Sports, SportCategory.FOOT, ShareMetric.PACE),
@@ -44,11 +52,13 @@ enum class SportType(
 
     companion object {
         fun fromString(value: String?): SportType =
-            entries.find { it.name == value } ?: TRAIL_RUN
+            entries.find { it.name == value } ?: UNSPECIFIED
     }
 }
 
 enum class SportCategory(val titleRes: Int) {
     FOOT(R.string.sport_category_foot),
-    CYCLE(R.string.sport_category_cycle)
+    CYCLE(R.string.sport_category_cycle),
+    // UNSPECIFIED tidak cocok masuk FOOT/CYCLE — kelompok "Lainnya".
+    OTHER(R.string.sport_category_other)
 }

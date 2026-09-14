@@ -1548,7 +1548,7 @@ private fun RecordingControls(
     onStop: () -> Unit,
     onAddRoute: () -> Unit,
     onClearRoute: (() -> Unit)? = null,
-    selectedSportType: String = "TRAIL_RUN",
+    selectedSportType: String = "UNSPECIFIED",
     onSportSelected: (com.nyasar.app.recording.SportType) -> Unit = {},
     onShowSportFilter: () -> Unit = {}
 ) {

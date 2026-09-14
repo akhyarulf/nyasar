@@ -371,8 +371,10 @@
     <string name="sport_hike">Hiking</string>
     <string name="sport_wheelchair">Kursi Roda</string>
     <string name="sport_ride">Sepeda</string>
+    <string name="sport_unspecified">Tidak ditentukan</string>
     <string name="sport_category_foot">Olahraga Kaki</string>
     <string name="sport_category_cycle">Olahraga Sepeda</string>
+    <string name="sport_category_other">Lainnya</string>
 
     <!-- Waypoint categories -->
     <string name="waypoint_cat_summit">Puncak</string>

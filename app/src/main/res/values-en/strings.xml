@@ -371,8 +371,10 @@
     <string name="sport_hike">Hike</string>
     <string name="sport_wheelchair">Wheelchair</string>
     <string name="sport_ride">Ride</string>
+    <string name="sport_unspecified">Unspecified</string>
     <string name="sport_category_foot">Foot Sports</string>
     <string name="sport_category_cycle">Cycle Sports</string>
+    <string name="sport_category_other">Other</string>
 
     <!-- Waypoint categories -->
     <string name="waypoint_cat_summit">Summit</string>

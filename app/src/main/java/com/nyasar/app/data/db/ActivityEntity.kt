@@ -33,7 +33,7 @@ data class ActivityEntity(
     val elevationGainM: Double?,
     val elevationLossM: Double?,
     /** Jenis olahraga saat recording dimulai — lihat [com.nyasar.app.recording.SportType]. */
-    val sportType: String = "TRAIL_RUN"
+    val sportType: String = "UNSPECIFIED"
 )
 
 /** Nilai valid untuk [ActivityEntity.status].

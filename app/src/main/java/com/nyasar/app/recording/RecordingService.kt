@@ -903,7 +903,7 @@ class RecordingService : Service() {
 data class RecordingUiState(
     val activityId: String? = null,
     val status: RecordingStatus = RecordingStatus.IDLE,
-    val sportType: String = "TRAIL_RUN",
+    val sportType: String = "UNSPECIFIED",
     val distanceMeters: Double = 0.0,
     val movingTimeMs: Long = 0,
     val elapsedTimeMs: Long = 0,

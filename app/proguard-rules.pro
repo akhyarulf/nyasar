@@ -11,30 +11,37 @@
 -dontwarn org.slf4j.impl.**
 -dontwarn org.slf4j.**
 
-# kotlinx.serialization: keep the SDK's @Serializable models (gotrue
-# UserInfo/Session, postgrest error responses) — their serializers are
-# looked up reflectively via the serialization plugin's generated
-# companion; the default rules cover user code but not library beans
-# surfaced through generic decoders.
--keepclassmembers class io.github.jan.supabase.** {
-    *** Companion;
-}
--keepclasseswithmembers class io.github.jan.supabase.** {
-    kotlinx.serialization.KSerializer serializer(...);
-}
+# ── kotlinx.serialization (canonical R8 rules from the serialization README;
+#    AGP's defaults cover app code but library beans decoded reflectively —
+#    gotrue UserInfo/Session, postgrest error responses — need them here).
+#    NOTE: the <1> backreferences from the -if conditions belong in the CLASS
+#    position of the following keep rules, not in member names.
 
-# R8 8 full mode: keep the generated serializers' fields for the SDK models
-# (same rationale as above, stricter mode requires it).
--if @kotlinx.serialization.Serializable class io.github.jan.supabase.** {
-    static **$Companion;
-}
--keepclassmembers class io.github.jan.supabase.** {
+# Keep the generated serializer() of @Serializable classes.
+-if @kotlinx.serialization.Serializable class **
+-keepclassmembers class <1> {
     static <1>$Companion;
 }
--if @kotlinx.serialization.Serializable class io.github.jan.supabase.** {
+
+# Keep `Companion` of @Serializable classes.
+-if @kotlinx.serialization.Serializable class ** {
+    static **$Companion;
+}
+-keepclassmembers class <1> {
+    static <1>$Companion;
+}
+
+# Keep serializable primitive fields of @Serializable classes.
+-keepclassmembers @kotlinx.serialization.Serializable class * {
+    *** Companion;
+    <fields>;
+}
+
+# Keep serializer() of @Serializable objects (object declarations).
+-if @kotlinx.serialization.Serializable class ** {
     public static ** INSTANCE;
 }
--keepclassmembers class io.github.jan.supabase.** {
+-keepclassmembers class <1> {
     public static <1> INSTANCE;
     kotlinx.serialization.KSerializer serializer(...);
 }

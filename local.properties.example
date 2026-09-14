@@ -3,3 +3,8 @@ sdk.dir=/path/to/Android/sdk
 
 # Get a free key at https://cloud.maptiler.com/account/keys/
 MAPTILER_API_KEY=your_maptiler_key_here
+
+# Supabase project (Project Settings -> API). Publishable key only —
+# never put the secret key here.
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key_here

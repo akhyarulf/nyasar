@@ -54,6 +54,8 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
           echo "MAPTILER_API_KEY=${{ secrets.MAPTILER_API_KEY }}" >> local.properties
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> local.properties
+          echo "SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}" >> local.properties
 
       - name: Set up Gradle
         if: steps.secrets.outputs.configured == 'true'

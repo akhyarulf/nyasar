@@ -26,6 +26,8 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
           echo "MAPTILER_API_KEY=${{ secrets.MAPTILER_API_KEY }}" >> local.properties
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> local.properties
+          echo "SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}" >> local.properties
         # If you never add a MAPTILER_API_KEY secret in
         # Settings -> Secrets and variables -> Actions, this just writes an
         # empty key. The app still builds and runs fine — TileProviderFactory

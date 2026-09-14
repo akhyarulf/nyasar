@@ -39,6 +39,20 @@ android {
             "MAPTILER_API_KEY",
             "\"${localProps.getProperty("MAPTILER_API_KEY", "")}\""
         )
+        // Supabase (publishable key only — the secret key must never reach
+        // the client). Same local.properties -> BuildConfig pattern as the
+        // MapTiler key above: empty default keeps builds green in
+        // environments where the values are not configured yet.
+        buildConfigField(
+            "String",
+            "SUPABASE_URL",
+            "\"${localProps.getProperty("SUPABASE_URL", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_PUBLISHABLE_KEY",
+            "\"${localProps.getProperty("SUPABASE_PUBLISHABLE_KEY", "")}\""
+        )
     }
 
     signingConfigs {

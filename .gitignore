@@ -5,3 +5,9 @@
 keystore/
 *.keystore
 *.jks
+
+# local.properties holds per-developer SDK paths AND real API keys
+# (MAPTILER_API_KEY, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) — never
+# commit it. CI writes its own local.properties from GitHub secrets
+# (.github/workflows/build.yaml + release.yaml).
+local.properties

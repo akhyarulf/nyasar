@@ -1,15 +1,12 @@
 package com.nyasar.app.ui.history
 
 import android.app.Application
-import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.data.db.ActivityEntity
-import com.nyasar.app.data.db.ActivityPhotoEntity
 import com.nyasar.app.data.db.ActivityPointEntity
 import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.data.db.WaypointEntity
-import com.nyasar.app.data.repository.ActivityPhotoRepository
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.repository.WaypointRepository
 import com.nyasar.app.data.settings.SettingsRepository
@@ -17,7 +14,6 @@ import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.map.TileProvider
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.navigation.ElevationStats
-import java.io.File
 import com.nyasar.app.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,30 +77,11 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
     private val waypointRepository = WaypointRepository(app)
     private val routeRepository = RouteRepository(app)
     private val settingsRepository = SettingsRepository(app)
-    private val photoRepository = ActivityPhotoRepository(app)
 
     private val _uiState = MutableStateFlow(ActivityDetailUiState())
     val uiState: StateFlow<ActivityDetailUiState> = _uiState.asStateFlow()
 
-    // P3H: own StateFlow, observed independently of the one-shot `load()`
-    // above (which re-queries route/track/waypoints — unnecessary work on
-    // every photo add/delete). See ActivityPhotoDao.observeForActivity.
-    private val _photos = MutableStateFlow<List<ActivityPhotoEntity>>(emptyList())
-    val photos: StateFlow<List<ActivityPhotoEntity>> = _photos.asStateFlow()
-
-    // load() is already re-invoked after every waypoint edit/delete (see
-    // ActivityDetailScreen) to refresh waypointsDuringActivity — guarding
-    // here stops that same re-invocation from stacking up a fresh
-    // photoRepository.observeForActivity collector each time.
-    private var photosObservedFor: String? = null
-
     fun load(activityId: String) {
-        if (photosObservedFor != activityId) {
-            photosObservedFor = activityId
-            viewModelScope.launch {
-                photoRepository.observeForActivity(activityId).collect { _photos.value = it }
-            }
-        }
         viewModelScope.launch {
             _uiState.value = ActivityDetailUiState(loadState = DetailLoadState.LOADING)
             try {
@@ -216,10 +193,6 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
     fun delete(onDeleted: () -> Unit) {
         val activity = _uiState.value.activity ?: return
         viewModelScope.launch {
-            // P3H spec §21: photo files + associations must go with the
-            // activity, not linger as orphans — done before the points/row
-            // delete below, mirroring the existing points-then-row order.
-            photoRepository.deleteAllForActivity(activity.id)
             // v7: waypoints linked to this activity are unlinked (kept as
             // independent) — deleting an activity must not destroy the
             // user's own pins.
@@ -234,69 +207,6 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // --- P3H: Activity Photos ---
-
-    /** Step 1 of Take Photo — must resolve before the camera intent can be
-     *  launched (it needs a destination Uri up front). Suspend, not a plain
-     *  return, since it touches Room (sortOrder) and storage (mkdirs) —
-     *  called from a coroutine in the screen via a callback below. */
-    suspend fun prepareCameraCapture(activityId: String) = photoRepository.prepareCameraCaptureTarget(activityId)
-
-    // P3I audit fix (§16/§22): all four photo operations below previously
-    // called the repository directly inside viewModelScope.launch with no
-    // try/catch. A Room insert failure or file I/O error (disk full — the
-    // exact scenario spec §16 requires graceful handling for) would throw
-    // uncaught inside that coroutine and crash the app, rather than
-    // surfacing a clear error as spec §16 requires. Each call is now
-    // wrapped, with the failure exposed via [photoError] (one-shot —
-    // consumed and cleared by the screen, see clearPhotoError) so the UI
-    // can show it as a Toast instead of the app silently going down.
-    private val _photoError = MutableStateFlow<String?>(null)
-    val photoError: StateFlow<String?> = _photoError.asStateFlow()
-
-    fun clearPhotoError() { _photoError.value = null }
-
-    fun confirmCameraCapture(activityId: String, file: File) {
-        viewModelScope.launch {
-            try {
-                photoRepository.confirmCameraCapture(activityId, file)
-            } catch (e: Exception) {
-                _photoError.value = getApplication<android.app.Application>().getString(R.string.error_saving_photo)
-            }
-        }
-    }
-
-    fun discardCameraCapture(file: File) {
-        viewModelScope.launch {
-            try {
-                photoRepository.discardCameraCapture(file)
-            } catch (e: Exception) {
-                // Best-effort cleanup of an already-cancelled capture —
-                // nothing meaningful to surface to the user if this fails,
-                // the file was never in the DB either way.
-            }
-        }
-    }
-
-    fun addPhotosFromGallery(activityId: String, uris: List<Uri>) {
-        viewModelScope.launch {
-            try {
-                photoRepository.addFromGallery(activityId, uris)
-            } catch (e: Exception) {
-                _photoError.value = getApplication<android.app.Application>().getString(R.string.error_adding_photo)
-            }
-        }
-    }
-
-    fun deletePhoto(photo: ActivityPhotoEntity) {
-        viewModelScope.launch {
-            try {
-                photoRepository.delete(photo)
-            } catch (e: Exception) {
-                _photoError.value = getApplication<android.app.Application>().getString(R.string.error_deleting_photo)
-            }
-        }
-    }
 }
 
 private fun ActivityPointEntity.toTrackPoint() = TrackPoint(

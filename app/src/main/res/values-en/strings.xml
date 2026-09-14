@@ -163,7 +163,6 @@
     <!-- Permissions -->
     <string name="permission_location">Location permission is needed to show your position on the map.</string>
     <string name="permission_notification">Notification permission is needed to show recording status.</string>
-    <string name="permission_camera">Camera permission is needed to take photos.</string>
 
     <!-- Share -->
     <string name="share_activity">Share Activity</string>
@@ -206,13 +205,7 @@
 
 
     <!-- Post Recording additional -->
-    <string name="add_photo">Add Photo</string>
     <string name="statistics">Statistics</string>
-    <string name="photos">Photos</string>
-    <string name="delete_photo">Delete photo?</string>
-    <string name="delete_photo_message">This photo will be deleted from Activity. Original photo in Gallery is not affected.</string>
-    <string name="take_photo">Take Photo</string>
-    <string name="choose_from_gallery">Choose from Gallery</string>
 
     <!-- Activity Detail additional -->
     <string name="rename">Rename</string>
@@ -267,9 +260,6 @@
 
     <!-- Navigation additional -->
     <string name="next_waypoint">Next waypoint</string>
-
-    <!-- Activity Photos -->
-    <string name="add_photo_btn">Add Photo</string>
 
     <!-- Start Activity -->
     <string name="start_nav">START NAVIGATION</string>
@@ -440,12 +430,6 @@
     <string name="stat_lowest_point">Lowest point</string>
     <string name="stat_gps_points">GPS points</string>
 
-    <!-- Photos additional -->
-    <string name="close_cd">Close</string>
-    <string name="error_saving_photo">Failed to save photo</string>
-    <string name="error_adding_photo">Failed to add photo</string>
-    <string name="error_deleting_photo">Failed to delete photo</string>
-
     <!-- Waypoint additional -->
     <string name="elevation_label">Elevation</string>
     <string name="distance_from_you">Distance from you</string>
@@ -494,10 +478,6 @@
     <!-- Post Recording -->
     <string name="activity_title_format">Activity %s</string>
     <string name="discard_cd">Discard</string>
-    <string name="no_photos_yet">No photos yet</string>
-    <string name="photo_number">Photo %d</string>
-    <string name="added_on">Added: %s</string>
-    <string name="delete_cd">Delete</string>
 
     <!-- Sport Filter -->
     <string name="filter_by_sport">Filter by Sport</string>
@@ -518,9 +498,6 @@
 
     <!-- Download -->
     <string name="download_failed">Download failed: %s</string>
-
-    <!-- Photos -->
-    <string name="no_photos_yet_detail">No photos yet.</string>
 
     <!-- Empty states (friendly, icon + title + CTA) -->
     <string name="empty_routes_title">No routes yet</string>

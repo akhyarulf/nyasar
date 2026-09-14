@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [RouteEntity::class, ActivityEntity::class, ActivityPointEntity::class, WaypointEntity::class, ActivityPhotoEntity::class],
-    version = 7,
+    entities = [RouteEntity::class, ActivityEntity::class, ActivityPointEntity::class, WaypointEntity::class],
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -17,7 +17,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun routeDao(): RouteDao
     abstract fun activityDao(): ActivityDao
     abstract fun waypointDao(): WaypointDao
-    abstract fun activityPhotoDao(): ActivityPhotoDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -46,6 +45,43 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v7 -> v8 (photo feature removal): the activity_photos table is
+         * dropped — the photo feature itself was removed from the app
+         * entirely. Explicit [Migration], NOT destructive: dropping only
+         * the photo table keeps routes/activities/points/waypoints
+         * (real accumulated user data) fully intact. The photo FILES under
+         * files/activity_photos/ are cleaned up once at first DB get()
+         * (see cleanupLegacyPhotoFiles) so they don't linger as invisible
+         * dead weight; app-private files, no other consumer exists.
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS activity_photos")
+            }
+        }
+
+        /** One-time cleanup of pre-removal photo files. Idempotent and
+         *  cheap when the directory doesn't exist (deleteRecursively on a
+         *  missing File is a no-op returning false). Runs on the first
+         *  get() after app start; guarded by a @Volatile flag so repeated
+         *  get() calls (every repository) don't re-scan the dir. */
+        @Volatile private var legacyPhotoFilesCleaned = false
+
+        private fun cleanupLegacyPhotoFiles(context: Context) {
+            if (legacyPhotoFilesCleaned) return
+            synchronized(this) {
+                if (legacyPhotoFilesCleaned) return
+                try {
+                    java.io.File(context.filesDir, "activity_photos").deleteRecursively()
+                } catch (_: Exception) {
+                    // Best-effort: leftover files are invisible to the user
+                    // and harmless; never block DB startup on this.
+                }
+                legacyPhotoFilesCleaned = true
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -62,11 +98,16 @@ abstract class AppDatabase : RoomDatabase() {
                     // Still pre-release, so destructive migration remains
                     // acceptable for these oldest versions — same reasoning
                     // as the v1->v2 comment. From v6 on, user waypoint data
-                    // is real accumulated content: v6 -> v7 is an explicit
-                    // Migration (see MIGRATION_6_7).
+                    // is real accumulated content: v6 -> v7 was an explicit
+                    // Migration (see MIGRATION_6_7); v7 -> v8 drops the
+                    // photo table via explicit Migration (see MIGRATION_7_8)
+                    // — also non-destructive to the rest of the data.
                     .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
-                    .addMigrations(MIGRATION_6_7)
-                    .build().also { instance = it }
+                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8)
+                    .build().also {
+                        instance = it
+                        cleanupLegacyPhotoFiles(context)
+                    }
             }
     }
 }

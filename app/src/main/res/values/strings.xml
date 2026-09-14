@@ -163,7 +163,6 @@
     <!-- Permissions -->
     <string name="permission_location">Izin lokasi diperlukan untuk menampilkan posisi Anda di peta.</string>
     <string name="permission_notification">Izin notifikasi diperlukan untuk menampilkan status recording.</string>
-    <string name="permission_camera">Izin kamera diperlukan untuk mengambil foto.</string>
 
     <!-- Share -->
     <string name="share_activity">Bagikan Aktivitas</string>
@@ -208,13 +207,7 @@
     <string name="cancel_btn">BATAL</string>
 
     <!-- Post Recording additional -->
-    <string name="add_photo">Tambah Foto</string>
     <string name="statistics">Statistik</string>
-    <string name="photos">Foto</string>
-    <string name="delete_photo">Hapus foto?</string>
-    <string name="delete_photo_message">Foto ini akan dihapus dari Activity. Foto asli di Gallery tidak terpengaruh.</string>
-    <string name="take_photo">Ambil Foto</string>
-    <string name="choose_from_gallery">Pilih dari Galeri</string>
 
     <!-- Activity Detail additional -->
     <string name="rename">Ganti nama</string>
@@ -269,9 +262,6 @@
 
     <!-- Navigation additional -->
     <string name="next_waypoint">Waypoint berikutnya</string>
-
-    <!-- Activity Photos -->
-    <string name="add_photo_btn">Tambah Foto</string>
 
     <!-- Start Activity -->
     <string name="start_nav">MULAI NAVIGASI</string>
@@ -427,7 +417,6 @@
     <string name="offline_missing_key">Peta ini butuh kunci MapTiler gratis. Isi MAPTILER_API_KEY di build, atau pilih peta vector Liberty Topo (tanpa kunci).</string>
     <string name="offline_already_downloaded">Area ini sudah terunduh untuk peta yang dipilih — tidak perlu unduh ulang.</string>
     <string name="offline_already_downloaded_short">Sudah Terunduh</string>
-    <string name="camera_storage_error">Tidak bisa membuka kamera — penyimpanan bermasalah</string>
     <string name="route_planned">Rencana rute</string>
     <string name="track_actual">Jejak aktual</string>
     <string name="stat_distance">Jarak</string>
@@ -439,12 +428,6 @@
     <string name="stat_highest_point">Puncak</string>
     <string name="stat_lowest_point">Titik terendah</string>
     <string name="stat_gps_points">Titik GPS</string>
-
-    <!-- Photos additional -->
-    <string name="close_cd">Tutup</string>
-    <string name="error_saving_photo">Gagal menyimpan foto</string>
-    <string name="error_adding_photo">Gagal menambahkan foto</string>
-    <string name="error_deleting_photo">Gagal menghapus foto</string>
 
     <!-- Waypoint additional -->
     <string name="elevation_label">Elevasi</string>
@@ -494,10 +477,6 @@
     <!-- Post Recording -->
     <string name="activity_title_format">Aktivitas %s</string>
     <string name="discard_cd">Buang</string>
-    <string name="no_photos_yet">Belum ada foto</string>
-    <string name="photo_number">Foto %d</string>
-    <string name="added_on">Ditambahkan: %s</string>
-    <string name="delete_cd">Hapus</string>
 
     <!-- Sport Filter -->
     <string name="filter_by_sport">Filter Olahraga</string>
@@ -518,9 +497,6 @@
 
     <!-- Download -->
     <string name="download_failed">Gagal mengunduh: %s</string>
-
-    <!-- Photos -->
-    <string name="no_photos_yet_detail">Belum ada foto.</string>
 
     <!-- Empty states (friendly, icon + title + CTA) -->
     <string name="empty_routes_title">Belum ada route</string>

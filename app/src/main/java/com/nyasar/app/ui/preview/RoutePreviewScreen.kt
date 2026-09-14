@@ -65,7 +65,7 @@ import kotlin.math.roundToInt
  *   icon per the project's own Recording-stats convention) OR tapping
  *   anywhere on the collapsed map opens FULL-SCREEN MAP MODE. Full-screen
  *   is a separate full-size overlay Box (the established project pattern
- *   for over-the-page viewers: WaypointCrosshairScreen, PhotoViewer) that
+ *   for over-the-page viewers: WaypointCrosshairScreen) that
  *   re-hosts the same map state with the SAME control set, plus the
  *   floating elevation card ("ketika map penuh baru terlihat elevasinya").
  *   It closes via its own back arrow or the system back gesture
@@ -449,8 +449,7 @@ fun RoutePreviewScreen(
 
     // ===================== FULL-SCREEN MAP MODE OVERLAY =====================
     // Drawn AFTER (so ON TOP of) the whole collapsed layout when active —
-    // the same in-place overlay pattern as WaypointCrosshairScreen and the
-    // photo viewer. Reuses the identical map state (same ViewModel flows,
+    // the same in-place overlay pattern as WaypointCrosshairScreen. Reuses the identical map state (same ViewModel flows,
     // same basemap/overlays/track) and the same control set; adds the
     // floating elevation card. Deliberately omits stat tiles, the waypoint
     // LIST, and Start Navigation — those stay Route-Detail-only (spec).

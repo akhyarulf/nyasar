@@ -160,69 +160,8 @@ fun ActivityDetailScreen(
         .map { it.waypointsVisible }
         .collectAsState(initial = false)
 
-    // --- P3H: Activity Photos ---
-    val photos by viewModel.photos.collectAsState()
-    var showAddPhotoChooser by remember { mutableStateOf(false) }
-    var viewerStartIndex by remember { mutableStateOf<Int?>(null) }
-    // Holds the camera destination between "launch camera" and "camera
-    // returned" — needed in both the success and cancel branches of the
-    // TakePicture callback below (confirm vs. discardCameraCapture).
-    var pendingCameraFile by remember { mutableStateOf<java.io.File?>(null) }
-
-    // P3I audit fix (§16/§22): surfaces confirmCameraCapture/
-    // addPhotosFromGallery/deletePhoto failures as a Toast instead of
-    // leaving viewModel.photoError set with nothing ever reading it.
-    val photoError by viewModel.photoError.collectAsState()
-    LaunchedEffect(photoError) {
-        photoError?.let {
-            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
-            viewModel.clearPhotoError()
-        }
-    }
-
-    val takePictureLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        val file = pendingCameraFile
-        pendingCameraFile = null
-        if (file == null) return@rememberLauncherForActivityResult
-        if (success) {
-            viewModel.confirmCameraCapture(activityId, file)
-        } else {
-            // Spec §2: cancelled capture must not create an empty record —
-            // confirmCameraCapture is simply never called; this only cleans
-            // up whatever placeholder file the camera app may have touched.
-            viewModel.discardCameraCapture(file)
-        }
-    }
-
-    val pickPhotosLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia()
-    ) { uris ->
-        if (uris.isNotEmpty()) viewModel.addPhotosFromGallery(activityId, uris)
-    }
-
-    fun launchCamera() {
-        scope.launch {
-            // P3I audit fix (§16): prepareCameraCapture does file I/O
-            // (mkdirs for the destination) which can fail on a full/
-            // inaccessible disk — same crash risk pattern as the other
-            // photo operations above, fixed the same way.
-            val result = try {
-                viewModel.prepareCameraCapture(activityId)
-            } catch (e: Exception) {
-                android.widget.Toast.makeText(
-                    context,
-                    context.getString(R.string.camera_storage_error),
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-                return@launch
-            }
-            val (file, uri) = result
-            pendingCameraFile = file
-            takePictureLauncher.launch(uri)
-        }
-    }
+    // P3H Activity Photos were removed entirely from the app — no camera
+    // or photo-picker launchers remain here.
 
     // A waypoint edited or deleted from here must also disappear/update in
     // this screen's own waypointsDuringActivity list — that list is a
@@ -324,9 +263,6 @@ fun ActivityDetailScreen(
                                     }
                                 }
                             },
-                            photos = photos,
-                            onAddPhotoClick = { showAddPhotoChooser = true },
-                            onPhotoClick = { index -> viewerStartIndex = index },
                             speedUnit = speedUnit,
                             waypointsVisible = waypointsVisible
                         )
@@ -433,29 +369,6 @@ fun ActivityDetailScreen(
         )
     }
 
-    // --- P3H sheets/dialogs ---
-    if (showAddPhotoChooser) {
-        AddPhotoChooserSheet(
-            onTakePhoto = { launchCamera() },
-            onChooseFromGallery = {
-                pickPhotosLauncher.launch(
-                    androidx.activity.result.PickVisualMediaRequest(
-                        ActivityResultContracts.PickVisualMedia.ImageOnly
-                    )
-                )
-            },
-            onDismiss = { showAddPhotoChooser = false }
-        )
-    }
-
-    viewerStartIndex?.let { index ->
-        FullscreenPhotoViewer(
-            photos = photos,
-            startIndex = index,
-            onDismiss = { viewerStartIndex = null },
-            onDelete = { photo -> viewModel.deletePhoto(photo) }
-        )
-    }
 }
 
 @Composable
@@ -472,9 +385,6 @@ private fun ActivityDetailContent(
     rawPoints: List<com.nyasar.app.data.db.ActivityPointEntity>,
     onWaypointTap: (com.nyasar.app.data.db.WaypointEntity) -> Unit,
     onShareGpx: (ActivityEntity, List<com.nyasar.app.data.db.ActivityPointEntity>, List<com.nyasar.app.data.db.WaypointEntity>) -> Unit,
-    photos: List<com.nyasar.app.data.db.ActivityPhotoEntity>,
-    onAddPhotoClick: () -> Unit,
-    onPhotoClick: (Int) -> Unit,
     speedUnit: String = "kmh",
     waypointsVisible: Boolean = true
 ) {
@@ -608,15 +518,6 @@ private fun ActivityDetailContent(
                 )
             }
 
-            // P3H: Photos section — spec §20 places this after Waypoints,
-            // before Export/Share (Export/Share is the TopAppBar action,
-            // already above; nothing else to reorder here).
-            Spacer(Modifier.height(12.dp))
-            PhotosSection(
-                photos = photos,
-                onAddClick = onAddPhotoClick,
-                onPhotoClick = onPhotoClick
-            )
             Spacer(Modifier.height(80.dp))
         }
     }

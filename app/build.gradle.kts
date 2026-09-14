@@ -142,16 +142,6 @@ dependencies {
     // Navigation between Compose screens
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // P3H: Activity Photos. Coil loads local files (java.io.File) directly
-    // for thumbnails/fullscreen with built-in memory caching + downsampling
-    // — spec §17/18 "jangan decode full-resolution semua foto sekaligus";
-    // no other image-loading library exists in this project yet (audited).
-    implementation("io.coil-kt:coil-compose:2.6.0")
-    // EXIF read-only access (spec §14: timestamp/lat/lon if present) — never
-    // used to write/modify, only androidx.exifinterface.media.ExifInterface's
-    // getters are called anywhere in this codebase.
-    implementation("androidx.exifinterface:exifinterface:1.3.7")
-
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 

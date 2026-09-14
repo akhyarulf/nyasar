@@ -482,47 +482,6 @@ fun RecordingScreen(
     // snapshot — otherwise Save renamed nothing and Discard deleted
     // nothing (silent no-ops against a null id).
     var pendingStopSnapshot by remember { mutableStateOf<RecordingUiState?>(null) }
-    var postRecordingPhotos by remember { mutableStateOf<List<com.nyasar.app.data.db.ActivityPhotoEntity>>(emptyList()) }
-    var showPostRecordingPhotoChooser by remember { mutableStateOf(false) }
-    var pendingPostRecordingCameraFile by remember { mutableStateOf<java.io.File?>(null) }
-    val postRecordingContext = androidx.compose.ui.platform.LocalContext.current
-    val postRecordingScope = rememberCoroutineScope()
-    val postRecordingPhotoRepository = remember {
-        com.nyasar.app.data.repository.ActivityPhotoRepository(postRecordingContext)
-    }
-
-    // Photo launcher for post-recording form
-    val postRecordingTakePictureLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        val file = pendingPostRecordingCameraFile
-        pendingPostRecordingCameraFile = null
-        if (file != null && success) {
-            postRecordingScope.launch {
-                summarySnapshot?.activityId?.let { activityId ->
-                    postRecordingPhotoRepository.confirmCameraCapture(activityId, file)
-                    postRecordingPhotos = postRecordingPhotoRepository.getPhotosForActivity(activityId)
-                }
-            }
-        } else if (file != null) {
-            postRecordingScope.launch {
-                postRecordingPhotoRepository.discardCameraCapture(file)
-            }
-        }
-    }
-
-    val postRecordingPickPhotosLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia()
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            postRecordingScope.launch {
-                summarySnapshot?.activityId?.let { activityId ->
-                    postRecordingPhotoRepository.addFromGallery(activityId, uris)
-                    postRecordingPhotos = postRecordingPhotoRepository.getPhotosForActivity(activityId)
-                }
-            }
-        }
-    }
 
     LaunchedEffect(stopRequested, state.status) {
         if (stopRequested && state.status == RecordingStatus.STOPPED) {
@@ -533,12 +492,6 @@ fun RecordingScreen(
             summarySnapshot = snap
             pendingStopSnapshot = null
             stopRequested = false
-            // Load existing photos (should be empty for new recordings)
-            snap.activityId?.let { activityId ->
-                postRecordingScope.launch {
-                    postRecordingPhotos = postRecordingPhotoRepository.getPhotosForActivity(activityId)
-                }
-            }
         }
     }
 
@@ -1252,13 +1205,12 @@ fun RecordingScreen(
         // and the service has actually finished persisting it (see the
         // stopRequested/summarySnapshot effect above) — replaces the old
         // behavior of exiting the screen immediately on Stop. This form
-        // allows the user to review stats, add photos, and save/discard.
+        // allows the user to review stats and save/discard.
         // "Kembali" does NOT call onExit(): the user stays on this same
         // screen, which is now back to the two-button IDLE state.
         summarySnapshot?.let { summary ->
             PostRecordingForm(
                 summary = summary,
-                photos = postRecordingPhotos,
                 onSave = { title ->
                     viewModel.updateActivityTitle(summary.activityId, title)
                     summarySnapshot = null
@@ -1268,10 +1220,6 @@ fun RecordingScreen(
                     viewModel.discardRecording(summary.activityId)
                     summarySnapshot = null
                     previewRouteId = null
-                },
-                onAddPhoto = { showPostRecordingPhotoChooser = true },
-                onDeletePhoto = { photo ->
-                    viewModel.deletePhotoForPostRecording(photo)
                 },
                 onBack = {
                     summarySnapshot = null

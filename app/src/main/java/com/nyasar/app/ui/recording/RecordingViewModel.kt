@@ -467,19 +467,6 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Delete a photo during post-recording form.
-     */
-    fun deletePhotoForPostRecording(photo: com.nyasar.app.data.db.ActivityPhotoEntity) {
-        viewModelScope.launch {
-            try {
-                com.nyasar.app.data.repository.ActivityPhotoRepository(getApplication()).delete(photo)
-            } catch (e: Exception) {
-                android.util.Log.e("RecordingViewModel", "Failed to delete photo", e)
-            }
-        }
-    }
-
-    /**
      * Part 2 fix (§"SERVICE" — "Jangan menggunakan startForegroundService
      * secara tidak perlu untuk command yang hanya mengontrol service yang
      * sudah berjalan"): PAUSE/RESUME/STOP only make sense once RecordingService

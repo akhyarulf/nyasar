@@ -1,0 +1,72 @@
+name: Build Nyasar APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}   # lets you trigger a build manually from the Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # android-actions/setup-android@v3 removed: it tries to install the
+      # deprecated "tools" package, which Google deleted from the SDK repo
+      # ("Failed to find package 'tools'") and the job died in ~20s. The
+      # ubuntu-latest runner ships a full Android SDK at $ANDROID_SDK_ROOT
+      # with cmdline-tools preinstalled — just accept licenses and build.
+      - name: Accept Android SDK licenses (preinstalled runner SDK)
+        run: yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Write local.properties (MapTiler key from repo secret, if set)
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "MAPTILER_API_KEY=${{ secrets.MAPTILER_API_KEY }}" >> local.properties
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> local.properties
+          echo "SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}" >> local.properties
+          echo "GOOGLE_OAUTH_WEB_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_WEB_CLIENT_ID }}" >> local.properties
+        # If you never add a MAPTILER_API_KEY secret in
+        # Settings -> Secrets and variables -> Actions, this just writes an
+        # empty key. The app still builds and runs fine — TileProviderFactory
+        # falls back to OpenFreeMap automatically since it needs no key.
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Unit tests (JVM)
+        run: gradle testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Print debug keystore SHA-1 (for Google Sign-In OAuth client)
+        run: |
+          keytool -list -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -storepass android -keypass android \
+          | grep -A1 "SHA1:" || true
+        # Copy the SHA1 value this prints into Google Cloud Console ->
+        # Clients -> your ANDROID OAuth client -> SHA-1 certificate
+        # fingerprint. Note: this debug.keystore is auto-generated fresh
+        # on ubuntu-latest runners, so its SHA-1 can change between CI
+        # environments/reinstalls — if Sign-In breaks again after a
+        # runner image update, re-check this value first.
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nyasar-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

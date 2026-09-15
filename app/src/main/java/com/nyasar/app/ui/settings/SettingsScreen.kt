@@ -470,6 +470,7 @@ private fun RadioOption(label: String, selected: Boolean, onSelect: () -> Unit) 
  * description that only CLOUD data dies — Room data on this device stays
  * (explicit product decision, stated verbatim in the dialog).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountManageSheet(
     authViewModel: com.nyasar.app.ui.auth.AuthViewModel,

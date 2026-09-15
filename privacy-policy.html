@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Nyasar</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #222; }
+  h1 { color: #2E5339; }
+  h2 { color: #2E5339; margin-top: 32px; }
+  a { color: #2E5339; }
+  nav { margin-bottom: 24px; }
+</style>
+</head>
+<body>
+<nav><a href="index.html">&larr; Kembali ke Nyasar</a></nav>
+
+<h1>Privacy Policy — Nyasar</h1>
+<p><strong>Terakhir diperbarui:</strong> 15 September 2026</p>
+
+<p>Nyasar ("kami", "aplikasi ini") adalah aplikasi navigasi hiking offline-first. Privacy Policy ini menjelaskan data apa saja yang diakses, disimpan, dan (jika Anda memilih menggunakan fitur akun) dikirim oleh aplikasi, dan bagaimana data tersebut digunakan.</p>
+
+<h2>Data yang Diakses</h2>
+
+<h3>Lokasi (GPS)</h3>
+<p>Nyasar mengakses lokasi perangkat Anda untuk:</p>
+<ul>
+  <li>Menampilkan posisi Anda di peta</li>
+  <li>Merekam rute perjalanan (hiking/aktivitas) yang Anda mulai secara sadar</li>
+  <li>Navigasi mengikuti rute yang sudah direncanakan</li>
+</ul>
+<p>Nyasar meminta izin <strong>lokasi latar belakang</strong> (background location) khusus agar perekaman rute (GPS tracking) tetap berjalan akurat saat layar mati atau aplikasi diminimalkan selama sesi aktivitas yang sedang Anda rekam — misalnya saat HP disimpan di kantong saat hiking. Lokasi latar belakang HANYA aktif selama Anda sedang merekam aktivitas; aplikasi menampilkan notifikasi yang terlihat jelas (foreground service) selama proses ini berlangsung, sesuai kebijakan Android.</p>
+<p><strong>Secara default, data lokasi ini disimpan HANYA secara lokal di perangkat Anda</strong> (database internal aplikasi) dan tidak dikirim ke server manapun, kecuali Anda secara sadar menggunakan fitur akun dan memilih membagikan (publish) sebuah rute — lihat bagian "Akun & Fitur Berbagi Rute" di bawah.</p>
+
+<h3>File GPX (Import/Export Rute)</h3>
+<p>Saat Anda mengimpor file GPX, Nyasar menggunakan pemilih file (file picker) bawaan sistem Android. Anda memilih sendiri file mana yang diakses; aplikasi tidak memiliki akses ke file lain di penyimpanan perangkat Anda di luar file yang Anda pilih secara eksplisit tersebut.</p>
+
+<h3>Foto</h3>
+<p>Nyasar tidak lagi mendukung penyimpanan foto pada waypoint/aktivitas.</p>
+
+<h3>Notifikasi</h3>
+<p>Nyasar meminta izin notifikasi untuk menampilkan status perekaman aktivitas yang sedang berjalan (misalnya progress GPS recording di latar belakang). Notifikasi ini bersifat lokal dan tidak melibatkan pengiriman data ke server.</p>
+
+<h2>Akun & Fitur Berbagi Rute (Opsional)</h2>
+<p>Nyasar menyediakan fitur akun opsional. Anda tidak wajib membuat akun untuk menggunakan fitur inti aplikasi (rekam GPS, import/export GPX, navigasi offline). Jika Anda memilih membuat akun, berlaku hal berikut:</p>
+
+<h3>Pendaftaran & Login</h3>
+<p>Anda dapat mendaftar/login menggunakan email &amp; kata sandi, atau menggunakan Login Google. Jika menggunakan Login Google, Google akan membagikan nama, alamat email, dan foto profil Anda kepada kami sesuai izin yang Anda setujui di layar pilihan akun Google. Data akun (email, username, dan status akun) disimpan pada penyedia backend kami, Supabase, yang bertindak sebagai pemroses data atas nama kami.</p>
+
+<h3>Backup Pribadi</h3>
+<p>Jika Anda mengaktifkan fitur backup, data aktivitas hiking Anda (rute, titik GPS, waypoint) diunggah dan disimpan di akun Supabase Anda sendiri, terenkripsi dalam transit (HTTPS), dan hanya dapat diakses menggunakan akun Anda sendiri.</p>
+
+<h3>Berbagi Rute Publik (Publish Route)</h3>
+<p>Jika Anda secara sadar menggunakan fitur "Publish Route" untuk membagikan sebuah rute ke publik, informasi berikut menjadi dapat diakses publik (termasuk oleh orang yang tidak menggunakan aplikasi Nyasar):</p>
+<ul>
+  <li>Nama gunung/lokasi, region, tingkat kesulitan, dan catatan yang Anda tulis untuk rute tersebut</li>
+  <li>File GPX asli dari rute tersebut (dapat diunduh oleh siapa saja melalui tautan publik)</li>
+</ul>
+<p>Rute yang belum Anda publish tetap bersifat pribadi.</p>
+
+<h3>Penghapusan Akun</h3>
+<p>Anda dapat menghapus akun Anda kapan saja melalui menu di dalam aplikasi. Penghapusan akun akan menghapus data akun dan data backup pribadi Anda dari server kami. Rute yang sudah Anda publish ke publik perlu dihapus secara terpisah sebelum atau saat menghapus akun, jika Anda tidak ingin rute tersebut tetap dapat diakses publik.</p>
+
+<h2>Layanan Pihak Ketiga (Peta)</h2>
+<p>Untuk menampilkan peta, Nyasar mengambil data ubin peta (map tiles) dari penyedia pihak ketiga berikut, tergantung jenis peta yang Anda pilih:</p>
+<ul>
+  <li>OpenStreetMap (tile.openstreetmap.org)</li>
+  <li>OpenTopoMap (tile.opentopomap.org)</li>
+  <li>OpenFreeMap (tiles.openfreemap.org)</li>
+  <li>CyclOSM (tile-cyclosm.openstreetmap.fr)</li>
+  <li>openmaps.fr (OpenHikingMap)</li>
+  <li>MapTiler (api.maptiler.com) — untuk beberapa jenis peta topografi/satelit</li>
+  <li>Waymarked Trails (tile.waymarkedtrails.org) — untuk overlay jalur hiking/cycling/MTB</li>
+  <li>UtagawaVTT (maps.utagawavtt.com)</li>
+</ul>
+<p>Saat aplikasi menampilkan peta, perangkat Anda melakukan permintaan langsung ke server-server tersebut untuk mengunduh gambar peta pada area yang sedang Anda lihat. Seperti permintaan internet pada umumnya, ini berarti alamat IP perangkat Anda diketahui oleh penyedia peta tersebut selama proses pengambilan data. Kami tidak menambahkan pelacakan tambahan di luar apa yang secara teknis diperlukan untuk memuat peta, dan kami sendiri tidak menerima atau menyimpan data ini.</p>
+<p>Kami menyarankan Anda meninjau kebijakan privasi masing-masing penyedia jika Anda ingin detail lebih lanjut mengenai bagaimana mereka menangani permintaan tile peta.</p>
+
+<h2>Login Google</h2>
+<p>Jika Anda memilih Login Google, proses autentikasi ditangani oleh Google melalui Android Credential Manager. Kami menerima token identitas dari Google yang kemudian ditukar dengan sesi login melalui Supabase; kami tidak pernah melihat atau menyimpan kata sandi akun Google Anda. Informasi lebih lanjut tersedia di <a href="https://policies.google.com/privacy" target="_blank">Kebijakan Privasi Google</a>.</p>
+
+<h2>Pelaporan Crash (Firebase Crashlytics)</h2>
+<p>Nyasar menggunakan Firebase Crashlytics untuk membantu kami mendeteksi dan memperbaiki error/crash pada aplikasi. Jika aplikasi mengalami crash, informasi teknis berikut dikirim secara otomatis ke Firebase (layanan Google):</p>
+<ul>
+  <li>Detail teknis crash (baris kode, jenis error, stack trace)</li>
+  <li>Informasi perangkat (model HP, versi Android)</li>
+  <li>Versi aplikasi yang digunakan</li>
+</ul>
+<p>Data ini <strong>tidak mencakup data pribadi</strong> seperti lokasi GPS, rute perjalanan, atau isi akun Anda — Crashlytics hanya mengumpulkan informasi teknis yang diperlukan untuk mendiagnosis dan memperbaiki bug. Data ini digunakan semata-mata untuk meningkatkan stabilitas aplikasi.</p>
+<p>Informasi lebih lanjut tersedia di <a href="https://firebase.google.com/support/privacy" target="_blank">Kebijakan Privasi Firebase</a>.</p>
+
+<h2>Penyimpanan Data — Ringkasan</h2>
+<table style="width:100%; border-collapse: collapse; margin-top: 12px;">
+  <tr style="background:#f0f0f0;"><th style="text-align:left; padding:8px; border:1px solid #ddd;">Jenis Data</th><th style="text-align:left; padding:8px; border:1px solid #ddd;">Lokasi Penyimpanan</th></tr>
+  <tr><td style="padding:8px; border:1px solid #ddd;">Rute, aktivitas, waypoint (tanpa akun)</td><td style="padding:8px; border:1px solid #ddd;">Lokal di perangkat Anda saja</td></tr>
+  <tr><td style="padding:8px; border:1px solid #ddd;">Akun (email, username)</td><td style="padding:8px; border:1px solid #ddd;">Supabase (jika Anda membuat akun)</td></tr>
+  <tr><td style="padding:8px; border:1px solid #ddd;">Backup pribadi</td><td style="padding:8px; border:1px solid #ddd;">Supabase, milik akun Anda sendiri</td></tr>
+  <tr><td style="padding:8px; border:1px solid #ddd;">Rute yang di-publish</td><td style="padding:8px; border:1px solid #ddd;">Supabase, dapat diakses publik</td></tr>
+  <tr><td style="padding:8px; border:1px solid #ddd;">Data crash teknis</td><td style="padding:8px; border:1px solid #ddd;">Firebase Crashlytics</td></tr>
+</table>
+
+<h2>Hak Anda</h2>
+<ul>
+  <li>Anda dapat menghapus seluruh data lokal kapan saja melalui Pengaturan HP → Aplikasi → Nyasar → Hapus Data, atau uninstall aplikasi.</li>
+  <li>Anda dapat menghapus akun dan data server Anda kapan saja melalui menu Hapus Akun di dalam aplikasi.</li>
+  <li>Anda dapat menghapus atau membatalkan publikasi rute yang sudah Anda bagikan ke publik kapan saja.</li>
+</ul>
+
+<h2>Kontak</h2>
+<p>Jika Anda memiliki pertanyaan mengenai Privacy Policy ini, hubungi: <a href="mailto:akhyarul.fuqoha@gmail.com">akhyarul.fuqoha@gmail.com</a></p>
+
+</body>
+</html>

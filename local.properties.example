@@ -6,5 +6,8 @@ MAPTILER_API_KEY=your_maptiler_key_here
 
 # Supabase project (Project Settings -> API). Publishable key only —
 # never put the secret key here.
-SUPABASE_URL=https://your-project-ref.supabase.co
+# Login Google: the WEB client id from Google Cloud Console (the same id
+# registered in Supabase Dashboard -> Auth -> Providers -> Google). Leave
+# empty and the Google button simply does not appear in the app.
+GOOGLE_OAUTH_WEB_CLIENT_ID=https://your-project-ref.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key_here

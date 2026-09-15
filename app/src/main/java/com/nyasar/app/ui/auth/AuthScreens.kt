@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -33,6 +35,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,10 +47,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -56,10 +61,18 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nyasar.app.BuildConfig
 import com.nyasar.app.R
 import com.nyasar.app.ui.components.AnimatedScreen
 import com.nyasar.app.ui.theme.NyasarContentWidth
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialException
+import androidx.credentials.GetCredentialRequest
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Phase 1 account screens: Login, Register, and the non-skippable
@@ -138,6 +151,48 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(stringResource(R.string.auth_no_account_yet))
+        }
+
+        // Login Google — offered only when the WEB client id is injected via
+        // local.properties (BuildConfig). Credential Manager (Google Play
+        // services) returns a Google ID token; gotrue-kt exchanges it for a
+        // session via signInWith(IDToken). Outcome surfaces in the same
+        // login form state / sessionStatus flow as email sign-in.
+        if (BuildConfig.GOOGLE_OAUTH_WEB_CLIENT_ID.isNotBlank()) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        try {
+                            val option = GetGoogleIdOption.Builder()
+                                .setServerClientId(BuildConfig.GOOGLE_OAUTH_WEB_CLIENT_ID)
+                                .setFilterByAuthorizedAccounts(false)
+                                .build()
+                            val request = GetCredentialRequest.Builder()
+                                .addCredentialOption(option)
+                                .build()
+                            val credential = CredentialManager.create(context)
+                                .getCredential(context, request).credential
+                            googleIdTokenOf(credential)?.let(viewModel::signInWithGoogle)
+                        } catch (e: GetCredentialException) {
+                            // user cancelled / no Google account on device —
+                            // silently ignore, standard Credential-Manager UX
+                        }
+                    }
+                },
+                enabled = !form.busy,
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Icon(
+                    Icons.Default.Login,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.auth_google_cta))
+            }
         }
     }
 }
@@ -491,3 +546,16 @@ private fun SuccessBanner(text: String) {
         )
     }
 }
+
+/**
+ * Extracts the Google ID token from a Credential Manager result, or null
+ * when the credential is not a Google ID token (defensive — the request was
+ * built with GetGoogleIdOption, but third-party credential providers can
+ * technically answer a federated request too).
+ */
+fun googleIdTokenOf(credential: androidx.credentials.Credential): String? =
+    if (credential is CustomCredential &&
+        credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+    ) {
+        GoogleIdTokenCredential.createFrom(credential.data).idToken
+    } else null

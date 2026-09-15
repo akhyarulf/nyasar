@@ -89,6 +89,34 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         val errorRes: Int? = null
     )
 
+    /**
+     * State for the account-management actions (change password, change
+     * email, delete account) — one flow, sealed by flags instead of a
+     * boolean-per-screen sprawl. Success flags are one-shot and consumed
+     * via [clearAccountAction] when their UI (sheet/dialog) closes.
+     */
+    data class AccountActionState(
+        val busy: Boolean = false,
+        val errorRes: Int? = null,
+        /** Password change succeeded. */
+        val passwordChanged: Boolean = false,
+        /** Email change applied immediately (no confirmation needed). */
+        val emailChanged: Boolean = false,
+        /** Email change staged by Supabase — confirmation link sent to
+         *  this NEW address; the UI must say "check your inbox", not
+         *  "email changed" (project requires email confirmation). */
+        val emailConfirmationRequired: String? = null,
+        /** Account deletion succeeded — session ends right after. */
+        val accountDeleted: Boolean = false
+    )
+
+    private val _accountAction = MutableStateFlow(AccountActionState())
+    val accountAction: StateFlow<AccountActionState> = _accountAction.asStateFlow()
+
+    /** Google button is only offered when the WEB client id is injected. */
+    val googleConfigured: Boolean
+        get() = com.nyasar.app.BuildConfig.GOOGLE_OAUTH_WEB_CLIENT_ID.isNotBlank()
+
     private val _sessionState = MutableStateFlow<SessionState>(
         if (SupabaseClientProvider.isConfigured) SessionState.Restoring
         else SessionState.Unconfigured
@@ -266,6 +294,104 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 is AuthRepository.Outcome.Failure -> {
                     _usernameForm.value = _usernameForm.value.copy(busy = false, errorRes = r.error.messageRes())
+                }
+            }
+        }
+    }
+
+    // --- account management (Phase 1: password / email / delete) ---
+
+    /** Resets the one-shot success/error display of [accountAction]. */
+    fun clearAccountAction() {
+        _accountAction.value = AccountActionState()
+    }
+
+    /**
+     * Change password with a re-authentication gate: the CURRENT password
+     * is verified first (fresh signInWith), then the new one is applied.
+     * Same 6-char minimum as the signUp flow — one shared rule.
+     */
+    fun changePassword(currentPassword: String, newPassword: String) {
+        if (_accountAction.value.busy) return
+        _accountAction.value = AccountActionState(busy = true)
+        viewModelScope.launch {
+            val reauth = repo.reauthenticateWithPassword(currentPassword)
+            if (reauth is AuthRepository.Outcome.Failure) {
+                _accountAction.value = AccountActionState(errorRes = reauth.error.messageRes())
+                return@launch
+            }
+            when (val r = repo.updatePassword(newPassword)) {
+                is AuthRepository.Outcome.Success ->
+                    _accountAction.value = AccountActionState(passwordChanged = true)
+                is AuthRepository.Outcome.Failure ->
+                    _accountAction.value = AccountActionState(errorRes = r.error.messageRes())
+            }
+        }
+    }
+
+    /**
+     * Change email with the same re-authentication gate. The result is
+     * honest about staging: when the project requires email confirmation
+     * (it does), the user sees "check your NEW inbox", never an instant
+     * "email changed" claim.
+     */
+    fun changeEmail(currentPassword: String, newEmail: String) {
+        if (_accountAction.value.busy) return
+        _accountAction.value = AccountActionState(busy = true)
+        viewModelScope.launch {
+            val reauth = repo.reauthenticateWithPassword(currentPassword)
+            if (reauth is AuthRepository.Outcome.Failure) {
+                _accountAction.value = AccountActionState(errorRes = reauth.error.messageRes())
+                return@launch
+            }
+            when (val r = repo.updateEmail(newEmail.trim())) {
+                is AuthRepository.EmailUpdate.Applied ->
+                    _accountAction.value = AccountActionState(emailChanged = true)
+                is AuthRepository.EmailUpdate.ConfirmationRequired ->
+                    _accountAction.value = AccountActionState(emailConfirmationRequired = r.newEmail)
+                is AuthRepository.EmailUpdate.Failure ->
+                    _accountAction.value = AccountActionState(errorRes = r.error.messageRes())
+            }
+        }
+    }
+
+    /**
+     * Delete the account (SECURITY DEFINER RPC delete_own_account, see
+     * supabase/migrations/0002_*.sql). Only cloud data dies — Room data on
+     * this device is deliberately kept (explicit product decision, stated
+     * in the confirmation dialog). The sessionStatus collector flips the
+     * app to SignedOut as soon as the local session is cleared.
+     */
+    fun deleteAccount() {
+        if (_accountAction.value.busy) return
+        _accountAction.value = AccountActionState(busy = true)
+        viewModelScope.launch {
+            when (val r = repo.deleteAccount()) {
+                is AuthRepository.Outcome.Success ->
+                    _accountAction.value = AccountActionState(accountDeleted = true)
+                is AuthRepository.Outcome.Failure ->
+                    _accountAction.value = AccountActionState(errorRes = r.error.messageRes())
+            }
+        }
+    }
+
+    /**
+     * Finish Google login: exchange the Credential-Manager ID token for a
+     * Supabase session. Success is observed through sessionStatus (same as
+     * email sign-in); failures land on the login form error slot.
+     */
+    fun signInWithGoogle(idToken: String) {
+        if (_loginForm.value.busy) return
+        _loginForm.value = FormState(busy = true)
+        viewModelScope.launch {
+            when (val r = repo.signInWithGoogle(idToken)) {
+                is AuthRepository.Outcome.Success -> {
+                    // sessionStatus collector flips state to SignedIn /
+                    // NeedsUsername (fresh Google user → username gate).
+                    _loginForm.value = FormState()
+                }
+                is AuthRepository.Outcome.Failure -> {
+                    _loginForm.value = FormState(busy = false, errorRes = r.error.messageRes())
                 }
             }
         }

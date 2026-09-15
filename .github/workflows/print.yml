@@ -52,11 +52,17 @@ jobs:
 
       - name: Print debug keystore SHA-1 (for Google Sign-In OAuth client)
         run: |
+          echo "Looking for debug.keystore..."
+          KEYSTORE_PATH=$(find "$HOME" / -iname "debug.keystore" 2>/dev/null | head -n 1)
+          if [ -z "$KEYSTORE_PATH" ]; then
+            echo "::error::debug.keystore not found anywhere on the runner. It should exist after 'gradle assembleDebug' ran."
+            exit 0
+          fi
+          echo "Found keystore at: $KEYSTORE_PATH"
           keytool -list -v \
-            -keystore ~/.android/debug.keystore \
+            -keystore "$KEYSTORE_PATH" \
             -alias androiddebugkey \
-            -storepass android -keypass android \
-          | grep -A1 "SHA1:" || true
+            -storepass android -keypass android
         # Copy the SHA1 value this prints into Google Cloud Console ->
         # Clients -> your ANDROID OAuth client -> SHA-1 certificate
         # fingerprint. Note: this debug.keystore is auto-generated fresh

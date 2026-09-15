@@ -606,4 +606,35 @@
     <string name="account_delete_rpc_missing">Fitur hapus akun belum aktif — migrasi database server belum dijalankan</string>
     <string name="account_delete_confirm_word">HAPUS</string>
     <string name="account_close">Tutup</string>
+
+    <!-- Publikasikan rute (Fase 2) -->
+    <string name="publish_route">Publikasikan rute</string>
+    <string name="publish_title">Publikasikan Rute</string>
+    <string name="publish_name_label">Nama rute</string>
+    <string name="publish_mountain_label">Nama gunung (opsional)</string>
+    <string name="publish_region_label">Wilayah (opsional)</string>
+    <string name="publish_difficulty_label">Tingkat kesulitan</string>
+    <string name="publish_difficulty_desc_label">Catatan kesulitan (opsional)</string>
+    <string name="publish_privacy_note">Titik GPS mentah tidak pernah dikirim — hanya di HP kamu.</string>
+    <string name="publish_difficulty_none">Belum dinilai</string>
+    <string name="publish_difficulty_easy">Mudah</string>
+    <string name="publish_difficulty_moderate">Sedang</string>
+    <string name="publish_difficulty_difficult">Sulit</string>
+    <string name="publish_difficulty_very_difficult">Sangat sulit</string>
+    <string name="publish_trail_type_label">Jenis jalur</string>
+    <string name="publish_trail_none">Tidak ditentukan</string>
+    <string name="publish_trail_loop">Lingkar</string>
+    <string name="publish_trail_out_and_back">Pulang-pergi</string>
+    <string name="publish_trail_point_to_point">Titik ke titik</string>
+    <string name="publish_desc_label">Deskripsi (opsional)</string>
+    <string name="publish_points_line">Yang dipublikasikan: ringkasan jalur + GPX lengkap (terkompresi) dari %1$s titik GPS. Titik mentah TIDAK pernah dikirim.</string>
+    <string name="publish_waypoints_line">%1$d waypoint juga ikut dipublikasikan.</string>
+    <string name="publish_cta">Publikasikan</string>
+    <string name="publish_success">Rute dipublikasikan! Siapa pun kini bisa melihat &amp; mengunduh GPX-nya.</string>
+    <string name="publish_error_not_signed_in">Masuk akun dulu untuk publikasi rute</string>
+    <string name="publish_error_empty_track">Tidak ada titik GPS untuk dipublikasikan</string>
+    <string name="publish_error_insert">Server menolak rute ini — coba lagi</string>
+    <string name="publish_error_upload">Upload GPX gagal — cek koneksi lalu coba lagi</string>
+    <string name="publish_error_network">Koneksi bermasalah — cek internet lalu coba lagi</string>
+    <string name="publish_error_generic">Gagal mempublikasikan — coba lagi</string>
 </resources>

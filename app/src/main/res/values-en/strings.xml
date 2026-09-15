@@ -419,7 +419,6 @@
     <string name="offline_missing_key">This map needs a free MapTiler key. Set MAPTILER_API_KEY in the build, or pick the keyless Liberty Topo vector map.</string>
     <string name="offline_already_downloaded">This area is already downloaded for the selected map — no need to download again.</string>
     <string name="offline_already_downloaded_short">Already Downloaded</string>
-    <string name="camera_storage_error">Cannot open camera — storage problem</string>
     <string name="route_planned">Planned route</string>
     <string name="track_actual">Actual track</string>
     <string name="stat_distance">Distance</string>
@@ -607,4 +606,35 @@
     <string name="account_delete_rpc_missing">Account deletion is not active yet — the server database migration has not been run</string>
     <string name="account_delete_confirm_word">DELETE</string>
     <string name="account_close">Close</string>
+
+    <!-- Publish route (Phase 2) -->
+    <string name="publish_route">Publish route</string>
+    <string name="publish_title">Publish Route</string>
+    <string name="publish_name_label">Route name</string>
+    <string name="publish_mountain_label">Mountain name (optional)</string>
+    <string name="publish_region_label">Region (optional)</string>
+    <string name="publish_difficulty_label">Difficulty</string>
+    <string name="publish_difficulty_desc_label">Difficulty note (optional)</string>
+    <string name="publish_privacy_note">Raw GPS points are never uploaded — they stay on your phone.</string>
+    <string name="publish_difficulty_none">Not rated</string>
+    <string name="publish_difficulty_easy">Easy</string>
+    <string name="publish_difficulty_moderate">Moderate</string>
+    <string name="publish_difficulty_difficult">Difficult</string>
+    <string name="publish_difficulty_very_difficult">Very difficult</string>
+    <string name="publish_trail_type_label">Trail type</string>
+    <string name="publish_trail_none">Unspecified</string>
+    <string name="publish_trail_loop">Loop</string>
+    <string name="publish_trail_out_and_back">Out and back</string>
+    <string name="publish_trail_point_to_point">Point to point</string>
+    <string name="publish_desc_label">Description (optional)</string>
+    <string name="publish_points_line">What gets published: a track summary + full GPX (compressed) from %1$s GPS points. Raw points are NEVER uploaded.</string>
+    <string name="publish_waypoints_line">%1$d waypoints are published too.</string>
+    <string name="publish_cta">Publish</string>
+    <string name="publish_success">Route published! Anyone can now view &amp; download its GPX.</string>
+    <string name="publish_error_not_signed_in">Sign in first to publish routes</string>
+    <string name="publish_error_empty_track">No GPS points to publish</string>
+    <string name="publish_error_insert">The server rejected this route — try again</string>
+    <string name="publish_error_upload">GPX upload failed — check your connection and try again</string>
+    <string name="publish_error_network">Connection problem — check your internet and try again</string>
+    <string name="publish_error_generic">Publishing failed — try again</string>
 </resources>

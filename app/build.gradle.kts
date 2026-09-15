@@ -176,6 +176,9 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:supabase-kt")
     implementation("io.github.jan-tennert.supabase:gotrue-kt")
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    // Storage (Fase 2 Publish): gzip'ed full-fidelity GPX goes to the
+    // public route-gpx bucket — same BOM-locked line as the rest of the SDK.
+    implementation("io.github.jan-tennert.supabase:storage-kt")
     implementation("io.ktor:ktor-client-android:2.3.9")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 

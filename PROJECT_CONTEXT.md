@@ -285,19 +285,29 @@ di atas sekaligus sebagai satu paket, sebelum lanjut ke Fase 2** — bukan
 lagi diprioritaskan/ditunda satu-satu seperti draft sebelumnya.
 
 ### Fase 2 — Publish / Share Rute Publik
-❌ Belum mulai.
-1. `PolylineEncoder.kt` — terima DUA jalur input (lihat Catatan
-   Teknis poin 1): `ActivityDao.getLatLonOnly()` DAN hasil parse
-   `GpxParser`.
-2. Form "Publish Route" — ambil data ActivityEntity selesai, minta
-   user isi mountain_name/region/difficulty/trail_type manual, kirim
-   ke `routes` (+ waypoint terkait).
+🟡 Slice 1 (pipeline publish) selesai — browse/search rute publik,
+Download GPX, dan input GpxParser jadi slice berikutnya.
+1. ✅ `publish/PolylineEncoder.kt` — encode standar Google/Strava +
+   decode, round-trip ter-unit-test (`PolylineEncoderTest`, dijalankan
+   CI via step baru `testDebugUnitTest`). Input `GpxParser` menyusul di
+   slice browse/publish-dari-file.
+2. ✅ Form "Publish Route" — `PublishRouteSheet` dari menu Activity
+   Detail: mountain_name/region/difficulty(+catatan)/trail_type/
+   deskripsi, FilterChips, notice transparansi (ringkasan jalur + GPX
+   terkompresi dari N titik; titik mentah TIDAK pernah dikirim),
+   strings lengkap ID/EN.
 3. Layar search/browse rute publik.
-4. Alur generate GPX lengkap + gzip + upload Storage saat publish,
-   simpan URL ke `gpx_file_url`. Butuh bikin bucket Storage di
-   Supabase + fungsi gzip (`GZIPOutputStream`, bawaan Kotlin).
-5. Tombol "Download GPX" di layar detail rute — fetch `gpx_file_url`,
-   decompress (`GZIPInputStream`), simpan `.gpx` lokal atau share-intent.
+4. ✅ Pipeline generate GPX lengkap + gzip + upload Storage saat
+   publish — `PublishRepository.publish()` (insert `routes` RETURNING
+   id → GPX via `GpxExporter` → gzip → Storage `route-gpx` → backfill
+   `gpx_file_url`; rollback row kalau upload gagal). **⏳ Migration
+   bucket: `supabase/migrations/0003_route_gpx_bucket.sql` WAJIB
+   dijalankan manual di Supabase SQL Editor** (buat bucket publik
+   `route-gpx` + kebijakan insert/select user; sama seperti pola
+   migration 0002 sebelumnya).
+5. ⏳ Tombol "Download GPX" di layar detail rute — fetch
+   `gpx_file_url`, decompress (`GZIPInputStream`), simpan `.gpx` lokal
+   atau share-intent. (Slice berikutnya.)
 
 ### Fase 3 — Backup Pribadi
 ❌ Belum mulai, masih sebatas konsep (lihat bagian di atas).

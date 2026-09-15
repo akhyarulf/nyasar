@@ -6,6 +6,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.storage.Storage
 
 /**
  * App-wide [SupabaseClient] holder, mirroring the repo's singleton-repository
@@ -43,6 +44,9 @@ object SupabaseClientProvider {
             ) {
                 install(Auth)
                 install(Postgrest)
+                // Fase 2 (Publish): uploads the gzip'ed full GPX file to the
+                // public route-gpx bucket (see supabase/migrations/0003).
+                install(Storage)
             }.also { instance = it }
         }
 

@@ -75,9 +75,10 @@ object PolylineEncoder {
         while (v >= 0x20) {
             // Chars are (chunk + 63) per the format — without the +63 offset
             // the emitted control characters break every external decoder.
-            sb.append(((v and 0x1f) or 0x20) + 63)
+            // toChar() is mandatory: append(Int) would emit decimal digits.
+            sb.append((((v and 0x1f) or 0x20) + 63).toChar())
             v = v shr 5
         }
-        sb.append(v + 63)
+        sb.append((v + 63).toChar())
     }
 }

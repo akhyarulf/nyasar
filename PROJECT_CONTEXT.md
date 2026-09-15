@@ -156,7 +156,10 @@ Poin desain penting:
   `split_part(email,'@',1) || '_' || substr(id::text,1,6)`. Ini
   SENGAJA jelek/sementara — app WAJIB nampilin layar "Pilih Username"
   yang non-skippable sebelum user boleh publish/like/comment apa pun
-  (lihat status bug terkait ini di bagian Status & Roadmap).
+  (lihat status bug terkait ini di bagian Status & Roadmap). Catatan
+  dari audit Login Google: `split_part(new.email,...)` tanpa guard
+  berarti user OAuth tanpa email bikin insert gagal — guard opsional
+  NULL-safe tersedia di `supabase/README.md`.
 - `profiles.username_is_set` (boolean) — penanda apakah user sudah
   benar-benar pilih username sendiri lewat `ChooseUsernameScreen`,
   dipakai sebagai dasar gate (bukan cara sesi terbentuk). Ditambahkan
@@ -227,17 +230,55 @@ seperti draft lama). Daftar/Login/Logout jalan.
   - ✅ Migrasi SQL kolom `username_is_set` — sudah dijalankan user.
   - ✅ Perubahan kode (`AuthRepository.kt`, `AuthViewModel.kt`) — sudah
     terverifikasi masuk, lihat konfirmasi di atas.
-- ❌ **Hapus Akun** — sebelumnya ditandai paling urgent (umumnya syarat
-  wajib Play Store untuk app dengan sistem akun: harus ada cara hapus
-  akun+data dari DALAM app, bukan cuma email ke developer).
-- ❌ **Ganti Password** (dari dalam app, beda dari "lupa password" —
-  user yang sudah login mau ganti password sendiri).
-- ❌ **Ganti Email** — user yang sudah login mau ganti email akun.
-  Kemungkinan perlu alur konfirmasi ke email baru (tergantung setting
-  Supabase Auth), mirip pola verifikasi saat daftar.
-- ❌ **Login Google** — butuh setup provider OAuth di Supabase
-  dashboard + Google Cloud Console (di luar kode, manual di dashboard),
-  baru sisi Kotlin-nya.
+- ✅ **Hapus Akun** — kode selesai (commit `e65761c`). Karena app sengaja
+  TIDAK punya service-role key, deleternya jalan lewat RPC Postgres
+  `security definer` `delete_own_account()` yang cuma menghapus
+  `auth.users` milik `auth.uid()` sendiri (semua tabel lain cascade dari
+  auth.users — terverifikasi ke schema_v1.sql). SQL migration-nya ada di
+  `supabase/migrations/0002_delete_own_account.sql` — **⏳ WAJIB dijalankan
+  manual di Supabase SQL Editor** (instruksi + verifikasi di
+  `supabase/README.md`); sebelum dijalankan, app menampilkan pesan khusus
+  "migration belum dijalankan" saat tombolnya dipakai. UI: row "Kelola
+  Akun" di Settings (signed-in) → bottom sheet; hapus akun minta ketik
+  kata konfirmasi (HAPUS/DELETE sesuai locale) dan jujur menyatakan cuma
+  data CLOUD yang hilang — data Room lokal di HP TIDAK disentuh (keputusan
+  UX terpisah, disengaja).
+- ✅ **Ganti Password** (dari dalam app, beda dari "lupa password") —
+  kode selesai (commit `ec6a633`). WAJIB re-auth dulu: password lama
+  diverifikasi via `signInWith(Email)` fresh sebelum `modifyUser`
+  (`gotrue-kt 2.2.2` tidak punya `updateUser` — nama API-nya
+  `modifyUser`, diverifikasi dari source artifact, BUKAN dari contoh
+  versi lain). Validasi password baru reuse aturan signUp yang ada
+  (min 6 karakter), bukan aturan baru.
+- ✅ **Ganti Email** — kode selesai (commit `ec6a633`), re-auth password
+  wajib juga. Hasilnya disajikan JUJUR: kalau GoTrue meng-stage perubahan
+  (`new_email`/`email_change_sent_at` terisi = project mewajibkan
+  konfirmasi), UI bilang "konfirmasi dikirim ke email BARU", bukan
+  "email berhasil diganti" — tidak ada klaim instan. Email hanya di
+  `auth.users`; `profiles` tidak punya kolom email (terverifikasi ke
+  schema_v1.sql) jadi tidak ada sinkronisasi lain.
+- ✅ **Login Google** (sisi kode) — commit `af9551a`. TERNYATA beda dari
+  dugaan prompt: gotrue-kt 2.2.2 TIDAK punya alur browser-redirect +
+  deeplink di Android — Google dimodelkan sebagai `IDTokenProvider`.
+  Jadi flow-nya: AndroidX Credential Manager (`GetGoogleIdOption`)
+  minta Google ID token → ditukar session lewat
+  `signInWith(IDToken) { idToken; provider = Google }`. Tidak perlu
+  intent-filter/manifest change di line SDK ini. Client ID (WEB) dibaca
+  dari `local.properties` → `BuildConfig.GOOGLE_OAUTH_WEB_CLIENT_ID`;
+  kosong = tombol Google disembunyikan (graceful, tanpa hardcode).
+  User baru dari Google tetap masuk gate "Pilih Username" yang sudah
+  ada (`profiles.username_is_set`) karena sessionStatus-nya sama.
+  - ⏳ Yang HARUS dikerjakan user sendiri (tidak mungkin diverifikasi
+    tanpa ini): buat OAuth client (type **Web application**) di Google
+    Cloud Console, aktifkan provider Google di Supabase Dashboard →
+    Auth → Providers → Google dengan client id tsb, lalu isi
+    `GOOGLE_OAUTH_WEB_CLIENT_ID` di local.properties + GitHub Secrets
+    (workflow CI belum menulis secret ini — tambahkan baris echo-nya
+    kalau mau ke-cover di CI).
+  - Edge case OAuth: trigger `handle_new_user` live memakai
+    `split_part(new.email,...)` tanpa guard — user tanpa email (sah di
+    OAuth) bikin signup gagal. Guard opsional NULL-safe ada di
+    `supabase/README.md`, disarankan dijalankan bareng migrasi 0002.
 
 **Keputusan (update sesi ini): user memilih menyelesaikan SEMUA 4 item
 di atas sekaligus sebagai satu paket, sebelum lanjut ke Fase 2** — bukan

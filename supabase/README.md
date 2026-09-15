@@ -21,29 +21,31 @@ dengan migration `username_is_set` sebelumnya).
 
 ## Catatan audit trigger `handle_new_user` (Login Google)
 
-Ditambahkan sebelum menghubungkan Login Google: jika trigger yang sekarang
-live mengambil username dari `split_part(new.email, '@', 1)`, user Google
-**yang tanpa email** (jarang, tapi sah pada OAuth) akan membuat trigger
-gagal dan login Google gagal total. Guard satu baris yang direkomendasikan
-(boleh digabung saat menjalankan 0002):
+DIVERIFIKASI ke `schema_v1.sql` yang live: trigger memakai
+`split_part(new.email, '@', 1)` untuk username DAN display_name. User
+OAuth **tanpa email** (sah secara protokol, walau Google praktis selalu
+mengirim email) membuat `split_part` → NULL → insert `profiles` gagal
+(NOT NULL) → **signup gagal total**. Guard yang exact-match trigger live
+(opsional, disarankan dijalankan bareng migrasi 0002):
 
 ```sql
 create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public as $$
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
 begin
-  insert into public.profiles (id, username)
+  insert into public.profiles (id, username, display_name)
   values (
     new.id,
-    coalesce(
-      nullif(regexp_replace(lower(split_part(new.email, '@', 1)), '[^a-z0-9_]', '', 'g'), ''),
-      'user'
-    ) || '_' || substr(md5(random()::text), 1, 6)
-  )
-  on conflict (id) do nothing;
+    coalesce(nullif(split_part(new.email, '@', 1), ''), 'user') || '_' || substr(new.id::text, 1, 6),
+    coalesce(nullif(split_part(new.email, '@', 1), ''), 'Pendaki')
+  );
   return new;
 end;
 $$;
 ```
 
-(Cocokkan isi SELECT/kolomnya dengan definisi trigger live-mu — yang penting
-email di-guard `coalesce(..., 'user')` agar NULL-safe untuk provider mana pun.)
+Format username sengaja TIDAK diubah (`emailprefix_id6`, sesuai desain
+live) — cuma email-nya yang di-guard `coalesce` supaya NULL-safe untuk
+provider mana pun.

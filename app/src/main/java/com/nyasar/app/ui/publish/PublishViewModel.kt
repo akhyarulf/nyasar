@@ -42,7 +42,7 @@ internal fun PublishTrailType.toApi(): String? = when (this) {
 /** Sealed publish state — same style as AuthViewModel's AccountActionState. */
 sealed class PublishState {
     /** Form idle; optionally carries the last error for the banner. */
-    data class Idle(val error: PublishError? = null) : PublishState()
+    data class Idle(val error: PublishUiError? = null) : PublishState()
     data object Publishing : PublishState()
     data class Success(val routeId: String, val gpxUrl: String) : PublishState()
 }

@@ -16,7 +16,10 @@ class PolylineEncoderTest {
             40.7 to -120.95,
             43.252 to -126.453
         )
-        assertEquals("_p~iF~ps|U_ulLnnqC_mNvxq`@", PolylineEncoder.encode(points))
+        // Canonical string verbatim from the official docs table
+        // (developers.google.com/maps/documentation/utilities/polylinealgorithm):
+        // the third latitude chunk is _mqN, commonly mis-transcribed as _mN.
+        assertEquals("_p~iF~ps|U_ulLnnqC_mqNvxq`@", PolylineEncoder.encode(points))
     }
 
     @Test

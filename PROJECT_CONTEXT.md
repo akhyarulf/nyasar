@@ -309,6 +309,20 @@ Download GPX, dan input GpxParser jadi slice berikutnya.
    `gpx_file_url`, decompress (`GZIPInputStream`), simpan `.gpx` lokal
    atau share-intent. (Slice berikutnya.)
 
+Catatan Slice 1 (bugfix saat CI: `f9fd0aa`): langkah CI
+`testDebugUnitTest` yang baru ternyata pertama kali benar-benar
+menjalankan suite unit test repo — 3 bug laten ketahuan dan sudah
+diperbaiki: (1) `PolylineEncoder.encodeDelta` tidak menambahkan offset
+ASCII +63 (output tak terbaca decoder eksternal); (2)
+`OffRouteDetector` menelan status WARNING selama counter consecutive
+belum penuh — sekarang satu reading jauh tetap WARNING, OFF_ROUTE
+butuh N consecutive seperti spek; (3) `RecordingEngine` mengukur delta
+elevasi dari fix mentah sebelumnya sehingga tick kecil di bawah noise
+floor menggeser baseline — sekarang pakai baseline-hysteresis yang
+sama dengan `ElevationStats.summarize` (gain/loss activity konsisten
+dengan angka GPX). Test vector canonical polyline juga dikoreksi ke
+`_mqNvxq`@` sesuai tabel resmi Google (sebelumnya salah tulis `_mN`).
+
 ### Fase 3 — Backup Pribadi
 ❌ Belum mulai, masih sebatas konsep (lihat bagian di atas).
 1. `DeltaEncoder.kt` — encode `List<ActivityPointEntity>` jadi

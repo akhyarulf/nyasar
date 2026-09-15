@@ -575,4 +575,35 @@
     <string name="username_invalid_chars">3–20 karakter, hanya huruf kecil, angka, dan _</string>
     <string name="username_rules">3–20 karakter · huruf kecil, angka, underscore · tidak diawali/diakhiri _</string>
     <string name="username_confirm_cta">Simpan &amp; Lanjut</string>
+
+    <!-- Login Google -->
+    <string name="auth_google_cta">Lanjut dengan Google</string>
+
+    <!-- Kelola akun: ganti password / ganti email / hapus akun -->
+    <string name="account_manage_title">Kelola akun</string>
+    <string name="account_manage_password">Ganti password</string>
+    <string name="account_manage_password_desc">Verifikasi password lama, lalu atur yang baru</string>
+    <string name="account_manage_email">Ganti email</string>
+    <string name="account_manage_email_desc">Email login baru, dikonfirmasi lewat inbox</string>
+    <string name="account_manage_delete">Hapus akun</string>
+    <string name="account_manage_delete_desc">Hapus akun &amp; semua data cloud secara permanen</string>
+    <string name="account_change_password_title">Ganti password</string>
+    <string name="account_current_password">Password lama</string>
+    <string name="account_new_password">Password baru</string>
+    <string name="account_change_password_cta">Simpan password baru</string>
+    <string name="account_password_changed">Password berhasil diganti</string>
+    <string name="account_change_email_title">Ganti email</string>
+    <string name="account_current_email">Email saat ini</string>
+    <string name="account_new_email">Email baru</string>
+    <string name="account_change_email_cta">Kirim konfirmasi ke email baru</string>
+    <string name="account_email_changed">Email berhasil diganti</string>
+    <string name="account_email_confirmation_sent">Konfirmasi dikirim ke %1$s. Email login berubah setelah kamu klik tautan di inbox email baru tersebut.</string>
+    <string name="account_delete_title">Hapus akun</string>
+    <string name="account_delete_warning">Akun dan SEMUA data cloud-mu (rute terpublish, backup, like, komentar) akan dihapus permanen dan tidak bisa dibatalkan.</string>
+    <string name="account_delete_keep_local">Data yang tersimpan di HP ini (rekaman &amp; rute lokal) TIDAK ikut terhapus — hapus aplikasi bila ingin menghilangkannya.</string>
+    <string name="account_delete_type_hint">Ketik HAPUS untuk konfirmasi</string>
+    <string name="account_delete_cta">Hapus akun saya</string>
+    <string name="account_delete_rpc_missing">Fitur hapus akun belum aktif — migrasi database server belum dijalankan</string>
+    <string name="account_delete_confirm_word">HAPUS</string>
+    <string name="account_close">Tutup</string>
 </resources>

@@ -576,4 +576,35 @@
     <string name="username_invalid_chars">3–20 characters, lowercase letters, numbers and _ only</string>
     <string name="username_rules">3–20 chars · lowercase letters, numbers, underscore · no leading/trailing _</string>
     <string name="username_confirm_cta">Save &amp; Continue</string>
+
+    <!-- Login Google -->
+    <string name="auth_google_cta">Continue with Google</string>
+
+    <!-- Account management: change password / change email / delete account -->
+    <string name="account_manage_title">Manage account</string>
+    <string name="account_manage_password">Change password</string>
+    <string name="account_manage_password_desc">Verify your old password, then set a new one</string>
+    <string name="account_manage_email">Change email</string>
+    <string name="account_manage_email_desc">New login email, confirmed via inbox</string>
+    <string name="account_manage_delete">Delete account</string>
+    <string name="account_manage_delete_desc">Permanently delete account &amp; all cloud data</string>
+    <string name="account_change_password_title">Change password</string>
+    <string name="account_current_password">Current password</string>
+    <string name="account_new_password">New password</string>
+    <string name="account_change_password_cta">Save new password</string>
+    <string name="account_password_changed">Password changed successfully</string>
+    <string name="account_change_email_title">Change email</string>
+    <string name="account_current_email">Current email</string>
+    <string name="account_new_email">New email</string>
+    <string name="account_change_email_cta">Send confirmation to new email</string>
+    <string name="account_email_changed">Email changed successfully</string>
+    <string name="account_email_confirmation_sent">Confirmation sent to %1$s. Your login email changes after you click the link in that new inbox.</string>
+    <string name="account_delete_title">Delete account</string>
+    <string name="account_delete_warning">Your account and ALL cloud data (published routes, backups, likes, comments) will be permanently deleted. This cannot be undone.</string>
+    <string name="account_delete_keep_local">Data stored on this phone (local recordings &amp; routes) is NOT deleted — uninstall the app to remove it.</string>
+    <string name="account_delete_type_hint">Type DELETE to confirm</string>
+    <string name="account_delete_cta">Delete my account</string>
+    <string name="account_delete_rpc_missing">Account deletion is not active yet — the server database migration has not been run</string>
+    <string name="account_delete_confirm_word">DELETE</string>
+    <string name="account_close">Close</string>
 </resources>

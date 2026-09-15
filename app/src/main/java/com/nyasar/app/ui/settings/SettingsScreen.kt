@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -15,6 +16,12 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.AlternateEmail
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Info
@@ -24,11 +31,16 @@ import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.stringResource
@@ -93,6 +105,14 @@ fun SettingsScreen(
                 val hasPermission = remember {
                     LocationRepository(viewModel.getApplication()).hasLocationPermission()
                 }
+                // Phase 1 account management: sheet visibility + its host.
+                var showManageAccount by remember { mutableStateOf(false) }
+                if (showManageAccount) {
+                    AccountManageSheet(
+                        authViewModel = authViewModel,
+                        onDismiss = { showManageAccount = false }
+                    )
+                }
                 // ── Account section (Phase 1): signed-in status + logout, or
                 // a login entry point. Placed FIRST, matching how Strava-like
                 // apps put the account card at the top; layout/visuals reuse
@@ -111,6 +131,23 @@ fun SettingsScreen(
                                 title = stringResource(R.string.account_logout),
                                 subtitle = stringResource(R.string.account_logout_desc),
                                 onClick = { authViewModel.signOut() }
+                            )
+                            // ── Phase 1: manage account (change password /
+                            // change email / delete account). Opens the sheet
+                            // at the bottom of this file; results surface
+                            // through AuthViewModel.accountAction inside it.
+                            SettingRow(
+                                icon = Icons.Default.ManageAccounts,
+                                title = stringResource(R.string.account_manage_title),
+                                subtitle = null,
+                                onClick = { showManageAccount = true },
+                                trailing = {
+                                    Icon(
+                                        Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             )
                         }
                         is com.nyasar.app.ui.auth.AuthViewModel.SessionState.Restoring -> {
@@ -420,4 +457,316 @@ private fun RadioOption(label: String, selected: Boolean, onSelect: () -> Unit) 
             color = MaterialTheme.colorScheme.onSurface
         )
     }
+}
+
+// ── Phase 1: account management sheet ───────────────────────────────────────
+
+/**
+ * Manage-account sheet: change password, change email, delete account.
+ * Every result flows through AuthViewModel.accountAction (sealed data class,
+ * same convention as the auth forms); one-shot success/error state is
+ * consumed on sheet close via clearAccountAction(). The delete flow is the
+ * most guarded: typed confirmation (locale-aware keyword) + an honest
+ * description that only CLOUD data dies — Room data on this device stays
+ * (explicit product decision, stated verbatim in the dialog).
+ */
+@Composable
+private fun AccountManageSheet(
+    authViewModel: com.nyasar.app.ui.auth.AuthViewModel,
+    onDismiss: () -> Unit
+) {
+    val action by authViewModel.accountAction.collectAsState()
+    val session by authViewModel.sessionState.collectAsState()
+    val currentEmail =
+        (session as? com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn)?.email
+
+    var mode by rememberSaveable { mutableStateOf("menu") } // menu|password|email|delete
+    var oldPassword by rememberSaveable { mutableStateOf("") }
+    var newPassword by rememberSaveable { mutableStateOf("") }
+    var newEmail by rememberSaveable { mutableStateOf("") }
+    var confirmWord by rememberSaveable { mutableStateOf("") }
+    val deleteWord = stringResource(R.string.account_delete_confirm_word)
+
+    // Account deletion ends the session; close the sheet the moment it
+    // lands (the Settings screen re-renders as SignedOut underneath).
+    LaunchedEffect(action.accountDeleted) {
+        if (action.accountDeleted) {
+            authViewModel.clearAccountAction()
+            onDismiss()
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = {
+        authViewModel.clearAccountAction()
+        onDismiss()
+    }) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp)
+        ) {
+            Text(
+                stringResource(R.string.account_manage_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(12.dp))
+
+            when (mode) {
+                "menu" -> {
+                    AccountActionRow(
+                        icon = Icons.Default.Password,
+                        title = stringResource(R.string.account_manage_password),
+                        subtitle = stringResource(R.string.account_manage_password_desc)
+                    ) { mode = "password" }
+                    AccountActionRow(
+                        icon = Icons.Default.AlternateEmail,
+                        title = stringResource(R.string.account_manage_email),
+                        subtitle = stringResource(R.string.account_manage_email_desc)
+                    ) { mode = "email" }
+                    AccountActionRow(
+                        icon = Icons.Default.Delete,
+                        title = stringResource(R.string.account_manage_delete),
+                        subtitle = stringResource(R.string.account_manage_delete_desc),
+                        destructive = true
+                    ) { mode = "delete" }
+                }
+
+                "password" -> {
+                    if (action.passwordChanged) {
+                        AccountActionDone(
+                            text = stringResource(R.string.account_password_changed),
+                            onClose = {
+                                authViewModel.clearAccountAction()
+                                onDismiss()
+                            }
+                        )
+                    } else {
+                        AccountPasswordField(
+                            value = oldPassword,
+                            onValueChange = { oldPassword = it },
+                            label = stringResource(R.string.account_current_password),
+                            enabled = !action.busy
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        AccountPasswordField(
+                            value = newPassword,
+                            onValueChange = { newPassword = it },
+                            label = stringResource(R.string.account_new_password),
+                            enabled = !action.busy
+                        )
+                        AccountActionError(action.errorRes)
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = { authViewModel.changePassword(oldPassword, newPassword) },
+                            enabled = !action.busy && oldPassword.isNotBlank() && newPassword.length >= 6,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (action.busy) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text(stringResource(R.string.account_change_password_cta))
+                            }
+                        }
+                    }
+                }
+
+                "email" -> {
+                    val staged = action.emailConfirmationRequired
+                    if (action.emailChanged || staged != null) {
+                        AccountActionDone(
+                            text = if (staged != null) {
+                                // Honest staging: the change only applies after
+                                // the NEW inbox is confirmed (project requires
+                                // email confirmation).
+                                stringResource(R.string.account_email_confirmation_sent, staged)
+                            } else {
+                                stringResource(R.string.account_email_changed)
+                            },
+                            onClose = {
+                                authViewModel.clearAccountAction()
+                                onDismiss()
+                            }
+                        )
+                    } else {
+                        if (currentEmail != null) {
+                            Text(
+                                stringResource(R.string.account_current_email) + ": " + currentEmail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        OutlinedTextField(
+                            value = newEmail,
+                            onValueChange = { newEmail = it },
+                            label = { Text(stringResource(R.string.account_new_email)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            singleLine = true,
+                            enabled = !action.busy,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        AccountPasswordField(
+                            value = oldPassword,
+                            onValueChange = { oldPassword = it },
+                            label = stringResource(R.string.account_current_password),
+                            enabled = !action.busy
+                        )
+                        AccountActionError(action.errorRes)
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = { authViewModel.changeEmail(oldPassword, newEmail) },
+                            enabled = !action.busy &&
+                                newEmail.contains("@") && newEmail.length > 3 &&
+                                oldPassword.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (action.busy) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text(stringResource(R.string.account_change_email_cta))
+                            }
+                        }
+                    }
+                }
+
+                "delete" -> {
+                    Text(
+                        stringResource(R.string.account_delete_warning),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        stringResource(R.string.account_delete_keep_local),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    AccountActionError(
+                        if (action.errorRes == com.nyasar.app.R.string.auth_error_generic)
+                            R.string.account_delete_rpc_missing else action.errorRes
+                    )
+                    OutlinedTextField(
+                        value = confirmWord,
+                        onValueChange = { confirmWord = it },
+                        label = { Text(stringResource(R.string.account_delete_type_hint)) },
+                        singleLine = true,
+                        enabled = !action.busy,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { authViewModel.deleteAccount() },
+                        enabled = !action.busy && confirmWord == deleteWord,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (action.busy) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(stringResource(R.string.account_delete_cta))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountActionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    destructive: Boolean = false,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Success message + explicit close button shown after a completed action. */
+@Composable
+private fun AccountActionDone(text: String, onClose: () -> Unit) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.primary
+    )
+    Spacer(Modifier.height(10.dp))
+    TextButton(onClick = onClose) {
+        Text(stringResource(R.string.account_close))
+    }
+}
+
+@Composable
+private fun AccountActionError(errorRes: Int?) {
+    if (errorRes != null) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(errorRes),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+}
+
+@Composable
+private fun AccountPasswordField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    enabled: Boolean
+) {
+    var visible by rememberSaveable { mutableStateOf(false) }
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        enabled = enabled,
+        visualTransformation = if (visible) VisualTransformation.None
+        else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        trailingIcon = {
+            IconButton(onClick = { visible = !visible }) {
+                Icon(
+                    if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = null
+                )
+            }
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
 }

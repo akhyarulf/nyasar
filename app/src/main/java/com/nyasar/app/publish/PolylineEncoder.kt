@@ -73,9 +73,11 @@ object PolylineEncoder {
         var v = value shl 1
         if (value < 0) v = v.inv()
         while (v >= 0x20) {
-            sb.append(((v and 0x1f) or 0x20).toInt().toChar())
+            // Chars are (chunk + 63) per the format — without the +63 offset
+            // the emitted control characters break every external decoder.
+            sb.append(((v and 0x1f) or 0x20) + 63)
             v = v shr 5
         }
-        sb.append(v.toInt().toChar())
+        sb.append(v + 63)
     }
 }

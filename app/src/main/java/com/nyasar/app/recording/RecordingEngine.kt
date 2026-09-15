@@ -79,6 +79,7 @@ class RecordingEngine {
     private var lastPoint: LatLng? = null
     private var lastFixMs: Long? = null
     private var lastElevation: Double? = null
+    private var pendingElevationDelta = 0.0
     private var pointCount = 0
 
     /** Titik terakhir yang lolos filter akurasi, untuk dipersist oleh
@@ -177,13 +178,19 @@ class RecordingEngine {
 
         fix.elevationM?.let { e ->
             lastElevation?.let { prev ->
-                val delta = e - prev
                 // Noise floor 2m sama seperti ElevationStats/NavigationEngine,
-                // supaya angka gain/loss activity konsisten dengan yang
-                // dipakai di tempat lain untuk data GPX yang sudah ada.
-                when {
-                    delta > 2.0 -> elevationGain += delta
-                    delta < -2.0 -> elevationLoss += -delta
+                // dan pakai model baseline-hysteresis yang sama dengan
+                // ElevationStats.summarize: tick di bawah 2m terakumulasi
+                // sebagai pending delta terhadap baseline terakhir yang
+                // diterima, jadi 100.0 → 100.5 → 105.0 tercatat satu gain
+                // bersih +5.0 — bukan +0.5 dibuang lalu +4.5 — supaya angka
+                // gain/loss activity konsisten dengan yang dipakai di tempat
+                // lain untuk data GPX yang sudah ada.
+                pendingElevationDelta += e - prev
+                if (Math.abs(pendingElevationDelta) >= 2.0) {
+                    if (pendingElevationDelta > 0) elevationGain += pendingElevationDelta
+                    else elevationLoss += -pendingElevationDelta
+                    pendingElevationDelta = 0.0
                 }
             }
             lastElevation = e

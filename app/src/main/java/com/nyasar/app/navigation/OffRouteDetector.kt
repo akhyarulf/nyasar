@@ -54,8 +54,11 @@ class OffRouteDetector(private val config: OffRouteConfig = OffRouteConfig()) {
 
         lastStatus = when {
             consecutiveOffCount >= config.consecutiveReadingsRequired -> RouteStatus.OFF_ROUTE
-            instantStatus == RouteStatus.WARNING -> RouteStatus.WARNING
-            else -> RouteStatus.ON_ROUTE
+            // Not yet OFF (needs more consecutive bad readings): surface the
+            // instantaneous status — a single far reading past the warning
+            // threshold still warns immediately, it just doesn't flip to
+            // OFF_ROUTE on its own.
+            else -> instantStatus
         }
         return lastStatus
     }

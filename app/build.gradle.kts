@@ -54,6 +54,17 @@ android {
             "SUPABASE_PUBLISHABLE_KEY",
             "\"${localProps.getProperty("SUPABASE_PUBLISHABLE_KEY", "")}\""
         )
+        // Google Sign-In (Login Google, Phase 1): the WEB client id from
+        // Google Cloud Console (the one registered in the Supabase Dashboard
+        // under Auth -> Providers -> Google). Empty default keeps the build
+        // green before the user completes the manual GCP/Supabase setup;
+        // the UI hides the Google button when it is blank (same graceful
+        // pattern as the Supabase credentials above). Never hardcoded.
+        buildConfigField(
+            "String",
+            "GOOGLE_OAUTH_WEB_CLIENT_ID",
+            "\"${localProps.getProperty("GOOGLE_OAUTH_WEB_CLIENT_ID", "")}\""
+        )
     }
 
     signingConfigs {
@@ -170,6 +181,17 @@ dependencies {
 
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    // Google Sign-In (Login Google): androidx Credential Manager requests a
+    // Google ID token (GetGoogleIdOption from the googleid artifact), which
+    // gotrue-kt exchanges via signInWith(IDToken). credentials-play-services-
+    // auth bridges the request to Google Play services on devices that have
+    // it. All three versions verified from their google() maven POMs as the
+    // newest stable, Kotlin-1.9-compatible lines. No google-services plugin
+    // change — the JSON already present (or absent) is untouched.
+    implementation("androidx.credentials:credentials:1.2.2")
+    implementation("androidx.credentials:credentials-play-services-auth:1.2.2")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // Navigation between Compose screens
     implementation("androidx.navigation:navigation-compose:2.7.7")

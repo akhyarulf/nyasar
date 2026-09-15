@@ -5,8 +5,11 @@ import io.github.jan.supabase.exceptions.BadRequestRestException
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.exceptions.UnauthorizedRestException
 import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.Email
+import io.github.jan.supabase.gotrue.providers.builtin.IDToken
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
 import kotlinx.serialization.Serializable
 
 /**
@@ -133,6 +136,190 @@ class AuthRepository {
             }
         } catch (e: Exception) {
             Log.e(TAG, "signOut failed (session cleared locally regardless)", e)
+        }
+    }
+
+    /**
+     * Re-authentication gate for the destructive account actions (change
+     * password / change email / delete account). Deliberately a fresh
+     * signInWith(Email) instead of trusting the live session: whoever is
+     * holding the phone must prove they know the REAL password before any
+     * of those actions is allowed. Returns [AuthError.INVALID_CREDENTIALS]
+     * on a wrong password so the UI can say so directly.
+     */
+    suspend fun reauthenticateWithPassword(currentPassword: String): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        val email = SupabaseClientProvider.client.auth.currentUserOrNull()?.email
+            ?: return Outcome.Failure(AuthError.UNKNOWN)
+        return try {
+            SupabaseClientProvider.client.auth.signInWith(Email) {
+                this.email = email
+                this.password = currentPassword
+            }
+            Outcome.Success
+        } catch (e: UnauthorizedRestException) {
+            Outcome.Failure(AuthError.INVALID_CREDENTIALS)
+        } catch (e: BadRequestRestException) {
+            Outcome.Failure(AuthError.INVALID_CREDENTIALS)
+        } catch (e: RestException) {
+            Log.e(TAG, "reauthenticate failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "reauthenticate failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /**
+     * Change password for the signed-in user. API note: in gotrue-kt 2.2.2
+     * the user-facing call is modifyUser (updateUser does not exist until
+     * later SDK lines) — verified from the artifact's own sources. The
+     * caller must have passed [reauthenticateWithPassword] first; Supabase
+     * itself does not enforce that order, this app does.
+     */
+    suspend fun updatePassword(newPassword: String): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        // Same minimum as the existing signUp flow (6 chars, enforced in
+        // AuthScreens) — reused here so both entry points share one rule.
+        if (newPassword.length < 6) return Outcome.Failure(AuthError.WEAK_PASSWORD)
+        return try {
+            SupabaseClientProvider.client.auth.modifyUser {
+                password = newPassword
+            }
+            Outcome.Success
+        } catch (e: BadRequestRestException) {
+            // gotrue maps password-policy violations (400/422) here.
+            Log.e(TAG, "updatePassword rejected: ${e.error}", e)
+            Outcome.Failure(AuthError.WEAK_PASSWORD)
+        } catch (e: RestException) {
+            Log.e(TAG, "updatePassword failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "updatePassword failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /** Result of an email change — models the "staged" case honestly. */
+    sealed class EmailUpdate {
+        /** Applied immediately (project does not require confirmation). */
+        data object Applied : EmailUpdate()
+
+        /** Change is staged: a confirmation link was sent to the NEW
+         *  address; the account keeps the old one until it is clicked. */
+        data class ConfirmationRequired(val newEmail: String) : EmailUpdate()
+
+        data class Failure(val error: AuthError) : EmailUpdate()
+    }
+
+    /**
+     * Change email for the signed-in user. With "Confirm email" enabled in
+     * the Supabase project (it is — the project already gates signup behind
+     * email confirmation), GoTrue stages the change: the API returns the
+     * user with email unchanged plus new_email/email_change_sent_at set,
+     * and a confirmation mail goes to the NEW address (both addresses must
+     * confirm depending on the project's double-confirmation setting).
+     * The result models both outcomes; the UI must never claim the change
+     * is instant. Email lives in auth.users (managed by Supabase Auth) —
+     * profiles has no email column, so nothing else is written.
+     */
+    suspend fun updateEmail(newEmail: String): EmailUpdate {
+        if (!SupabaseClientProvider.isConfigured) return EmailUpdate.Failure(AuthError.NOT_CONFIGURED)
+        return try {
+            val user = SupabaseClientProvider.client.auth.modifyUser {
+                email = newEmail
+            }
+            // Staged iff the server says so: new_email present, or an email
+            // change was stamped without the email itself changing.
+            val staged = user.newEmail != null ||
+                (user.emailChangeSentAt != null && user.email != newEmail)
+            if (staged) EmailUpdate.ConfirmationRequired(newEmail)
+            else EmailUpdate.Applied
+        } catch (e: BadRequestRestException) {
+            // "already registered by another account" / "same as current"
+            // land in 400/422 — classify by message, mirroring signUp().
+            val msg = e.error
+            Log.e(TAG, "updateEmail rejected: $msg", e)
+            EmailUpdate.Failure(
+                if (msg.contains("already", ignoreCase = true) ||
+                    msg.contains("in use", ignoreCase = true)
+                ) AuthError.EMAIL_IN_USE else AuthError.UNKNOWN
+            )
+        } catch (e: RestException) {
+            Log.e(TAG, "updateEmail failed", e)
+            EmailUpdate.Failure(AuthError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "updateEmail failed", e)
+            EmailUpdate.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /**
+     * Self-service account deletion. The app has no service-role key (by
+     * design), so the deletion runs as the SECURITY DEFINER Postgres RPC
+     * `delete_own_account()` (see supabase/migrations/0002_*.sql): it
+     * deletes ONLY the calling user's auth.users row — every public table
+     * cascades from auth.users per the schema. After the server side
+     * succeeds the local session is cleared too. Room data on the device is
+     * intentionally NOT touched (explicit product decision).
+     */
+    suspend fun deleteAccount(): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        return try {
+            SupabaseClientProvider.client.postgrest.rpc("delete_own_account")
+            // Local sign-out never throws (see signOut) and LOCAL scope does
+            // not need the (now-dead) token server-side.
+            SupabaseClientProvider.client.auth.signOut()
+            Outcome.Success
+        } catch (e: RestException) {
+            val msg = "${e.error} ${e.description ?: ""} ${e.message ?: ""}"
+            Log.e(TAG, "deleteAccount failed: $msg", e)
+            // A missing function (404 PGRST202 / "schema cache") means the
+            // 0002 migration was never applied — surface that distinctly so
+            // the report says "run the SQL", not "network error".
+            Outcome.Failure(
+                if (msg.contains("does not exist", ignoreCase = true) ||
+                    msg.contains("schema cache", ignoreCase = true)
+                ) AuthError.UNKNOWN else AuthError.NETWORK
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteAccount failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /**
+     * Login Google — exchanges a Google ID token for a Supabase session.
+     * The token is obtained on the UI side via AndroidX Credential Manager
+     * (GetGoogleIdOption with BuildConfig.GOOGLE_OAUTH_WEB_CLIENT_ID, the
+     * WEB client id registered in Supabase Dashboard -> Auth -> Providers
+     * -> Google). gotrue-kt 2.2.2 models Google as an IDTokenProvider (no
+     * browser redirect/deeplink on Android for this SDK line), so the flow
+     * is: Google Play services issues the ID token -> this call swaps it
+     * for a full session (grant_type=id_token). Works for both new users
+     * (auto-created; the handle_new_user trigger makes their profiles row)
+     * and existing ones.
+     */
+    suspend fun signInWithGoogle(idToken: String): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        return try {
+            SupabaseClientProvider.client.auth.signInWith(IDToken) {
+                this.idToken = idToken
+                this.provider = Google
+            }
+            Outcome.Success
+        } catch (e: BadRequestRestException) {
+            // Most common real cause: the Google provider is not enabled in
+            // the Supabase project, or the client id mismatches the one
+            // registered there.
+            Log.e(TAG, "signInWithGoogle rejected: ${e.error}", e)
+            Outcome.Failure(AuthError.UNKNOWN)
+        } catch (e: RestException) {
+            Log.e(TAG, "signInWithGoogle failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "signInWithGoogle failed", e)
+            Outcome.Failure(AuthError.NETWORK)
         }
     }
 

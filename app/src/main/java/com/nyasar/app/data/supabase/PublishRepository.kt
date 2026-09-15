@@ -11,7 +11,7 @@ import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query
-import io.github.jan.supabase.storage.storage
+import io.github.jan.supabase.storage.Storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -180,8 +180,8 @@ class PublishRepository {
                 // upload() returns the object path, not a URL — build the
                 // public URL explicitly (bucket `route-gpx` is public per
                 // supabase/migrations/0003_route_gpx_bucket.sql).
-                client.storage["route-gpx"].upload(path, gzipped)
-                client.storage["route-gpx"].publicUrl(path)
+                client.pluginManager.getPlugin(Storage)["route-gpx"].upload(path, gzipped)
+                client.pluginManager.getPlugin(Storage)["route-gpx"].publicUrl(path)
             }
         } catch (e: RestException) {
             Log.e(TAG, "gpx upload failed: ${e.error} ${e.description ?: ""}", e)

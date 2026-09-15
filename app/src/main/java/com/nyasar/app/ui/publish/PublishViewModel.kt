@@ -8,6 +8,7 @@ import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.data.db.WaypointEntity
 import com.nyasar.app.data.supabase.PublishRepository
+import com.nyasar.app.data.supabase.PublishRepository.PublishError
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.flow.MutableStateFlow

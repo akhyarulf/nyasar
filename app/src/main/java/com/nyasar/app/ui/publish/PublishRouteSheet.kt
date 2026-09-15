@@ -111,7 +111,7 @@ fun PublishRouteSheet(
             }
 
             val idleError = (state as? PublishState.Idle)?.error
-            idleError?.let { ErrorBanner(it.toMessage()) }
+            idleError?.let { ErrorBanner(stringResource(it.toStringRes())) }
 
             OutlinedTextField(
                 value = mountain,
@@ -280,9 +280,9 @@ private fun ErrorBanner(text: String) {
     }
 }
 
-@Composable
-private fun PublishUiError.toMessage(): String = stringResource(
-    when (this) {
+/** Plain (non-composable) mapping so callers resolve the string inside
+ *  their own composable context. */
+private fun PublishUiError.toStringRes(): Int = when (this) {
         PublishUiError.NOT_SIGNED_IN -> R.string.publish_error_not_signed_in
         PublishUiError.EMPTY_TRACK -> R.string.publish_error_empty_track
         PublishUiError.INSERT -> R.string.publish_error_insert
@@ -290,7 +290,6 @@ private fun PublishUiError.toMessage(): String = stringResource(
         PublishUiError.NETWORK -> R.string.publish_error_network
         PublishUiError.GENERIC -> R.string.publish_error_generic
     }
-)
 
 private fun difficultyOptions() = listOf(
     PublishDifficulty.NONE,

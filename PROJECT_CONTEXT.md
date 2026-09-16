@@ -315,8 +315,20 @@ TOTAL.** Siap lanjut ke Fase 2.
 
 
 ### Fase 2 — Publish / Share Rute Publik
-🟡 Slice 1 (pipeline publish) selesai — browse/search rute publik,
-Download GPX, dan input GpxParser jadi slice berikutnya.
+🟡 Slice 1 (pipeline publish) + Slice 2 (browse/detail/Download GPX,
+sekalian rework IA bottom bar) SELESAI — sisa: input GpxParser untuk
+publish-dari-file.
+
+**Rework IA 2026 — sudah dieksekusi (commit `84a0ec7`, perbaikan CI
+sampai `feec4ee`, CI hijau): bottom bar 5 tab — Browse | Map | Record |
+Library | Profile.** Browse = Fase 2 poin 3, sekarang START DESTINATION
+app. Map = HomeScreen lama (route string `"home"` SENGAJA tidak berubah
+supaya semua call site `navigate("home")` tetap valid). Record & Library
+tidak berubah. History + Settings digabung di tab Profile (`"profile"`
+di bottom bar + nested `"profile?tab="` dengan header back-arrow;
+route `"history"`/`"settings"` tetap terdaftar sebagai sub-destinasi).
+Gate auth pasca daftar/login mendarat ke Browse, bukan Home.
+
 1. ✅ `publish/PolylineEncoder.kt` — encode standar Google/Strava +
    decode, round-trip ter-unit-test (`PolylineEncoderTest`, dijalankan
    CI via step baru `testDebugUnitTest`). Input `GpxParser` menyusul di
@@ -326,7 +338,14 @@ Download GPX, dan input GpxParser jadi slice berikutnya.
    deskripsi, FilterChips, notice transparansi (ringkasan jalur + GPX
    terkompresi dari N titik; titik mentah TIDAK pernah dikirim),
    strings lengkap ID/EN.
-3. Layar search/browse rute publik.
+3. ✅ Layar search/browse rute publik — `BrowseScreen`/`BrowseViewModel`/
+   `BrowseRepository`: search by NAMA rute (debounce 350ms, server-side
+   ilike), filter difficulty & trail_type (wire value = CHECK constraint
+   schema, label REUSE string form publish — tidak ada vocab ganda),
+   sort terbaru/terbanyak-disukai/jarak, kartu rute dengan mini-preview
+   polyline (Canvas murni, tanpa tile map). Sengaja TIDAK menyentuh
+   `mountain_name`/`region` — app tetap jalan baik SEBELUM maupun
+   SESUDAH migration 0004 dijalankan (lihat catatan keputusan di bawah).
 4. ✅ Pipeline generate GPX lengkap + gzip + upload Storage saat
    publish — `PublishRepository.publish()` (insert `routes` RETURNING
    id → GPX via `GpxExporter` → gzip → Storage `route-gpx` → backfill
@@ -335,9 +354,12 @@ Download GPX, dan input GpxParser jadi slice berikutnya.
    dijalankan manual di Supabase SQL Editor** (buat bucket publik
    `route-gpx` + kebijakan insert/select user; sama seperti pola
    migration 0002 sebelumnya).
-5. ⏳ Tombol "Download GPX" di layar detail rute — fetch
-   `gpx_file_url`, decompress (`GZIPInputStream`), simpan `.gpx` lokal
-   atau share-intent. (Slice berikutnya.)
+5. ✅ Tombol "Download GPX" di layar detail rute publik
+   (`PublicRouteDetailScreen`) — fetch `gpx_file_url`, decompress
+   (`GZIPInputStream`), tulis ke cache exports, share-intent FileProvider
+   (jalur sama dengan export GPX P3G). Detail juga menampilkan publisher
+   (join `profiles(username)`), stats, dan preview track dari
+   `track_polyline` (lossy — elevasi per titik tetap hanya ada di GPX).
 
 **⏳ Keputusan baru (belum dieksekusi) — hapus `mountain_name` DAN
 `region` dari tabel `routes`, disengaja, bukan cuma rename:**
@@ -367,7 +389,11 @@ Download GPX, dan input GpxParser jadi slice berikutnya.
     ke `routes`.
   - Kalau nanti browse/search screen (poin 3 di atas) dikerjakan
     SETELAH migration ini, JANGAN pakai `mountain_name`/`region`
-    sebagai filter (lihat draft rencana filter di bawah).
+    sebagai filter (lihat draft rencana filter di bawah). — SUDAH
+    DIPATUHI: browse/detail/search tidak mereferensikan dua kolom itu
+    sama sekali (slice browse dikerjakan SEBELUM migration jalan,
+    sesuai urutan wajib "kode dulu" di atas; migration 0004-nya sendiri
+    masih ⏳ menunggu dijalankan manual user).
   - **Urutan eksekusi wajib: kode diubah dulu, migration SQL
     dijalankan belakangan** — kalau migration jalan duluan sebelum
     kode diupdate, app akan crash saat publish (insert ke kolom yang

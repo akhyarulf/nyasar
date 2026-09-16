@@ -27,6 +27,7 @@ import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarRadius
 import kotlin.math.cos
+import kotlin.math.roundToInt
 
 /**
  * "Jelajah / Explore" — the new Home tab (Fase 2 poin 3, IA rework 2026):
@@ -320,7 +321,6 @@ fun MiniTrackPreview(polyline: String, modifier: Modifier = Modifier) {
     val points = remember(polyline) { BrowseRepository.decodeTrack(polyline) }
     val lineColor = MaterialTheme.colorScheme.primary
     androidx.compose.foundation.Canvas(modifier = modifier) {
-        drawContext.canvas.nativeCanvas // no-op keep import surface minimal
         val path = trackPath(points, size.width, size.height)
         drawPath(path, lineColor, style = Stroke(width = 3f))
     }

@@ -171,14 +171,17 @@ class BrowseRepository {
                         eq("is_draft", false)
                         difficulty?.let { eq("difficulty", it.wire) }
                         trailType?.let { eq("trail_type", it.wire) }
-                    }
-                    if (query.isNotBlank()) {
-                        // Search matches the route name only. mountain_name/
-                        // region are gone (Keputusan baru, migration 0004) and
-                        // were never valid search targets in this layer.
-                        val safe = query.trim().replace(",", "").replace("(", "").replace(")", "")
-                        if (safe.isNotBlank()) {
-                            ilike("name", "%$safe%")
+                        // Search matches the route name only (case-insensitive
+                        // ilike — must live INSIDE the filter scope). Strip
+                        // PostgREST pattern delimiters so a typed query can't
+                        // inject filter clauses. mountain_name/region are gone
+                        // (Keputusan baru, migration 0004) and were never valid
+                        // search targets in this layer.
+                        if (query.isNotBlank()) {
+                            val safe = query.trim().replace(",", "").replace("(", "").replace(")", "")
+                            if (safe.isNotBlank()) {
+                                ilike("name", "%$safe%")
+                            }
                         }
                     }
                     limit(limit.toLong())
@@ -225,8 +228,20 @@ class BrowseRepository {
                 .decodeSingle<RouteDetail>()
             DetailOutcome.Success(row)
         } catch (e: RestException) {
-            Log.e(TAG, "detail failed: ${e.message}", e)
-            DetailOutcome.Failure(if (e.statusCode == 404) BrowseError.NOT_FOUND else BrowseError.UNKNOWN)
+            // Message-based classification (same pattern as AuthRepository —
+            // this supabase-kt line's RestException exposes error/description
+            // strings, not a statusCode property). PostgREST answers a 0-row
+            // single-object select with PGRST116 / "JSON object requested,
+            // multiple (or no) rows returned" — i.e. the id is gone or hidden
+            // by RLS, which for the user is simply "route not found".
+            val msg = "${e.error} ${e.description ?: ""} ${e.message ?: ""}"
+            Log.e(TAG, "detail failed: $msg", e)
+            DetailOutcome.Failure(
+                if (msg.contains("PGRST116", ignoreCase = true) ||
+                    msg.contains("no rows", ignoreCase = true) ||
+                    msg.contains("JSON object requested", ignoreCase = true)
+                ) BrowseError.NOT_FOUND else BrowseError.UNKNOWN
+            )
         } catch (e: HttpRequestTimeoutException) {
             Log.e(TAG, "detail timeout: ${e.message}")
             DetailOutcome.Failure(BrowseError.NETWORK)

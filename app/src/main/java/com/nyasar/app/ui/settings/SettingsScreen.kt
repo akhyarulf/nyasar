@@ -89,8 +89,11 @@ fun SettingsScreen(
  * standalone [SettingsScreen] wrapper above, so both hostings stay identical
  * with a single source of truth.
  */
+/** Internal on purpose: only [SettingsScreen] and [SettingsEmbedded]
+ *  (same module/package) may host it — but `internal` keeps that guarantee
+ *  while letting the embedded wrapper live in its own file. */
 @Composable
-private fun SettingsContent(
+internal fun SettingsContent(
     onOpenOfflineMaps: () -> Unit,
     onOpenAccount: () -> Unit,
     onBack: () -> Unit,

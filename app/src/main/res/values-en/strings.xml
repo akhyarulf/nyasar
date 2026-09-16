@@ -666,5 +666,5 @@
     <string name="route_detail_elev_min">Lowest</string>
     <string name="route_detail_elev_loss">Descent</string>
     <string name="route_detail_description">Description</string>
-    <string name="route_detail_no_description">The publisher hasn't written a description yet.</string>
+    <string name="route_detail_no_description">The publisher hasn\'t written a description yet.</string>
 </resources>

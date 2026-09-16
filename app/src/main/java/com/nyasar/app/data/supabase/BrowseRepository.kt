@@ -56,9 +56,10 @@ class BrowseRepository {
     )
 
     /** Detail adds the publisher's username via the FK join to profiles —
-     *  PostgREST nested-resource select, same shape AuthRepository's joined
-     *  profile queries return. userId is kept explicitly because the Storage
-     *  download path is rebuilt from it (not parsed out of gpx_file_url). */
+     *  PostgREST nested-resource select with an explicit FK hint (see
+     *  detail() — the bare "profiles" embed is ambiguous). userId is kept
+     *  explicitly because the Storage download path is rebuilt from it
+     *  (not parsed out of gpx_file_url). */
     @Serializable
     data class RouteDetail(
         val id: String,
@@ -216,10 +217,18 @@ class BrowseRepository {
         return try {
             // Columns.list (comma-separated, NO spaces) — NOT Columns.raw:
             // raw with ", " produces PGRST100 "could not parse select
-            // parameter" (PostgREST rejects whitespace after commas), which
-            // is why the detail screen failed while browse (also list) worked.
-            // The profiles(username) embed stays: profiles has a public
-            // select policy (schema_v1.sql), so it resolves for everyone.
+            // parameter" (PostgREST rejects whitespace after commas).
+            //
+            // The embed MUST carry the FK hint "profiles!routes_user_id_fkey":
+            // routes has THREE relationships to profiles (the direct user_id
+            // FK plus many-to-many via route_likes and saved_routes), so a
+            // bare "profiles(username)" is rejected with PGRST201 "Could not
+            // embed because more than one relationship was found" (HTTP 300;
+            // supabase-kt 2.2.2 surfaces that as UnknownRestException
+            // "Unknown error" — the real body never reached our logs until
+            // reproduced via curl). The hint pins the DIRECT fk, which is
+            // exactly the publisher-of-this-route join we want. profiles is
+            // world-readable (public select policy, schema_v1.sql).
             val row = client.postgrest["routes"]
                 .select(columns = Columns.list(
                     "id", "user_id", "name", "difficulty", "difficulty_description",
@@ -227,7 +236,7 @@ class BrowseRepository {
                     "elevation_loss_m", "max_elevation_m", "min_elevation_m", "moving_time_ms",
                     "description", "track_polyline", "gpx_file_url",
                     "likes_count", "comments_count", "created_at",
-                    "profiles(username)"
+                    "profiles!routes_user_id_fkey(username)"
                 )) {
                     filter { eq("id", routeId) }
                     limit(1)

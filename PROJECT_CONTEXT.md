@@ -436,6 +436,25 @@ sama dengan `ElevationStats.summarize` (gain/loss activity konsisten
 dengan angka GPX). Test vector canonical polyline juga dikoreksi ke
 `_mqNvxq`@` sesuai tabel resmi Google (sebelumnya salah tulis `_mN`).
 
+Catatan Slice 2 (bugfix detail rute publik, 2026-09-16): layar detail
+rute publik selalu "Something went wrong — try again" sejak commit
+`84a0ec7` (belum pernah jalan sama sekali — BUKAN regression migration
+0003/0004, keduanya bersih, diverifikasi langsung via curl). Root
+cause: embed `profiles(username)` AMBIGU — `routes` punya TIGA relasi
+ke `profiles` (FK langsung `routes_user_id_fkey` + many-to-many via
+`route_likes` dan `saved_routes`), PostgREST menolak menebak dengan
+PGRST201 "Could not embed because more than one relationship was
+found" (HTTP 300), dan supabase-kt 2.2.2 menelannya jadi
+`UnknownRestException: Unknown error` sehingga logcat lama tidak
+pernah menunjukkan body error aslinya. Fix: select detail memakai FK
+hint eksplisit `profiles!routes_user_id_fkey(username)` — diverifikasi
+langsung ke REST project: HTTP 200 + username publisher ter-embed.
+Komentar lama di `BrowseRepository.detail()` yang menyalahkan
+PGRST100/whitespace dikoreksi — klaim itu tidak pernah benar.
+Pelajaran audit: kalau `RestException`-nya cuma "Unknown", reproduce
+request-nya langsung ke PostgREST (curl dengan apikey publishable)
+untuk melihat kode PGRST* asli sebelum menebak-nebak penyebab.
+
 ### Fase 3 — Backup Pribadi
 ❌ Belum mulai, masih sebatas konsep (lihat bagian di atas).
 1. `DeltaEncoder.kt` — encode `List<ActivityPointEntity>` jadi

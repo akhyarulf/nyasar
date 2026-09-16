@@ -107,7 +107,29 @@ class RouteRepository(private val context: Context) {
             destFile.outputStream().use { output -> input.copyTo(output) }
         } ?: throw IllegalArgumentException(context.getString(com.nyasar.app.R.string.cannot_open_gpx))
 
-        val doc = destFile.inputStream().use { parser.parse(it, displayName ?: context.getString(com.nyasar.app.R.string.default_route_name)) }
+        importLocalGpxFile(destFile, displayName)
+    }
+
+    /**
+     * Imports a GPX from raw XML bytes (e.g. the decompressed "Download GPX"
+     * payload of a published route — Fase 2 "full open"): writes the bytes
+     * to app-private storage, then walks the EXACT same parse/insert/merge
+     * path as [importFromUri], so a saved public route is indistinguishable
+     * from an imported one everywhere else in the app (preview, offline
+     * download, navigation all read RouteEntity + the GPX file on disk).
+     */
+    suspend fun importFromGpxXml(xml: String, displayName: String?): RouteEntity = withContext(Dispatchers.IO) {
+        val id = UUID.randomUUID().toString()
+        val destFile = File(routesDir, "$id.gpx")
+        destFile.writeText(xml)
+        importLocalGpxFile(destFile, displayName)
+    }
+
+    /** Shared tail of both import paths: parse the stored file, compute
+     *  stats, insert the row, merge GPX waypoints. Caller has already
+     *  written [file]. */
+    private suspend fun importLocalGpxFile(file: File, displayName: String?): RouteEntity = withContext(Dispatchers.IO) {
+        val doc = file.inputStream().use { parser.parse(it, displayName ?: context.getString(com.nyasar.app.R.string.default_route_name)) }
         val elevation = ElevationStats.summarize(doc.allTrackPoints)
 
         val totalDistance = doc.tracks.sumOf { track ->
@@ -120,9 +142,9 @@ class RouteRepository(private val context: Context) {
         }
 
         val entity = RouteEntity(
-            id = id,
+            id = file.nameWithoutExtension,
             name = doc.name,
-            localGpxFilePath = destFile.absolutePath,
+            localGpxFilePath = file.absolutePath,
             distanceMeters = totalDistance,
             elevationGainM = elevation?.gainM,
             elevationLossM = elevation?.lossM,
@@ -133,7 +155,7 @@ class RouteRepository(private val context: Context) {
             lastOpenedAtEpochMs = null
         )
         dao.insert(entity)
-        mergeGpxWaypoints(routeId = id, gpxWaypoints = doc.waypoints)
+        mergeGpxWaypoints(routeId = entity.id, gpxWaypoints = doc.waypoints)
         entity
     }
 

@@ -657,7 +657,9 @@
     <string name="browse_error_unknown">Something went wrong — try again</string>
     <string name="browse_download_gpx">Download GPX</string>
     <string name="browse_downloading">Downloading GPX…</string>
-    <string name="browse_open_in_map">View on map</string>
+    <string name="browse_save_library">Save to Library</string>
+    <string name="browse_saving">Saving…</string>
+    <string name="browse_save_failed">Couldn\'t save the route — try again</string>
     <string name="browse_by">by %1$s</string>
     <string name="route_detail_title">Route Detail</string>
     <string name="route_detail_elev_max">Summit</string>

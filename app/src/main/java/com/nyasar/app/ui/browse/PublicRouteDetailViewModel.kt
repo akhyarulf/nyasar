@@ -1,8 +1,11 @@
 package com.nyasar.app.ui.browse
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
+import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import com.nyasar.app.gpx.model.TrackPoint
@@ -14,13 +17,17 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for a single PUBLIC route's detail screen (Fase 2 slice 2):
  * loads the row + publisher username, decodes track_polyline for the map
- * preview, and runs the Download-GPX flow ("full open", Keputusan poin 6).
+ * preview, runs the Download-GPX flow ("full open", Keputusan poin 6) and
+ * the Save-to-Library flow (download -> import as a LOCAL RouteEntity ->
+ * open Route Preview, from which MULAI NAVIGASI works — navigation needs
+ * a real GPX on disk, which the lossy track_polyline can never provide).
  *
  * Sealed states, no boolean flags — same style as BrowseViewModel.
  */
-class PublicRouteDetailViewModel : ViewModel() {
+class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = BrowseRepository()
+    private val routeRepository = RouteRepository(application)
 
     sealed class State {
         data object Loading : State()
@@ -40,11 +47,24 @@ class PublicRouteDetailViewModel : ViewModel() {
         data class Error(val messageRes: Int) : DownloadState()
     }
 
+    /** Save-to-Library lifecycle: idle -> saving -> Saved(localRouteId) |
+     *  Error. [Saved.localRouteId] is consumed once by the screen to
+     *  navigate to the route's preview. */
+    sealed class SaveState {
+        data object Idle : SaveState()
+        data object Saving : SaveState()
+        data class Saved(val localRouteId: String) : SaveState()
+        data class Error(val messageRes: Int) : SaveState()
+    }
+
     private val _state = MutableStateFlow<State>(State.Loading)
     val state: StateFlow<State> = _state.asStateFlow()
 
     private val _download = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val download: StateFlow<DownloadState> = _download.asStateFlow()
+
+    private val _save = MutableStateFlow<SaveState>(SaveState.Idle)
+    val save: StateFlow<SaveState> = _save.asStateFlow()
 
     fun load(routeId: String) {
         viewModelScope.launch {
@@ -82,6 +102,39 @@ class PublicRouteDetailViewModel : ViewModel() {
 
     fun downloadConsumed() {
         _download.value = DownloadState.Idle
+    }
+
+    /**
+     * Save-to-Library: fetch + decompress the ORIGINAL GPX, import it as a
+     * local RouteEntity (same path as a manual GPX import), and report the
+     * new local route id. The lossy track_polyline is never used here —
+     * saving must yield a route that can actually be navigated offline.
+     */
+    fun saveToLibrary(route: BrowseRepository.RouteDetail) {
+        if (_save.value is SaveState.Saving) return
+        viewModelScope.launch {
+            _save.value = SaveState.Saving
+            when (val outcome = repository.downloadGpx(SupabaseClientProvider.client, route)) {
+                is BrowseRepository.GpxOutcome.Success -> {
+                    _save.value = try {
+                        val entity = routeRepository.importFromGpxXml(
+                            xml = outcome.gpxXml,
+                            displayName = route.name
+                        )
+                        SaveState.Saved(entity.id)
+                    } catch (e: Exception) {
+                        android.util.Log.e("PublicRouteDetailVM", "saveToLibrary import failed", e)
+                        SaveState.Error(R.string.browse_save_failed)
+                    }
+                }
+                is BrowseRepository.GpxOutcome.Failure ->
+                    _save.value = SaveState.Error(errorResFor(outcome.error))
+            }
+        }
+    }
+
+    fun saveConsumed() {
+        _save.value = SaveState.Idle
     }
 
     private fun errorResFor(error: BrowseRepository.BrowseError): Int = when (error) {

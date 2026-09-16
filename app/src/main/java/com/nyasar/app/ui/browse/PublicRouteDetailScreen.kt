@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Map
@@ -43,13 +44,24 @@ import kotlin.math.roundToInt
 fun PublicRouteDetailScreen(
     routeId: String,
     viewModel: PublicRouteDetailViewModel = viewModel(),
+    onOpenRoutePreview: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val download by viewModel.download.collectAsState()
+    val save by viewModel.save.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(routeId) { viewModel.load(routeId) }
+
+    // Save-to-Library completion: navigate to the new LOCAL route's preview
+    // (from there "MULAI NAVIGASI" works — it's a real GPX-backed route).
+    // One-shot consumption, same pattern as the download state above.
+    LaunchedEffect(save) {
+        val saved = save as? PublicRouteDetailViewModel.SaveState.Saved ?: return@LaunchedEffect
+        viewModel.saveConsumed()
+        onOpenRoutePreview(saved.localRouteId)
+    }
 
     // One-shot: when a downloaded GPX is ready, write it to the cache exports
     // dir and fire the share sheet (same mechanism shareActivityGpx uses).
@@ -183,18 +195,30 @@ fun PublicRouteDetailScreen(
                     }
                     Spacer(Modifier.height(20.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // Save-to-Library: imports the ORIGINAL GPX as a local
+                        // route and opens its preview (navigation-capable).
+                        // Honest action — the previous "view on map" button
+                        // literally just called onBack() and showed nothing.
                         OutlinedButton(
-                            onClick = { onBack() },
-                            enabled = download !is PublicRouteDetailViewModel.DownloadState.InProgress,
+                            onClick = { viewModel.saveToLibrary(route) },
+                            enabled = save !is PublicRouteDetailViewModel.SaveState.Saving &&
+                                download !is PublicRouteDetailViewModel.DownloadState.InProgress,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.browse_open_in_map), maxLines = 1)
+                            if (save is PublicRouteDetailViewModel.SaveState.Saving) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.browse_saving), maxLines = 1)
+                            } else {
+                                Icon(Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.browse_save_library), maxLines = 1)
+                            }
                         }
                         Button(
                             onClick = { viewModel.downloadGpx(route) },
-                            enabled = download !is PublicRouteDetailViewModel.DownloadState.InProgress,
+                            enabled = download !is PublicRouteDetailViewModel.DownloadState.InProgress &&
+                                save !is PublicRouteDetailViewModel.SaveState.Saving,
                             modifier = Modifier.weight(1f)
                         ) {
                             if (download is PublicRouteDetailViewModel.DownloadState.InProgress) {
@@ -208,10 +232,11 @@ fun PublicRouteDetailScreen(
                             }
                         }
                     }
-                    if (download is PublicRouteDetailViewModel.DownloadState.Error) {
+                    val saveError = save as? PublicRouteDetailViewModel.SaveState.Error
+                    if (saveError != null) {
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            stringResource((download as PublicRouteDetailViewModel.DownloadState.Error).messageRes),
+                            stringResource(saveError.messageRes),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                             textAlign = TextAlign.Center,

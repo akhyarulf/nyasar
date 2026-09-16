@@ -550,10 +550,14 @@ private fun NyasarNavHost(
         }
         // Detail of a PUBLIC route (Fase 2): sub-screen of the Browse tab,
         // NOT a bottom-bar destination (its back button pops to Browse).
+        // "Simpan ke Library" imports the original GPX as a LOCAL route and
+        // lands on its preview — preview/{routeId} pops back here via the
+        // system back, then to Browse.
         composable("route/{routeId}") { backStackEntry ->
             val routeId = backStackEntry.arguments?.getString("routeId") ?: return@composable
             PublicRouteDetailScreen(
                 routeId = routeId,
+                onOpenRoutePreview = { id -> navController.navigate("preview/$id") },
                 onBack = { navController.popBackStack() }
             )
         }

@@ -384,16 +384,22 @@ Gate auth pasca daftar/login mendarat ke Browse, bukan Home.
     sendiri TIDAK ikut hilang, cuma dua kolom itu.
   - `PublishRouteSheet.kt` + `PublishViewModel.kt` — hapus field
     input mountain_name & region dari form (dan FilterChips/strings
-    ID-EN terkait kalau ada).
+    ID-EN terkait kalau ada). — ✅ SUDAH (commit `5ff4b6b`, CI hijau
+    run 35061871060/35061871052): form publish kini cuma
+    difficulty(+catatan)/trail_type/deskripsi; strings
+    `publish_mountain_label`/`publish_region_label` dihapus ID/EN.
   - `PublishRepository.kt` — hapus dua kolom itu dari payload insert
-    ke `routes`.
+    ke `routes`. — ✅ SUDAH (commit yang sama).
+  - File migration final: `supabase/migrations/0004_drop_mountain_name_and_region.sql`
+    (drop 2 index dulu, lalu drop 2 kolom, semua `if exists`).
   - Kalau nanti browse/search screen (poin 3 di atas) dikerjakan
     SETELAH migration ini, JANGAN pakai `mountain_name`/`region`
     sebagai filter (lihat draft rencana filter di bawah). — SUDAH
     DIPATUHI: browse/detail/search tidak mereferensikan dua kolom itu
     sama sekali (slice browse dikerjakan SEBELUM migration jalan,
     sesuai urutan wajib "kode dulu" di atas; migration 0004-nya sendiri
-    masih ⏳ menunggu dijalankan manual user).
+    masih ⏳ menunggu dijalankan manual user — lihat tabel di
+    `supabase/README.md`).
   - **Urutan eksekusi wajib: kode diubah dulu, migration SQL
     dijalankan belakangan** — kalau migration jalan duluan sebelum
     kode diupdate, app akan crash saat publish (insert ke kolom yang

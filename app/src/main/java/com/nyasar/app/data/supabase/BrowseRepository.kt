@@ -34,7 +34,14 @@ class BrowseRepository {
      *  NOTE: deliberately NO mountain_name/region — Keputusan baru
      *  (PROJECT_CONTEXT.md): kedua kolom itu dihapus dari `routes`
      *  (migration 0004, kode dulu baru SQL), jadi browse tidak boleh
-     *  menyentuhnya agar tetap hidup setelah migration jalan. */
+     *  menyentuhnya agar tetap hidup setelah migration jalan.
+     *
+     *  `profiles` comes from the SAME pinned FK embed as the detail select
+     *  (`profiles!routes_user_id_fkey(username)`): verified live, the hint
+     *  is required in LIST queries too (same PGRST201 ambiguity otherwise).
+     *  Nested object + nullable (never non-null), mirroring [RouteDetail]:
+     *  rows whose publisher was hard-deleted must still render — the card
+     *  just hides the author pill. */
     @Serializable
     data class PublicRoute(
         val id: String,
@@ -52,8 +59,9 @@ class BrowseRepository {
         @SerialName("gpx_file_url") val gpxFileUrl: String? = null,
         @SerialName("likes_count") val likesCount: Int = 0,
         @SerialName("comments_count") val commentsCount: Int = 0,
-        @SerialName("created_at") val createdAt: String
-    )
+        @SerialName("created_at") val createdAt: String,
+        val profiles: PublicProfile? = null
+    ) { val username: String? get() = profiles?.username }
 
     /** Detail adds the publisher's username via the FK join to profiles —
      *  PostgREST nested-resource select with an explicit FK hint (see
@@ -162,7 +170,13 @@ class BrowseRepository {
                     "distance_meters", "elevation_gain_m", "max_elevation_m",
                     "moving_time_ms", "description",
                     "track_polyline", "gpx_file_url",
-                    "likes_count", "comments_count", "created_at"
+                    "likes_count", "comments_count", "created_at",
+                    // Same FK-hinted embed as detail() — without the hint
+                    // this list query is ALSO ambiguous (3 relationships
+                    // routes<->profiles) and dies with PGRST201. Decodes into
+                    // PublicRoute's nested `profiles` object; null-safe when
+                    // the profile row is filtered/missing.
+                    "profiles!routes_user_id_fkey(username)"
                 )) {
                     filter {
                         // RLS already excludes non-public rows server-side;

@@ -455,6 +455,26 @@ Pelajaran audit: kalau `RestException`-nya cuma "Unknown", reproduce
 request-nya langsung ke PostgREST (curl dengan apikey publishable)
 untuk melihat kode PGRST* asli sebelum menebak-nebak penyebab.
 
+Upgrade visual kartu Browse (2026-09-16, hasil diskusi screenshot
+Wikiloc vs Strava): keputusan arah — **struktur data ala Wikiloc,
+bahasa visual ala peta Strava, foto TETAP dihapus** (Keputusan poin 1
+tidak dibuka ulang). Kartu `PublicRouteCard` sekarang: ikon sport +
+difficulty chip warna pastel tetap per level (ala Wikiloc) + trail-type
+chip netral, nama, stats row (distance/elevation+/durasi/likes), lalu
+hero preview peta statis (`StaticMapPreview`): 2-5 tile raster topo
+(MapTiler `topo` kalau MAPTILER_API_KEY ada, else OpenTopoMap keyless —
+sumber sama dengan katalog basemap app) + trace rute dengan casing
+gelap + titik start/end, username publisher sebagai pill di atas peta
+(embed `profiles!routes_user_id_fkey(username)` juga di LIST query —
+terverifikasi live: hint FK wajib juga di list, ambigu tanpa itu).
+Fallback: tile gagal / tanpa sinyal / loading → canvas polyline polos
+(look lama) — kartu tidak pernah error/blocking, fetch dibatalkan saat
+kartu keluar viewport, LruCache 12MB (by byteCount) mencegah refetch
+saat fling. List `PublicRoute` sekarang nested `profiles` object +
+computed `username` (nullable — publisher terhapus tetap tampil tanpa
+pill). Tidak ada string baru: semua label reuse (publish_difficulty_*,
+publish_trail_*, sport_*, dll).
+
 ### Fase 3 — Backup Pribadi
 ❌ Belum mulai, masih sebatas konsep (lihat bagian di atas).
 1. `DeltaEncoder.kt` — encode `List<ActivityPointEntity>` jadi

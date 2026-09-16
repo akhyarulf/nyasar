@@ -7,14 +7,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
@@ -24,8 +28,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.recording.SportType
+import com.nyasar.app.ui.components.StaticMapPreview
 import com.nyasar.app.ui.components.pressScale
+import com.nyasar.app.ui.theme.NyasarElevation
 import com.nyasar.app.ui.theme.NyasarRadius
+import com.nyasar.app.ui.theme.NyasarSpacing
 import kotlin.math.cos
 import kotlin.math.roundToInt
 
@@ -218,74 +226,187 @@ private fun PublicRouteCard(route: BrowseRepository.PublicRoute, onClick: () -> 
     val interaction = remember { MutableInteractionSource() }
     Surface(
         shape = RoundedCornerShape(NyasarRadius.md),
-        tonalElevation = 2.dp,
+        tonalElevation = NyasarElevation.cardTonal,
         modifier = Modifier
             .fillMaxWidth()
             .pressScale(interaction)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
-        Column(Modifier.padding(14.dp)) {            Text(
+        Column {
+            // Info section keeps the card padding; the hero map below is
+            // full-bleed (Wikiloc photo-style), clipped by the Surface shape.
+            Column(Modifier.padding(horizontal = NyasarSpacing.lg, vertical = NyasarSpacing.md)) {
+            // Top row: sport icon + Wikiloc-style colored difficulty chip +
+            // neutral trail-shape chip (all from columns we already store —
+            // mountain_name/region are gone, Keputusan baru, migration 0004).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = SportType.fromString(route.sportType).icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.weight(1f))
+                route.difficulty?.let { d -> BrowseRepository.DifficultyFilter.fromWire(d) }?.let { chip ->
+                    DifficultyChip(label = stringResource(chip.labelRes), wire = chip.wire)
+                    Spacer(Modifier.width(NyasarSpacing.sm))
+                }
+                route.trailType?.let { t -> BrowseRepository.TrailTypeFilter.fromWire(t) }?.let { chip ->
+                    TrailTypeChip(label = stringResource(chip.labelRes))
+                }
+            }
+            Spacer(Modifier.height(NyasarSpacing.sm))
+            Text(
                 route.name,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            // Secondary line: sport + difficulty/trail-type badges when set
-            // (mountain_name/region are gone from `routes` — Keputusan baru,
-            // migration 0004 — so nothing else is shown here).
-            val badges = listOfNotNull(
-                route.difficulty?.let { BrowseRepository.DifficultyFilter.fromWire(it)?.labelRes?.let { r -> stringResource(r) } },
-                route.trailType?.let { BrowseRepository.TrailTypeFilter.fromWire(it)?.labelRes?.let { r -> stringResource(r) } }
-            ).joinToString(" · ")
-            if (badges.isNotBlank()) {
-                Text(
-                    badges,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            // Mini track preview from the lossy polyline — same rendering the
-            // detail screen uses, just smaller. Pure Canvas, no MapLibre.
-            MiniTrackPreview(
-                polyline = route.trackPolyline,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(72.dp)
-            )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(NyasarSpacing.xs))
+            // Stats row (Wikiloc order): distance leads, then elevation gain,
+            // moving time and likes — only non-null values take space.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "%.1f km".format(route.distanceMeters / 1000.0),
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.SemiBold
                 )
                 route.elevationGainM?.let {
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(NyasarSpacing.md))
+                    Icon(
+                        Icons.AutoMirrored.Filled.TrendingUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(3.dp))
                     Text(
-                        "↑ ${it.roundToInt()} m",
+                        "${it.roundToInt()} m",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(Modifier.weight(1f))
-                Icon(
-                    Icons.Default.Favorite,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp)
+                route.movingTimeMs?.takeIf { ms -> ms > 0 }?.let { ms ->
+                    Spacer(Modifier.width(NyasarSpacing.md))
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        formatCardDuration(ms),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (route.likesCount > 0) {
+                    Spacer(Modifier.width(NyasarSpacing.md))
+                    Icon(
+                        Icons.Default.Favorite,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        route.likesCount.toString(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            }
+            Spacer(Modifier.height(NyasarSpacing.md))
+            // Hero: static topo-tile snapshot with the route trace — the
+            // Strava-style visual that replaces the removed photo slot.
+            // Degrades to the pure-canvas polyline (old look) while loading
+            // or with no signal. Author pill overlays the map, Wikiloc-style.
+            Box {
+                StaticMapPreview(
+                    polyline = route.trackPolyline,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
                 )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    route.likesCount.toString(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                route.username?.let { author ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        shape = RoundedCornerShape(NyasarRadius.pill),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(NyasarSpacing.sm)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(Modifier.width(NyasarSpacing.xs))
+                            Text(
+                                author,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+/** Compact moving-time label for cards — same h/m convention as the
+ *  formatDuration helpers in history/navigation screens. */
+private fun formatCardDuration(ms: Long): String {
+    val totalMin = ms / 60_000
+    val h = totalMin / 60
+    val m = totalMin % 60
+    return if (h > 0) "${h}h ${m}m" else "${m}m"
+}
+
+/** Wikiloc-style fixed-pastel difficulty badge: same hue per level across
+ *  themes/locales so the level reads at a glance while scrolling. */
+@Composable
+private fun DifficultyChip(label: String, wire: String) {
+    val (fg, bg) = when (wire) {
+        "easy" -> Color(0xFF1B5E20) to Color(0xFFE3F2E4)
+        "moderate" -> Color(0xFF9A6A00) to Color(0xFFFFF1DB)
+        "difficult" -> Color(0xFFB3261E) to Color(0xFFFCE8E6)
+        else -> Color(0xFF6A1B9A) to Color(0xFFF3E5F5)
+    }
+    Surface(color = bg, shape = RoundedCornerShape(NyasarRadius.xs)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = fg,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
+    }
+}
+
+/** Neutral chip for the trail shape (loop / out-and-back / point-to-point). */
+@Composable
+private fun TrailTypeChip(label: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(NyasarRadius.xs)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
     }
 }
 

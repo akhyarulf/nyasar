@@ -3,12 +3,8 @@
     <string name="app_name">Nyasar</string>
 
     <!-- Navigation -->
-    <string name="nav_home">Home</string>
-    <string name="nav_maps">Peta</string>
     <string name="nav_library">Library</string>
     <string name="nav_record">Record</string>
-    <string name="nav_history">Riwayat</string>
-    <string name="nav_settings">Pengaturan</string>
     <string name="nav_navigation">Navigasi</string>
 
     <!-- Home Screen -->
@@ -637,4 +633,38 @@
     <string name="publish_error_upload">Upload GPX gagal — cek koneksi lalu coba lagi</string>
     <string name="publish_error_network">Koneksi bermasalah — cek internet lalu coba lagi</string>
     <string name="publish_error_generic">Gagal mempublikasikan — coba lagi</string>
+
+    <!-- ── Browse rute publik (Fase 2 poin 3 — tab Home baru) ── -->
+    <string name="nav_browse">Jelajah</string>
+    <string name="nav_map">Peta</string>
+    <string name="nav_profile">Profil</string>
+    <string name="profile_title">Profil</string>
+    <string name="profile_tab_history">Riwayat</string>
+    <string name="profile_tab_settings">Pengaturan</string>
+    <string name="browse_title">Jelajah Rute</string>
+    <string name="browse_search_hint">Cari nama gunung, jalur, atau wilayah…</string>
+    <string name="browse_clear_search">Hapus pencarian</string>
+    <string name="browse_filter_difficulty">Kesulitan</string>
+    <string name="browse_filter_trail_type">Jenis jalur</string>
+    <string name="browse_sort_newest">Terbaru</string>
+    <string name="browse_sort_most_liked">Terbanyak disukai</string>
+    <string name="browse_sort_distance_asc">Jarak terpendek</string>
+    <string name="browse_sort_distance_desc">Jarak terjauh</string>
+    <string name="browse_empty_all">Belum ada rute publik. Jadilah yang pertama publish dari Activity-mu!</string>
+    <string name="browse_empty_search">Tidak ada rute yang cocok dengan pencarian/filter ini</string>
+    <string name="browse_error_network">Koneksi bermasalah — cek internet lalu coba lagi</string>
+    <string name="browse_error_not_configured">Fitur rute publik belum dikonfigurasi di build ini</string>
+    <string name="browse_error_not_found">Rute tidak ditemukan — mungkin sudah dihapus</string>
+    <string name="browse_error_no_gpx">File GPX asli belum tersedia untuk rute ini</string>
+    <string name="browse_error_unknown">Terjadi kesalahan — coba lagi</string>
+    <string name="browse_download_gpx">Unduh GPX</string>
+    <string name="browse_downloading">Mengunduh GPX…</string>
+    <string name="browse_open_in_map">Lihat di peta</string>
+    <string name="browse_by">oleh %1$s</string>
+    <string name="route_detail_title">Detail Rute</string>
+    <string name="route_detail_elev_max">Puncak</string>
+    <string name="route_detail_elev_min">Terendah</string>
+    <string name="route_detail_elev_loss">Turun</string>
+    <string name="route_detail_description">Deskripsi</string>
+    <string name="route_detail_no_description">Pemilik rute belum menulis deskripsi.</string>
 </resources>

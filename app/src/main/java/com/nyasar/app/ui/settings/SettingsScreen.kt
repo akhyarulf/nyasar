@@ -58,10 +58,9 @@ fun SettingsScreen(
     onOpenAccount: () -> Unit = {},
     onBack: () -> Unit
 ) {
-    val settings by viewModel.settings.collectAsState()
-    val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
-    val sessionState by authViewModel.sessionState.collectAsState()
-
+    // Standalone wrapper (kept for the "settings" route used by map screens'
+    // gear buttons): own Scaffold header with back arrow, then the shared
+    // content — identical rows to the Profile tab's embedded Settings pane.
     Scaffold(
         topBar = {
             TopAppBar(
@@ -74,12 +73,40 @@ fun SettingsScreen(
             )
         }
     ) { padding ->
+        Box(Modifier.padding(padding).fillMaxSize()) {
+            SettingsContent(
+                onOpenOfflineMaps = onOpenOfflineMaps,
+                onOpenAccount = onOpenAccount,
+                onBack = onBack
+            )
+        }
+    }
+}
+
+/**
+ * Settings content without its own Scaffold/TopAppBar — embedded directly by
+ * ProfileScreen's Settings sub-tab (IA rework 2026) AND reused by the
+ * standalone [SettingsScreen] wrapper above, so both hostings stay identical
+ * with a single source of truth.
+ */
+@Composable
+private fun SettingsContent(
+    onOpenOfflineMaps: () -> Unit,
+    onOpenAccount: () -> Unit,
+    onBack: () -> Unit,
+    viewModel: SettingsViewModel = viewModel()
+) {
+    val settings by viewModel.settings.collectAsState()
+    val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
+    val sessionState by authViewModel.sessionState.collectAsState()
+
+    Box(Modifier.fillMaxSize()) {
         val current = settings
         if (current == null) {
-            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-            return@Scaffold
+            return@Box
         }
 
         // Entrance: whole page fades+rises once (shared AnimatedScreen).
@@ -92,7 +119,6 @@ fun SettingsScreen(
         AnimatedScreen {
             Column(
                 Modifier
-                    .padding(padding)
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 12.dp)

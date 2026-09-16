@@ -71,9 +71,8 @@ fun ActivityHistoryScreen(
     onShareGpx: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val state by viewModel.uiState.collectAsState()
-    val thumbnails by viewModel.thumbnails.collectAsState()
-
+    // Standalone wrapper (kept for the "profile?tab=history" nested entry,
+    // which needs its own back arrow): same content, own Scaffold header.
     Scaffold(
         topBar = {
             TopAppBar(
@@ -87,7 +86,54 @@ fun ActivityHistoryScreen(
         }
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            when (state.loadState) {
+            ActivityHistoryContent(
+                viewModel = viewModel,
+                onOpenActivity = onOpenActivity,
+                onShareActivity = onShareActivity,
+                onShareGpx = onShareGpx,
+                emptyCta = onBack
+            )
+        }
+    }
+}
+
+/**
+ * History content without its own Scaffold/TopAppBar — embedded directly by
+ * ProfileScreen's History sub-tab (IA rework 2026). [emptyCta] is the action
+ * for the empty-state button (standalone: pop back; embedded: go to Record).
+ */
+@Composable
+fun ActivityHistoryEmbedded(
+    viewModel: ActivityHistoryViewModel = viewModel(),
+    onOpenActivity: (String) -> Unit,
+    onShareActivity: (String) -> Unit,
+    onShareGpx: (String) -> Unit,
+    emptyCta: () -> Unit
+) {
+    Box(Modifier.fillMaxSize()) {
+        ActivityHistoryContent(
+            viewModel = viewModel,
+            onOpenActivity = onOpenActivity,
+            onShareActivity = onShareActivity,
+            onShareGpx = onShareGpx,
+            emptyCta = emptyCta
+        )
+    }
+}
+
+@Composable
+private fun ActivityHistoryContent(
+    viewModel: ActivityHistoryViewModel,
+    onOpenActivity: (String) -> Unit,
+    onShareActivity: (String) -> Unit,
+    onShareGpx: (String) -> Unit,
+    emptyCta: () -> Unit
+) {
+    val state by viewModel.uiState.collectAsState()
+    val thumbnails by viewModel.thumbnails.collectAsState()
+
+    Box(Modifier.fillMaxSize()) {
+        when (state.loadState) {
                 HistoryLoadState.LOADING -> {
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
@@ -106,7 +152,7 @@ fun ActivityHistoryScreen(
                             title = stringResource(R.string.empty_history_title),
                             description = stringResource(R.string.empty_history_desc),
                             ctaText = stringResource(R.string.start_recording),
-                            onCtaClick = onBack,
+                            onCtaClick = emptyCta,
                             modifier = Modifier.align(Alignment.Center)
                         )
                     } else {

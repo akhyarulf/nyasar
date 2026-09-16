@@ -3,12 +3,8 @@
     <string name="app_name">Nyasar</string>
 
     <!-- Navigation -->
-    <string name="nav_home">Home</string>
-    <string name="nav_maps">Map</string>
     <string name="nav_library">Library</string>
     <string name="nav_record">Record</string>
-    <string name="nav_history">History</string>
-    <string name="nav_settings">Settings</string>
     <string name="nav_navigation">Navigation</string>
 
     <!-- Home Screen -->
@@ -637,4 +633,38 @@
     <string name="publish_error_upload">GPX upload failed — check your connection and try again</string>
     <string name="publish_error_network">Connection problem — check your internet and try again</string>
     <string name="publish_error_generic">Publishing failed — try again</string>
+
+    <!-- ── Browse public routes (Fase 2 point 3 — the new Home tab) ── -->
+    <string name="nav_browse">Explore</string>
+    <string name="nav_map">Map</string>
+    <string name="nav_profile">Profile</string>
+    <string name="profile_title">Profile</string>
+    <string name="profile_tab_history">History</string>
+    <string name="profile_tab_settings">Settings</string>
+    <string name="browse_title">Explore Routes</string>
+    <string name="browse_search_hint">Search mountain, trail, or region…</string>
+    <string name="browse_clear_search">Clear search</string>
+    <string name="browse_filter_difficulty">Difficulty</string>
+    <string name="browse_filter_trail_type">Trail type</string>
+    <string name="browse_sort_newest">Newest</string>
+    <string name="browse_sort_most_liked">Most liked</string>
+    <string name="browse_sort_distance_asc">Shortest distance</string>
+    <string name="browse_sort_distance_desc">Longest distance</string>
+    <string name="browse_empty_all">No public routes yet. Be the first to publish from your Activity!</string>
+    <string name="browse_empty_search">No routes match this search/filter</string>
+    <string name="browse_error_network">Connection problem — check your internet and try again</string>
+    <string name="browse_error_not_configured">Public routes are not configured in this build</string>
+    <string name="browse_error_not_found">Route not found — it may have been removed</string>
+    <string name="browse_error_no_gpx">The original GPX file is not available for this route yet</string>
+    <string name="browse_error_unknown">Something went wrong — try again</string>
+    <string name="browse_download_gpx">Download GPX</string>
+    <string name="browse_downloading">Downloading GPX…</string>
+    <string name="browse_open_in_map">View on map</string>
+    <string name="browse_by">by %1$s</string>
+    <string name="route_detail_title">Route Detail</string>
+    <string name="route_detail_elev_max">Summit</string>
+    <string name="route_detail_elev_min">Lowest</string>
+    <string name="route_detail_elev_loss">Descent</string>
+    <string name="route_detail_description">Description</string>
+    <string name="route_detail_no_description">The publisher hasn't written a description yet.</string>
 </resources>

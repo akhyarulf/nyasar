@@ -2,11 +2,11 @@ package com.nyasar.app.ui.components
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.FiberManualRecord
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -25,18 +25,23 @@ import com.nyasar.app.R
 import com.nyasar.app.ui.theme.NyasarMotion
 
 /**
- * Routes where the bottom bar should be visible (spec PART 1: "Tab bar
- * HANYA muncul di 4 screen utama"). The recording route can appear in
- * several forms depending on parameters:
- * - "recording?autoStart=false" (from Record tab)
- * - "recording?autoStart=true" (from Home quick-start)
- * - "recording?routeId=X&autoStart=false" (from Track picker)
- * - "recording?routeId=X&autoStart=true" (from Start Activity with route)
+ * Bottom-bar navigation concept (2026 IA rework — PROJECT_CONTEXT.md):
  *
- * We check if the route starts with "recording?" to handle all these
- * cases, rather than listing each variant.
+ *   Browse | Map | Record | Library | Profile
+ *
+ * - Browse  — NEW public-route browser (search/filter/sort, Fase 2 poin 3).
+ * - Map     — the previous HomeScreen fullscreen map, MOVED (not rebuilt).
+ * - Record  — unchanged, straight onto the recording screen.
+ * - Library — TrackAndMapsScreen unchanged (GPX import/draw/offline maps).
+ * - Profile — History + Settings merged behind one tab.
+ *
+ * The old standalone "history"/"settings" routes still exist as nav
+ * destinations ONLY inside the Profile tab (see ProfileScreen) — they are
+ * no longer bottom-bar entries, and the old "home" route string is kept
+ * for the Map tab so every existing "navigate(\"home\")" call site
+ * (offline-map focus, TrackAndMaps' home button) keeps working untouched.
  */
-val BOTTOM_BAR_ROUTES = setOf("home", "track-and-maps", "history", "settings")
+val BOTTOM_BAR_ROUTES = setOf("browse", "home", "track-and-maps", "profile")
 private const val RECORDING_ROUTE_PREFIX = "recording?"
 
 /**
@@ -46,9 +51,12 @@ fun shouldShowBottomBar(route: String?): Boolean {
     if (route == null) return false
     return route in BOTTOM_BAR_ROUTES ||
             // Prefix-match: track-and-maps?pickMode=true must also match,
-            // recording?routeId=X&autoStart=Y must also match.
+            // recording?routeId=X&autoStart=Y must also match, and the
+            // Profile tab is registered as "profile?tab={tab}" (optional
+            // arg), which also lands under this prefix.
             route.startsWith("track-and-maps") ||
             route.startsWith(RECORDING_ROUTE_PREFIX) ||
+            route.startsWith("profile") ||
             route.startsWith("activity/")
 }
 
@@ -65,35 +73,38 @@ private data class BottomTab(
 )
 
 private val TABS = listOf(
-    BottomTab("home", R.string.nav_home, Icons.Default.Home),
-    BottomTab("track-and-maps", R.string.nav_library, Icons.Default.Map),
-    // Was "start-activity" — an intermediate "Tanpa route / pilih route"
-    // screen the user had to tap through before ever seeing the map. Now
-    // goes straight to the live recording screen (map + big Play button,
-    // nothing started yet) — matches Strava's Record tab opening straight
-    // onto the map instead of a picker first.
+    BottomTab("browse", R.string.nav_browse, Icons.Default.Explore),
+    // Map = the old HomeScreen, route string deliberately unchanged.
+    BottomTab("home", R.string.nav_map, Icons.Default.Map),
+    // Record goes straight to the live recording screen (map + big Play
+    // button) — unchanged from the previous IA.
     BottomTab(
         route = "recording?autoStart=false",
         labelRes = R.string.nav_record,
         icon = Icons.Default.FiberManualRecord,
         matchRoute = "recording?routeId={routeId}&autoStart={autoStart}"
     ),
-    BottomTab("history", R.string.nav_history, Icons.Default.History),
-    BottomTab("settings", R.string.nav_settings, Icons.Default.Settings)
+    BottomTab("track-and-maps", R.string.nav_library, Icons.Default.Layers),
+    BottomTab(
+        route = "profile",
+        labelRes = R.string.nav_profile,
+        icon = Icons.Default.Person,
+        matchRoute = "profile?tab={tab}"
+    )
 )
 
 /**
- * Spec PART 1: permanent 4-tab shell. Deliberately dumb — no state of its
- * own, just renders [currentRoute] highlighted and forwards taps. Does NOT
- * decide when it's visible; that's the caller's job (see
- * [BOTTOM_BAR_ROUTES]), since visibility depends on nav-graph knowledge
- * this component shouldn't need.
+ * Permanent 5-tab shell. Deliberately dumb — no state of its own, just
+ * renders [currentRoute] highlighted and forwards taps. Does NOT decide when
+ * it's visible; that's the caller's job (see [BOTTOM_BAR_ROUTES]), since
+ * visibility depends on nav-graph knowledge this component shouldn't need.
  *
- * UI upgrade: M3 NavigationBar with the shared theme (surfaceContainer bar,
- * primary indicator pill) and an animated selection — the icon pops to full
- * size / labels stay, so switching tabs reads as motion rather than a
- * color flip, using the shared [NyasarMotion] spring. Route-matching logic
- * is byte-identical to the pre-upgrade version.
+ * UI: M3 NavigationBar with the shared theme (surfaceContainer bar, primary
+ * indicator pill) and an animated selection — the icon pops to full size /
+ * labels stay, so switching tabs reads as motion rather than a color flip,
+ * using the shared [NyasarMotion] spring. Route-matching logic is byte-
+ * identical to the pre-rework version (prefix matching for parameterized
+ * routes, exact match for plain tabs).
  */
 @Composable
 fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modifier: Modifier = Modifier) {
@@ -102,17 +113,16 @@ fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modi
         tonalElevation = 2.dp
     ) {
         TABS.forEach { tab ->
-            // BUG FIX: Use prefix matching for the recording tab, since
-            // the actual route can have different parameters (routeId, autoStart)
-            // but should still be considered as the "Record" tab being selected.
+            // BUG FIX (kept from the pre-rework bar): use prefix matching for
+            // parameterized tabs, since the actual route can carry different
+            // parameters but must still highlight its tab. Exact match for
+            // plain tabs: "track-and-maps?pickMode=true" is a separate route
+            // (Recording's route picker), NOT the Library tab.
             val isSelected = when {
                 tab.route == "recording?autoStart=false" -> currentRoute?.startsWith("recording?") == true
-                // Use exact match: "track-and-maps?pickMode=true" is a separate route
-                // (Recording's route picker), not the Library tab. Using startsWith
-                // would make Library appear selected on pickMode, preventing the user
-                // from navigating back to proper Library via the bottom bar.
                 tab.route == "track-and-maps" -> currentRoute == "track-and-maps"
-                tab.route == "history" -> currentRoute == tab.matchRoute || currentRoute?.startsWith("activity/") == true
+                tab.route == "profile" -> currentRoute == tab.matchRoute ||
+                    currentRoute?.startsWith("profile?tab=") == true
                 else -> currentRoute == tab.matchRoute
             }
             // Animated selection: icon scales up gently when its tab is

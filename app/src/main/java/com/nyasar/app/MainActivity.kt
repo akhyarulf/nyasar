@@ -53,6 +53,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nyasar.app.ui.components.BOTTOM_BAR_ROUTES
 import com.nyasar.app.ui.components.NyasarBottomBar
+import com.nyasar.app.ui.browse.BrowseScreen
+import com.nyasar.app.ui.browse.PublicRouteDetailScreen
+import com.nyasar.app.ui.profile.ProfileScreen
+import com.nyasar.app.ui.profile.ProfileTab
 import com.nyasar.app.ui.drawroute.DrawRouteScreen
 import com.nyasar.app.ui.history.ActivityDetailScreen
 import com.nyasar.app.ui.history.shareActivityGpx
@@ -221,6 +225,40 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
+/**
+ * Shared "Share GPX" handler for every History hosting (standalone history
+ * route, Profile tab, profile?tab nested entry): loads the activity + its
+ * points + waypoints-during-activity and fires the FileProvider share intent.
+ * One source of truth so the IA rework can't leave one hosting with a stubbed
+ * share button.
+ */
+@Composable
+private fun rememberShareActivityGpxHandler(): (String) -> Unit {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = remember { com.nyasar.app.data.db.AppDatabase.get(context).activityDao() }
+    val waypointRepo = remember { com.nyasar.app.data.repository.WaypointRepository(context) }
+    return { id ->
+        scope.launch {
+            try {
+                val activity = dao.getById(id) ?: return@launch
+                val points = dao.getPoints(id)
+                val waypoints = waypointRepo.getCreatedBetween(
+                    activity.startedAtEpochMs,
+                    activity.endedAtEpochMs ?: System.currentTimeMillis()
+                )
+                shareActivityGpx(context, activity, points, waypoints)
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    context.getString(R.string.gpx_create_failed),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+}
+
 @Composable
 private fun NyasarNavHost(
     navController: NavHostController,
@@ -262,7 +300,7 @@ private fun NyasarNavHost(
     // uses for every other tab switch — this is still "switch tabs", not
     // a new kind of navigation, so it stays consistent with how tab state
     // (scroll position etc.) is preserved everywhere else.
-    var lastTabRoute by rememberSaveable { mutableStateOf("home") }
+    var lastTabRoute by rememberSaveable { mutableStateOf("browse") }
     LaunchedEffect(currentRoute) {
         if (currentRoute != null && !isRecordingRoute && currentRoute in BOTTOM_BAR_ROUTES) {
             lastTabRoute = currentRoute
@@ -270,6 +308,20 @@ private fun NyasarNavHost(
     }
     val exitRecordingToLastTab: () -> Unit = {
         navController.navigate(lastTabRoute) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+    // IA rework 2026: "switch to bottom-bar tab X" as a plain callback — same
+    // popUpTo(start){saveState=true}+restoreState=true semantics the bottom
+    // bar's own handler uses. Wired into ProfileScreen's History empty-state
+    // CTA ("start recording"), which can't own this logic itself: it doesn't
+    // know whether it's hosted by the bottom bar or a nested destination.
+    val goToTab: (String) -> Unit = { route ->
+        navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) {
                 saveState = true
             }
@@ -344,7 +396,9 @@ private fun NyasarNavHost(
             }
             is com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn -> {
                 if (currentRoute == "auth/choose-username") {
-                    navController.navigate("home") {
+                    // IA rework 2026: the app's front door is now the Browse
+                    // tab (start destination), not the old Home/Map screen.
+                    navController.navigate("browse") {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -438,7 +492,9 @@ private fun NyasarNavHost(
         val slideAnimationDuration = NyasarMotion.SLOW_MS
         NavHost(
             navController = navController,
-            startDestination = "home",
+            // IA rework 2026: Browse (public-route explorer) is the start
+            // destination; the old HomeScreen map lives on as the Map tab.
+            startDestination = "browse",
             modifier = Modifier.fillMaxSize().padding(contentPadding),
             enterTransition = { slideInHorizontally(
                 initialOffsetX = { it },
@@ -482,6 +538,29 @@ private fun NyasarNavHost(
                 animationSpec = tween(tabFadeDuration, easing = NyasarMotion.EmphasizedAccelerate)
             )
         composable(
+            "browse",
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
+        ) {
+            BrowseScreen(
+                onOpenRoute = { routeId -> navController.navigate("route/$routeId") }
+            )
+        }
+        // Detail of a PUBLIC route (Fase 2): sub-screen of the Browse tab,
+        // NOT a bottom-bar destination (its back button pops to Browse).
+        composable("route/{routeId}") { backStackEntry ->
+            val routeId = backStackEntry.arguments?.getString("routeId") ?: return@composable
+            PublicRouteDetailScreen(
+                routeId = routeId,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        // IA rework 2026: the old HomeScreen map, now the "Map" tab. Route
+        // string unchanged ("home") so every existing navigate("home") call
+        // site keeps working untouched.
+        composable(
             "home",
             enterTransition = { tabEnter },
             exitTransition = { tabExit },
@@ -494,11 +573,60 @@ private fun NyasarNavHost(
                 pendingFocusBounds = pendingHomeFocusBounds,
                 onFocusBoundsConsumed = { pendingHomeFocusBounds = null },
                 onOpenRoute = { routeId -> navController.navigate("preview/$routeId") },
-                onOpenSettings = { navController.navigate("settings") },
+                onOpenSettings = { navController.navigate("profile?tab=settings") },
                 onStartRecording = { navController.navigate("start-activity") },
                 onResumeRecording = { navController.navigate("recording?autoStart=false") },
-                onOpenHistory = { navController.navigate("history") },
+                onOpenHistory = { navController.navigate("profile?tab=history") },
                 onOpenDrawRoute = { navController.navigate("draw-route") }
+            )
+        }
+        // IA rework 2026: History + Settings are merged behind the Profile
+        // tab; the standalone tab routes below survive ONLY as nested
+        // destinations ("profile?tab=…") hosting the same screens with a
+        // back-arrow header, reached from the Map tab's gear/history buttons.
+        composable(
+            "profile",
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
+        ) {
+            ProfileScreen(
+                showHeader = true,
+                onOpenActivity = { id -> navController.navigate("activity/$id") },
+                onShareActivity = { id -> navController.navigate("share-card/$id") },
+                onShareGpx = rememberShareActivityGpxHandler(),
+                onOpenOfflineMaps = { navController.navigate("offline-maps") },
+                onOpenAccount = { navController.navigate("auth/login") },
+                onGoToRecord = { goToTab("recording?autoStart=false") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            "profile?tab={tab}",
+            arguments = listOf(
+                navArgument("tab") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            ),
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
+        ) { backStackEntry ->
+            val tab = backStackEntry.arguments?.getString("tab")
+            ProfileScreen(
+                initialTab = if (tab == "settings") ProfileTab.SETTINGS else ProfileTab.HISTORY,
+                showHeader = false,
+                onOpenActivity = { id -> navController.navigate("activity/$id") },
+                onShareActivity = { id -> navController.navigate("share-card/$id") },
+                onShareGpx = rememberShareActivityGpxHandler(),
+                onOpenOfflineMaps = { navController.navigate("offline-maps") },
+                onOpenAccount = { navController.navigate("auth/login") },
+                onGoToRecord = { goToTab("recording?autoStart=false") },
+                onBack = { navController.popBackStack() }
             )
         }
         composable(
@@ -508,32 +636,10 @@ private fun NyasarNavHost(
             popEnterTransition = { tabEnter },
             popExitTransition = { tabExit }
         ) {
-            val scope = androidx.compose.runtime.rememberCoroutineScope()
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val dao = remember { com.nyasar.app.data.db.AppDatabase.get(context).activityDao() }
-            val waypointRepo = remember { com.nyasar.app.data.repository.WaypointRepository(context) }
             ActivityHistoryScreen(
                 onOpenActivity = { id -> navController.navigate("activity/$id") },
                 onShareActivity = { id -> navController.navigate("share-card/$id") },
-                onShareGpx = { id ->
-                    scope.launch {
-                        try {
-                            val activity = dao.getById(id) ?: return@launch
-                            val points = dao.getPoints(id)
-                            val waypoints = waypointRepo.getCreatedBetween(
-                                activity.startedAtEpochMs,
-                                activity.endedAtEpochMs ?: System.currentTimeMillis()
-                            )
-                            shareActivityGpx(context, activity, points, waypoints)
-                        } catch (e: Exception) {
-                            android.widget.Toast.makeText(
-                                context,
-                                context.getString(R.string.gpx_create_failed),
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                },
+                onShareGpx = rememberShareActivityGpxHandler(),
                 onBack = { navController.popBackStack() }
             )
         }

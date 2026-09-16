@@ -3,8 +3,8 @@ package com.nyasar.app.ui.browse
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -18,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
@@ -29,7 +28,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.recording.SportType
+import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.StaticMapPreview
+import com.nyasar.app.ui.components.TrailTypeChip
 import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarElevation
 import com.nyasar.app.ui.theme.NyasarRadius
@@ -371,43 +372,6 @@ private fun formatCardDuration(ms: Long): String {
     val h = totalMin / 60
     val m = totalMin % 60
     return if (h > 0) "${h}h ${m}m" else "${m}m"
-}
-
-/** Wikiloc-style fixed-pastel difficulty badge: same hue per level across
- *  themes/locales so the level reads at a glance while scrolling. */
-@Composable
-private fun DifficultyChip(label: String, wire: String) {
-    val (fg, bg) = when (wire) {
-        "easy" -> Color(0xFF1B5E20) to Color(0xFFE3F2E4)
-        "moderate" -> Color(0xFF9A6A00) to Color(0xFFFFF1DB)
-        "difficult" -> Color(0xFFB3261E) to Color(0xFFFCE8E6)
-        else -> Color(0xFF6A1B9A) to Color(0xFFF3E5F5)
-    }
-    Surface(color = bg, shape = RoundedCornerShape(NyasarRadius.xs)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = fg,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-        )
-    }
-}
-
-/** Neutral chip for the trail shape (loop / out-and-back / point-to-point). */
-@Composable
-private fun TrailTypeChip(label: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(NyasarRadius.xs)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-        )
-    }
 }
 
 /** Equirectangular mini track sketch (aspect-correct via cos(midLat)), used

@@ -1,6 +1,7 @@
 package com.nyasar.app.ui.browse
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,11 +9,16 @@ import com.nyasar.app.R
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
+import com.nyasar.app.gpx.GpxParser
 import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.navigation.ElevationStats
+import com.nyasar.app.ui.components.ElevationPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for a single PUBLIC route's detail screen (Fase 2 slice 2):
@@ -65,6 +71,51 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
 
     private val _save = MutableStateFlow<SaveState>(SaveState.Idle)
     val save: StateFlow<SaveState> = _save.asStateFlow()
+
+    /** Elevation-profile lifecycle for the detail chart (Strava-style
+     *  "Elevation" section). track_polyline is LOSSY — lat/lon only, no
+     *  elevation — so the honest source is the ORIGINAL GPX: downloaded
+     *  once, parsed, converted via the same [ElevationStats] the activity
+     *  detail chart uses. Any failure (no file, corrupt, no ele tags) is
+     *  [Unavailable] and the section simply doesn't render — the screen
+     *  never shows a broken/empty chart. */
+    sealed class ElevationState {
+        data object Idle : ElevationState()
+        data object Loading : ElevationState()
+        data class Ready(val profile: List<ElevationPoint>) : ElevationState()
+        data object Unavailable : ElevationState()
+    }
+
+    private val _elevation = MutableStateFlow<ElevationState>(ElevationState.Idle)
+    val elevation: StateFlow<ElevationState> = _elevation.asStateFlow()
+
+    /** Fired once from the Ready screen — NOT inside load(), so the detail
+     *  renders immediately and the chart streams in when the GPX arrives
+     *  (same progressive pattern as the browse cards' tile previews). */
+    fun loadElevation(route: BrowseRepository.RouteDetail) {
+        if (_elevation.value is ElevationState.Loading) return
+        viewModelScope.launch {
+            _elevation.value = ElevationState.Loading
+            _elevation.value = withContext(Dispatchers.IO) {
+                try {
+                    when (val outcome = repository.downloadGpx(SupabaseClientProvider.client, route)) {
+                        is BrowseRepository.GpxOutcome.Success -> {
+                            val points = GpxParser()
+                                .parse(outcome.gpxXml.byteInputStream(), route.name)
+                                .allTrackPoints
+                            val profile = ElevationStats.toElevationProfile(points)
+                            if (profile.size >= 2) ElevationState.Ready(profile)
+                            else ElevationState.Unavailable
+                        }
+                        is BrowseRepository.GpxOutcome.Failure -> ElevationState.Unavailable
+                    }
+                } catch (e: Exception) {
+                    Log.e("PublicRouteDetailVM", "elevation profile failed", e)
+                    ElevationState.Unavailable
+                }
+            }
+        }
+    }
 
     fun load(routeId: String) {
         viewModelScope.launch {

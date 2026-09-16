@@ -29,14 +29,16 @@ import java.io.IOException
 class BrowseRepository {
 
     /** Route list row — the INSERT subset PublishRepository writes, mirrored
-     *  back for reading (display columns only; stats reuse existing strings). */
+     *  back for reading (display columns only; stats reuse existing strings).
+     *  NOTE: deliberately NO mountain_name/region — Keputusan baru
+     *  (PROJECT_CONTEXT.md): kedua kolom itu dihapus dari `routes`
+     *  (migration 0004, kode dulu baru SQL), jadi browse tidak boleh
+     *  menyentuhnya agar tetap hidup setelah migration jalan. */
     @Serializable
     data class PublicRoute(
         val id: String,
         @SerialName("user_id") val userId: String,
         val name: String,
-        @SerialName("mountain_name") val mountainName: String? = null,
-        val region: String? = null,
         val difficulty: String? = null,
         @SerialName("trail_type") val trailType: String? = null,
         @SerialName("sport_type") val sportType: String = "UNSPECIFIED",
@@ -61,8 +63,6 @@ class BrowseRepository {
         val id: String,
         @SerialName("user_id") val userId: String,
         val name: String,
-        @SerialName("mountain_name") val mountainName: String? = null,
-        val region: String? = null,
         val difficulty: String? = null,
         @SerialName("difficulty_description") val difficultyDescription: String? = null,
         @SerialName("trail_type") val trailType: String? = null,
@@ -137,9 +137,9 @@ class BrowseRepository {
     }
 
     /**
-     * Browse/search public routes. [query] matches name / mountain_name /
-     * region via PostgREST `or` over ilike patterns (all three columns carry
-     * or benefit from the schema's browse indexes).
+     * Browse/search public routes. [query] matches the route `name` via
+     * PostgREST ilike (search-by-name only — see the data-class note above:
+     * mountain_name/region are scheduled for removal, migration 0004).
      */
     suspend fun browse(
         client: SupabaseClient,
@@ -155,7 +155,7 @@ class BrowseRepository {
         return try {
             val result = client.postgrest["routes"]
                 .select(columns = Columns.list(
-                    "id", "user_id", "name", "mountain_name", "region",
+                    "id", "user_id", "name",
                     "difficulty", "trail_type", "sport_type",
                     "distance_meters", "elevation_gain_m", "max_elevation_m",
                     "moving_time_ms", "description",
@@ -172,15 +172,12 @@ class BrowseRepository {
                         trailType?.let { eq("trail_type", it.wire) }
                     }
                     if (query.isNotBlank()) {
-                        // Strip PostgREST `or`-syntax delimiters so a typed
-                        // query can't inject filter clauses into the pattern.
+                        // Search matches the route name only. mountain_name/
+                        // region are gone (Keputusan baru, migration 0004) and
+                        // were never valid search targets in this layer.
                         val safe = query.trim().replace(",", "").replace("(", "").replace(")", "")
                         if (safe.isNotBlank()) {
-                            or {
-                                ilike("name", "%$safe%")
-                                ilike("mountain_name", "%$safe%")
-                                ilike("region", "%$safe%")
-                            }
+                            ilike("name", "%$safe%")
                         }
                     }
                     limit(limit.toLong())
@@ -215,7 +212,7 @@ class BrowseRepository {
         return try {
             val row = client.postgrest["routes"]
                 .select(columns = Columns.raw(
-                    "id, user_id, name, mountain_name, region, difficulty, difficulty_description, " +
+                    "id, user_id, name, difficulty, difficulty_description, " +
                         "trail_type, sport_type, distance_meters, elevation_gain_m, elevation_loss_m, " +
                         "max_elevation_m, min_elevation_m, moving_time_ms, description, " +
                         "track_polyline, gpx_file_url, likes_count, comments_count, created_at, " +

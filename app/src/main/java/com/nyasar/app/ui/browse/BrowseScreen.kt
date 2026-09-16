@@ -223,21 +223,23 @@ private fun PublicRouteCard(route: BrowseRepository.PublicRoute, onClick: () -> 
             .pressScale(interaction)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
-        Column(Modifier.padding(14.dp)) {
-            Text(
+        Column(Modifier.padding(14.dp)) {            Text(
                 route.name,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            val subtitle = listOfNotNull(
-                route.mountainName?.takeIf { it.isNotBlank() },
-                route.region?.takeIf { it.isNotBlank() }
+            // Secondary line: sport + difficulty/trail-type badges when set
+            // (mountain_name/region are gone from `routes` — Keputusan baru,
+            // migration 0004 — so nothing else is shown here).
+            val badges = listOfNotNull(
+                route.difficulty?.let { BrowseRepository.DifficultyFilter.fromWire(it)?.labelRes?.let { r -> stringResource(r) } },
+                route.trailType?.let { BrowseRepository.TrailTypeFilter.fromWire(it)?.labelRes?.let { r -> stringResource(r) } }
             ).joinToString(" · ")
-            if (subtitle.isNotBlank()) {
+            if (badges.isNotBlank()) {
                 Text(
-                    subtitle,
+                    badges,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

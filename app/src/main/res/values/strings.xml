@@ -642,7 +642,7 @@
     <string name="profile_tab_history">Riwayat</string>
     <string name="profile_tab_settings">Pengaturan</string>
     <string name="browse_title">Jelajah Rute</string>
-    <string name="browse_search_hint">Cari nama gunung, jalur, atau wilayah…</string>
+    <string name="browse_search_hint">Cari nama rute…</string>
     <string name="browse_clear_search">Hapus pencarian</string>
     <string name="browse_filter_difficulty">Kesulitan</string>
     <string name="browse_filter_trail_type">Jenis jalur</string>

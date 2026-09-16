@@ -214,13 +214,20 @@ class BrowseRepository {
             return DetailOutcome.Failure(BrowseError.NOT_CONFIGURED)
         }
         return try {
+            // Columns.list (comma-separated, NO spaces) — NOT Columns.raw:
+            // raw with ", " produces PGRST100 "could not parse select
+            // parameter" (PostgREST rejects whitespace after commas), which
+            // is why the detail screen failed while browse (also list) worked.
+            // The profiles(username) embed stays: profiles has a public
+            // select policy (schema_v1.sql), so it resolves for everyone.
             val row = client.postgrest["routes"]
-                .select(columns = Columns.raw(
-                    "id, user_id, name, difficulty, difficulty_description, " +
-                        "trail_type, sport_type, distance_meters, elevation_gain_m, elevation_loss_m, " +
-                        "max_elevation_m, min_elevation_m, moving_time_ms, description, " +
-                        "track_polyline, gpx_file_url, likes_count, comments_count, created_at, " +
-                        "profiles(username)"
+                .select(columns = Columns.list(
+                    "id", "user_id", "name", "difficulty", "difficulty_description",
+                    "trail_type", "sport_type", "distance_meters", "elevation_gain_m",
+                    "elevation_loss_m", "max_elevation_m", "min_elevation_m", "moving_time_ms",
+                    "description", "track_polyline", "gpx_file_url",
+                    "likes_count", "comments_count", "created_at",
+                    "profiles(username)"
                 )) {
                     filter { eq("id", routeId) }
                     limit(1)

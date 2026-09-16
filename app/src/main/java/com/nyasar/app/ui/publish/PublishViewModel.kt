@@ -86,8 +86,6 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         /** Same list ActivityDetail uses for Export/Share (created-during +
          *  linked union, already deduped) — publish never recomputes it. */
         waypoints: List<WaypointEntity>,
-        mountainName: String?,
-        region: String?,
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
@@ -104,8 +102,6 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
                     activity = activity,
                     points = points,
                     waypoints = waypoints,
-                    mountainName = mountainName,
-                    region = region,
                     difficulty = difficulty.toApi(),
                     difficultyDescription = difficultyDescription,
                     trailType = trailType.toApi(),

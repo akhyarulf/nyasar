@@ -41,15 +41,16 @@ import java.util.zip.GZIPOutputStream
  */
 class PublishRepository {
 
-    /** Everything the pipeline needs, pre-queried by the caller. */
+    /** Everything the pipeline needs, pre-queried by the caller. NOTE: no
+     *  mountain_name/region — both columns are dropped from `routes`
+     *  (Keputusan baru, migration 0004); the activity's own name carries the
+     *  place identity. */
     data class PublishInput(
         val activity: ActivityEntity,
         /** Ordered by sequence ASC (ActivityDao.getPoints order). */
         val points: List<ActivityPointEntity>,
         /** Activity-scoped waypoints only — same contract as GpxExporter. */
         val waypoints: List<WaypointEntity> = emptyList(),
-        val mountainName: String? = null,
-        val region: String? = null,
         /** One of schema's difficulty enum values or null (not rated). */
         val difficulty: String? = null,
         val difficultyDescription: String? = null,
@@ -79,17 +80,16 @@ class PublishRepository {
     @Serializable
     private data class RouteInserted(val id: String)
 
-    /** Exact column layout of schema_v1.sql `routes` (INSERT subset —
-     *  likes_count/comments_count/is_public/is_draft/timestamps keep their
-     *  defaults). @SerialName matches the snake_case columns. */
+    /** Exact column layout of schema_v1.sql `routes` AFTER migration 0004
+     *  (INSERT subset — likes_count/comments_count/is_public/is_draft/
+     *  timestamps keep their defaults). mountain_name/region are gone
+     *  (Keputusan baru). @SerialName matches the snake_case columns. */
     @Serializable
     private data class RouteInsertRow(
         @SerialName("user_id") val userId: String,
         @SerialName("source_activity_id") val sourceActivityId: String?,
         @SerialName("source_route_id") val sourceRouteId: String?,
         val name: String,
-        @SerialName("mountain_name") val mountainName: String?,
-        val region: String?,
         val difficulty: String?,
         @SerialName("difficulty_description") val difficultyDescription: String?,
         @SerialName("trail_type") val trailType: String?,
@@ -128,8 +128,6 @@ class PublishRepository {
                     sourceActivityId = input.activity.id,
                     sourceRouteId = null,
                     name = input.activity.name,
-                    mountainName = input.mountainName?.trim()?.takeIf { it.isNotEmpty() },
-                    region = input.region?.trim()?.takeIf { it.isNotEmpty() },
                     difficulty = input.difficulty,
                     difficultyDescription = input.difficultyDescription?.trim()
                         ?.takeIf { it.isNotEmpty() },

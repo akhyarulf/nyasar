@@ -46,7 +46,7 @@ import com.nyasar.app.ui.theme.NyasarContentWidth
 
 /**
  * Publish flow for one finished activity (Fase 2 slice 1). Collects only the
- * descriptive fields the `routes` schema wants (mountain/region/difficulty/
+ * descriptive fields the `routes` schema wants (difficulty/
  * trail type/description); all statistics and the track itself come from the
  * recorded activity, so the form stays short and cannot contradict the data.
  *
@@ -72,8 +72,9 @@ fun PublishRouteSheet(
     val state by viewModel.state.collectAsState()
     val canPublish = remember { viewModel.canPublish }
 
-    var mountain by rememberSaveable { mutableStateOf("") }
-    var region by rememberSaveable { mutableStateOf("") }
+    // No mountain/region inputs — both columns are dropped from `routes`
+    // (Keputusan baru, migration 0004); the activity's own name carries the
+    // place identity.
     var difficulty by rememberSaveable { mutableStateOf(PublishDifficulty.NONE.name) }
     var difficultyDescription by rememberSaveable { mutableStateOf("") }
     var trailType by rememberSaveable { mutableStateOf(PublishTrailType.NONE.name) }
@@ -112,21 +113,6 @@ fun PublishRouteSheet(
 
             val idleError = (state as? PublishState.Idle)?.error
             idleError?.let { ErrorBanner(stringResource(it.toStringRes())) }
-
-            OutlinedTextField(
-                value = mountain,
-                onValueChange = { mountain = it },
-                label = { Text(stringResource(R.string.publish_mountain_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = region,
-                onValueChange = { region = it },
-                label = { Text(stringResource(R.string.publish_region_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
 
             Text(
                 stringResource(R.string.publish_difficulty_label),
@@ -237,8 +223,6 @@ fun PublishRouteSheet(
                     viewModel.publish(
                         activityId = activityId,
                         waypoints = waypoints,
-                        mountainName = mountain,
-                        region = region,
                         difficulty = PublishDifficulty.valueOf(difficulty),
                         difficultyDescription = difficultyDescription,
                         trailType = PublishTrailType.valueOf(trailType),

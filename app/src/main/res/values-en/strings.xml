@@ -607,8 +607,6 @@
     <string name="publish_route">Publish route</string>
     <string name="publish_title">Publish Route</string>
     <string name="publish_name_label">Route name</string>
-    <string name="publish_mountain_label">Mountain name (optional)</string>
-    <string name="publish_region_label">Region (optional)</string>
     <string name="publish_difficulty_label">Difficulty</string>
     <string name="publish_difficulty_desc_label">Difficulty note (optional)</string>
     <string name="publish_privacy_note">Raw GPS points are never uploaded — they stay on your phone.</string>

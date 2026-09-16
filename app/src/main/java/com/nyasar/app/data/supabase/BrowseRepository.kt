@@ -5,6 +5,7 @@ import com.nyasar.app.R
 import com.nyasar.app.publish.PolylineEncoder
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.exceptions.RestException
+import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.serialization.SerialName

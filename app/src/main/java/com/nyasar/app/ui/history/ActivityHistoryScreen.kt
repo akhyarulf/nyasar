@@ -185,7 +185,6 @@ private fun ActivityHistoryContent(
             }
         }
     }
-}
 
 @Composable
 private fun ActivityCard(

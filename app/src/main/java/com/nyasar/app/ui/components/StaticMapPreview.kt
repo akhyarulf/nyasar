@@ -226,7 +226,7 @@ internal fun renderStaticMap(
     tiles: Map<Pair<Int, Int>, Bitmap>,
     traceColorArgb: Int,
     traceStrokeSourcePx: Float
-): Bitmap {
+): Bitmap? {
     val out = Bitmap.createBitmap(layout.sourceW, layout.sourceH, Bitmap.Config.ARGB_8888)
     val canvas = AndroidCanvas(out)
     val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }

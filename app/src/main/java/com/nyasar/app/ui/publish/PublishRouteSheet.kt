@@ -68,6 +68,67 @@ fun PublishRouteSheet(
     onDismiss: () -> Unit,
     viewModel: PublishViewModel = viewModel()
 ) {
+    PublishFormSheet(
+        pointCount = pointCount,
+        waypointCount = waypoints.size,
+        onDismiss = onDismiss,
+        onPublish = { difficulty, diffDesc, trailType, description ->
+            viewModel.publish(
+                activityId = activityId,
+                waypoints = waypoints,
+                difficulty = difficulty,
+                difficultyDescription = diffDesc,
+                trailType = trailType,
+                description = description
+            )
+        },
+        viewModel = viewModel
+    )
+}
+
+/**
+ * Publish flow for an IMPORTED GPX route from the Library (sisa Slice 1).
+ * Same form, same transparency contract — the difference is invisible to the
+ * user: the uploaded GPX is the route's untouched original file, and the
+ * published row is linked via source_route_id instead of source_activity_id.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PublishLibraryRouteSheet(
+    routeId: String,
+    pointCount: Int,
+    waypointCount: Int,
+    onDismiss: () -> Unit,
+    viewModel: PublishViewModel = viewModel()
+) {
+    PublishFormSheet(
+        pointCount = pointCount,
+        waypointCount = waypointCount,
+        onDismiss = onDismiss,
+        onPublish = { difficulty, diffDesc, trailType, description ->
+            viewModel.publishRoute(
+                routeId = routeId,
+                difficulty = difficulty,
+                difficultyDescription = diffDesc,
+                trailType = trailType,
+                description = description
+            )
+        },
+        viewModel = viewModel
+    )
+}
+
+/** The shared publish form — every field/visual identical for both publish
+ *  sources; only the ViewModel call differs (injected via [onPublish]). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PublishFormSheet(
+    pointCount: Int,
+    waypointCount: Int,
+    onDismiss: () -> Unit,
+    onPublish: (PublishDifficulty, String?, PublishTrailType, String?) -> Unit,
+    viewModel: PublishViewModel
+) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     val canPublish = remember { viewModel.canPublish }
@@ -192,9 +253,9 @@ fun PublishRouteSheet(
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
-                    if (waypoints.isNotEmpty()) {
+                    if (waypointCount > 0) {
                         Text(
-                            stringResource(R.string.publish_waypoints_line, waypoints.size),
+                            stringResource(R.string.publish_waypoints_line, waypointCount),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.padding(start = 24.dp)
@@ -220,13 +281,11 @@ fun PublishRouteSheet(
             val publishing = state is PublishState.Publishing
             Button(
                 onClick = {
-                    viewModel.publish(
-                        activityId = activityId,
-                        waypoints = waypoints,
-                        difficulty = PublishDifficulty.valueOf(difficulty),
-                        difficultyDescription = difficultyDescription,
-                        trailType = PublishTrailType.valueOf(trailType),
-                        description = description
+                    onPublish(
+                        PublishDifficulty.valueOf(difficulty),
+                        difficultyDescription,
+                        PublishTrailType.valueOf(trailType),
+                        description
                     )
                 },
                 enabled = canPublish && !publishing,

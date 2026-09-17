@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationOn
@@ -39,6 +40,7 @@ import com.nyasar.app.data.db.WaypointCategory
 import com.nyasar.app.data.db.WaypointEntity
 import com.nyasar.app.gpx.model.GpxWaypoint
 import com.nyasar.app.map.StyleVariant
+import com.nyasar.app.ui.publish.PublishLibraryRouteSheet
 import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.ui.components.AnimatedAppear
 import com.nyasar.app.ui.components.BasemapPickerSheet
@@ -128,6 +130,9 @@ fun RoutePreviewScreen(
     var selectedWaypoint by remember { mutableStateOf<GpxWaypoint?>(null) }
     var selectedDbWaypoint by remember { mutableStateOf<WaypointEntity?>(null) }
     var showCrosshair by remember { mutableStateOf(false) }
+    // Publish this imported route to Browse (sisa Slice 1) — same sheet form
+    // as activity publish; the ViewModel picks the library-route pipeline.
+    var showPublishSheet by remember { mutableStateOf(false) }
     // Highlight marker position when user scrubs the elevation chart
     var highlightLatLng by remember { mutableStateOf<LatLng?>(null) }
 
@@ -302,6 +307,11 @@ fun RoutePreviewScreen(
                         onClick = { shareRouteGpx(context, path, state.name ?: "route") }
                     )
                 }
+                RoundIconButton(
+                    icon = Icons.Default.CloudUpload,
+                    contentDescription = stringResource(R.string.publish_title),
+                    onClick = { showPublishSheet = true }
+                )
                 RoundIconButton(
                     icon = Icons.Default.CloudDownload,
                     contentDescription = stringResource(R.string.prepare_offline_cd),
@@ -604,6 +614,17 @@ fun RoutePreviewScreen(
             offlineAreasEnabled = offlineOverlayEnabled,
             onToggleOfflineAreas = { viewModel.setOfflineOverlayEnabled(!offlineOverlayEnabled) },
             onDismiss = { showBasemapSheet = false }
+        )
+    }
+
+    // Publish sheet (Fase 2 sisa Slice 1) — same form as activity publish;
+    // counts feed the transparency line inside the sheet.
+    if (showPublishSheet) {
+        PublishLibraryRouteSheet(
+            routeId = routeId,
+            pointCount = state.track.size,
+            waypointCount = state.waypoints.size,
+            onDismiss = { showPublishSheet = false }
         )
     }
 

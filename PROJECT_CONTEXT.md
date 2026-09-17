@@ -315,9 +315,19 @@ TOTAL.** Siap lanjut ke Fase 2.
 
 
 ### Fase 2 — Publish / Share Rute Publik
-🟡 Slice 1 (pipeline publish) + Slice 2 (browse/detail/Download GPX,
-sekalian rework IA bottom bar) SELESAI — sisa: input GpxParser untuk
-publish-dari-file.
+🟢 Slice 1 (pipeline publish) + Slice 2 (browse/detail/Download GPX,
+sekalian rework IA bottom bar) + sisa terakhir (publish-dari-file)
+SELESAI. Publish-dari-file dieksekusi 2026-09-17: `PublishLibraryRouteSheet`
+di Route Preview (Library) — tombol CloudUpload di top bar, sheet form
+identik dengan publish activity (komponen bersama `PublishFormSheet`);
+`PublishRepository.publishRoute()` upload file GPX ASLI rute verbatim
+(bukan regenerasi) + row `routes` dengan `source_route_id` (unique index
+`idx_routes_source_route` sudah disiapkan schema sejak awal);
+`RouteInsertRow` kolom waktu/speed jadi nullable (GPX import sering
+tanpa timestamp — schema memang nullable, Browse DTO sudah nullable).
+Cache publish per rute tidak dibuat: unique index + rollback upload
+gagal sudah mencegah duplikat; user boleh publish ulang setelah hapus
+route publiknya.
 
 **Rework IA 2026 — sudah dieksekusi (commit `84a0ec7`, perbaikan CI
 sampai `feec4ee`, CI hijau): bottom bar 5 tab — Browse | Map | Record |
@@ -331,8 +341,8 @@ Gate auth pasca daftar/login mendarat ke Browse, bukan Home.
 
 1. ✅ `publish/PolylineEncoder.kt` — encode standar Google/Strava +
    decode, round-trip ter-unit-test (`PolylineEncoderTest`, dijalankan
-   CI via step baru `testDebugUnitTest`). Input `GpxParser` menyusul di
-   slice browse/publish-dari-file.
+   CI via step baru `testDebugUnitTest`). Input GpxParser terpakai di
+   publish-dari-file (lihat catatan 🟢 di atas).
 2. ✅ Form "Publish Route" — `PublishRouteSheet` dari menu Activity
    Detail: mountain_name/region/difficulty(+catatan)/trail_type/
    deskripsi, FilterChips, notice transparansi (ringkasan jalur + GPX
@@ -551,6 +561,35 @@ yang benar.
 ❌ Tabel sudah siap (`route_likes`, `saved_routes`, `route_comments`,
 `reports`), UI belum dibikin sama sekali: tombol Save, Like, Comment,
 Report.
+
+### Visibility/Privacy (konsep sudah didiskusikan, BELUM dikerjakan)
+Keputusan desain dari diskusi user (referensi screenshot Strava &
+Wikiloc):
+- **Activity hasil rekam sudah 100% private by architecture** — tidak
+  pernah dikirim ke mana-mana kecuali `activity_backups` (RLS cuma
+  pemilik). Setara "Only You" Strava; tidak perlu UI apa pun.
+- **Yang relevan cuma `routes` (hasil publish)** — sekarang SEMUA
+  public karena PublishRepository tidak set `is_public` (numpang
+  default DB `true`, schema_v1.sql:146).
+- **Model yang dipilih: Wikiloc 2-level** (Everyone/Only you), BUKAN
+  Strava 3-level — level "Followers" butuh sistem followers yang
+  belum ada (Fase 4); "Hidden Details" & "Mute Activity" adalah
+  konsep feed sosial yang tidak relevan (Nyasar tidak punya feed).
+  Kalau nanti Fase 4 bawa followers, tinggal tambah level ketiga.
+- **Rencana implementasi:** (1) pilihan Public/Private di form
+  Publish, default Public; (2) simpan sebagai `is_public = false` —
+  NOL migration, kolom + RLS sudah ada dan sudah direspek
+  BrowseRepository (public only); (3) baris Privacy di detail rute
+  milik sendiri untuk ubah belakangan; (4) rute private tetap tampil
+  di list milik sendiri, hilang dari Browse/search (server-side via
+  RLS); (5) `is_draft` JANGAN disentuh — draft = konten belum
+  lengkap, private = sengaja tidak publik (dua konsep beda, komentar
+  schema_v1.sql:147 sudah benar).
+- **⚠️ Audit wajib kalau slice ini dikerjakan:** RLS menutup tabel
+  database, TAPI file GPX hasil publish tersimpan di Storage — kalau
+  bucket-nya public-read, rute private tetap bocor via URL GPX-nya.
+  Perlu cek policy bucket Storage (atau pindahkan GPX private ke
+  bucket privat).
 
 ### Belum kepikiran desainnya sama sekali (bukan cuma belum dikerjakan)
 - **Antrian upload Publish/Backup saat tidak ada sinyal** — konteks

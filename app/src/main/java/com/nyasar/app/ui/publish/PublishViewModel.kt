@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.nyasar.app.data.db.ActivityDao
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.data.db.AppDatabase
+import com.nyasar.app.data.db.RouteDao
 import com.nyasar.app.data.db.WaypointEntity
+import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.supabase.PublishRepository
 import com.nyasar.app.data.supabase.PublishRepository.PublishError
 import com.nyasar.app.data.supabase.SupabaseClientProvider
@@ -71,6 +73,8 @@ internal fun PublishRepository.PublishError.toUi(): PublishUiError = when (this)
 class PublishViewModel(app: Application) : AndroidViewModel(app) {
 
     private val activityDao: ActivityDao = AppDatabase.get(app).activityDao()
+    private val routeDao: RouteDao = AppDatabase.get(app).routeDao()
+    private val routeRepository = RouteRepository(app)
     private val repository = PublishRepository()
 
     private val _state = MutableStateFlow<PublishState>(PublishState.Idle())
@@ -102,6 +106,53 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
                     activity = activity,
                     points = points,
                     waypoints = waypoints,
+                    difficulty = difficulty.toApi(),
+                    difficultyDescription = difficultyDescription,
+                    trailType = trailType.toApi(),
+                    description = description
+                )
+            )
+            _state.value = when (outcome) {
+                is PublishRepository.PublishOutcome.Success ->
+                    PublishState.Success(outcome.routeId, outcome.gpxUrl)
+                is PublishRepository.PublishOutcome.Failure ->
+                    PublishState.Idle(outcome.error.toUi())
+            }
+        }
+    }
+
+    /**
+     * Publish an IMPORTED GPX route from the Library (sisa Slice 1). Loads
+     * the RouteEntity + its local GPX, builds the polyline summary from the
+     * parsed track, and uploads the ORIGINAL GPX file verbatim — the same
+     * pipeline as activity publish, a different data source.
+     */
+    fun publishRoute(
+        routeId: String,
+        difficulty: PublishDifficulty,
+        difficultyDescription: String?,
+        trailType: PublishTrailType,
+        description: String?
+    ) {
+        if (_state.value is PublishState.Publishing) return
+        _state.value = PublishState.Publishing
+        viewModelScope.launch {
+            val route = routeDao.getById(routeId)
+                ?: return@launch resetWith(PublishUiError.GENERIC)
+            // Parse the stored GPX once: the track feeds track_polyline (the
+            // queryable summary); the uploaded file is the untouched original.
+            val trackPoints = try {
+                routeRepository.loadDocument(route).allTrackPoints
+            } catch (_: Exception) {
+                return@launch resetWith(PublishUiError.GENERIC)
+            }
+            if (trackPoints.isEmpty()) {
+                return@launch resetWith(PublishUiError.EMPTY_TRACK)
+            }
+            val outcome = repository.publishRoute(
+                PublishRepository.RoutePublishInput(
+                    route = route,
+                    trackPoints = trackPoints.map { it.lat to it.lon },
                     difficulty = difficulty.toApi(),
                     difficultyDescription = difficultyDescription,
                     trailType = trailType.toApi(),

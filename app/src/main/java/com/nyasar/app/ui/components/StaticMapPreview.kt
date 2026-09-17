@@ -9,16 +9,18 @@ import android.util.LruCache
 import androidx.compose.foundation.Canvas
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -28,7 +30,12 @@ import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.ui.browse.trackPath
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.Style
+import org.maplibre.android.snapshotter.MapSnapshotter
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.ceil
@@ -309,40 +316,76 @@ fun StaticMapPreview(
     val traceColor = MaterialTheme.colorScheme.primary
     val fallbackBg = MaterialTheme.colorScheme.surfaceVariant
     val density = LocalDensity.current
-    // Trace stroke in VIEW px (converted to source px inside the renderer).
+    // Trace stroke in VIEW px (converted to bitmap px inside the renderer).
     val strokeViewPx = with(density) { 2.5.dp.toPx() }
     val apiKey = BuildConfig.MAPTILER_API_KEY
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Snapshot at up to 2x for crisp high-dpi cards (bitmap drawn back down
+    // 1:1 by the Canvas below).
+    val pixelRatio = remember { minOf(2f, density.density.coerceAtLeast(1f)) }
 
     var canvasW by remember { mutableStateOf(0f) }
     var canvasH by remember { mutableStateOf(0f) }
+    var rendered by remember { mutableStateOf<Bitmap?>(null) }
 
-    val rendered by produceState<Bitmap?>(
-        initialValue = null,
-        polyline, canvasW, canvasH, apiKey, maxZoom, traceColor
-    ) {
+    DisposableEffect(points, canvasW, canvasH, traceColor) {
         val w = canvasW
         val h = canvasH
-        if (points.size < 2 || w < 8f || h < 8f) return@produceState
-        val key = "${polyline.hashCode()}-${w.toInt()}x${h.toInt()}-$maxZoom-${apiKey.isNotBlank()}-${traceColor.toArgbCompat()}"
-        StaticTileCache.lru.get(key)?.let { cached ->
-            value = cached
-            return@produceState
+        var snapshotter: MapSnapshotter? = null
+        if (points.size >= 2 && w >= 8f && h >= 8f) {
+            val key = "ofm-${points.hashCode()}-${w.toInt()}x${h.toInt()}-${traceColor.toArgbCompat()}"
+            val cached = StaticTileCache.lru.get(key)
+            if (cached != null) {
+                rendered = cached
+            } else {
+                // Primary engine: MapLibre MapSnapshotter with the SAME
+                // keyless OpenFreeMap Liberty style the app's real map
+                // screens use (proven reachable from devices). No API key,
+                // no per-tile HTTP, no throttle placeholders.
+                val camera = snapshotCameraFor(points, w, h, maxZoom)
+                snapshotter = MapSnapshotter(
+                    context,
+                    MapSnapshotter.Options(w.toInt(), h.toInt())
+                        .withStyleBuilder(Style.Builder().fromUri(SNAPSHOT_STYLE_URL))
+                        .withCameraPosition(camera)
+                        .withPixelRatio(pixelRatio)
+                ).also { snap ->
+                    snap.start(
+                        { snapshot ->
+                            drawTraceOnSnapshot(
+                                base = snapshot.bitmap,
+                                points = points,
+                                camera = camera,
+                                viewW = w,
+                                viewH = h,
+                                ratio = pixelRatio,
+                                strokeViewPx = strokeViewPx,
+                                traceColorArgb = traceColor.copy(alpha = 1f).toArgbCompat()
+                            )?.let { bmp ->
+                                StaticTileCache.lru.put(key, bmp)
+                                rendered = bmp
+                            }
+                        },
+                        { _ ->
+                            // Snapshotter failed (offline first launch, style
+                            // unreachable): fall back to the direct raster
+                            // tile chain, then the plain polyline canvas.
+                            scope.launch {
+                                val bmp = withContext(Dispatchers.IO) {
+                                    renderRasterFallback(points, w, h, maxZoom, apiKey, strokeViewPx, traceColor)
+                                }
+                                if (bmp != null) {
+                                    StaticTileCache.lru.put(key, bmp)
+                                    rendered = bmp
+                                }
+                            }
+                        }
+                    )
+                }
+            }
         }
-        value = withContext(Dispatchers.IO) {
-            val layout = computeStaticMapLayout(points, w, h, maxZoom)
-                ?: return@withContext null
-            val coords = layout.tiles
-            val fetched = coords.associateWith { (x, y) -> fetchTileWithFallback(layout, x, y, apiKey) }
-            val tiles = fetched.mapNotNull { (coord, res) -> (res as? TileResult.Ok)?.let { coord to it.bitmap } }
-            if (tiles.size != coords.size) return@withContext null
-            renderStaticMap(
-                layout = layout,
-                points = points,
-                tiles = tiles.toMap(),
-                traceColorArgb = traceColor.copy(alpha = 1f).toArgbCompat(),
-                traceStrokeSourcePx = (strokeViewPx / layout.scale).coerceIn(2f, 6f)
-            )?.also { StaticTileCache.lru.put(key, it) }
-        }
+        onDispose { snapshotter?.cancel() }
     }
 
     Canvas(
@@ -352,14 +395,14 @@ fun StaticMapPreview(
         }
     ) {
         // Fallback (also the loading state): tinted canvas + polyline —
-        // the previous card look, so the list is never blank while tiles
-        // load or when there is no signal.
+        // the previous card look, so the list is never blank while the
+        // map renders or when there is no signal.
         drawRect(fallbackBg)
         val path = trackPath(points, size.width, size.height)
         if (!path.isEmpty) {
             drawPath(path, traceColor, style = Stroke(width = strokeViewPx))
         }
-        // Tiles ready → draw the composed map over the fallback, 1:1.
+        // Map ready → draw the composed snapshot over the fallback, 1:1.
         rendered?.let { bmp ->
             drawImage(
                 image = bmp.asImageBitmap(),
@@ -371,6 +414,126 @@ fun StaticMapPreview(
             )
         }
     }
+}
+
+/** OpenFreeMap Liberty — keyless, unlimited (see BasemapCatalog), and the
+ *  same style the app's interactive map screens already load successfully. */
+private const val SNAPSHOT_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+
+/** MapLibre GL world size per tile at zoom 0 — 512 (GL convention), NOT the
+ *  256px of slippy raster URLs. Camera fit + trace overlay MUST both use
+ *  this or the drawn trace drifts off the rendered roads. */
+private const val SNAPSHOT_TILE_PX = 512
+
+/** Camera fitting [points]' bbox into a w×h view with a small margin —
+ *  pure math (GL Mercator model, fractional zoom), so the trace can be
+ *  drawn back over the snapshot bitmap pixel-exactly. */
+internal fun snapshotCameraFor(
+    points: List<TrackPoint>,
+    viewW: Float,
+    viewH: Float,
+    maxZoom: Int
+): CameraPosition {
+    val minLat = points.minOf { it.lat }.coerceIn(-85.05, 85.05)
+    val maxLat = points.maxOf { it.lat }.coerceIn(-85.05, 85.05)
+    val minLon = points.minOf { it.lon }
+    val maxLon = points.maxOf { it.lon }
+    val lonSpan = (maxLon - minLon).takeIf { it > 1e-9 } ?: 1e-4
+    val latSpanMerc = (mercY(maxLat) - mercY(minLat)).takeIf { it > 1e-12 } ?: 1e-5
+    // Largest integer zoom where the bbox still FITS inside the view.
+    var zoom = 3
+    for (z in 3..maxZoom + 2) {
+        val wPx = lonSpan / 360.0 * (1 shl z) * SNAPSHOT_TILE_PX
+        val hPx = latSpanMerc * (1 shl z) * SNAPSHOT_TILE_PX
+        if (wPx > viewW || hPx > viewH) break
+        zoom = z
+    }
+    // Fractional zoom-out = margin so the trace isn't glued to the card
+    // edges (same visual padding the 80px newLatLngBounds gave the real map).
+    val fitted = zoom - 0.45
+    return CameraPosition.Builder()
+        .target(LatLng((minLat + maxLat) / 2.0, (minLon + maxLon) / 2.0))
+        .zoom(fitted.coerceAtMost(16.0))
+        .build()
+}
+
+/** GL-world pixel position at fractional zoom [zoomF] (512px convention). */
+private fun glWorldX(lon: Double, zoomF: Double): Double = (lon + 180.0) / 360.0 * SNAPSHOT_TILE_PX * Math.pow(2.0, zoomF)
+private fun glWorldY(lat: Double, zoomF: Double): Double = mercY(lat) * SNAPSHOT_TILE_PX * Math.pow(2.0, zoomF)
+
+/** Copies the snapshotter's base map and draws the route trace + start/end
+ *  dots on top with the same casing/stroke look the raster path uses. The
+ *  snapshot bitmap is [ratio]x the logical view size (pixelRatio), so every
+ *  screen coordinate is scaled by it. */
+internal fun drawTraceOnSnapshot(
+    base: Bitmap,
+    points: List<TrackPoint>,
+    camera: CameraPosition,
+    viewW: Float,
+    viewH: Float,
+    ratio: Float,
+    strokeViewPx: Float,
+    traceColorArgb: Int
+): Bitmap? {
+    val zoomF = camera.zoom ?: return null
+    val center = camera.target ?: return null
+    val cx = glWorldX(center.longitude, zoomF)
+    val cy = glWorldY(center.latitude, zoomF)
+    fun sx(p: TrackPoint): Float = (viewW / 2f + (glWorldX(p.lon, zoomF) - cx)).toFloat() * ratio
+    fun sy(p: TrackPoint): Float = (viewH / 2f + (glWorldY(p.lat, zoomF) - cy)).toFloat() * ratio
+    val out = base.copy(Bitmap.Config.ARGB_8888, true) ?: return null
+    val canvas = AndroidCanvas(out)
+    val trace = AndroidPath()
+    points.forEachIndexed { i, p ->
+        if (i == 0) trace.moveTo(sx(p), sy(p)) else trace.lineTo(sx(p), sy(p))
+    }
+    val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+        style = AndroidPaint.Style.STROKE
+        strokeJoin = AndroidPaint.Join.ROUND
+        strokeCap = AndroidPaint.Cap.ROUND
+    }
+    val stroke = (strokeViewPx * ratio).coerceIn(3f, 10f)
+    // Dark casing under the colored trace = readable on any basemap.
+    paint.strokeWidth = stroke * 1.8f
+    paint.color = 0xAA202020.toInt()
+    canvas.drawPath(trace, paint)
+    paint.strokeWidth = stroke
+    paint.color = traceColorArgb
+    canvas.drawPath(trace, paint)
+    // Start/end dots.
+    paint.style = AndroidPaint.Style.FILL
+    listOf(points.first(), points.last()).forEach { p ->
+        paint.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(sx(p), sy(p), stroke * 1.5f, paint)
+        paint.color = traceColorArgb
+        canvas.drawCircle(sx(p), sy(p), stroke * 0.8f, paint)
+    }
+    return out
+}
+
+/** Direct raster-tile fallback (MapTiler→OSM→OpenTopoMap), used only when
+ *  the MapLibre snapshotter itself fails. Must run off the main thread. */
+internal fun renderRasterFallback(
+    points: List<TrackPoint>,
+    w: Float,
+    h: Float,
+    maxZoom: Int,
+    mapTilerKey: String,
+    strokeViewPx: Float,
+    traceColor: androidx.compose.ui.graphics.Color
+): Bitmap? {
+    val layout = computeStaticMapLayout(points, w, h, maxZoom) ?: return null
+    val coords = layout.tiles
+    val fetched = coords.associateWith { (x, y) -> fetchTileWithFallback(layout, x, y, mapTilerKey) }
+    val tiles = fetched.mapNotNull { (coord, res) -> (res as? TileResult.Ok)?.let { coord to it.bitmap } }
+    if (tiles.size != coords.size) return null
+    return renderStaticMap(
+        layout = layout,
+        points = points,
+        tiles = tiles.toMap(),
+        traceColorArgb = traceColor.copy(alpha = 1f).toArgbCompat(),
+        traceStrokeSourcePx = (strokeViewPx / layout.scale).coerceIn(2f, 6f)
+    )
 }
 
 /** Color -> ARGB int for the android.graphics paint side. */

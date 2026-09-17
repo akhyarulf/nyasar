@@ -131,11 +131,12 @@ class BackupManager(
         abstract val endedAt: Long?
         abstract val status: String?
         abstract val points: List<com.nyasar.app.gpx.model.TrackPoint>
+        abstract val waypoints: List<WaypointEntity>
 
         data class Activity(
             val activity: ActivityEntity,
             val pts: List<ActivityPointEntity>,
-            val waypoints: List<WaypointEntity>
+            override val waypoints: List<WaypointEntity>
         ) : BackupSource() {
             override val name get() = activity.name
             override val startedAt get() = activity.startedAtEpochMs
@@ -150,7 +151,7 @@ class BackupManager(
         data class Route(
             val route: RouteEntity,
             val pts: List<com.nyasar.app.gpx.model.TrackPoint>,
-            val waypoints: List<WaypointEntity>
+            override val waypoints: List<WaypointEntity>
         ) : BackupSource() {
             override val name get() = route.name
             override val startedAt get() = route.importedAtEpochMs
@@ -299,7 +300,9 @@ class BackupManager(
         // Pass 1: routes (activities may reference them via localRouteId).
         for (row in rows.filter { it.sourceRouteId != null }) {
             try {
-                if (routeDao.getById(row.sourceRouteId) != null) {
+                // getById(String) — the pass filter guarantees the key is
+                // present, but the compiler still needs the assert here.
+                if (routeDao.getById(row.sourceRouteId!!) != null) {
                     skipped++
                     continue
                 }
@@ -314,7 +317,7 @@ class BackupManager(
         // Pass 2: activities.
         for (row in rows.filter { it.sourceActivityId != null }) {
             try {
-                if (activityDao.getById(row.sourceActivityId) != null) {
+                if (activityDao.getById(row.sourceActivityId!!) != null) {
                     skipped++
                     continue
                 }

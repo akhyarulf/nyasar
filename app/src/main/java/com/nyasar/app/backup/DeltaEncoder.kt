@@ -183,8 +183,8 @@ object DeltaEncoder {
                         lat = latCm / COORD_SCALE,
                         lon = lonCm / COORD_SCALE,
                         elevationM = if (eleNull) null else prevEleCm / ELE_SCALE,
-                        speedMps = if (speedNull) null else speedCms / SPEED_SCALE,
-                        accuracyMeters = accDm / ACC_SCALE,
+                        speedMps = if (speedNull) null else (speedCms / SPEED_SCALE).toFloat(),
+                        accuracyMeters = (accDm / ACC_SCALE).toFloat(),
                         timestampMs = prevTime
                     )
                 )

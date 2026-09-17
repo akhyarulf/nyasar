@@ -537,6 +537,16 @@
 
     <!-- ═══ Account / Authentication (Phase 1) ═══ -->
     <string name="account_section">Account</string>
+    <string name="backup_section">Backup &amp; Restore</string>
+    <string name="backup_now">Back up now</string>
+    <string name="backup_now_desc">Send all activities &amp; routes to your account</string>
+    <string name="restore_now">Restore from backup</string>
+    <string name="restore_now_desc">Fetch all backup data from your account to this phone</string>
+    <string name="backup_done">Backup uploaded: %1$d succeeded, %2$d skipped/failed</string>
+    <string name="restore_done">Restore finished: %1$d routes, %2$d activities, %3$d skipped/failed</string>
+    <string name="backup_error_signin">Sign in to your account to back up</string>
+    <string name="backup_error_not_configured">Backup isn\'t configured in this build</string>
+    <string name="backup_auto_failed">Auto-backup to your account failed — will retry later</string>
     <string name="account_not_signed_in">Not signed in</string>
     <string name="account_sign_in_desc">Sign in or register to sync &amp; publish routes</string>
     <string name="account_no_username">Account without a username</string>

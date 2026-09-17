@@ -473,7 +473,15 @@ class RecordingService : Service() {
         locationJob?.cancel()
         gpsWatchdogJob?.cancel()
         elapsedTimeJob?.cancel()
+        // Fase 3 auto-backup: capture the id BEFORE persistSummary's
+        // coroutine clears activityId (same BUG #2 ordering discipline),
+        // then schedule the upload on BackupManager's own scope — it must
+        // survive this service's teardown, which happens right below.
+        val finishedActivityId = activityId
         persistSummary(ActivityStatus.COMPLETED, finalState)
+        if (finishedActivityId != null) {
+            com.nyasar.app.backup.BackupManager.scheduleActivityBackup(applicationContext, finishedActivityId)
+        }
         publishState()
         // BUG #2 FIX: activityId must NOT be cleared here — it must
         // survive until the persistSummary coroutine has captured it (see

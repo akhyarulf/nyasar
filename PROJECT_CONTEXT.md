@@ -492,13 +492,60 @@ pill). Tidak ada string baru: semua label reuse (publish_difficulty_*,
 publish_trail_*, sport_*, dll).
 
 ### Fase 3 — Backup Pribadi
-❌ Belum mulai, masih sebatas konsep (lihat bagian di atas).
-1. `DeltaEncoder.kt` — encode `List<ActivityPointEntity>` jadi
-   delta-encoded + gzip bytes, dan fungsi decode kebalikannya.
-2. Alur backup (auto setelah activity selesai dan/atau tombol manual)
-   → upsert ke `activity_backups`.
-3. Alur restore (saat login pertama di HP baru dan/atau tombol manual)
-   → fetch semua backup milik user → decode → insert ke Room lokal.
+🟡 SLICE 1 SELESAI (2026-09-17): pipeline encode→upsert→restore +
+auto-backup + UI Settings. Yaitu:
+1. ✅ `backup/DeltaEncoder.kt` — delta-encoded + gzip codec untuk
+   `List<ActivityPointEntity>` → `activity_backups.track_data`:
+   magic 'NY' + version byte, timestamp base absolut di header, varint
+   zigzag per-field (dt/lat 1e-6°/lon/elevasi cm delta-ke-nonnull-
+   terakhir/speed cm-s), mask bit 2-bit/titik untuk null elevation &
+   speed, akurasi ushort 0.1 m. Decode menolak input rusak dengan
+   `FormatException` (bukan IOOBE). Unit test CI (`DeltaEncoderTest`):
+   roundtrip kosong/1 titik/1000 titik realistis/batas grup 8, dan
+   assert kompresi < 8KB untuk track 1000 titik. Edge KUNCI yang sudah
+   dites: base time dobel-hitung (delta titik pertama harus relatif ke
+   header, bukan absolut — kacatch saat self-review, ada komentar di
+   encoder).
+2. ✅ Alur backup — `backup/BackupManager` (orkestrasi) +
+   `data/supabase/BackupRepository` (jaringan, pola Outcome): row id
+   STABIL per sumber (probe `fetchRowIdFor` → UUID baru kalau belum
+   ada) sehingga re-backup UPSERT baris yang sama — indeks unik di
+   schema PARTIAL sehingga `on_conflict` kolom lain tidak bisa dipakai
+   (terdokumentasi). **AUTO** setelah activity selesai: hook di
+   `RecordingService.handleStop` (capture id sebelum persistSummary
+   me-null-kan, scope milik BackupManager sendiri — BUKAN serviceScope
+   yang dibatalkan onDestroy) + path recovery crash
+   (`stopAndSaveRecovered`). **MANUAL**: "Backup sekarang" di Settings
+   (section Backup & Pulihkan, hanya muncul saat SignedIn; Toast hasil
+   `X berhasil, Y dilewati/gagal`; 1 sumber gagal tidak menggagalkan
+   batch).
+3. ✅ Alur restore — tombol "Pulihkan dari backup" di Settings:
+   fetch semua row (RLS membatasi milik user) → decode → insert Room
+   dalam transaksi, pass 1 routes dulu lalu pass 2 activities (agar
+   `local_route_id` tidak dangle). ID ASLI dipertahankan (route/
+   activity/waypoint) supaya keterkaitan tetap utuh. Merge-skip:
+   sumber yang sudah ada lokal dilewati — TIDAK PERNAH menimpa data
+   lokal. Route direkonstruksi PENUH: file GPX ditulis ulang ke
+   files/routes/{id}.gpx + stats dihitung ulang (rumus sama dengan
+   import) — jadi preview/navigasi/offline jalan normal. Waypoint
+   backup sebagai jsonb array di `waypoints_json` (ikut row, tanpa
+   query kedua).
+4. ✅ **TEMUAN PENTING saat audit (diverifikasi live ke PostgREST):
+   bytea HARUS dikirim sebagai HEX `\x…`, BUKAN base64.** Kontrol:
+   `\xZZ` ditolak `400 invalid hexadecimal` SEBELUM RLS, sedangkan
+   string base64 tanpa prefix lolos parse sebagai escape-format bytes
+   (ASCII literal base64-nya) → korupsi diam-diam tanpa error.
+   `BackupRepository.byteaHexEncode/Decode` menangani ini; decode
+   toleran prefix hilang tapi tidak pernah menerima base64.
+
+Sengaja TIDAK ada (menunggu keputusan antrian upload, lihat bagian
+"Belum kepikiran" di bawah): retry-queue offline, UI "menunggu
+sinyal", auto-backup berkala latar. Auto-backup yang gagal karena
+sinyal cuma log info; tombol manual adalah jalur retry.
+
+TODO schema terjawab: `discarded` tidak pernah ditulis ke DB
+(discard = hapus langsung), jadi backup semua status adalah perilaku
+yang benar.
 
 ### Fase 4 — Sosial
 ❌ Tabel sudah siap (`route_likes`, `saved_routes`, `route_comments`,

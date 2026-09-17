@@ -382,6 +382,10 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
                     endedAtEpochMs = System.currentTimeMillis()
                 )
             )
+            // Fase 3: crash-recovered activities get the same auto-backup
+            // as a normal stop — the recovered points are exactly the data
+            // worth getting off the phone.
+            com.nyasar.app.backup.BackupManager.scheduleActivityBackup(getApplication(), activity.id)
         }
     }
 

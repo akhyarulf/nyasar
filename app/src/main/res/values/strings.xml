@@ -537,6 +537,16 @@
 
     <!-- ═══ Akun / Autentikasi (Fase 1) ═══ -->
     <string name="account_section">Akun</string>
+    <string name="backup_section">Backup &amp; Pulihkan</string>
+    <string name="backup_now">Backup sekarang</string>
+    <string name="backup_now_desc">Kirim semua aktivitas &amp; jalur ke akunmu</string>
+    <string name="restore_now">Pulihkan dari backup</string>
+    <string name="restore_now_desc">Ambil semua data backup dari akun ke HP ini</string>
+    <string name="backup_done">Backup terkirim: %1$d berhasil, %2$d dilewati/gagal</string>
+    <string name="restore_done">Pulih selesai: %1$d jalur, %2$d aktivitas, %3$d dilewati/gagal</string>
+    <string name="backup_error_signin">Login dulu ke akun untuk backup</string>
+    <string name="backup_error_not_configured">Fitur backup belum dikonfigurasi di build ini</string>
+    <string name="backup_auto_failed">Backup otomatis ke akun gagal — akan dicoba lagi nanti</string>
     <string name="account_not_signed_in">Belum masuk akun</string>
     <string name="account_sign_in_desc">Masuk atau daftar untuk sinkron &amp; publish rute</string>
     <string name="account_no_username">Akun tanpa username</string>

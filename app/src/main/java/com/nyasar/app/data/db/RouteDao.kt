@@ -17,6 +17,10 @@ interface RouteDao {
     @Query("SELECT * FROM routes WHERE id = :id")
     suspend fun getById(id: String): RouteEntity?
 
+    /** One-shot list for backup-all/restore (Fase 3). */
+    @Query("SELECT * FROM routes ORDER BY importedAtEpochMs ASC")
+    suspend fun getAllOnce(): List<RouteEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(route: RouteEntity)
 

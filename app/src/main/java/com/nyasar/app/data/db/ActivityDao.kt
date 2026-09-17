@@ -17,6 +17,13 @@ interface ActivityDao {
     @Query("SELECT * FROM activities WHERE id = :id")
     suspend fun getById(id: String): ActivityEntity?
 
+    /** One-shot list for backup-all (Fase 3) — unlike observeCompleted
+     *  this is a plain suspend read and includes non-completed rows:
+     *  the schema deliberately allows backing up 'recording'/'paused'
+     *  leftovers for crash recovery on restore. */
+    @Query("SELECT * FROM activities ORDER BY startedAtEpochMs ASC")
+    suspend fun getAllOnce(): List<ActivityEntity>
+
     /** Dipakai saat app dibuka kembali untuk cek apakah ada recording yang
      *  belum ditutup dengan benar (proses di-kill OS saat status masih
      *  "recording"/"paused"). Hanya ada 0 atau 1 activity aktif pada satu
@@ -38,6 +45,11 @@ interface ActivityDao {
 
     @Insert
     suspend fun insertPoint(point: ActivityPointEntity)
+
+    /** Batch insert for restore (Fase 3) — one call per restored activity
+     *  instead of thousands of suspend round-trips. */
+    @Insert
+    suspend fun insertPoints(points: List<ActivityPointEntity>)
 
     @Query("SELECT * FROM activity_points WHERE activityId = :activityId ORDER BY sequence ASC")
     suspend fun getPoints(activityId: String): List<ActivityPointEntity>

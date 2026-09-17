@@ -240,13 +240,15 @@ private fun fetchTile(url: String): TileResult = try {
 
 /** Fetch one tile trying sources in order: MapTiler (when keyed) → OSM →
  *  OpenTopoMap. First success wins. All-fail → Failed → card falls back to
- *  the canvas polyline (never an error state — offline is normal here). */
-internal fun fetchTileWithFallback(
+ *  the canvas polyline (never an error state — offline is normal here). */internal fun fetchTileWithFallback(
     layout: StaticMapLayout,
     x: Int,
     y: Int,
     mapTilerKey: String
-): TileResult {    var last = TileResult.Failed
+): TileResult {
+    // Explicit TileResult type: `var last = TileResult.Failed` would infer
+    // the data-object type and reject assignments of the Ok variant.
+    var last: TileResult = TileResult.Failed
     for (source in intArrayOf(SRC_MAPTILER, SRC_OSM, SRC_OPENTOPOMAP)) {
         val url = buildTileUrl(layout, x, y, mapTilerKey, source) ?: continue
         last = fetchTile(url)

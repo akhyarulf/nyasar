@@ -270,6 +270,16 @@ private fun NyasarNavHost(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val activityContext = androidx.compose.ui.platform.LocalContext.current
+
+    /** Plain-text system share sheet (browse route links). Local fun must
+     *  precede its NavHost call sites — Kotlin resolves locals in order. */
+    fun shareText(title: String, text: String) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, text)
+        }
+        activityContext.startActivity(android.content.Intent.createChooser(intent, title))
+    }
     // PART 3 fix: BOTTOM_BAR_ROUTES matches the recording route pattern
     // for its whole lifetime (IDLE through STOPPED — Compose keeps the
     // same NavBackStackEntry the entire time), so a route-based check
@@ -980,13 +990,4 @@ private fun NyasarNavHost(
         }
         }
     } // Scaffold (content lambda closes here)
-
-    /** Plain-text system share sheet (browse route links). */
-    fun shareText(title: String, text: String) {
-        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(android.content.Intent.EXTRA_TEXT, text)
-        }
-        activityContext.startActivity(android.content.Intent.createChooser(intent, title))
-    }
 } // NyasarNavHost

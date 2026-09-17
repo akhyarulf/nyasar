@@ -1,7 +1,10 @@
 package com.nyasar.app.ui.browse
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.items
@@ -16,6 +19,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
@@ -81,77 +85,47 @@ fun BrowseScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
-            // Filter/sort row: chips open small dropdown menus (same pattern
-            // as PublishRouteSheet's FilterChips). Toggling the same value
-            // off clears that filter (ViewModel handles the toggle).
-            var difficultyMenu by remember { mutableStateOf(false) }
-            var trailTypeMenu by remember { mutableStateOf(false) }
-            var sortMenu by remember { mutableStateOf(false) }
+            // Filter/sort row (Wikiloc concept): a search-weighted Filters
+            // chip opens BrowseFilterSheet (draft edits, applied on Apply);
+            // sort stays an instant dropdown. The badge shows the APPLIED
+            // active count (StateFlow — recomposes on apply/clear) so it
+            // stays truthful while sheet edits are still draft.
+            var showFilterSheet by rememberSaveable { mutableStateOf(false) }
             val currentSort = viewModel.currentSort()
+            val activeFilters by viewModel.appliedCount.collectAsState()
             Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box {
-                    FilterChip(
-                        selected = viewModel.currentDifficulty() != null,
-                        onClick = { difficultyMenu = true },
-                        label = {
-                            Text(
-                                stringResource(
-                                    viewModel.currentDifficulty()?.labelRes
-                                        ?: R.string.browse_filter_difficulty
-                                ),
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    )
-                    DropdownMenu(expanded = difficultyMenu, onDismissRequest = { difficultyMenu = false }) {
-                        BrowseRepository.DifficultyFilter.entries.forEach { f ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(f.labelRes)) },
-                                onClick = {
-                                    viewModel.onDifficultySelected(f)
-                                    difficultyMenu = false
-                                }
-                            )
-                        }
+                FilterChip(
+                    selected = activeFilters > 0,
+                    onClick = { showFilterSheet = true },
+                    label = { Text(stringResource(R.string.browse_filter_filters), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (activeFilters > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(NyasarRadius.pill),
+                        color = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            activeFilters.toString(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
                     }
                 }
+                Spacer(Modifier.weight(1f))
                 Box {
-                    FilterChip(
-                        selected = viewModel.currentTrailType() != null,
-                        onClick = { trailTypeMenu = true },
-                        label = {
-                            Text(
-                                stringResource(
-                                    viewModel.currentTrailType()?.labelRes
-                                        ?: R.string.browse_filter_trail_type
-                                ),
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    )
-                    DropdownMenu(expanded = trailTypeMenu, onDismissRequest = { trailTypeMenu = false }) {
-                        BrowseRepository.TrailTypeFilter.entries.forEach { f ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(f.labelRes)) },
-                                onClick = {
-                                    viewModel.onTrailTypeSelected(f)
-                                    trailTypeMenu = false
-                                }
-                            )
-                        }
-                    }
-                }
-                Box {
+                    var sortMenu by remember { mutableStateOf(false) }
                     FilterChip(
                         selected = currentSort != BrowseRepository.SortOrder.NEWEST,
                         onClick = { sortMenu = true },
-                        label = { Text(stringResource(currentSort.labelRes), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        label = { Text(stringResource(currentSort.labelRes), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     )
                     DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                         BrowseRepository.SortOrder.entries.forEach { s ->
@@ -165,6 +139,13 @@ fun BrowseScreen(
                         }
                     }
                 }
+            }
+
+            if (showFilterSheet) {
+                BrowseFilterSheet(
+                    viewModel = viewModel,
+                    onDismiss = { showFilterSheet = false }
+                )
             }
 
             when (val s = state) {
@@ -408,5 +389,197 @@ fun MiniTrackPreview(polyline: String, modifier: Modifier = Modifier) {
     androidx.compose.foundation.Canvas(modifier = modifier) {
         val path = trackPath(points, size.width, size.height)
         drawPath(path, lineColor, style = Stroke(width = 3f))
+    }
+}
+
+/**
+ * Wikiloc-style Filters bottom sheet (konsep user): sport-type chips,
+ * Distance & Elevation-Gain range sliders, multi-select difficulty buttons,
+ * and a Loop-trails-only switch — all edited as a DRAFT that only reaches
+ * the server when Apply is pressed. Swipe-dismiss with pending edits
+ * commits them too (user intent — silently dropping them feels like a
+ * lost Apply); back/X dismiss keeps the draft for the next open.
+ *
+ * Wikiloc's PREMIUM rows ("Only authors you follow", "Recorded") are
+ * deliberately NOT reproduced — see the filter draft decision in
+ * PROJECT_CONTEXT.md.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BrowseFilterSheet(
+    viewModel: BrowseViewModel,
+    onDismiss: () -> Unit
+) {
+    val draft by viewModel.draftFilters.collectAsState()
+
+    ModalBottomSheet(
+        onDismissRequest = {
+            if (viewModel.isDirty(draft)) viewModel.applyFilters()
+            onDismiss()
+        }
+    ) {
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            Text(
+                stringResource(R.string.browse_filter_sport),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(NyasarSpacing.sm))
+            // Reuse SportType labels/icons — the exact vocabulary routes are
+            // published with (the schema CHECK copies these enum names).
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SportType.entries.forEach { sport ->
+                    FilterChip(
+                        selected = sport in draft.sportTypes,
+                        onClick = {
+                            viewModel.onDraftChanged(
+                                draft.copy(
+                                    sportTypes = if (sport in draft.sportTypes) draft.sportTypes - sport
+                                    else draft.sportTypes + sport
+                                )
+                            )
+                        },
+                        label = { Text(stringResource(sport.labelRes), maxLines = 1) },
+                        leadingIcon = {
+                            Icon(sport.icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                    )
+                }
+            }
+            Spacer(Modifier.height(NyasarSpacing.md))
+            RangeSliderItem(
+                title = stringResource(R.string.browse_filter_distance),
+                unit = "km",
+                value = draft.distanceMinKm..draft.distanceMaxKm,
+                max = BrowseRepository.BrowseFilters.MAX_DISTANCE_KM,
+                step = 1f,
+                onValueChange = {
+                    viewModel.onDraftChanged(
+                        draft.copy(distanceMinKm = it.start, distanceMaxKm = it.endInclusive)
+                    )
+                }
+            )
+            Spacer(Modifier.height(NyasarSpacing.md))
+            RangeSliderItem(
+                title = stringResource(R.string.browse_filter_gain),
+                unit = "m",
+                value = draft.gainMinM..draft.gainMaxM,
+                max = BrowseRepository.BrowseFilters.MAX_GAIN_M,
+                step = 50f,
+                onValueChange = {
+                    viewModel.onDraftChanged(
+                        draft.copy(gainMinM = it.start, gainMaxM = it.endInclusive)
+                    )
+                }
+            )
+            Spacer(Modifier.height(NyasarSpacing.md))
+            Text(
+                stringResource(R.string.browse_filter_difficulty),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(NyasarSpacing.sm))
+            // Multi-select buttons (Wikiloc) — wire values are the schema's
+            // CHECK set; labels reused from the publish form.
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                BrowseRepository.DifficultyFilter.entries.forEach { d ->
+                    FilterChip(
+                        selected = d in draft.difficulties,
+                        onClick = {
+                            viewModel.onDraftChanged(
+                                draft.copy(
+                                    difficulties = if (d in draft.difficulties) draft.difficulties - d
+                                    else draft.difficulties + d
+                                )
+                            )
+                        },
+                        label = { Text(stringResource(d.labelRes), maxLines = 1) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(NyasarSpacing.md))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.browse_filter_loop_only),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = draft.loopOnly,
+                    onCheckedChange = { viewModel.onDraftChanged(draft.copy(loopOnly = it)) }
+                )
+            }
+            Spacer(Modifier.height(NyasarSpacing.lg))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = { viewModel.clearAllFilters() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(stringResource(R.string.browse_filter_clear_all), maxLines = 1)
+                }
+                Button(
+                    onClick = {
+                        viewModel.applyFilters()
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(stringResource(R.string.browse_filter_apply), maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+/** Labeled float range slider with Wikiloc's "0 km … +200 km" end labels —
+ *  the upper label gains its "+" exactly at the ceiling because that
+ *  position is the OPEN bound (no upper filter is sent from there). */
+@Composable
+private fun RangeSliderItem(
+    title: String,
+    unit: String,
+    value: ClosedFloatingPointRange<Float>,
+    max: Float,
+    step: Float,
+    onValueChange: (ClosedFloatingPointRange<Float>) -> Unit
+) {
+    Column {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                "%,d %s".format(value.start.roundToInt(), unit),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.weight(1f))
+            val plus = if (value.endInclusive >= max - step / 2) "+" else ""
+            Text(
+                "%s%,d %s".format(plus, value.endInclusive.roundToInt(), unit),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        RangeSlider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 0f..max,
+            steps = (max / step).toInt() - 1
+        )
     }
 }

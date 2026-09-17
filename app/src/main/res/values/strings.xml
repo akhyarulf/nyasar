@@ -661,6 +661,13 @@
     <string name="browse_saving">Menyimpan…</string>
     <string name="browse_save_failed">Gagal menyimpan rute — coba lagi</string>
     <string name="browse_by">oleh %1$s</string>
+    <string name="browse_filter_filters">Filter</string>
+    <string name="browse_filter_sport">Jenis olahraga</string>
+    <string name="browse_filter_distance">Jarak</string>
+    <string name="browse_filter_gain">Elevasi naik</string>
+    <string name="browse_filter_loop_only">Hanya jalur melingkar</string>
+    <string name="browse_filter_clear_all">Hapus semua</string>
+    <string name="browse_filter_apply">Terapkan</string>
     <string name="route_detail_title">Detail Rute</string>
     <string name="route_detail_elev_max">Puncak</string>
     <string name="route_detail_elev_min">Terendah</string>

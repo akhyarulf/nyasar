@@ -661,6 +661,13 @@
     <string name="browse_saving">Saving…</string>
     <string name="browse_save_failed">Couldn\'t save the route — try again</string>
     <string name="browse_by">by %1$s</string>
+    <string name="browse_filter_filters">Filters</string>
+    <string name="browse_filter_sport">Sport type</string>
+    <string name="browse_filter_distance">Distance</string>
+    <string name="browse_filter_gain">Elevation gain</string>
+    <string name="browse_filter_loop_only">Loop trails only</string>
+    <string name="browse_filter_clear_all">Clear all</string>
+    <string name="browse_filter_apply">Apply</string>
     <string name="route_detail_title">Route Detail</string>
     <string name="route_detail_elev_max">Summit</string>
     <string name="route_detail_elev_min">Lowest</string>

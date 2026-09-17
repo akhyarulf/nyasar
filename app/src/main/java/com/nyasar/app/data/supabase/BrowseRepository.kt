@@ -3,6 +3,7 @@ package com.nyasar.app.data.supabase
 import android.util.Log
 import com.nyasar.app.R
 import com.nyasar.app.publish.PolylineEncoder
+import com.nyasar.app.recording.SportType
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.postgrest.postgrest
@@ -121,6 +122,53 @@ class BrowseRepository {
         DISTANCE_DESC(R.string.browse_sort_distance_desc)
     }
 
+    /**
+     * The full browse filter set (Wikiloc-style Filters sheet, draft rencana
+     * filter di PROJECT_CONTEXT.md — sport type/difficulty/distance/loop-only,
+     * TANPA "authors you follow" & "recorded" yang sengaja tidak diikuti).
+     *
+     * All constraints are applied SERVER-SIDE in browse() so pagination stays
+     * honest. Wire values are schema CHECK constraints: difficulty/trail_type
+     * from the enums below, sport_type from [SportType] enum NAMES (schema
+     * check constraint copies that exact list — single source of truth).
+     *
+     * Range semantics: min 0 = no lower bound; max at [MAX_DISTANCE_KM] /
+     * [MAX_GAIN_M] means "+" (open upper bound, no lte sent) — matching the
+     * "+200 km" label convention of the Wikiloc sheet this mirrors.
+     *
+     * Elevation-gain filtering is STRICT: rows with NULL elevation_gain_m
+     * (map-tap/drawn routes without elevation) do NOT match a gain range —
+     * an unknown gain must not silently satisfy "100–2000 m". SQL null
+     * comparison semantics give this for free (NULL >= x is NULL → filtered
+     * out); verified live against PostgREST.
+     */
+    data class BrowseFilters(
+        /** Multi-select (Wikiloc difficulty buttons). Empty = no constraint. */
+        val difficulties: Set<DifficultyFilter> = emptySet(),
+        /** Multi-select sport types; wire = enum names, e.g. "HIKE". Empty = all. */
+        val sportTypes: Set<SportType> = emptySet(),
+        /** Loop trails only — trail_type = 'loop'. */
+        val loopOnly: Boolean = false,
+        val distanceMinKm: Float = 0f,
+        val distanceMaxKm: Float = MAX_DISTANCE_KM,
+        val gainMinM: Float = 0f,
+        val gainMaxM: Float = MAX_GAIN_M
+    ) {
+        /** Number of active filter choices for the Filters-button badge:
+         *  per selected chip, plus 1 per adjusted range/toggle group. */
+        val activeCount: Int
+            get() = difficulties.size + sportTypes.size +
+                (if (loopOnly) 1 else 0) +
+                (if (distanceMinKm > 0f || distanceMaxKm < MAX_DISTANCE_KM) 1 else 0) +
+                (if (gainMinM > 0f || gainMaxM < MAX_GAIN_M) 1 else 0)
+
+        companion object {
+            /** Slider ceilings; the max position is the OPEN bound ("+200 km"). */
+            const val MAX_DISTANCE_KM = 200f
+            const val MAX_GAIN_M = 2000f
+        }
+    }
+
     sealed class Outcome {
         data class Success(val routes: List<PublicRoute>) : Outcome()
         data class Failure(val error: BrowseError) : Outcome()
@@ -154,8 +202,7 @@ class BrowseRepository {
     suspend fun browse(
         client: SupabaseClient,
         query: String = "",
-        difficulty: DifficultyFilter? = null,
-        trailType: TrailTypeFilter? = null,
+        filters: BrowseFilters = BrowseFilters(),
         sort: SortOrder = SortOrder.NEWEST,
         limit: Int = 50
     ): Outcome {
@@ -184,8 +231,33 @@ class BrowseRepository {
                         // loosening can never leak drafts into the browse list.
                         eq("is_public", true)
                         eq("is_draft", false)
-                        difficulty?.let { eq("difficulty", it.wire) }
-                        trailType?.let { eq("trail_type", it.wire) }
+                        // Filters sheet (Wikiloc-style): every constraint
+                        // server-side. isIn() = PostgREST in.(a,b) — verified
+                        // live; ranges via gte/lte with open-upper at the
+                        // slider ceilings (see BrowseFilters doc).
+                        if (filters.difficulties.isNotEmpty()) {
+                            isIn("difficulty", filters.difficulties.map { it.wire })
+                        }
+                        if (filters.sportTypes.isNotEmpty()) {
+                            isIn("sport_type", filters.sportTypes.map { it.name })
+                        }
+                        if (filters.loopOnly) {
+                            eq("trail_type", TrailTypeFilter.LOOP.wire)
+                        }
+                        if (filters.distanceMinKm > 0f) {
+                            gte("distance_meters", (filters.distanceMinKm * 1000.0))
+                        }
+                        if (filters.distanceMaxKm < BrowseFilters.MAX_DISTANCE_KM) {
+                            lte("distance_meters", (filters.distanceMaxKm * 1000.0))
+                        }
+                        // Strict gain range: NULL-gain rows never match
+                        // (documented on BrowseFilters).
+                        if (filters.gainMinM > 0f) {
+                            gte("elevation_gain_m", filters.gainMinM.toDouble())
+                        }
+                        if (filters.gainMaxM < BrowseFilters.MAX_GAIN_M) {
+                            lte("elevation_gain_m", filters.gainMaxM.toDouble())
+                        }
                         // Search matches the route name only (case-insensitive
                         // ilike — must live INSIDE the filter scope). Strip
                         // PostgREST pattern delimiters so a typed query can't

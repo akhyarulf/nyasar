@@ -16,10 +16,15 @@ import kotlinx.coroutines.launch
  * State for the Home tab's public-route browser (Fase 2 poin 3). Sealed
  * states — no boolean flags — matching AuthViewModel/PublishViewModel style.
  *
- * Search is debounced 350ms and browses server-side on every change; filters
- * + sort re-browse immediately. Supabase failures surface as [BrowseUiError]
- * mapped from the repository's [BrowseRepository.BrowseError], so the UI never
- * sees an SDK exception.
+ * Search is debounced 350ms and browses server-side on every change; applied
+ * filters + sort re-browse immediately. Supabase failures surface as
+ * [BrowseUiError] mapped from the repository's [BrowseRepository.BrowseError],
+ * so the UI never sees an SDK exception.
+ *
+ * Filters follow the Wikiloc Filters-sheet concept the user chose: edits
+ * inside the sheet stay DRAFT until Apply (no network churn per slider
+ * tick), Clear all resets the draft, and the Filters button badge shows the
+ * APPLIED active count so it stays truthful while the sheet is open.
  */
 class BrowseViewModel : ViewModel() {
 
@@ -43,8 +48,17 @@ class BrowseViewModel : ViewModel() {
     private val _query = MutableStateFlow("")
     val query = _query.asStateFlow()
 
-    private var difficulty: BrowseRepository.DifficultyFilter? = null
-    private var trailType: BrowseRepository.TrailTypeFilter? = null
+    /** Filter selections the sheet is currently editing — not yet applied. */
+    private val _draftFilters = MutableStateFlow(BrowseRepository.BrowseFilters())
+    val draftFilters = _draftFilters.asStateFlow()
+
+    /** Last APPLIED filter set — what the list is actually showing. */
+    private var appliedFilters = BrowseRepository.BrowseFilters()
+
+    /** Reactive badge source: APPLIED active-filter count (updated only on
+     *  apply/clear, so it stays truthful while sheet edits are still draft). */
+    private val _appliedCount = MutableStateFlow(0)
+    val appliedCount = _appliedCount.asStateFlow()
     private var sort: BrowseRepository.SortOrder = BrowseRepository.SortOrder.NEWEST
 
     init {
@@ -59,13 +73,24 @@ class BrowseViewModel : ViewModel() {
         _query.value = newQuery
     }
 
-    fun onDifficultySelected(filter: BrowseRepository.DifficultyFilter?) {
-        difficulty = if (difficulty == filter) null else filter
+    // ── Draft edits (Filters sheet) ──
+
+    fun onDraftChanged(filters: BrowseRepository.BrowseFilters) {
+        _draftFilters.value = filters
+    }
+
+    /** Apply: commit the draft and re-browse once. */
+    fun applyFilters() {
+        appliedFilters = _draftFilters.value
+        _appliedCount.value = appliedFilters.activeCount
         browse(_query.value)
     }
 
-    fun onTrailTypeSelected(filter: BrowseRepository.TrailTypeFilter?) {
-        trailType = if (trailType == filter) null else filter
+    /** Clear all: reset draft AND applied, and re-browse immediately. */
+    fun clearAllFilters() {
+        _draftFilters.value = BrowseRepository.BrowseFilters()
+        appliedFilters = _draftFilters.value
+        _appliedCount.value = 0
         browse(_query.value)
     }
 
@@ -76,10 +101,12 @@ class BrowseViewModel : ViewModel() {
 
     fun retry() = browse(_query.value)
 
-    /** Current filter/sort getters for the chip labels (read-only UI state). */
-    fun currentDifficulty(): BrowseRepository.DifficultyFilter? = difficulty
-    fun currentTrailType(): BrowseRepository.TrailTypeFilter? = trailType
+    /** Current sort getter for the chip label (read-only UI state). */
     fun currentSort(): BrowseRepository.SortOrder = sort
+
+    /** True when [draft] differs from the applied set — used to commit
+     *  pending sheet edits on swipe-dismiss (Apply without pressing Apply). */
+    fun isDirty(draft: BrowseRepository.BrowseFilters): Boolean = draft != appliedFilters
 
     private fun browse(query: String) {
         viewModelScope.launch {
@@ -91,8 +118,7 @@ class BrowseViewModel : ViewModel() {
             when (val outcome = repository.browse(
                 client = SupabaseClientProvider.client,
                 query = query,
-                difficulty = difficulty,
-                trailType = trailType,
+                filters = appliedFilters,
                 sort = sort
             )) {
                 is BrowseRepository.Outcome.Success -> _state.value = BrowseState.Loaded(

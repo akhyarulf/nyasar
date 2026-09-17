@@ -405,9 +405,25 @@ Gate auth pasca daftar/login mendarat ke Browse, bukan Home.
     kode diupdate, app akan crash saat publish (insert ke kolom yang
     sudah tidak ada).
 
-**Draft rencana filter browse/search (poin 3 di atas, belum
-diimplementasi) — hasil diskusi user membandingkan Wikiloc/Trailforks,
-sengaja TIDAK meniru semua fiturnya:**
+**Rencana filter browse/search (poin 3) — SUDAH DIIMPLEMENTASI
+(2026-09-17, Filters sheet ala Wikiloc dari screenshot user):**
+`BrowseRepository.BrowseFilters` (semua constraint SERVER-SIDE:
+`isIn` difficulty & sport_type multi-select, `gte/lte` range jarak &
+gain, `trail_type='loop'` untuk loop-only) + `BrowseFilterSheet`
+(draft-until-Apply: edit di sheet tidak network sebelum tombol
+Terapkan; swipe-dismiss dengan edit pending ikut di-commit — intent
+user; back/X menyimpan draft). Slider ceiling (+200 km / +2.000 m) =
+bound TERBUKA (tidak ada lte dikirim), persis konvensi "+200 km"
+Wikiloc. Elevation gain STRICT: rute tanpa data gain (NULL) tidak
+ikut muncul saat filter gain aktif — gain tak-dikenal tidak boleh
+diam-diam memenuhi range (semantik SQL null, diverifikasi live ke
+PostgREST). Badge tombol Filter = jumlah APPLIED (StateFlow), bukan
+draft, supaya jujur saat sheet terbuka. PREMIUM rows Wikiloc
+("authors you follow", "Recorded") TIDAK direproduksi — sesuai
+keputusan di bawah. Sort tetap chip instan di luar sheet.
+
+Riwayat keputusan (draft asli, hasil diskusi user membandingkan
+Wikiloc/Trailforks, sengaja TIDAK meniru semua fiturnya):
 - Dipakai: sport type (dari `SportType.kt` yang sudah ada — BUKAN
   puluhan kategori ala Trailforks), difficulty (sudah ada di schema),
   distance range (sudah ada di data), loop-trails-only (dari

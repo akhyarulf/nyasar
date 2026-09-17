@@ -8,14 +8,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.SupabaseClientProvider
+import io.github.jan.supabase.gotrue.auth
 import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.StaticMapPreview
@@ -39,6 +45,7 @@ import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarElevation
 import com.nyasar.app.ui.theme.NyasarRadius
 import com.nyasar.app.ui.theme.NyasarSpacing
+import android.content.Intent
 import kotlin.math.cos
 import kotlin.math.roundToInt
 
@@ -54,10 +61,14 @@ import kotlin.math.roundToInt
 @Composable
 fun BrowseScreen(
     viewModel: BrowseViewModel = viewModel(),
-    onOpenRoute: (String) -> Unit
+    onOpenRoute: (String) -> Unit,
+    onRequireSignIn: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val query by viewModel.query.collectAsState()
+    val likedIds by viewModel.likedIds.collectAsState()
+    val likePending by viewModel.likePending.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.browse_title)) }) }
@@ -193,7 +204,16 @@ fun BrowseScreen(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(s.routes, key = { it.id }) { route ->
-                                PublicRouteCard(route = route, onClick = { onOpenRoute(route.id) })
+                                PublicRouteCard(
+                                    route = route,
+                    liked = route.id in likedIds,
+                                    likePending = route.id in likePending,
+                                    onToggleLike = { viewModel.toggleLike(route) },
+                                    onOpenComments = { onOpenRoute(route.id) },
+                                    onRequireSignIn = onRequireSignIn,
+                                    onShare = { shareRoute(context, route) },
+                                    onClick = { onOpenRoute(route.id) }
+                                )
                             }
                         }
                     }
@@ -204,7 +224,16 @@ fun BrowseScreen(
 }
 
 @Composable
-private fun PublicRouteCard(route: BrowseRepository.PublicRoute, onClick: () -> Unit) {
+private fun PublicRouteCard(
+    route: BrowseRepository.PublicRoute,
+    liked: Boolean,
+    likePending: Boolean,
+    onToggleLike: () -> Unit,
+    onOpenComments: () -> Unit,
+    onRequireSignIn: () -> Unit,
+    onShare: () -> Unit,
+    onClick: () -> Unit
+) {
     val interaction = remember { MutableInteractionSource() }
     Surface(
         shape = RoundedCornerShape(NyasarRadius.md),
@@ -215,135 +244,231 @@ private fun PublicRouteCard(route: BrowseRepository.PublicRoute, onClick: () -> 
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
         Column {
-            // Info section keeps the card padding; the hero map below is
-            // full-bleed (Wikiloc photo-style), clipped by the Surface shape.
-            Column(Modifier.padding(horizontal = NyasarSpacing.lg, vertical = NyasarSpacing.md)) {
-            // Top row: sport icon + Wikiloc-style colored difficulty chip +
-            // neutral trail-shape chip (all from columns we already store —
-            // mountain_name/region are gone, Keputusan baru, migration 0004).
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = SportType.fromString(route.sportType).icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.weight(1f))
-                route.difficulty?.let { d -> BrowseRepository.DifficultyFilter.fromWire(d) }?.let { chip ->
-                    DifficultyChip(label = stringResource(chip.labelRes), wire = chip.wire)
-                    Spacer(Modifier.width(NyasarSpacing.sm))
+            // ── Strava card order: (1) publisher header, (2) route name,
+            // (3) description, (4) stats grid, (5) full-bleed map, then the
+            // like/comment/share action row. Box kept from the old design.
+            //
+            // (1) Publisher header: avatar chip + username + age — the exact
+            //     anatomy of Strava's byline, over our own visual language.
+            Row(
+                Modifier.padding(horizontal = NyasarSpacing.lg, vertical = NyasarSpacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
-                route.trailType?.let { t -> BrowseRepository.TrailTypeFilter.fromWire(t) }?.let { chip ->
-                    TrailTypeChip(label = stringResource(chip.labelRes))
+                Spacer(Modifier.width(NyasarSpacing.md))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        route.username ?: stringResource(R.string.browse_unknown_author),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        formatRelativeDate(route.createdAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
                 }
-            }
-            Spacer(Modifier.height(NyasarSpacing.sm))
-            Text(
-                route.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(NyasarSpacing.xs))
-            // Stats row (Wikiloc order): distance leads, then elevation gain,
-            // moving time and likes — only non-null values take space.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "%.1f km".format(route.distanceMeters / 1000.0),
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                route.elevationGainM?.let {
-                    Spacer(Modifier.width(NyasarSpacing.md))
+                SportType.fromString(route.sportType).let { sport ->
                     Icon(
-                        Icons.AutoMirrored.Filled.TrendingUp,
+                        imageVector = sport.icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        "${it.roundToInt()} m",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                route.movingTimeMs?.takeIf { ms -> ms > 0 }?.let { ms ->
-                    Spacer(Modifier.width(NyasarSpacing.md))
-                    Icon(
-                        Icons.Default.Schedule,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        formatCardDuration(ms),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (route.likesCount > 0) {
-                    Spacer(Modifier.width(NyasarSpacing.md))
-                    Icon(
-                        Icons.Default.Favorite,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        route.likesCount.toString(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
+
+            // (2) Route name + difficulty/trail chips inline (chips stay —
+            //     they carry publish-form data the byline has nowhere else
+            //     to show).
+            Column(Modifier.padding(horizontal = NyasarSpacing.lg)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        route.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    route.difficulty?.let { d -> BrowseRepository.DifficultyFilter.fromWire(d) }?.let { chip ->
+                        Spacer(Modifier.width(NyasarSpacing.sm))
+                        DifficultyChip(label = stringResource(chip.labelRes), wire = chip.wire)
+                    }
+                    route.trailType?.let { t -> BrowseRepository.TrailTypeFilter.fromWire(t) }?.let { chip ->
+                        Spacer(Modifier.width(NyasarSpacing.xs))
+                        TrailTypeChip(label = stringResource(chip.labelRes))
+                    }
+                }
+
+                // (3) Description (Strava shows it right under the name).
+                route.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                    Spacer(Modifier.height(NyasarSpacing.xs))
+                    Text(
+                        desc,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // (4) Stats grid — Strava's "label above, bold value below",
+                //     up to 3 tiles on phones: Distance / Elev Gain / Time.
+                Spacer(Modifier.height(NyasarSpacing.md))
+                Row(Modifier.fillMaxWidth()) {
+                    StatTile(
+                        label = stringResource(R.string.stat_distance),
+                        value = "%.1f km".format(route.distanceMeters / 1000.0),
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatTile(
+                        label = stringResource(R.string.stat_elevation_gain),
+                        value = route.elevationGainM?.let { "+${it.roundToInt()} m" } ?: "—",
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatTile(
+                        label = stringResource(R.string.stat_moving_time),
+                        value = route.movingTimeMs?.takeIf { ms -> ms > 0 }
+                            ?.let { ms -> formatCardDuration(ms) } ?: "—",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
+
             Spacer(Modifier.height(NyasarSpacing.md))
-            // Hero: static topo-tile snapshot with the route trace — the
-            // Strava-style visual that replaces the removed photo slot.
-            // Degrades to the pure-canvas polyline (old look) while loading
-            // or with no signal. Author pill overlays the map, Wikiloc-style.
+
+            // (5) Hero map — full-bleed, taller (Strava's ~4:3 card map).
+            //     Tile sources: MapTiler topo when keyed, then OSM standard,
+            //     then OpenTopoMap (see StaticMapPreview fallback chain).
             Box {
                 StaticMapPreview(
                     polyline = route.trackPolyline,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
+                        .height(210.dp)
                 )
-                route.username?.let { author ->
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        shape = RoundedCornerShape(NyasarRadius.pill),
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(NyasarSpacing.sm)
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(Modifier.width(NyasarSpacing.xs))
-                            Text(
-                                author,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+            }
+
+            // (6) Action row: like / comment / share — Strava's kudos row.
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = NyasarSpacing.sm, vertical = NyasarSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = {
+                        if (SupabaseClientProvider.client.auth.currentSessionOrNull() != null) {
+                            onToggleLike()
+                        } else {
+                            onRequireSignIn()
                         }
-                    }
+                    },
+                    enabled = !likePending
+                ) {
+                    Icon(
+                        imageVector = if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = null,
+                        tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (route.likesCount > 0) route.likesCount.toString() else "",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(onClick = onOpenComments) {
+                    Icon(
+                        Icons.AutoMirrored.Outlined.Chat,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (route.commentsCount > 0) route.commentsCount.toString() else "",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onShare) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = stringResource(R.string.browse_share_route),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
     }
+}
+
+/** Strava stat tile: small muted label above a bold value. */
+@Composable
+private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+/** Strava-style relative timestamp for the card byline ("3 j"). Falls back
+ *  to the date when older than a week. */
+internal fun formatRelativeDate(iso: String): String {
+    val millis = runCatching {
+        java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+            .apply { setTimeZone(java.util.TimeZone.getTimeZone("UTC")) }
+            .parse(iso.take(19))
+            ?.time
+    }.getOrNull() ?: return iso.take(10)
+    val diffMin = ((System.currentTimeMillis() - millis) / 60000L).coerceAtLeast(0)
+    return when {
+        diffMin < 1 -> "now"
+        diffMin < 60 -> "${diffMin}m"
+        diffMin < 60 * 24 -> "${diffMin / 60}h"
+        diffMin < 60 * 24 * 7 -> "${diffMin / (60 * 24)}d"
+        else -> iso.take(10)
+    }
+}
+
+/** System share sheet for a route — plain text deep link style; no server
+ *  involvement. Uses the same chooser mechanism as the GPX share. */
+internal fun shareRoute(context: android.content.Context, route: BrowseRepository.PublicRoute) {
+    val text = "${route.name} — Nyasar\nhttps://nyasar.app/route/${route.id}"
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(Intent.createChooser(intent, route.name))
 }
 
 /** Compact moving-time label for cards — same h/m convention as the

@@ -17,10 +17,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +43,7 @@ import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.ElevationProfile
 import com.nyasar.app.ui.components.StaticMapPreview
 import com.nyasar.app.ui.components.TrailTypeChip
+import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
@@ -64,12 +69,16 @@ fun PublicRouteDetailScreen(
     routeId: String,
     viewModel: PublicRouteDetailViewModel = viewModel(),
     onOpenRoutePreview: (String) -> Unit,
+    onRequireSignIn: () -> Unit = {},
+    onShare: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val download by viewModel.download.collectAsState()
     val save by viewModel.save.collectAsState()
     val elevation by viewModel.elevation.collectAsState()
+    val liked by viewModel.liked.collectAsState()
+    val likePending by viewModel.likePending.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(routeId) { viewModel.load(routeId) }
@@ -144,7 +153,10 @@ fun PublicRouteDetailScreen(
                 // Kick the elevation-profile load once the route is here —
                 // chart streams in when the GPX has been parsed (progressive,
                 // detail never blocks on it).
-                LaunchedEffect(route.id) { viewModel.loadElevation(route) }
+                LaunchedEffect(route.id) {
+                    viewModel.loadElevation(route)
+                    viewModel.loadSocial(route.id)
+                }
 
                 // Large screens: cap content width and center (Strava caps its
                 // detail feed the same way; full-width text rows are unreadable).
@@ -158,122 +170,180 @@ fun PublicRouteDetailScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                     ) {
-                        // ── Hero: static topo map + trace, full-bleed to the
-                        // content column (canvas fallback while loading/offline).
-                        StaticMapPreview(
-                            polyline = route.trackPolyline,
-                            modifier = Modifier.fillMaxWidth().height(220.dp)
-                        )
+                        // ── Strava detail order: publisher header FIRST (above
+                        // the map), then name/description/stats, then the map,
+                        // then the like/comment action row, elevation, actions.
 
-                        Column(Modifier.padding(horizontal = 16.dp)) {
-                            Spacer(Modifier.height(14.dp))
-
-                            // Chips row: sport icon + difficulty + trail shape —
-                            // identical chips to the browse cards.
+                        // (1) Publisher header.
+                        Row(
+                            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(23.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    route.profiles?.username
+                                        ?: stringResource(R.string.browse_unknown_author),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    com.nyasar.app.ui.browse.formatRelativeDate(route.createdAt),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             val diffChip = route.difficulty
                                 ?.let { BrowseRepository.DifficultyFilter.fromWire(it) }
                             val trailChip = route.trailType
                                 ?.let { BrowseRepository.TrailTypeFilter.fromWire(it) }
-                            if (diffChip != null || trailChip != null) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = SportType.fromString(route.sportType).icon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    diffChip?.let {
-                                        DifficultyChip(label = stringResource(it.labelRes), wire = it.wire)
-                                        Spacer(Modifier.width(8.dp))
-                                    }
-                                    trailChip?.let {
-                                        TrailTypeChip(label = stringResource(it.labelRes))
-                                    }
-                                }
-                                Spacer(Modifier.height(10.dp))
+                            diffChip?.let {
+                                DifficultyChip(label = stringResource(it.labelRes), wire = it.wire)
+                                Spacer(Modifier.width(8.dp))
                             }
+                            trailChip?.let {
+                                TrailTypeChip(label = stringResource(it.labelRes))
+                            }
+                        }
 
+                        // (2) Name + description.
+                        Column(Modifier.padding(horizontal = 16.dp)) {
                             Text(
                                 route.name,
                                 style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(Modifier.height(8.dp))
-
-                            // Author row: avatar chip + username + likes on the
-                            // trailing edge (Strava's byline, Wikiloc's data).
-                            val publisher = route.profiles?.username
-                            if (publisher != null || route.likesCount > 0) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    publisher?.let {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.surfaceVariant,
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    Icons.Default.Person,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(19.dp)
-                                                )
-                                            }
-                                        }
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            stringResource(R.string.browse_by, it),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                    Spacer(Modifier.weight(1f))
-                                    if (route.likesCount > 0) {
-                                        Icon(
-                                            Icons.Default.Favorite,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            route.likesCount.toString(),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.height(10.dp))
-                            }
-
                             route.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                                Spacer(Modifier.height(6.dp))
                                 Text(
                                     desc,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(Modifier.height(14.dp))
-                            } ?: Spacer(Modifier.height(4.dp))
-
-                            // ── Stats grid, Strava-style centered tiles:
-                            // 2 per row on phones, 3 on wide screens.
-                            val stats = buildList {
-                                add("%.1f km".format(route.distanceMeters / 1000.0) to stringResource(R.string.distance))
-                                route.elevationGainM?.let { add("+${it.roundToInt()} m" to stringResource(R.string.elev_gain)) }
-                                route.movingTimeMs?.takeIf { ms -> ms > 0 }
-                                    ?.let { add(formatHms(it) to stringResource(R.string.moving_time)) }
-                                route.elevationLossM?.let { add("−${it.roundToInt()} m" to stringResource(R.string.route_detail_elev_loss)) }
-                                route.maxElevationM?.let { add("${it.roundToInt()} m" to stringResource(R.string.route_detail_elev_max)) }
-                                route.minElevationM?.let { add("${it.roundToInt()} m" to stringResource(R.string.route_detail_elev_min)) }
                             }
-                            StatGrid(stats)
+                            Spacer(Modifier.height(12.dp))
 
-                            Spacer(Modifier.height(8.dp))
+                            // (3) Stats — Strava row format (label above, bold
+                            // value below): Distance / Elev Gain / Time.
+                            Row(Modifier.fillMaxWidth()) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        stringResource(R.string.browse_stat_distance),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        "%.1f km".format(route.distanceMeters / 1000.0),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        stringResource(R.string.browse_stat_elev_gain),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        route.elevationGainM?.let { "+${it.roundToInt()} m" } ?: "—",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        stringResource(R.string.browse_stat_time),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        route.movingTimeMs?.takeIf { ms -> ms > 0 }
+                                            ?.let { formatHms(it) } ?: "—",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // (4) Map — full-bleed hero (tile map, not a bare
+                        // polyline; fallback chain in StaticMapPreview).
+                        StaticMapPreview(
+                            polyline = route.trackPolyline,
+                            modifier = Modifier.fillMaxWidth().height(240.dp)
+                        )
+
+                        // (5) Like / comment action row (Strava kudos row).
+                        val signedIn = com.nyasar.app.data.supabase.SupabaseClientProvider
+                            .client.auth.currentSessionOrNull() != null
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = { if (signedIn) viewModel.toggleLike(route) else onRequireSignIn() },
+                                enabled = likePending
+                            ) {
+                                Icon(
+                                    imageVector = if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    contentDescription = stringResource(
+                                        if (liked) R.string.browse_liked else R.string.browse_like
+                                    ),
+                                    tint = if (liked) MaterialTheme.colorScheme.primary
+                                           else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    if (route.likesCount > 0) route.likesCount.toString() else "",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = { /* comments section is right below */ }) {
+                                Icon(
+                                    Icons.AutoMirrored.Outlined.Chat,
+                                    contentDescription = stringResource(R.string.browse_comment),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Text(
+                                if (route.commentsCount > 0) route.commentsCount.toString() else "",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.weight(1f))
+                            IconButton(onClick = onShare) {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = stringResource(R.string.browse_share_route),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Column(Modifier.padding(horizontal = 16.dp)) {
+                            Spacer(Modifier.height(12.dp))
 
                             // ── Elevation profile (from the ORIGINAL GPX —
                             // track_polyline has no elevation). Hidden entirely
@@ -328,6 +398,104 @@ fun PublicRouteDetailScreen(
                                             "${elevs.min().roundToInt()} m" to stringResource(R.string.route_detail_elev_min)
                                         )
                                     )
+                                }
+                                else -> {}
+                            }
+
+                            // ── Comments section (Strava-style thread).
+                            Spacer(Modifier.height(20.dp))
+                            val commentsState by viewModel.comments.collectAsState()
+                            when (val cs = commentsState) {
+                                is PublicRouteDetailViewModel.CommentsState.Ready -> {
+                                    Text(
+                                        stringResource(R.string.route_detail_comments_section, cs.comments.size),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(Modifier.height(10.dp))
+                                    if (cs.comments.isEmpty()) {
+                                        Text(
+                                            stringResource(R.string.browse_comments_empty),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    } else {
+                                        cs.comments.forEach { c ->
+                                            Row(Modifier.padding(vertical = 6.dp)) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                                    modifier = Modifier.size(30.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            Icons.Default.Person,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(17.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(Modifier.width(10.dp))
+                                                Column(Modifier.weight(1f)) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            c.username ?: stringResource(R.string.browse_unknown_author),
+                                                            style = MaterialTheme.typography.labelLarge,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                        Spacer(Modifier.width(8.dp))
+                                                        Text(
+                                                            com.nyasar.app.ui.browse.formatRelativeDate(c.createdAt),
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    Text(
+                                                        c.content,
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(12.dp))
+                                    val signedInForComment = com.nyasar.app.data.supabase.SupabaseClientProvider
+                                        .client.auth.currentSessionOrNull() != null
+                                    var commentText by remember { mutableStateOf("") }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        OutlinedTextField(
+                                            value = commentText,
+                                            onValueChange = { commentText = it },
+                                            placeholder = { Text(stringResource(R.string.browse_comment_hint), maxLines = 1) },
+                                            enabled = signedInForComment && !cs.posting,
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(NyasarRadius.pill),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        if (cs.posting) {
+                                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                                        } else {
+                                            IconButton(
+                                                onClick = {
+                                                    if (signedInForComment) {
+                                                        viewModel.postComment(route.id, commentText)
+                                                        commentText = ""
+                                                    } else {
+                                                        onRequireSignIn()
+                                                    }
+                                                },
+                                                enabled = commentText.isNotBlank()
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Send,
+                                                    contentDescription = stringResource(R.string.browse_comment_send),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                                 else -> {}
                             }

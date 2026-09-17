@@ -558,9 +558,42 @@ TODO schema terjawab: `discarded` tidak pernah ditulis ke DB
 yang benar.
 
 ### Fase 4 — Sosial
-❌ Tabel sudah siap (`route_likes`, `saved_routes`, `route_comments`,
-`reports`), UI belum dibikin sama sekali: tombol Save, Like, Comment,
-Report.
+🟢 **Sebagian jadi (2026-09-17): Like + Comment di Browse & Route Detail.**
+- Kartu Browse & detail rute dirombak urutan Strava: header publisher
+  (avatar + username + waktu relatif) → nama → deskripsi → stats 3 kolom
+  (label di atas, nilai tebal) → map full-bleed lebih tinggi (210/240dp) →
+  baris aksi Like/Komentar/Share.
+- Backend: `SocialRepository` baru — toggleLike (read-state-then-write,
+  anti-race), fetchComments (embed profiles via FK hint
+  `route_comments_user_id_fkey`), postComment (insert-with-select balik
+  row lengkap). RLS schema_v1 sudah menutup semua — TIDAK ada policy baru.
+- Migration `0005_like_comment_counters.sql`: trigger AFTER INSERT/DELETE
+  menjaga `routes.likes_count`/`comments_count` (browse ORDER BY butuh
+  kolom tersimpan), plus backfill. **MIGRATION INI HARUS DIJALANKAN DI
+  SUPABASE sebelum fitur like/komen terasa benar** (counter di UI update
+  lokal optimistik, tapi angka server tetap 0 tanpa trigger).
+- Like bersifat sinyal sosial publik — bukan Save (Save = simpan ke
+  Library lokal, sudah ada terpisah). Comment belum bisa dihapus dari UI
+  (RLS delete own sudah siap, UI menyusul).
+- Share: plain-text link `https://nyasar.app/route/{id}` via chooser
+  sistem; kartu browse pakai helper internal, detail pakai callback
+  ke MainActivity (`shareText`).
+- Masih ❌ di fase ini: saved_routes UI (bookmark), reports, hapus
+  komentar, notifikasi.
+❌ Sisanya: tombol Save (bookmark publik), Report.
+
+#### Kartu Browse ala Strava (keputusan layout 2026-09-17)
+- Urutan kartu: header profil → nama+chips → deskripsi (max 2 baris) →
+  stats grid (Jarak/Elevasi naik/Waktu) → map full-bleed → aksi.
+- Map kartu sengaja ditinggikan ke 210dp (kartu) / 240dp (detail) —
+  meniru peta Strava yang dominan.
+- **Fallback tile berantai** di StaticMapPreview: MapTiler topo (kalau
+  ada key) → **OSM standard** (baru, keyless & paling reliable) →
+  OpenTopoMap (terakhir — sering throttle; tile placeholder kecil kini
+  ditolak: decode result <512 byte dianggap gagal). APK CI tidak punya
+  MAPTILER_API_KEY (local.properties tidak ikut repo) → dulu semua kartu
+  jatuh ke polyline fallback (garis polos); sekarang OSM menjaga kartu
+  tetap menampilkan peta sungguhan.
 
 ### Visibility/Privacy (konsep sudah didiskusikan, BELUM dikerjakan)
 Keputusan desain dari diskusi user (referensi screenshot Strava &

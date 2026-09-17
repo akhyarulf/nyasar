@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import com.nyasar.app.gpx.GpxParser
 import com.nyasar.app.gpx.model.TrackPoint
@@ -33,6 +34,7 @@ import kotlinx.coroutines.withContext
 class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = BrowseRepository()
+    private val socialRepository = SocialRepository()
     private val routeRepository = RouteRepository(application)
 
     sealed class State {
@@ -88,6 +90,100 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
 
     private val _elevation = MutableStateFlow<ElevationState>(ElevationState.Idle)
     val elevation: StateFlow<ElevationState> = _elevation.asStateFlow()
+
+    /** Signed-in user liked this route (filled heart on the action row). */
+    private val _liked = MutableStateFlow(false)
+    val liked = _liked.asStateFlow()
+
+    /** Like toggle in flight (button disabled). */
+    private val _likePending = MutableStateFlow(false)
+    val likePending = _likePending.asStateFlow()
+
+    /** Comments thread + post lifecycle for the detail section. */
+    sealed class CommentsState {
+        data object Loading : CommentsState()
+        data class Ready(
+            val comments: List<SocialRepository.CommentRow>,
+            /** True while the post request is in flight. */
+            val posting: Boolean = false
+        ) : CommentsState()
+        data class Error(val messageRes: Int) : CommentsState()
+    }
+
+    private val _comments = MutableStateFlow<CommentsState>(CommentsState.Loading)
+    val comments = _comments.asStateFlow()
+
+    /** Likes are only toggled when signed in; the screen routes anonymous
+     *  taps to auth. Server count is authoritative on response. */
+    fun toggleLike(route: BrowseRepository.RouteDetail) {
+        if (!SupabaseClientProvider.isConfigured) return
+        if (_likePending.value) return
+        val wasLiked = _liked.value
+        _liked.value = !wasLiked
+        _state.value = (_state.value as? State.Ready)?.let { s ->
+            s.copy(route = s.route.copy(likesCount = (s.route.likesCount + if (wasLiked) -1 else 1).coerceAtLeast(0)))
+        } ?: _state.value
+        _likePending.value = true
+        viewModelScope.launch {
+            when (val outcome = socialRepository.toggleLike(SupabaseClientProvider.client, route.id)) {
+                is SocialRepository.ToggleOutcome.Success -> {
+                    _liked.value = outcome.liked
+                    _state.value = (_state.value as? State.Ready)?.let { s ->
+                        s.copy(route = s.route.copy(likesCount = outcome.likesCount))
+                    } ?: _state.value
+                }
+                is SocialRepository.ToggleOutcome.Failure -> {
+                    _liked.value = wasLiked
+                    _state.value = (_state.value as? State.Ready)?.let { s ->
+                        s.copy(route = s.route.copy(likesCount = route.likesCount))
+                    } ?: _state.value
+                }
+            }
+            _likePending.value = false
+        }
+    }
+
+    /** Load liked-state + comments once the route row is on screen. */
+    fun loadSocial(routeId: String) {
+        if (!SupabaseClientProvider.isConfigured) return
+        viewModelScope.launch {
+            val client = SupabaseClientProvider.client
+            _liked.value = routeId in socialRepository.fetchLikedRouteIds(client)
+            when (val outcome = socialRepository.fetchComments(client, routeId)) {
+                is SocialRepository.CommentsOutcome.Success ->
+                    _comments.value = CommentsState.Ready(outcome.comments)
+                is SocialRepository.CommentsOutcome.Failure ->
+                    // Non-blocking: the detail's core content is the route,
+                    // comments degrade to an empty section with retry via
+                    // reopening the screen.
+                    _comments.value = CommentsState.Ready(emptyList())
+            }
+        }
+    }
+
+    fun postComment(routeId: String, text: String) {
+        val current = _comments.value
+        if (current !is CommentsState.Ready || current.posting) return
+        if (text.isBlank()) return
+        _comments.value = current.copy(posting = true)
+        viewModelScope.launch {
+            when (val outcome = socialRepository.postComment(SupabaseClientProvider.client, routeId, text)) {
+                is SocialRepository.PostOutcome.Success -> {
+                    _comments.value = (current.copy(
+                        comments = listOf(outcome.comment) + current.comments,
+                        posting = false
+                    ))
+                    // Counter on the route row bumps via the DB trigger; sync UI.
+                    _state.value = (_state.value as? State.Ready)?.let { s ->
+                        s.copy(route = s.route.copy(commentsCount = s.route.commentsCount + 1))
+                    } ?: _state.value
+                }
+                is SocialRepository.PostOutcome.Failure -> {
+                    _comments.value = current.copy(posting = false)
+                }
+            }
+        }
+    }
 
     /** Fired once from the Ready screen — NOT inside load(), so the detail
      *  renders immediately and the chart streams in when the GPX arrives

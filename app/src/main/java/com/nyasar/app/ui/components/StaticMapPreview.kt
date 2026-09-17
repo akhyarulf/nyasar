@@ -169,22 +169,36 @@ internal fun computeStaticMapLayout(
     )
 }
 
-/** Tile URL for one (x, y) at [layout]'s zoom — MapTiler topo when keyed,
- *  OpenTopoMap (a/b/c round-robin, their documented subdomain form) else.
+/** Tile URL for one (x, y) at [layout]'s zoom from ONE named source.
+ *  Sources are tried in order by [fetchTileWithFallback]:
+ *   1. MapTiler "topo" — only when MAPTILER_API_KEY is set (CI/release
+ *      builds don't get the key from local.properties, so often absent),
+ *   2. OpenStreetMap standard raster — keyless, generous, real street/terrain
+ *      context (the "peta kebaca" look users expect from a map hero),
+ *   3. OpenTopoMap — keyless topo; throttles aggressively in practice
+ *      (frequently answers 200 with a tiny placeholder tile), so it's LAST.
  *  x wraps around the world seam; y clamps (polar overdraw can request an
  *  out-of-range row that no server would serve). */
-internal fun buildTileUrl(layout: StaticMapLayout, x: Int, y: Int, mapTilerKey: String): String {
+internal fun buildTileUrl(layout: StaticMapLayout, x: Int, y: Int, mapTilerKey: String, source: Int): String? {
     val z = layout.zoom
     val worldTiles = 1 shl z
     val wx = ((x % worldTiles) + worldTiles) % worldTiles
     val wy = y.coerceIn(0, worldTiles - 1)
-    return if (mapTilerKey.isNotBlank()) {
-        "https://api.maptiler.com/maps/topo/$z/$wx/$wy.png?key=$mapTilerKey"
-    } else {
-        val host = listOf("a", "b", "c")[(wx + wy).mod(3)]
-        "https://$host.tile.opentopomap.org/$z/$wx/$wy.png"
+    return when (source) {
+        SRC_MAPTILER -> if (mapTilerKey.isNotBlank()) {
+            "https://api.maptiler.com/maps/topo/$z/$wx/$wy.png?key=$mapTilerKey"
+        } else null
+        SRC_OSM -> "https://tile.openstreetmap.org/$z/$wx/$wy.png"
+        else -> {
+            val host = listOf("a", "b", "c")[(wx + wy).mod(3)]
+            "https://$host.tile.opentopomap.org/$z/$wx/$wy.png"
+        }
     }
 }
+
+internal const val SRC_MAPTILER = 0
+internal const val SRC_OSM = 1
+internal const val SRC_OPENTOPOMAP = 2
 
 /** Small in-memory cache so fling-scrolling the LazyColumn doesn't refetch
  *  tiles for cards that just left the viewport. Sized by BYTES (bitmap
@@ -205,17 +219,38 @@ private fun fetchTile(url: String): TileResult = try {
     val conn = URL(url).openConnection() as HttpURLConnection
     conn.connectTimeout = 4000
     conn.readTimeout = 4000
-    // Identifiable UA — OpenTopoMap's usage policy asks for one.
+    // Identifiable UA — OpenStreetMap & OpenTopoMap usage policies ask for one.
     conn.setRequestProperty("User-Agent", "Nyasar/1.0 (Android; static route preview)")
     if (conn.responseCode != 200) {
         TileResult.Failed
     } else {
         conn.inputStream.use { stream ->
-            BitmapFactory.decodeStream(stream)?.let(TileResult::Ok) ?: TileResult.Failed
+            // Reject placeholder tiles: throttled servers answer 200 with a
+            // few-byte PNG (a real 256px raster tile is always >= ~1KB).
+            val bmp = BitmapFactory.decodeStream(stream)
+            if (bmp != null && bmp.byteCount > 512) TileResult.Ok(bmp) else TileResult.Failed
         }
     }
 } catch (_: Exception) {
     TileResult.Failed
+}
+
+/** Fetch one tile trying sources in order: MapTiler (when keyed) → OSM →
+ *  OpenTopoMap. First success wins. All-fail → Failed → card falls back to
+ *  the canvas polyline (never an error state — offline is normal here). */
+internal fun fetchTileWithFallback(
+    layout: StaticMapLayout,
+    x: Int,
+    y: Int,
+    mapTilerKey: String
+): TileResult {
+    var last = TileResult.Failed
+    for (source in intArrayOf(SRC_MAPTILER, SRC_OSM, SRC_OPENTOPOMAP)) {
+        val url = buildTileUrl(layout, x, y, mapTilerKey, source) ?: continue
+        last = fetchTile(url)
+        if (last is TileResult.Ok) return last
+    }
+    return last
 }
 
 /** Compose the base map + route trace into one bitmap, or null on ANY tile
@@ -292,10 +327,10 @@ fun StaticMapPreview(
         value = withContext(Dispatchers.IO) {
             val layout = computeStaticMapLayout(points, w, h, maxZoom)
                 ?: return@withContext null
-            val urls = layout.tiles.associateWith { (x, y) -> buildTileUrl(layout, x, y, apiKey) }
-            val fetched = urls.keys.associateWith { (x, y) -> fetchTile(urls.getValue(x to y)) }
+            val coords = layout.tiles
+            val fetched = coords.associateWith { (x, y) -> fetchTileWithFallback(layout, x, y, apiKey) }
             val tiles = fetched.mapNotNull { (coord, res) -> (res as? TileResult.Ok)?.let { coord to it.bitmap } }
-            if (tiles.size != urls.size) return@withContext null
+            if (tiles.size != coords.size) return@withContext null
             renderStaticMap(
                 layout = layout,
                 points = points,

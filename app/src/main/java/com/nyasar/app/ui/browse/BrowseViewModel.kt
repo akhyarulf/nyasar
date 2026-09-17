@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -29,6 +31,7 @@ import kotlinx.coroutines.launch
 class BrowseViewModel : ViewModel() {
 
     private val repository = BrowseRepository()
+    private val socialRepository = SocialRepository()
 
     data class BrowseUiError(val messageRes: Int)
 
@@ -61,12 +64,28 @@ class BrowseViewModel : ViewModel() {
     val appliedCount = _appliedCount.asStateFlow()
     private var sort: BrowseRepository.SortOrder = BrowseRepository.SortOrder.NEWEST
 
+    /** Route ids the signed-in user has liked — heart-filled state for the
+     *  card action rows. Fetched once per ViewModel (cheap select); toggles
+     *  update it optimistically with the server count applied on response. */
+    private val _likedIds = MutableStateFlow<Set<String>>(emptySet())
+    val likedIds = _likedIds.asStateFlow()
+
+    /** Route ids with an in-flight like toggle (prevents double-tap races
+     *  and shows the tap registered instantly). */
+    private val _likePending = MutableStateFlow<Set<String>>(emptySet())
+    val likePending = _likePending.asStateFlow()
+
     init {
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
             _query.debounce(350).collect { q -> browse(q) }
         }
         browse("")
+        viewModelScope.launch {
+            if (SupabaseClientProvider.isConfigured) {
+                _likedIds.value = socialRepository.fetchLikedRouteIds(SupabaseClientProvider.client)
+            }
+        }
     }
 
     fun onQueryChanged(newQuery: String) {
@@ -107,6 +126,53 @@ class BrowseViewModel : ViewModel() {
     /** True when [draft] differs from the applied set — used to commit
      *  pending sheet edits on swipe-dismiss (Apply without pressing Apply). */
     fun isDirty(draft: BrowseRepository.BrowseFilters): Boolean = draft != appliedFilters
+
+    /**
+     * Like toggle from a card's action row: optimistic flip + count ±1
+     * immediately (feels instant), then the server's authoritative count
+     * replaces the guess. A failure rolls the optimistic change back.
+     */
+    fun toggleLike(route: BrowseRepository.PublicRoute) {
+        if (!SupabaseClientProvider.isConfigured) return
+        if (route.id in _likePending.value) return
+        val wasLiked = route.id in _likedIds.value
+        // Optimistic
+        _likedIds.value = if (wasLiked) _likedIds.value - route.id else _likedIds.value + route.id
+        _state.update { current ->
+            if (current is BrowseState.Loaded) {
+                current.copy(routes = current.routes.map {
+                    if (it.id == route.id) it.copy(likesCount = (it.likesCount + if (wasLiked) -1 else 1).coerceAtLeast(0)) else it
+                })
+            } else current
+        }
+        _likePending.value = _likePending.value + route.id
+        viewModelScope.launch {
+            when (val outcome = socialRepository.toggleLike(SupabaseClientProvider.client, route.id)) {
+                is SocialRepository.ToggleOutcome.Success -> {
+                    _likedIds.value = if (outcome.liked) _likedIds.value + route.id else _likedIds.value - route.id
+                    _state.update { current ->
+                        if (current is BrowseState.Loaded) {
+                            current.copy(routes = current.routes.map {
+                                if (it.id == route.id) it.copy(likesCount = outcome.likesCount) else it
+                            })
+                        } else current
+                    }
+                }
+                is SocialRepository.ToggleOutcome.Failure -> {
+                    // Roll back the optimistic flip.
+                    _likedIds.value = if (wasLiked) _likedIds.value + route.id else _likedIds.value - route.id
+                    _state.update { current ->
+                        if (current is BrowseState.Loaded) {
+                            current.copy(routes = current.routes.map {
+                                if (it.id == route.id) it.copy(likesCount = route.likesCount) else it
+                            })
+                        } else current
+                    }
+                }
+            }
+            _likePending.value = _likePending.value - route.id
+        }
+    }
 
     private fun browse(query: String) {
         viewModelScope.launch {

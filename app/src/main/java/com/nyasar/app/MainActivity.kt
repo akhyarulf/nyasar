@@ -545,7 +545,8 @@ private fun NyasarNavHost(
             popExitTransition = { tabExit }
         ) {
             BrowseScreen(
-                onOpenRoute = { routeId -> navController.navigate("route/$routeId") }
+                onOpenRoute = { routeId -> navController.navigate("route/$routeId") },
+                onRequireSignIn = { navController.navigate("auth/login") }
             )
         }
         // Detail of a PUBLIC route (Fase 2): sub-screen of the Browse tab,
@@ -558,6 +559,11 @@ private fun NyasarNavHost(
             PublicRouteDetailScreen(
                 routeId = routeId,
                 onOpenRoutePreview = { id -> navController.navigate("preview/$id") },
+                onRequireSignIn = { navController.navigate("auth/login") },
+                onShare = { shareText(
+                    "Nyasar — jelajah rute publik",
+                    "https://nyasar.app/route/$routeId"
+                ) },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -973,4 +979,14 @@ private fun NyasarNavHost(
         }
         }
     } // Scaffold (content lambda closes here)
+
+    /** Plain-text system share sheet (browse route links). Fires from the
+     *  Activity so the chooser has a proper title token on all API levels. */
+    fun shareText(title: String, text: String) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, text)
+        }
+        startActivity(android.content.Intent.createChooser(intent, title))
+    }
 } // NyasarNavHost

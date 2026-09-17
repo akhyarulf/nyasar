@@ -23,8 +23,9 @@ import java.util.zip.GZIPOutputStream
  *   byte  3     reserved (0)
  *   bytes 4-11  point[0].timestampMs (Long LE) — the absolute time base
  *   bytes 12..  per-8-point groups:
- *                 1 mask byte  — bit(i*2)=elevation null, bit(i*2+1)=speed
- *                                null for the i-th point in the group
+ *                 2 mask bytes (LE) — bit(i*2)=elevation null,
+ *                                bit(i*2+1)=speed null for the i-th point
+ *                                in the group (16 bits = 8 points × 2 flags)
  *                 per point:
  *                   varint zigzag(dtMs)        — vs previous point
  *                   varint zigzag(dLat)        — fixed 1e-6 deg vs previous
@@ -91,7 +92,11 @@ object DeltaEncoder {
                 if (p.elevationM == null) mask = mask or (1 shl (j * 2))
                 if (p.speedMps == null) mask = mask or (1 shl (j * 2 + 1))
             }
-            raw.write(mask)
+            // Mask is a full 16-bit flag set (8 points × 2 flags) — write both
+            // bytes LE. A single-byte write would silently drop bits 8..15,
+            // desyncing any group whose points 4-7 have null fields.
+            raw.write(mask and 0xFF)
+            raw.write((mask ushr 8) and 0xFF)
 
             for (j in 0 until 8) {
                 val p = points.getOrNull(i + j) ?: break
@@ -153,8 +158,8 @@ object DeltaEncoder {
         val out = ArrayList<ActivityPointEntity>(64)
         var seq = 0
         while (buf.available() > 0) {
-            need(1)
-            val mask = buf.read()
+            need(2)
+            val mask = (buf.read() and 0xFF) or ((buf.read() and 0xFF) shl 8)
             for (j in 0 until 8) {
                 if (buf.available() == 0) break
                 val eleNull = mask and (1 shl (j * 2)) != 0

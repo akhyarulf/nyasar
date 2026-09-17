@@ -261,7 +261,7 @@ class PublishRepository {
                 select()
             }.decodeSingleOrNull<RouteInserted>()
         } catch (e: RestException) {
-            Log.e(TAG, "routes insert failed: ${e.error} ${e.description ?: \"\"}", e)
+            Log.e(TAG, "routes insert failed: ${e.error} ${e.description ?: ""}", e)
             null
         } catch (e: Exception) {
             Log.e(TAG, "routes insert failed", e)
@@ -279,7 +279,7 @@ class PublishRepository {
                 client.pluginManager.getPlugin(Storage)["route-gpx"].publicUrl(path)
             }
         } catch (e: RestException) {
-            Log.e(TAG, "gpx upload failed: ${e.error} ${e.description ?: \"\"}", e)
+            Log.e(TAG, "gpx upload failed: ${e.error} ${e.description ?: ""}", e)
             null
         } catch (e: Exception) {
             Log.e(TAG, "gpx upload failed", e)

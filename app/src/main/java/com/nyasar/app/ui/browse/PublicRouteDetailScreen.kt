@@ -396,14 +396,19 @@ private fun StatGrid(stats: List<Pair<String, String>>) {
     if (stats.isEmpty()) return
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val columns = if (maxWidth >= 480.dp) 3 else 2
-        stats.chunked(columns).forEach { rowStats ->
-            Row(Modifier.fillMaxWidth()) {
-                rowStats.forEach { (value, label) ->
-                    StatTile(value, label, Modifier.weight(1f))
+        // Column wrapper is REQUIRED here: BoxWithConstraints' content scope is
+        // BoxScope — Rows emitted directly into it stack on top of each other
+        // (the "stat rows tumpuk" bug), they don't lay out vertically.
+        Column {
+            stats.chunked(columns).forEach { rowStats ->
+                Row(Modifier.fillMaxWidth()) {
+                    rowStats.forEach { (value, label) ->
+                        StatTile(value, label, Modifier.weight(1f))
+                    }
+                    repeat(columns - rowStats.size) { Spacer(Modifier.weight(1f)) }
                 }
-                repeat(columns - rowStats.size) { Spacer(Modifier.weight(1f)) }
+                Spacer(Modifier.height(10.dp))
             }
-            Spacer(Modifier.height(10.dp))
         }
     }
 }

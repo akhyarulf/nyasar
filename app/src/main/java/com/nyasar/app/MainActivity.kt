@@ -269,6 +269,7 @@ private fun NyasarNavHost(
     // System insets (navigation bar) are handled by Scaffold defaults.
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val activityContext = androidx.compose.ui.platform.LocalContext.current
     // PART 3 fix: BOTTOM_BAR_ROUTES matches the recording route pattern
     // for its whole lifetime (IDLE through STOPPED — Compose keeps the
     // same NavBackStackEntry the entire time), so a route-based check
@@ -980,13 +981,12 @@ private fun NyasarNavHost(
         }
     } // Scaffold (content lambda closes here)
 
-    /** Plain-text system share sheet (browse route links). Fires from the
-     *  Activity so the chooser has a proper title token on all API levels. */
+    /** Plain-text system share sheet (browse route links). */
     fun shareText(title: String, text: String) {
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(android.content.Intent.EXTRA_TEXT, text)
         }
-        startActivity(android.content.Intent.createChooser(intent, title))
+        activityContext.startActivity(android.content.Intent.createChooser(intent, title))
     }
 } // NyasarNavHost

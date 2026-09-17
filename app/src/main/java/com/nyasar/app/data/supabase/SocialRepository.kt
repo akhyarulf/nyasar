@@ -3,6 +3,7 @@ package com.nyasar.app.data.supabase
 import android.util.Log
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.exceptions.RestException
+import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -70,20 +71,22 @@ class SocialRepository {
     /** Which likes belong to the signed-in user (heart filled on browse cards).
      *  Anonymous/signed-out users simply get an empty set — likes stay visible,
      *  only the toggle is unavailable (Strava behaves the same). */
-    suspend fun fetchLikedRouteIds(client: SupabaseClient): Set<String> = try {
+    suspend fun fetchLikedRouteIds(client: SupabaseClient): Set<String> {
         val userId = client.auth.currentUserOrNull()?.id ?: return emptySet()
-        client.postgrest["route_likes"]
+        return try {
+            client.postgrest["route_likes"]
             .select(columns = Columns.list("route_id")) {
                 filter { eq("user_id", userId) }
             }
             .decodeList<LikeIdRow>()
             .map { it.routeId }
-            .toSet()
-    } catch (e: Exception) {
-        // Non-fatal: the browse list must still render; hearts just start
-        // unfilled and the next toggle fixes them authoritatively.
-        Log.e(TAG, "fetchLikedRouteIds failed: ${e.message}")
-        emptySet()
+                .toSet()
+        } catch (e: Exception) {
+            // Non-fatal: the browse list must still render; hearts just start
+            // unfilled and the next toggle fixes them authoritatively.
+            Log.e(TAG, "fetchLikedRouteIds failed: ${e.message}")
+            emptySet()
+        }
     }
 
     @Serializable

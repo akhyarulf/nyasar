@@ -210,7 +210,10 @@ private object StaticTileCache {
     }
 }
 
-private sealed interface TileResult {
+/**
+ * Static tile result — internal so the shared fallback fetcher can return it.
+ */
+internal sealed interface TileResult {
     data class Ok(val bitmap: Bitmap) : TileResult
     data object Failed : TileResult
 }
@@ -243,8 +246,7 @@ internal fun fetchTileWithFallback(
     x: Int,
     y: Int,
     mapTilerKey: String
-): TileResult {
-    var last = TileResult.Failed
+): TileResult {    var last = TileResult.Failed
     for (source in intArrayOf(SRC_MAPTILER, SRC_OSM, SRC_OPENTOPOMAP)) {
         val url = buildTileUrl(layout, x, y, mapTilerKey, source) ?: continue
         last = fetchTile(url)

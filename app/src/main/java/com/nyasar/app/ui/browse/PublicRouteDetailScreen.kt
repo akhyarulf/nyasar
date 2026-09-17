@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -43,6 +44,7 @@ import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.ElevationProfile
 import com.nyasar.app.ui.components.StaticMapPreview
 import com.nyasar.app.ui.components.TrailTypeChip
+import com.nyasar.app.ui.theme.NyasarRadius
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -489,7 +491,7 @@ fun PublicRouteDetailScreen(
                                                 enabled = commentText.isNotBlank()
                                             ) {
                                                 Icon(
-                                                    Icons.Default.Send,
+                                                    Icons.AutoMirrored.Filled.Send,
                                                     contentDescription = stringResource(R.string.browse_comment_send),
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )

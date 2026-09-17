@@ -339,7 +339,7 @@ private fun PublicRouteCard(
                         modifier = Modifier.weight(1f)
                     )
                     StatTile(
-                        label = stringResource(R.string.stat_elevation_gain),
+                        label = stringResource(R.string.browse_stat_elev_gain),
                         value = route.elevationGainM?.let { "+${it.roundToInt()} m" } ?: "—",
                         modifier = Modifier.weight(1f)
                     )

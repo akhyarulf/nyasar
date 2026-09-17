@@ -588,12 +588,20 @@ yang benar.
 - Map kartu sengaja ditinggikan ke 210dp (kartu) / 240dp (detail) —
   meniru peta Strava yang dominan.
 - **Fallback tile berantai** di StaticMapPreview: MapTiler topo (kalau
-  ada key) → **OSM standard** (baru, keyless & paling reliable) →
-  OpenTopoMap (terakhir — sering throttle; tile placeholder kecil kini
-  ditolak: decode result <512 byte dianggap gagal). APK CI tidak punya
-  MAPTILER_API_KEY (local.properties tidak ikut repo) → dulu semua kartu
-  jatuh ke polyline fallback (garis polos); sekarang OSM menjaga kartu
-  tetap menampilkan peta sungguhan.
+  ada key) → **OSM standard** (keyless) → OpenTopoMap (terakhir —
+  sering throttle; tile placeholder kecil kini ditolak: decode result
+  <512 byte dianggap gagal).
+- **ENGINE UTAMA kartu (revisi `5dd2c23`): MapLibre MapSnapshotter +
+  OpenFreeMap Liberty style** — keyless & unlimited, renderer yang SAMA
+  dengan peta interaktif app (sudah bundling MapLibre 12.0.1, style
+  terbukti jalan di device). Rantai raster di atas jadi fallback #2;
+  polyline canvas tetap degradasi terakhir (offline). Detail penting:
+  paket 12.x = `snapshotter` (bukan `snapshot`), fit zoom dihitung di
+  world 512px GL + zoom fraksional (margin −0.45), trace digambar ulang
+  di atas bitmap snapshot dengan pixelRatio — semua API diverifikasi
+  dari source maplibre-native sebelum ditulis. Alasan revisi: fetch
+  PNG per-tile masih gagal di device (tanpa key MapTiler + OpenTopoMap
+  throttle + OSM bisa diblokir jaringan tertentu).
 
 ### Visibility/Privacy (konsep sudah didiskusikan, BELUM dikerjakan)
 Keputusan desain dari diskusi user (referensi screenshot Strava &

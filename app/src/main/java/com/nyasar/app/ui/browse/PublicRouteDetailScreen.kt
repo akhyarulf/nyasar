@@ -36,6 +36,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -613,6 +614,9 @@ fun PublicRouteDetailScreen(
         val ready = state as? PublicRouteDetailViewModel.State.Ready
         if (ready != null) {
         val provider by viewModel.provider.collectAsState()
+        // Zoom-out ekstra merata (72dp, pola RoutePreview) supaya ujung atas
+        // track tidak tersembunyi di bawah pill nama rute + tombol back.
+        val fitPaddingPx = with(LocalDensity.current) { 72.dp.toPx() }.toInt()
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -620,6 +624,7 @@ fun PublicRouteDetailScreen(
         ) {
             NyasarMapView(
                 modifier = Modifier.fillMaxSize(),
+                fitBoundsPaddingPx = fitPaddingPx,
                 provider = provider,
                 shared = false,
                 track = ready.track,

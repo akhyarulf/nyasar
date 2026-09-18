@@ -7,17 +7,23 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.repository.RouteRepository
+import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import com.nyasar.app.gpx.GpxParser
 import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.map.TileProvider
+import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.ui.components.ElevationPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -36,6 +42,13 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
     private val repository = BrowseRepository()
     private val socialRepository = SocialRepository()
     private val routeRepository = RouteRepository(application)
+    private val settingsRepository = SettingsRepository(application)
+
+    /** Tile provider for the full-screen interactive map — same persisted
+     *  setting every other map screen reads (Home/Recording/RoutePreview). */
+    val provider: StateFlow<TileProvider> = settingsRepository.settings
+        .map { TileProviderFactory.byId(it.providerId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TileProviderFactory.default())
 
     sealed class State {
         data object Loading : State()

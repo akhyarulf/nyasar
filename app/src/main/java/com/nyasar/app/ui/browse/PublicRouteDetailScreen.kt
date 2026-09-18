@@ -1,5 +1,7 @@
 package com.nyasar.app.ui.browse
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +28,7 @@ import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -42,6 +47,7 @@ import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.ElevationProfile
+import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.ui.components.StaticMapPreview
 import com.nyasar.app.ui.components.TrailTypeChip
 import com.nyasar.app.ui.theme.NyasarRadius
@@ -82,6 +88,15 @@ fun PublicRouteDetailScreen(
     val liked by viewModel.liked.collectAsState()
     val likePending by viewModel.likePending.collectAsState()
     val context = LocalContext.current
+
+    // Full-screen interactive map (Wikiloc pattern — same as RoutePreview's
+    // expand): one flag drives BOTH entry points (tap on the hero preview /
+    // the expand button) and the system back gesture. While true, a
+    // full-size overlay draws ON TOP of this screen; closing restores the
+    // detail exactly as left. Map engine = the real NyasarMapView GL
+    // surface (pan/zoom/bearing), not the static snapshot.
+    var mapExpanded by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = mapExpanded) { mapExpanded = false }
 
     LaunchedEffect(routeId) { viewModel.load(routeId) }
 
@@ -179,10 +194,36 @@ fun PublicRouteDetailScreen(
 
                         // (1) Map — full-bleed hero (tile map, not a bare
                         // polyline; fallback chain in StaticMapPreview).
-                        StaticMapPreview(
-                            polyline = route.trackPolyline,
-                            modifier = Modifier.fillMaxWidth().height(240.dp)
-                        )
+                        // Tap ANYWHERE on it opens the full-screen interactive
+                        // map (Wikiloc pattern), plus the explicit expand
+                        // button floating bottom-right for discoverability.
+                        Box {
+                            StaticMapPreview(
+                                polyline = route.trackPolyline,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(240.dp)
+                                    .clickable { mapExpanded = true }
+                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                tonalElevation = 3.dp,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(12.dp)
+                                    .size(44.dp)
+                            ) {
+                                IconButton(onClick = { mapExpanded = true }) {
+                                    Icon(
+                                        Icons.Default.OpenInFull,
+                                        contentDescription = stringResource(R.string.map_expand_cd),
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
 
                         // (2) Publisher header.
                         Row(
@@ -558,6 +599,74 @@ fun PublicRouteDetailScreen(
                     }
                 }
             }
+        }
+    }
+
+    // ==================== FULL-SCREEN INTERACTIVE MAP OVERLAY ====================
+    // Real NyasarMapView GL surface (pan/zoom/rotate) covering the whole
+    // screen — the Wikiloc-style expanded map for browse routes. Uses the
+    // lossy track_polyline (browse routes have no local GPX until saved),
+    // fits the track bounds, and a single back/collapse button. Waypoint
+    // pins need the original GPX which browse rows don't carry — omitted
+    // here by design (they appear after Save-to-Library, in Route Preview).
+    if (mapExpanded) {
+        val ready = state as? PublicRouteDetailViewModel.State.Ready
+        if (ready != null) {
+        val provider by viewModel.provider.collectAsState()
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            NyasarMapView(
+                modifier = Modifier.fillMaxSize(),
+                provider = provider,
+                shared = false,
+                track = ready.track,
+                trackColorOverride = "#42A5F5"
+            )
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(start = 12.dp, top = 8.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 3.dp,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    IconButton(onClick = { mapExpanded = false }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+            // Route name pill top-center — orientation context over the map.
+            Surface(
+                shape = RoundedCornerShape(NyasarRadius.pill),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+                tonalElevation = 3.dp,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 12.dp)
+                    .widthIn(max = maxWidth - 140.dp)
+            ) {
+                Text(
+                    ready.route.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
+        }
         }
     }
 }

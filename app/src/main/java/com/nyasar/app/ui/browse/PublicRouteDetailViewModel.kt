@@ -112,6 +112,15 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
     private val _likePending = MutableStateFlow(false)
     val likePending = _likePending.asStateFlow()
 
+    /** Signed-in user bookmarked this route (saved_routes — private
+     *  Wikiloc-style list, separate from the public like). */
+    private val _saved = MutableStateFlow(false)
+    val saved = _saved.asStateFlow()
+
+    /** Save toggle in flight (button disabled). */
+    private val _savePending = MutableStateFlow(false)
+    val savePending = _savePending.asStateFlow()
+
     /** Comments thread + post lifecycle for the detail section. */
     sealed class CommentsState {
         data object Loading : CommentsState()
@@ -156,12 +165,13 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
         }
     }
 
-    /** Load liked-state + comments once the route row is on screen. */
+    /** Load liked/saved-state + comments once the route row is on screen. */
     fun loadSocial(routeId: String) {
         if (!SupabaseClientProvider.isConfigured) return
         viewModelScope.launch {
             val client = SupabaseClientProvider.client
             _liked.value = routeId in socialRepository.fetchLikedRouteIds(client)
+            _saved.value = routeId in socialRepository.fetchSavedRouteIds(client)
             when (val outcome = socialRepository.fetchComments(client, routeId)) {
                 is SocialRepository.CommentsOutcome.Success ->
                     _comments.value = CommentsState.Ready(outcome.comments)
@@ -195,6 +205,79 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
                     _comments.value = current.copy(posting = false)
                 }
             }
+        }
+    }
+
+    /** Save (bookmark) toggle on the detail action row: optimistic flip
+     *  with rollback — no counter (saved_routes is private). */
+    fun toggleSave(routeId: String) {
+        if (!SupabaseClientProvider.isConfigured) return
+        if (_savePending.value) return
+        val wasSaved = _saved.value
+        _saved.value = !wasSaved
+        _savePending.value = true
+        viewModelScope.launch {
+            val nowSaved = when (val outcome = socialRepository.toggleSave(SupabaseClientProvider.client, routeId)) {
+                is SocialRepository.SaveOutcome.Success -> outcome.saved
+                is SocialRepository.SaveOutcome.Failure -> wasSaved // roll back
+            }
+            _saved.value = nowSaved
+            _savePending.value = false
+        }
+    }
+
+    /** Delete the signed-in user's own comment: optimistic removal, restore
+     *  on failure. comments_count syncs via the same DB-trigger path as post. */
+    fun deleteComment(comment: SocialRepository.CommentRow) {
+        val current = _comments.value
+        if (current !is CommentsState.Ready) return
+        _comments.value = current.copy(comments = current.comments.filterNot { it.id == comment.id })
+        viewModelScope.launch {
+            when (socialRepository.deleteComment(SupabaseClientProvider.client, comment.id)) {
+                is SocialRepository.DeleteCommentOutcome.Success -> {
+                    _state.value = (_state.value as? State.Ready)?.let { s ->
+                        s.copy(route = s.route.copy(commentsCount = (s.route.commentsCount - 1).coerceAtLeast(0)))
+                    } ?: _state.value
+                }
+                is SocialRepository.DeleteCommentOutcome.Failure -> {
+                    // Roll back: re-insert at its original position.
+                    val state = _comments.value as? CommentsState.Ready ?: return@launch
+                    val without = state.comments.filterNot { it.id == comment.id }
+                    val index = current.comments.indexOfFirst { it.id == comment.id }
+                    val restored = if (index >= without.size) without + comment
+                    else without.subList(0, index) + comment + without.subList(index, without.size)
+                    _comments.value = state.copy(comments = restored)
+                }
+            }
+        }
+    }
+
+    /** Submit an abuse report (route or comment target). Result delivered
+     *  through [onDone] so the dialog can close + toast without the VM
+     *  holding UI context. */
+    fun submitReport(
+        routeId: String? = null,
+        commentId: String? = null,
+        reason: SocialRepository.ReportReason,
+        note: String?,
+        onDone: (Boolean) -> Unit
+    ) {
+        if (!SupabaseClientProvider.isConfigured) {
+            onDone(false)
+            return
+        }
+        viewModelScope.launch {
+            val ok = when (socialRepository.submitReport(
+                client = SupabaseClientProvider.client,
+                routeId = routeId,
+                commentId = commentId,
+                reason = reason.wire,
+                note = note
+            )) {
+                is SocialRepository.ReportOutcome.Success -> true
+                is SocialRepository.ReportOutcome.Failure -> false
+            }
+            onDone(ok)
         }
     }
 

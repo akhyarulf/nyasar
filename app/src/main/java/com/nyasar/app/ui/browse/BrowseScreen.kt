@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -68,6 +70,8 @@ fun BrowseScreen(
     val query by viewModel.query.collectAsState()
     val likedIds by viewModel.likedIds.collectAsState()
     val likePending by viewModel.likePending.collectAsState()
+    val savedIds by viewModel.savedIds.collectAsState()
+    val savePending by viewModel.savePending.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
@@ -209,6 +213,9 @@ fun BrowseScreen(
                     liked = route.id in likedIds,
                                     likePending = route.id in likePending,
                                     onToggleLike = { viewModel.toggleLike(route) },
+                                    saved = route.id in savedIds,
+                                    savePending = route.id in savePending,
+                                    onToggleSave = { viewModel.toggleSave(route) },
                                     onOpenComments = { onOpenRoute(route.id) },
                                     onRequireSignIn = onRequireSignIn,
                                     onShare = { shareRoute(context, route) },
@@ -229,6 +236,9 @@ private fun PublicRouteCard(
     liked: Boolean,
     likePending: Boolean,
     onToggleLike: () -> Unit,
+    saved: Boolean,
+    savePending: Boolean,
+    onToggleSave: () -> Unit,
     onOpenComments: () -> Unit,
     onRequireSignIn: () -> Unit,
     onShare: () -> Unit,
@@ -409,6 +419,25 @@ private fun PublicRouteCard(
                     )
                 }
                 Spacer(Modifier.weight(1f))
+                // Save (bookmark) — Wikiloc-style private to-do, distinct
+                // from the public like. Filled = in the user's list.
+                IconButton(
+                    onClick = {
+                        if (SupabaseClientProvider.client.auth.currentSessionOrNull() != null) {
+                            onToggleSave()
+                        } else {
+                            onRequireSignIn()
+                        }
+                    },
+                    enabled = !savePending
+                ) {
+                    Icon(
+                        imageVector = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        contentDescription = stringResource(if (saved) R.string.browse_saved else R.string.browse_save),
+                        tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 IconButton(onClick = onShare) {
                     Icon(
                         Icons.Default.Share,

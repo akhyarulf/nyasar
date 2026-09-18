@@ -24,10 +24,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
@@ -45,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.ElevationProfile
@@ -56,6 +61,12 @@ import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
+
+/** Target of a Fase-4 abuse report — exactly one side non-null (schema CHECK). */
+private sealed interface ReportTarget {
+    data class Route(val routeId: String) : ReportTarget
+    data class Comment(val commentId: String) : ReportTarget
+}
 
 /**
  * Detail screen for a PUBLIC route (Fase 2) — Strava-informed structure on
@@ -88,6 +99,8 @@ fun PublicRouteDetailScreen(
     val elevation by viewModel.elevation.collectAsState()
     val liked by viewModel.liked.collectAsState()
     val likePending by viewModel.likePending.collectAsState()
+    val saved by viewModel.saved.collectAsState()
+    val savePending by viewModel.savePending.collectAsState()
     val context = LocalContext.current
 
     // Full-screen interactive map (Wikiloc pattern — same as RoutePreview's
@@ -130,6 +143,15 @@ fun PublicRouteDetailScreen(
         context.startActivity(android.content.Intent.createChooser(intent, ready.fileName))
     }
 
+    // Report dialog state (Fase 4): null = closed; non-null = open with the
+    // target pair. Route target carries the detail row; comment target the
+    // reported comment. Toast feedback via the VM callback.
+    var reportTarget by remember { mutableStateOf<ReportTarget?>(null) }
+    var reportPending by remember { mutableStateOf(false) }
+    val showToast: (Int) -> Unit = { res ->
+        android.widget.Toast.makeText(context, context.getString(res), android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -137,6 +159,15 @@ fun PublicRouteDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+                actions = {
+                    // Report route — only when a route is actually loaded.
+                    val readyForReport = state as? PublicRouteDetailViewModel.State.Ready
+                    if (readyForReport != null) {
+                        IconButton(onClick = { reportTarget = ReportTarget.Route(readyForReport.route.id) }) {
+                            Icon(Icons.Default.Flag, contentDescription = stringResource(R.string.report_action))
+                        }
                     }
                 }
             )
@@ -345,7 +376,7 @@ fun PublicRouteDetailScreen(
                         ) {
                             TextButton(
                                 onClick = { if (signedIn) viewModel.toggleLike(route) else onRequireSignIn() },
-                                enabled = likePending
+                                enabled = !likePending
                             ) {
                                 Icon(
                                     imageVector = if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -368,6 +399,22 @@ fun PublicRouteDetailScreen(
                                     Icons.AutoMirrored.Outlined.Chat,
                                     contentDescription = stringResource(R.string.browse_comment),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            // Save (bookmark) — private Wikiloc-style list,
+                            // next to the public like (Strava shows both too).
+                            IconButton(
+                                onClick = { if (signedIn) viewModel.toggleSave(route.id) else onRequireSignIn() },
+                                enabled = !savePending
+                            ) {
+                                Icon(
+                                    imageVector = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                    contentDescription = stringResource(
+                                        if (saved) R.string.browse_saved else R.string.browse_save
+                                    ),
+                                    tint = if (saved) MaterialTheme.colorScheme.primary
+                                           else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -500,6 +547,47 @@ fun PublicRouteDetailScreen(
                                                         c.content,
                                                         style = MaterialTheme.typography.bodyMedium
                                                     )
+                                                }
+                                                // Own comment → delete; others' → report.
+                                                val myUserId = com.nyasar.app.data.supabase.SupabaseClientProvider
+                                                    .client.auth.currentUserOrNull()?.id
+                                                if (c.userId == myUserId) {
+                                                    var confirmDelete by remember(c.id) { mutableStateOf(false) }
+                                                    IconButton(onClick = { confirmDelete = true }) {
+                                                        Icon(
+                                                            Icons.Default.MoreVert,
+                                                            contentDescription = stringResource(R.string.comment_delete_cd),
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                    if (confirmDelete) {
+                                                        AlertDialog(
+                                                            onDismissRequest = { confirmDelete = false },
+                                                            title = { Text(stringResource(R.string.comment_delete_confirm_title)) },
+                                                            text = { Text(stringResource(R.string.comment_delete_confirm_body)) },
+                                                            confirmButton = {
+                                                                TextButton(onClick = {
+                                                                    confirmDelete = false
+                                                                    viewModel.deleteComment(c)
+                                                                }) { Text(stringResource(R.string.delete)) }
+                                                            },
+                                                            dismissButton = {
+                                                                TextButton(onClick = { confirmDelete = false }) {
+                                                                    Text(stringResource(R.string.cancel))
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+                                                } else {
+                                                    IconButton(onClick = { reportTarget = ReportTarget.Comment(c.id) }) {
+                                                        Icon(
+                                                            Icons.Default.Flag,
+                                                            contentDescription = stringResource(R.string.comment_report_cd),
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -674,6 +762,99 @@ fun PublicRouteDetailScreen(
         }
         }
     }
+
+    // Report dialog (Fase 4) — route target from the top-bar flag, comment
+    // target from the per-comment flag. VM callback closes + toasts.
+    reportTarget?.let { target ->
+        val (titleRes, routeId, commentId) = when (target) {
+            is ReportTarget.Route -> Triple(R.string.report_route_title, target.routeId, null)
+            is ReportTarget.Comment -> Triple(R.string.report_comment_title, null, target.commentId)
+        }
+        ReportDialog(
+            titleRes = titleRes,
+            pending = reportPending,
+            onSubmit = { reason, note ->
+                reportPending = true
+                viewModel.submitReport(routeId, commentId, reason, note) { ok ->
+                    reportPending = false
+                    reportTarget = null
+                    showToast(if (ok) R.string.report_submitted else R.string.report_failed)
+                }
+            },
+            onDismiss = { if (!reportPending) reportTarget = null }
+        )
+    }
+}
+
+/**
+ * Abuse-report dialog (Fase 4 — schema_v1 `reports`): radio choice of the
+ * five schema reasons + optional note. Insert-only server-side; the user
+ * never sees report status again (fire-and-forget with a toast).
+ */
+@Composable
+private fun ReportDialog(
+    titleRes: Int,
+    pending: Boolean,
+    onSubmit: (SocialRepository.ReportReason, String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selected by remember { mutableStateOf(SocialRepository.ReportReason.SPAM) }
+    var note by remember { mutableStateOf("") }
+    val reasonLabel: (SocialRepository.ReportReason) -> Int = {
+        when (it) {
+            SocialRepository.ReportReason.SPAM -> R.string.report_reason_spam
+            SocialRepository.ReportReason.MISLEADING -> R.string.report_reason_misleading
+            SocialRepository.ReportReason.OFFENSIVE -> R.string.report_reason_offensive
+            SocialRepository.ReportReason.DANGER -> R.string.report_reason_danger
+            SocialRepository.ReportReason.OTHER -> R.string.report_reason_other
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(titleRes)) },
+        text = {
+            Column {
+                SocialRepository.ReportReason.entries.forEach { reason ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { selected = reason },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selected == reason,
+                            onClick = { selected = reason },
+                            enabled = !pending
+                        )
+                        Text(stringResource(reasonLabel(reason)), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    placeholder = { Text(stringResource(R.string.report_note_hint)) },
+                    enabled = !pending,
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            if (pending) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+            } else {
+                TextButton(onClick = { onSubmit(selected, note.trim().takeIf { it.isNotEmpty() }) }) {
+                    Text(stringResource(R.string.report_submit))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !pending) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }
 
 @Composable

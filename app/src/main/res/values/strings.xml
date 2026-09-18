@@ -693,6 +693,9 @@
     <string name="browse_comment_posting">Mengirim…</string>
     <string name="browse_comment_failed">Gagal mengirim komentar — coba lagi</string>
     <string name="browse_sign_in_to_like">Masuk untuk menyukai rute</string>
+    <string name="browse_save">Simpan</string>
+    <string name="browse_saved">Disimpan</string>
+    <string name="browse_save_failed">Gagal menyimpan — coba lagi</string>
     <string name="route_detail_comments_section">Komentar (%1$d)</string>
     <string name="route_detail_title">Detail Rute</string>
     <string name="route_detail_elev_max">Puncak</string>
@@ -701,4 +704,20 @@
     <string name="route_detail_description">Deskripsi</string>
     <string name="route_detail_no_description">Pemilik rute belum menulis deskripsi.</string>
     <string name="route_detail_elevation_title">Profil Elevasi</string>
+    <string name="comment_delete_cd">Hapus komentar</string>
+    <string name="comment_delete_confirm_title">Hapus komentar ini?</string>
+    <string name="comment_delete_confirm_body">Komentar akan dihapus permanen.</string>
+    <string name="comment_report_cd">Laporkan komentar</string>
+    <string name="report_action">Laporkan</string>
+    <string name="report_route_title">Laporkan rute ini</string>
+    <string name="report_comment_title">Laporkan komentar ini</string>
+    <string name="report_reason_spam">Spam</string>
+    <string name="report_reason_misleading">Menyesatkan</string>
+    <string name="report_reason_offensive">Menyerang / kasar</string>
+    <string name="report_reason_danger">Informasi bahaya (jalur)</string>
+    <string name="report_reason_other">Lainnya</string>
+    <string name="report_note_hint">Tambahkan catatan (opsional)</string>
+    <string name="report_submit">Kirim laporan</string>
+    <string name="report_submitted">Laporan terkirim. Terima kasih.</string>
+    <string name="report_failed">Gagal mengirim laporan — coba lagi</string>
 </resources>

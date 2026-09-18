@@ -558,7 +558,10 @@ TODO schema terjawab: `discarded` tidak pernah ditulis ke DB
 yang benar.
 
 ### Fase 4 — Sosial
-🟢 **Sebagian jadi (2026-09-17): Like + Comment di Browse & Route Detail.**
+✅ **SELESAI (2026-09-18): Like + Comment + Save/bookmark + Report +
+hapus komentar sendiri — semua fitur sosial skema_v1 kini ber-
+ujung UI.** (Detail per slice di bawah.)
+🟢 **Slice 1 (2026-09-17): Like + Comment di Browse & Route Detail.**
 - Kartu Browse & detail rute dirombak urutan Strava: header publisher
   (avatar + username + waktu relatif) → nama → deskripsi → stats 3 kolom
   (label di atas, nilai tebal) → map full-bleed lebih tinggi (210/240dp) →
@@ -578,9 +581,28 @@ yang benar.
 - Share: plain-text link `https://nyasar.app/route/{id}` via chooser
   sistem; kartu browse pakai helper internal, detail pakai callback
   ke MainActivity (`shareText`).
-- Masih ❌ di fase ini: saved_routes UI (bookmark), reports, hapus
-  komentar, notifikasi.
-❌ Sisanya: tombol Save (bookmark publik), Report.
+- 🟢 **SISA FASE 4 SELESAI (2026-09-18): Save/bookmark + Report + hapus
+  komentar sendiri.** Semua client-side — schema_v1 sudah menyiapkan
+  tabel + RLS sejak awal, NOL migration baru:
+  - `SocialRepository` nambah: `toggleSave` (saved_routes, read-state-
+    then-write anti-race, PK (user_id, route_id)), `fetchSavedRouteIds`
+    (sekali per ViewModel, bareng fetch likes), `deleteComment` (RLS
+    "delete own"; trigger 0005 ikut menurunkan comments_count server-
+    side, UI sync lokal optimistik + rollback), `submitReport` (insert
+    reports, target route ATAU comment — schema CHECK exactly-one).
+  - UI: tombol bookmark di action row kartu Browse & detail (Bookmark/
+    BookmarkBorder, mirror pola like; anon → onRequireSignIn), flag
+    Report rute di top bar Route Detail, per-komentar: MoreVert→hapus
+    (punya sendiri, dengan AlertDialog konfirmasi) atau Flag→report
+    (punya orang lain), ReportDialog radio 5 alasan schema
+    (spam/misleading/offensive/danger/other) + note opsional.
+  - Enum `SocialRepository.ReportReason` mirror wire CHECK schema —
+    kalau schema berubah, enum ikut diubah manual (single source of
+    truth tetap DB).
+  - Notifikasi: sengaja TIDAK dibuat (tidak ada infra push; bukan
+    bagian Fase 4 schema). ❌ Sisa satu-satunya: menghapus komentar
+    via dashboard/SQL manual tetap satu-satunya moderasi selain baca
+    tabel reports langsung di Supabase.
 
 #### Kartu Browse ala Strava (keputusan layout 2026-09-17)
 - Urutan kartu: header profil → nama+chips → deskripsi (max 2 baris) →

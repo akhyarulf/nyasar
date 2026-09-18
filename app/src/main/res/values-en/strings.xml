@@ -693,6 +693,9 @@
     <string name="browse_comment_posting">Posting…</string>
     <string name="browse_comment_failed">Failed to post comment — try again</string>
     <string name="browse_sign_in_to_like">Sign in to like routes</string>
+    <string name="browse_save">Save</string>
+    <string name="browse_saved">Saved</string>
+    <string name="browse_save_failed">Failed to save — try again</string>
     <string name="route_detail_comments_section">Comments (%1$d)</string>
     <string name="route_detail_title">Route Detail</string>
     <string name="route_detail_elev_max">Summit</string>
@@ -701,4 +704,20 @@
     <string name="route_detail_description">Description</string>
     <string name="route_detail_no_description">The publisher hasn\'t written a description yet.</string>
     <string name="route_detail_elevation_title">Elevation Profile</string>
+    <string name="comment_delete_cd">Delete comment</string>
+    <string name="comment_delete_confirm_title">Delete this comment?</string>
+    <string name="comment_delete_confirm_body">The comment will be permanently removed.</string>
+    <string name="comment_report_cd">Report comment</string>
+    <string name="report_action">Report</string>
+    <string name="report_route_title">Report this route</string>
+    <string name="report_comment_title">Report this comment</string>
+    <string name="report_reason_spam">Spam</string>
+    <string name="report_reason_misleading">Misleading</string>
+    <string name="report_reason_offensive">Offensive / harassment</string>
+    <string name="report_reason_danger">Dangerous info (trail)</string>
+    <string name="report_reason_other">Other</string>
+    <string name="report_note_hint">Add a note (optional)</string>
+    <string name="report_submit">Submit report</string>
+    <string name="report_submitted">Report sent. Thank you.</string>
+    <string name="report_failed">Failed to send report — try again</string>
 </resources>

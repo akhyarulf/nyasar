@@ -75,6 +75,15 @@ class BrowseViewModel : ViewModel() {
     private val _likePending = MutableStateFlow<Set<String>>(emptySet())
     val likePending = _likePending.asStateFlow()
 
+    /** Route ids the signed-in user bookmarked (saved_routes — private
+     *  Wikiloc-style to-do list, separate from likes). Fetched once with
+     *  likes; toggles are optimistic with rollback, no counter involved. */
+    private val _savedIds = MutableStateFlow<Set<String>>(emptySet())
+    val savedIds = _savedIds.asStateFlow()
+
+    private val _savePending = MutableStateFlow<Set<String>>(emptySet())
+    val savePending = _savePending.asStateFlow()
+
     init {
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
@@ -84,6 +93,7 @@ class BrowseViewModel : ViewModel() {
         viewModelScope.launch {
             if (SupabaseClientProvider.isConfigured) {
                 _likedIds.value = socialRepository.fetchLikedRouteIds(SupabaseClientProvider.client)
+                _savedIds.value = socialRepository.fetchSavedRouteIds(SupabaseClientProvider.client)
             }
         }
     }
@@ -171,6 +181,27 @@ class BrowseViewModel : ViewModel() {
                 }
             }
             _likePending.value = _likePending.value - route.id
+        }
+    }
+
+    /**
+     * Save (bookmark) toggle from a card: optimistic flip with rollback on
+     * failure — same contract as toggleLike minus the counter (saved_routes
+     * is a private list; nothing to recount server-side).
+     */
+    fun toggleSave(route: BrowseRepository.PublicRoute) {
+        if (!SupabaseClientProvider.isConfigured) return
+        if (route.id in _savePending.value) return
+        val wasSaved = route.id in _savedIds.value
+        _savedIds.value = if (wasSaved) _savedIds.value - route.id else _savedIds.value + route.id
+        _savePending.value = _savePending.value + route.id
+        viewModelScope.launch {
+            val nowSaved = when (val outcome = socialRepository.toggleSave(SupabaseClientProvider.client, route.id)) {
+                is SocialRepository.SaveOutcome.Success -> outcome.saved
+                is SocialRepository.SaveOutcome.Failure -> wasSaved // roll back
+            }
+            _savedIds.value = if (nowSaved) _savedIds.value + route.id else _savedIds.value - route.id
+            _savePending.value = _savePending.value - route.id
         }
     }
 

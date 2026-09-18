@@ -586,19 +586,11 @@ private fun ActivityDetailContent(
                     onPointSelected = { _, point -> scrubbedPoint = point }
                 )
                 Spacer(Modifier.height(12.dp))
-                // Summary cells — same 4-up row as browse Route Detail, fed
-                // from this activity's OWN elevation data.
+                // Summary cells — ONLY highest/lowest (de-dup): gain & loss
+                // already appear in the header stats above, repeating them
+                // here read as double data. Fed from this activity's OWN
+                // elevation data.
                 Row(Modifier.fillMaxWidth()) {
-                    SummaryStatTile(
-                        "+${(activity.elevationGainM ?: 0.0).roundToInt()} m",
-                        stringResource(R.string.elev_gain),
-                        Modifier.weight(1f)
-                    )
-                    SummaryStatTile(
-                        "−${(activity.elevationLossM ?: 0.0).roundToInt()} m",
-                        stringResource(R.string.stat_elev_loss),
-                        Modifier.weight(1f)
-                    )
                     highestElevationM?.let {
                         SummaryStatTile(
                             "${it.roundToInt()} m",

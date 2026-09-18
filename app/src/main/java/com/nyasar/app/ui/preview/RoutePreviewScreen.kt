@@ -235,6 +235,16 @@ fun RoutePreviewScreen(
             }
         }
 
+        // =========================== SCROLLING CONTENT ===========================
+        // MAP + data section scroll TOGETHER as one column (browse-referensi):
+        // map scrolls away with the rest, giving the data full screen when
+        // reading. The Pinned CTA bar below stays fixed.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
         // =============================== MAP BLOCK ===============================
         Box(
             Modifier
@@ -389,15 +399,9 @@ fun RoutePreviewScreen(
         }
 
         // ============================= DATA SECTION ==============================
-        // Scrollable like ActivityDetail: title → stat tiles → waypoint list →
-        // offline entry. Weight(1f) takes whatever the map block leaves.
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-        ) {
+        // Same scroll container as the map above: title → stats → elevation →
+        // waypoint list → offline entry.
+        Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(16.dp))
             Text(
                 state.name ?: stringResource(R.string.default_route_name),
@@ -441,17 +445,10 @@ fun RoutePreviewScreen(
                     }
                 )
                 Spacer(Modifier.height(12.dp))
+                // Summary cells — ONLY highest/lowest here: gain & loss are
+                // already in the header stats above (de-dup fix), repeating
+                // them read as double data.
                 Row(Modifier.fillMaxWidth()) {
-                    SummaryStatTile(
-                        "+${(state.elevationGainM ?: 0.0).roundToInt()} m",
-                        stringResource(R.string.elev_gain),
-                        Modifier.weight(1f)
-                    )
-                    SummaryStatTile(
-                        "−${(state.elevationLossM ?: 0.0).roundToInt()} m",
-                        stringResource(R.string.stat_elev_loss),
-                        Modifier.weight(1f)
-                    )
                     SummaryStatTile(
                         "${(state.highestElevationM ?: 0.0).roundToInt()} m",
                         stringResource(R.string.stat_highest_point),
@@ -490,6 +487,7 @@ fun RoutePreviewScreen(
                 Text(stringResource(R.string.prepare_offline))
             }
             Spacer(Modifier.height(16.dp))
+        }
         }
 
         // ============================ PINNED CTA BAR =============================

@@ -508,10 +508,11 @@ internal fun drawTraceOnSnapshot(
     // Start/end dots.
     paint.style = AndroidPaint.Style.FILL
     listOf(points.first(), points.last()).forEach { p ->
+        val pf = toBitmapPx(p)
         paint.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(sx(p), sy(p), stroke * 1.5f, paint)
+        canvas.drawCircle(pf.x, pf.y, stroke * 1.5f, paint)
         paint.color = traceColorArgb
-        canvas.drawCircle(sx(p), sy(p), stroke * 0.8f, paint)
+        canvas.drawCircle(pf.x, pf.y, stroke * 0.8f, paint)
     }
     return out
 }

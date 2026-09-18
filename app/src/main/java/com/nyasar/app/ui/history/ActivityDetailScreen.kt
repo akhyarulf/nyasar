@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -149,6 +151,16 @@ fun ActivityDetailScreen(
     val selectedWaypoint by waypointViewModel.selectedWaypoint.collectAsState()
     val editingWaypoint by waypointViewModel.editingWaypoint.collectAsState()
 
+    // Full-screen map state + fit padding (browse-detail parity). Declared
+    // here (screen scope) so the overlay can draw over the whole Scaffold.
+    var activityMapExpanded by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = activityMapExpanded) {
+        activityMapExpanded = false
+    }
+    val activityFitPaddingPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+        72.dp.toPx()
+    }.toInt()
+
     // Speed unit setting
     val settingsRepository = remember {
         com.nyasar.app.data.settings.SettingsRepository(context)
@@ -274,8 +286,47 @@ fun ActivityDetailScreen(
                                 }
                             },
                             speedUnit = speedUnit,
-                            waypointsVisible = waypointsVisible
+                            waypointsVisible = waypointsVisible,
+                            onExpandMap = { activityMapExpanded = true }
                         )
+                        // Full-screen interactive map (Wikiloc pattern, same
+                        // overlay shape as browse Route Detail / RoutePreview):
+                        // tap the hero or its expand button, back closes.
+                        if (activityMapExpanded) {
+                            BoxWithConstraints(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.background)
+                            ) {
+                                NyasarMapView(
+                                    modifier = Modifier.fillMaxSize(),
+                                    fitBoundsPaddingPx = activityFitPaddingPx,
+                                    provider = state.provider,
+                                    track = if (state.plannedTrack.isNotEmpty()) state.plannedTrack else state.actualTrack,
+                                    actualTrack = if (state.plannedTrack.isNotEmpty()) state.actualTrack else emptyList(),
+                                    userWaypoints = state.waypointsDuringActivity,
+                                    waypointsVisible = waypointsVisible
+                                )
+                                Surface(
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    tonalElevation = 3.dp,
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .statusBarsPadding()
+                                        .padding(start = 12.dp, top = 8.dp)
+                                        .size(48.dp)
+                                ) {
+                                    IconButton(onClick = { activityMapExpanded = false }) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = stringResource(R.string.back),
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -408,7 +459,8 @@ private fun ActivityDetailContent(
     onWaypointTap: (com.nyasar.app.data.db.WaypointEntity) -> Unit,
     onShareGpx: (ActivityEntity, List<com.nyasar.app.data.db.ActivityPointEntity>, List<com.nyasar.app.data.db.WaypointEntity>) -> Unit,
     speedUnit: String = "kmh",
-    waypointsVisible: Boolean = true
+    waypointsVisible: Boolean = true,
+    onExpandMap: () -> Unit = {}
 ) {
     var scrubbedPoint by remember { mutableStateOf<ElevationPoint?>(null) }
     var showSplits by remember { mutableStateOf(false) }
@@ -417,10 +469,15 @@ private fun ActivityDetailContent(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // ── Hero map: FIXED 240dp full-bleed at the very top — the unified
         // block every detail screen shares (browse Route Detail, Route
-        // Preview). Previously a 0.35×screen clamp (100-180dp).
+        // Preview). Tap-anywhere + expand button open the full-screen map,
+        // same two entry points as the other detail screens.
         if (actualTrack.isNotEmpty() || plannedTrack.isNotEmpty()) {
+            Box {
             NyasarMapView(
-                modifier = Modifier.fillMaxWidth().height(240.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .clickable { onExpandMap() },
                 provider = provider,
                 track = if (plannedTrack.isNotEmpty()) plannedTrack else actualTrack,
                 actualTrack = if (plannedTrack.isNotEmpty()) actualTrack else emptyList(),
@@ -433,6 +490,27 @@ private fun ActivityDetailContent(
             )
             if (plannedTrack.isNotEmpty()) {
                 TrackLegend()
+            }
+            // Expand button — same floating round control as the other
+            // detail screens' hero maps.
+            Surface(
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 3.dp,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(12.dp)
+                    .size(44.dp)
+            ) {
+                IconButton(onClick = onExpandMap) {
+                    Icon(
+                        Icons.Default.OpenInFull,
+                        contentDescription = stringResource(R.string.map_expand_cd),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
             }
         } else {
             // No points recorded — don't error, just skip the map (spec:

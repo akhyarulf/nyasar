@@ -205,7 +205,36 @@ fun RoutePreviewScreen(
     }
     val allDbWaypoints = dbWaypoints + userWaypoints
 
+    // Unified top bar (browse-referensi): "Route Detail" title + back on a
+    // Surface over the map block — replaces the old floating round pill, and
+    // the map hero now sits DIRECTLY under it like every other detail screen.
     Column(Modifier.fillMaxSize()) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 4.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(R.string.route_detail_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
         // =============================== MAP BLOCK ===============================
         Box(
             Modifier
@@ -285,19 +314,9 @@ fun RoutePreviewScreen(
                 )
             }
 
-            // --- Floating top pills (status-bar aware)
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .statusBarsPadding()
-                    .padding(start = 12.dp, top = 8.dp)
-            ) {
-                RoundIconButton(
-                    icon = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.back),
-                    onClick = onBack
-                )
-            }
+            // --- Floating top-right action pills (status-bar aware). Back
+            // --- now lives in the unified top bar ABOVE the map; these stay
+            // --- on-map quick actions.
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -330,7 +349,7 @@ fun RoutePreviewScreen(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
-                    .padding(end = 16.dp, top = 76.dp)
+                    .padding(end = 16.dp, top = 64.dp)
                     .size(48.dp)
             )
 

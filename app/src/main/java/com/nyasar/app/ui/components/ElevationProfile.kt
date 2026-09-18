@@ -102,7 +102,14 @@ fun ElevationProfile(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 48.dp, end = 8.dp, top = 8.dp, bottom = 36.dp)
+                // AUDIT FIX (chart "kurang rapi"): the x-axis labels are
+                // center-aligned, so the first/last labels overhang the chart
+                // area by half their width. The old asymmetric padding
+                // (48 start / 8 end) clipped the "0.00" label at the left
+                // edge while the right label also grazed the screen edge.
+                // Equal side insets (+ bottom for labels) keep both edges
+                // clean and the plot truly centered between them.
+                .padding(start = 52.dp, end = 36.dp, top = 8.dp, bottom = 40.dp)
                 .pointerInput(points) {
                     detectTapGestures { offset ->
                         nearestIndexForX(offset.x / size.width)
@@ -184,7 +191,7 @@ fun ElevationProfile(
                 drawContext.canvas.nativeCanvas.drawText(
                     "%.2f".format(distKm),
                     x,
-                    baselineY + 20f,
+                    baselineY + 22f,
                     xLabelPaint
                 )
             }

@@ -172,11 +172,19 @@ fun PublicRouteDetailScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                     ) {
-                        // ── Strava detail order: publisher header FIRST (above
-                        // the map), then name/description/stats, then the map,
-                        // then the like/comment action row, elevation, actions.
+                        // ── Detail order (request user): map as the full-bleed
+                        // hero at the VERY TOP, then publisher header, name/
+                        // description/stats, like/comment action row,
+                        // elevation, actions.
 
-                        // (1) Publisher header.
+                        // (1) Map — full-bleed hero (tile map, not a bare
+                        // polyline; fallback chain in StaticMapPreview).
+                        StaticMapPreview(
+                            polyline = route.trackPolyline,
+                            modifier = Modifier.fillMaxWidth().height(240.dp)
+                        )
+
+                        // (2) Publisher header.
                         Row(
                             Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -286,14 +294,7 @@ fun PublicRouteDetailScreen(
 
                         Spacer(Modifier.height(14.dp))
 
-                        // (4) Map — full-bleed hero (tile map, not a bare
-                        // polyline; fallback chain in StaticMapPreview).
-                        StaticMapPreview(
-                            polyline = route.trackPolyline,
-                            modifier = Modifier.fillMaxWidth().height(240.dp)
-                        )
-
-                        // (5) Like / comment action row (Strava kudos row).
+                        // (4) Like / comment action row (Strava kudos row).
                         val signedIn = com.nyasar.app.data.supabase.SupabaseClientProvider
                             .client.auth.currentSessionOrNull() != null
                         Row(

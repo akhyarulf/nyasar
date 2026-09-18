@@ -46,7 +46,9 @@ import com.nyasar.app.ui.components.AnimatedAppear
 import com.nyasar.app.ui.components.BasemapPickerSheet
 import com.nyasar.app.ui.components.CompassButton
 import com.nyasar.app.ui.components.ElevationProfile
+import com.nyasar.app.ui.components.InlineStatsGrid
 import com.nyasar.app.ui.components.NyasarMapView
+import com.nyasar.app.ui.components.SummaryStatTile
 import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarElevation
 import com.nyasar.app.ui.theme.NyasarRadius
@@ -182,7 +184,10 @@ fun RoutePreviewScreen(
 
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp.dp
-    val collapsedMapHeight = screenHeightDp * 0.38f
+    // Unified hero map (browse-referensi): FIXED 240dp full-bleed at the top
+    // — the same block height and position as browse Route Detail and
+    // ActivityDetail, instead of the old 38%-of-screen split.
+    val collapsedMapHeight = 240.dp
     // Default fit zooms out a bit more than the app-wide 80px so the track
     // doesn't run under the floating controls (expand button, elevation
     // card edge) — same margin applies to the full-screen map's larger
@@ -384,26 +389,61 @@ fun RoutePreviewScreen(
             )
             Spacer(Modifier.height(12.dp))
 
-            // Stat tiles — same soft-tile visual as ActivityDetail's StatsGrid
-            // (label over value), a stable 2-column grid: weighted Row pairs so
-            // tiles share width on any screen size.
+            // Stats — Strava-style INLINE grid (muted label over bold value,
+            // 3 per row, no tiles): the shared shape with browse Route Detail
+            // and ActivityDetail. This screen's own data: distance, gain, loss.
             val tiles = buildList {
                 add(stringResource(R.string.stat_distance) to "%.1f km".format(state.distanceKm))
-                state.elevationGainM?.let { add(stringResource(R.string.elevation_gain) to "↑ ${it.roundToInt()} m") }
-                state.elevationLossM?.let { add(stringResource(R.string.stat_elev_loss) to "↓ ${it.roundToInt()} m") }
-                state.highestElevationM?.let { add(stringResource(R.string.stat_highest_point) to "${it.roundToInt()} m") }
+                state.elevationGainM?.let { add(stringResource(R.string.elevation_gain) to "+${it.roundToInt()} m") }
+                state.elevationLossM?.let { add(stringResource(R.string.stat_elev_loss) to "−${it.roundToInt()} m") }
             }
-            tiles.chunked(2).forEach { rowTiles ->
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    rowTiles.forEach { (label, value) ->
-                        StatTile(label, value, Modifier.weight(1f))
+            InlineStatsGrid(tiles)
+
+            // ── Elevation Profile section (shared visual with browse Route
+            // Detail): interactive chart + summary cells. Scrubbing nudges
+            // the collapsed map's camera via highlightLatLng. Hidden when
+            // the track has no elevation data.
+            val elevationProfile = remember(state.track) {
+                ElevationStats.toElevationProfile(state.track)
+            }
+            if (elevationProfile.size >= 2) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    stringResource(R.string.route_detail_elevation_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(6.dp))
+                ElevationProfile(
+                    points = elevationProfile,
+                    modifier = Modifier.fillMaxWidth().height(180.dp),
+                    onPointSelected = { _, point ->
+                        highlightLatLng = LatLng(point.lat, point.lon)
                     }
-                    if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    SummaryStatTile(
+                        "+${(state.elevationGainM ?: 0.0).roundToInt()} m",
+                        stringResource(R.string.elev_gain),
+                        Modifier.weight(1f)
+                    )
+                    SummaryStatTile(
+                        "−${(state.elevationLossM ?: 0.0).roundToInt()} m",
+                        stringResource(R.string.stat_elev_loss),
+                        Modifier.weight(1f)
+                    )
+                    SummaryStatTile(
+                        "${(state.highestElevationM ?: 0.0).roundToInt()} m",
+                        stringResource(R.string.stat_highest_point),
+                        Modifier.weight(1f)
+                    )
+                    SummaryStatTile(
+                        "${(state.lowestElevationM ?: 0.0).roundToInt()} m",
+                        stringResource(R.string.stat_lowest_point),
+                        Modifier.weight(1f)
+                    )
                 }
-                Spacer(Modifier.height(10.dp))
             }
 
             // Waypoint list (DB rows: GPX-imported + user pins linked here).
@@ -699,36 +739,6 @@ fun RoutePreviewScreen(
 // ---------------------------------------------------------------------------
 // Data-section pieces
 // ---------------------------------------------------------------------------
-
-/** One stat tile — same soft-tile visual as ActivityDetailScreen's StatsGrid
- *  (small muted label over a semibold value), flexible width so 2-up rows
- *  wrap naturally on narrow screens. */
-@Composable
-private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(
-        shape = RoundedCornerShape(NyasarRadius.md),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = modifier
-    ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
 
 /** One waypoint row in the scrollable list: colored category disc + name +
  *  coordinates — mirrors the map marker's icon/color coding so list and map

@@ -40,8 +40,10 @@ import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.navigation.LatLng
 import com.nyasar.app.ui.components.ElevationPoint
 import com.nyasar.app.ui.components.ElevationProfile
+import com.nyasar.app.ui.components.InlineStatsGrid
 import com.nyasar.app.ui.components.SplitsTable
 import com.nyasar.app.ui.components.NyasarMapView
+import com.nyasar.app.ui.components.SummaryStatTile
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -412,12 +414,13 @@ private fun ActivityDetailContent(
     var showSplits by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-    val mapHeightDp = (screenHeightDp * 0.35f).coerceIn(100f, 180f).dp
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        // ── Hero map: FIXED 240dp full-bleed at the very top — the unified
+        // block every detail screen shares (browse Route Detail, Route
+        // Preview). Previously a 0.35×screen clamp (100-180dp).
         if (actualTrack.isNotEmpty() || plannedTrack.isNotEmpty()) {
             NyasarMapView(
-                modifier = Modifier.fillMaxWidth().height(mapHeightDp),
+                modifier = Modifier.fillMaxWidth().height(240.dp),
                 provider = provider,
                 track = if (plannedTrack.isNotEmpty()) plannedTrack else actualTrack,
                 actualTrack = if (plannedTrack.isNotEmpty()) actualTrack else emptyList(),
@@ -449,14 +452,34 @@ private fun ActivityDetailContent(
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
+            // Unified header: NAME first (big, Strava-style — previously only
+            // in the top bar), date below it, then the inline stats grid.
+            Text(
+                activity.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(6.dp))
             Text(
                 formatActivityDateTime(activity.startedAtEpochMs),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(12.dp))
 
-            StatsGrid(activity, actualTrack.size, highestElevationM, lowestElevationM, speedUnit)
+            // Unified inline stats (3 per row, label over bold value, no
+            // tiles) — the shared shape with browse Route Detail and Route
+            // Preview. This screen's data: the activity record itself.
+            InlineStatsGrid(buildList {
+                add(stringResource(R.string.stat_distance) to "%.2f km".format(activity.distanceMeters / 1000.0))
+                add(stringResource(R.string.stat_moving_time) to formatDuration(activity.movingTimeMs))
+                activity.elevationGainM?.let { add(stringResource(R.string.elevation_gain) to "+${it.roundToInt()} m") }
+                activity.avgSpeedKmh?.let { add(stringResource(R.string.stat_avg_speed) to com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1)) }
+                activity.maxSpeedKmh?.let { add(stringResource(R.string.stat_max_speed) to com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1)) }
+                activity.elevationLossM?.let { add(stringResource(R.string.stat_elev_loss) to "−${it.roundToInt()} m") }
+            })
 
             if (plannedDistanceMeters != null) {
                 Spacer(Modifier.height(12.dp))
@@ -472,14 +495,47 @@ private fun ActivityDetailContent(
                 ElevationStats.toElevationProfile(elevationProfile)
             }
             if (elevationPoints.size >= 2) {
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.elevation_profile), style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    stringResource(R.string.route_detail_elevation_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(6.dp))
                 ElevationProfile(
                     points = elevationPoints,
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp),
+                    modifier = Modifier.fillMaxWidth().height(180.dp),
                     onPointSelected = { _, point -> scrubbedPoint = point }
                 )
+                Spacer(Modifier.height(12.dp))
+                // Summary cells — same 4-up row as browse Route Detail, fed
+                // from this activity's OWN elevation data.
+                Row(Modifier.fillMaxWidth()) {
+                    SummaryStatTile(
+                        "+${(activity.elevationGainM ?: 0.0).roundToInt()} m",
+                        stringResource(R.string.elev_gain),
+                        Modifier.weight(1f)
+                    )
+                    SummaryStatTile(
+                        "−${(activity.elevationLossM ?: 0.0).roundToInt()} m",
+                        stringResource(R.string.stat_elev_loss),
+                        Modifier.weight(1f)
+                    )
+                    highestElevationM?.let {
+                        SummaryStatTile(
+                            "${it.roundToInt()} m",
+                            stringResource(R.string.stat_highest_point),
+                            Modifier.weight(1f)
+                        )
+                    } ?: Spacer(Modifier.weight(1f))
+                    lowestElevationM?.let {
+                        SummaryStatTile(
+                            "${it.roundToInt()} m",
+                            stringResource(R.string.stat_lowest_point),
+                            Modifier.weight(1f)
+                        )
+                    } ?: Spacer(Modifier.weight(1f))
+                }
             }
 
             if (rawPoints.isNotEmpty()) {
@@ -619,55 +675,6 @@ private fun ActivityWaypointRow(waypoint: com.nyasar.app.data.db.WaypointEntity,
     }
 }
 
-@Composable
-private fun StatsGrid(
-    activity: ActivityEntity,
-    pointCount: Int,
-    highestElevationM: Double?,
-    lowestElevationM: Double?,
-    speedUnit: String = "kmh"
-) {
-    val context = LocalContext.current
-    val rows = buildList {
-        add(context.getString(R.string.stat_distance) to "%.2f km".format(activity.distanceMeters / 1000.0))
-        add(context.getString(R.string.stat_moving_time) to formatDuration(activity.movingTimeMs))
-        add(context.getString(R.string.stat_total_time) to formatDuration(activity.elapsedTimeMs))
-        activity.avgSpeedKmh?.let { add(context.getString(R.string.stat_avg_speed) to com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1)) }
-        activity.maxSpeedKmh?.let { add(context.getString(R.string.stat_max_speed) to com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1)) }
-        activity.elevationGainM?.let { add(context.getString(R.string.elevation_gain) to "↑ ${it.roundToInt()} m") }
-        activity.elevationLossM?.let { add(context.getString(R.string.stat_elev_loss) to "↓ ${it.roundToInt()} m") }
-        highestElevationM?.let { add(context.getString(R.string.stat_highest_point) to "${it.roundToInt()} m") }
-        lowestElevationM?.let { add(context.getString(R.string.stat_lowest_point) to "${it.roundToInt()} m") }
-        if (pointCount > 0) add(context.getString(R.string.stat_gps_points) to "$pointCount")
-    }
-
-    // Grouped stat tiles: each stat gets a soft surfaceContainerHigh tile
-    // (shared md radius) instead of bare text rows — same visual language
-    // as the stat chips in Recording/Navigation. 2 per row, weight-balanced
-    // so a single trailing tile doesn't stretch to half width.
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        rows.chunked(2).forEach { pair ->
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                pair.forEach { (label, value) ->
-                    Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
 
 private fun formatDuration(ms: Long): String {
     val totalSeconds = ms / 1000

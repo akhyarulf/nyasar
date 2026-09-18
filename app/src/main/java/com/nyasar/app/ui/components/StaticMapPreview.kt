@@ -38,6 +38,7 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.snapshotter.MapSnapshotter
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.ln
@@ -63,12 +64,10 @@ import kotlin.math.sin
  * Fetches run on Dispatchers.IO via produceState and are cancelled with
  * the composable when the card scrolls out of the LazyColumn viewport.
  *
- * Geometry: standard OSM slippy-map Web Mercator. The zoom is chosen so
- * the route bbox fills the view without upscaling tiles more than ~1.7x
- * (zoom stops at the first level whose scale drops to <= 1.15); the
- * bitmap is composed at the exact view aspect so Compose draws it 1:1
- * (source px = view px / scale), keeping the trace stroke thickness
- * consistent regardless of tile scale.
+ * Geometry: the snapshot camera fits the route bbox with the same Mercator
+ * math as the raster path (see snapshotCameraFor for the abs() audit fix);
+ * the trace overlay reads pixel positions straight from the rendered
+ * snapshot (MapSnapshot.pixelForLatLng) so it can never drift.
  */
 
 /** Slippy tile is 256px at scale 1. */
@@ -136,7 +135,9 @@ internal fun computeStaticMapLayout(
     val minLon = points.minOf { it.lon }
     val maxLon = points.maxOf { it.lon }
     val lonSpan = (maxLon - minLon).takeIf { it > 1e-9 } ?: return null
-    val latSpanMerc = (mercY(maxLat) - mercY(minLat)).takeIf { it > 1e-12 } ?: return null
+    // AUDIT FIX: abs() — mercY decreases as latitude grows, so the raw span
+    // is negative; without abs this path ALSO ignored track height.
+    val latSpanMerc = abs(mercY(maxLat) - mercY(minLat)).takeIf { it > 1e-12 } ?: return null
 
     // First zoom (from low) whose on-screen scale drops to <= 1.15 —
     // monotonic per zoom step (bbox px doubles, so scale halves), hence the
@@ -353,16 +354,20 @@ fun StaticMapPreview(
                 ).also { snap ->
                     snap.start(
                         { snapshot ->
-                            drawTraceOnSnapshot(
-                                base = snapshot.bitmap,
-                                points = points,
-                                camera = camera,
-                                viewW = w,
-                                viewH = h,
-                                ratio = pixelRatio,
-                                strokeViewPx = strokeViewPx,
-                                traceColorArgb = traceColor.copy(alpha = 1f).toArgbCompat()
-                            )?.let { bmp ->
+                            try {
+                                drawTraceOnSnapshot(
+                                    base = snapshot.bitmap,
+                                    points = points,
+                                    ratio = pixelRatio,
+                                    // Ground truth from the engine: ask the
+                                    // snapshot where each point landed.
+                                    toBitmapPx = { p -> snapshot.pixelForLatLng(LatLng(p.lat, p.lon)) },
+                                    strokeViewPx = strokeViewPx,
+                                    traceColorArgb = traceColor.copy(alpha = 1f).toArgbCompat()
+                                )
+                            } catch (_: Exception) {
+                                null
+                            }?.let { bmp ->
                                 StaticTileCache.lru.put(key, bmp)
                                 rendered = bmp
                             }
@@ -420,14 +425,17 @@ fun StaticMapPreview(
  *  same style the app's interactive map screens already load successfully. */
 private const val SNAPSHOT_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 
-/** MapLibre GL world size per tile at zoom 0 — 512 (GL convention), NOT the
- *  256px of slippy raster URLs. Camera fit + trace overlay MUST both use
- *  this or the drawn trace drifts off the rendered roads. */
-private const val SNAPSHOT_TILE_PX = 512
-
-/** Camera fitting [points]' bbox into a w×h view with a small margin —
- *  pure math (GL Mercator model, fractional zoom), so the trace can be
- *  drawn back over the snapshot bitmap pixel-exactly. */
+/** Camera fitting [points]' bbox into a w×h view with a small margin.
+ *
+ *  AUDIT FIX (track-terpotong): mercY is north-anchored, so mercY(maxLat) -
+ *  mercY(minLat) is NEGATIVE for every normal bbox — the old takeIf{>0}
+ *  always fell back to 1e-5 and the fit zoom ignored the track's height
+ *  entirely (tall point-to-point routes got zoomed ~2.6x past the card and
+ *  clipped top/bottom). abs() restores the real Mercator span.
+ *
+ *  Pure math for the camera fit; the on-bitmap trace overlay itself reads
+ *  pixel positions from the rendered snapshot (pixelForLatLng), not from
+ *  this math. */
 internal fun snapshotCameraFor(
     points: List<TrackPoint>,
     viewW: Float,
@@ -439,12 +447,12 @@ internal fun snapshotCameraFor(
     val minLon = points.minOf { it.lon }
     val maxLon = points.maxOf { it.lon }
     val lonSpan = (maxLon - minLon).takeIf { it > 1e-9 } ?: 1e-4
-    val latSpanMerc = (mercY(maxLat) - mercY(minLat)).takeIf { it > 1e-12 } ?: 1e-5
+    val latSpanMerc = abs(mercY(maxLat) - mercY(minLat)).takeIf { it > 1e-12 } ?: 1e-5
     // Largest integer zoom where the bbox still FITS inside the view.
     var zoom = 3
     for (z in 3..maxZoom + 2) {
-        val wPx = lonSpan / 360.0 * (1 shl z) * SNAPSHOT_TILE_PX
-        val hPx = latSpanMerc * (1 shl z) * SNAPSHOT_TILE_PX
+        val wPx = lonSpan / 360.0 * (1 shl z) * SNAPSHOT_WORLD_PX
+        val hPx = latSpanMerc * (1 shl z) * SNAPSHOT_WORLD_PX
         if (wPx > viewW || hPx > viewH) break
         zoom = z
     }
@@ -457,35 +465,32 @@ internal fun snapshotCameraFor(
         .build()
 }
 
-/** GL-world pixel position at fractional zoom [zoomF] (512px convention). */
-private fun glWorldX(lon: Double, zoomF: Double): Double = (lon + 180.0) / 360.0 * SNAPSHOT_TILE_PX * Math.pow(2.0, zoomF)
-private fun glWorldY(lat: Double, zoomF: Double): Double = mercY(lat) * SNAPSHOT_TILE_PX * Math.pow(2.0, zoomF)
+/** World pixels per zoom-0 tile in the GL/Mercator model used for the fit. */
+private const val SNAPSHOT_WORLD_PX = 512.0
 
 /** Copies the snapshotter's base map and draws the route trace + start/end
- *  dots on top with the same casing/stroke look the raster path uses. The
- *  snapshot bitmap is [ratio]x the logical view size (pixelRatio), so every
- *  screen coordinate is scaled by it. */
+ *  dots on top with the same casing/stroke look the raster path uses.
+ *
+ *  Pixel positions come from [toBitmapPx] — production passes
+ *  MapSnapshot.pixelForLatLng, i.e. the engine's own projection. No local
+ *  world-pixel math is involved anymore, so the trace CANNOT drift off the
+ *  rendered basemap (the old recomputed-projection approach relied on
+ *  matching the native renderer's conventions exactly). */
 internal fun drawTraceOnSnapshot(
     base: Bitmap,
     points: List<TrackPoint>,
-    camera: CameraPosition,
-    viewW: Float,
-    viewH: Float,
     ratio: Float,
+    toBitmapPx: (TrackPoint) -> android.graphics.PointF,
     strokeViewPx: Float,
     traceColorArgb: Int
 ): Bitmap? {
-    val zoomF = camera.zoom ?: return null
-    val center = camera.target ?: return null
-    val cx = glWorldX(center.longitude, zoomF)
-    val cy = glWorldY(center.latitude, zoomF)
-    fun sx(p: TrackPoint): Float = (viewW / 2f + (glWorldX(p.lon, zoomF) - cx)).toFloat() * ratio
-    fun sy(p: TrackPoint): Float = (viewH / 2f + (glWorldY(p.lat, zoomF) - cy)).toFloat() * ratio
+    if (points.size < 2) return null
     val out = base.copy(Bitmap.Config.ARGB_8888, true) ?: return null
     val canvas = AndroidCanvas(out)
     val trace = AndroidPath()
     points.forEachIndexed { i, p ->
-        if (i == 0) trace.moveTo(sx(p), sy(p)) else trace.lineTo(sx(p), sy(p))
+        val pf = toBitmapPx(p)
+        if (i == 0) trace.moveTo(pf.x, pf.y) else trace.lineTo(pf.x, pf.y)
     }
     val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
         style = AndroidPaint.Style.STROKE

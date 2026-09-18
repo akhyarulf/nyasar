@@ -602,6 +602,16 @@ yang benar.
   dari source maplibre-native sebelum ditulis. Alasan revisi: fetch
   PNG per-tile masih gagal di device (tanpa key MapTiler + OpenTopoMap
   throttle + OSM bisa diblokir jaringan tertentu).
+- **AUDIT FIX fit kamera (track terpotong atas-bawah):** mercY itu
+  north-anchored (TURUN saat lat naik), jadi `mercY(maxLat) −
+  mercY(minLat)` selalu NEGATIF → `takeIf{>0}` selalu fallback 1e-5 →
+  fit zoom TIDAK PERNAH menghitung tinggi track → rute tinggi-sempit
+  (Lawu point-to-point) kezoom ~2.6× kartu & kepotong. Fix: `abs()` di
+  snapshotCameraFor + computeStaticMapLayout. Overlay trace sekarang
+  tidak lagi recompute proyeksi sendiri — posisi pixel dibaca LANGSUNG
+  dari snapshot via `MapSnapshot.pixelForLatLng` (ground truth engine;
+  terverifikasi dari source native: return `point * pixelRatio` = px
+  bitmap fisik, jadi gak perlu konversi lagi).
 
 ### Visibility/Privacy (konsep sudah didiskusikan, BELUM dikerjakan)
 Keputusan desain dari diskusi user (referensi screenshot Strava &

@@ -695,7 +695,6 @@
     <string name="browse_sign_in_to_like">Masuk untuk menyukai rute</string>
     <string name="browse_save">Simpan</string>
     <string name="browse_saved">Disimpan</string>
-    <string name="browse_save_failed">Gagal menyimpan — coba lagi</string>
     <string name="route_detail_comments_section">Komentar (%1$d)</string>
     <string name="route_detail_title">Detail Rute</string>
     <string name="route_detail_elev_max">Puncak</string>

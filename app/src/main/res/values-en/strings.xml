@@ -695,7 +695,6 @@
     <string name="browse_sign_in_to_like">Sign in to like routes</string>
     <string name="browse_save">Save</string>
     <string name="browse_saved">Saved</string>
-    <string name="browse_save_failed">Failed to save — try again</string>
     <string name="route_detail_comments_section">Comments (%1$d)</string>
     <string name="route_detail_title">Route Detail</string>
     <string name="route_detail_elev_max">Summit</string>

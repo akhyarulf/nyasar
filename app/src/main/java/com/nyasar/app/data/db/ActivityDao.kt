@@ -14,6 +14,12 @@ interface ActivityDao {
     @Query("SELECT * FROM activities WHERE status = 'completed' ORDER BY startedAtEpochMs DESC")
     fun observeCompleted(): Flow<List<ActivityEntity>>
 
+    /** History + Saved pane (IA "History | Saved") — drafts ride along so
+     *  an un-published Wikiloc-style draft is never invisible; the UI
+     *  marks them with a chip. */
+    @Query("SELECT * FROM activities WHERE status IN ('completed', 'draft') ORDER BY startedAtEpochMs DESC")
+    fun observeCompletedAndDrafts(): Flow<List<ActivityEntity>>
+
     @Query("SELECT * FROM activities WHERE id = :id")
     suspend fun getById(id: String): ActivityEntity?
 

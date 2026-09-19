@@ -113,6 +113,11 @@ class MainActivity : AppCompatActivity() {
         }
         super.onCreate(savedInstanceState)
         pendingImportUri = extractGpxUriFromIntent(intent)
+        // Network-regain sync (konsep "tanpa tombol"): registers the OS
+        // default-network callback once per process — pending publishes and
+        // backup backlog drain automatically the moment signal returns,
+        // even if the app never left the foreground.
+        com.nyasar.app.backup.NetworkSyncTrigger.register(this)
 
         setContent {
             // Read theme mode directly here (not via a ViewModel) since it

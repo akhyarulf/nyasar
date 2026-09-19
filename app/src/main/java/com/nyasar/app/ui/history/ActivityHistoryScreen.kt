@@ -262,7 +262,25 @@ private fun ActivityCard(
                 }
 
                 Spacer(Modifier.height(8.dp))
-                Text(activity.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // Wikiloc-style draft chip — a draft must be visibly NOT a
+                // regular finished activity (its publish is deferred).
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(activity.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (activity.status == com.nyasar.app.data.db.ActivityStatus.DRAFT) {
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer
+                        ) {
+                            Text(
+                                stringResource(R.string.draft_chip),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                }
 
                 Spacer(Modifier.height(12.dp))
                 // 3-column stat row — sport-aware: middle column is Pace for running, Elev Gain for hiking

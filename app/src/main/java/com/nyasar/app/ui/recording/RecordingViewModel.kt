@@ -397,7 +397,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
             // activity discarded from the review sheet must not leave a
             // pending-publish row the flush would trip over forever.
             try {
-                AppDatabase.get(getApplication()).pendingPublishDao().removeForActivity(activity.id)
+                AppDatabase.get(getApplication()).pendingPublishDao().removeForSource(activity.id)
             } catch (_: Exception) {
                 // best-effort
             }
@@ -470,7 +470,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
             // v9: a queued publish must not outlive its (now deleted) source —
             // otherwise the flush would resurrect nothing and log errors forever.
             try {
-                AppDatabase.get(getApplication()).pendingPublishDao().removeForActivity(activityId)
+                AppDatabase.get(getApplication()).pendingPublishDao().removeForSource(activityId)
             } catch (_: Exception) {
                 // queue cleanup is best-effort
             }

@@ -183,6 +183,18 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Wikiloc-style draft → publish now. Delegates to PublishViewModel's
+     *  publishDraft (status flip + queue drain); the status flip lands in
+     *  Room before this returns, so the chip/menu entry disappear on the
+     *  next emission. */
+    fun publishDraftNow(activityId: String) {
+        val vm = com.nyasar.app.ui.publish.PublishViewModel(getApplication())
+        viewModelScope.launch {
+            vm.publishDraftBlocking(activityId)
+            load(activityId)
+        }
+    }
+
     /** Delete (spec P3F §10, WAJIB confirmation — enforced by the screen,
      *  not here). Deletes points first, then the activity row itself,
      *  mirroring RouteRepository.delete()'s file-then-row order. Does NOT

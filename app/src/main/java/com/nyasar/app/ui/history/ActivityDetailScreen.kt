@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -216,7 +217,18 @@ fun ActivityDetailScreen(
                                 // publishing now happens automatically at Save
                                 // time on the Review form; the only remaining
                                 // manual publish UI lives on Library routes
-                                // (RoutePreview).
+                                // (RoutePreview). EXCEPTION: a Wikiloc-style
+                                // DRAFT publishes from here (publish-now).
+                                if (state.activity?.status == com.nyasar.app.data.db.ActivityStatus.DRAFT) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.publish_draft_now)) },
+                                        leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) },
+                                        onClick = {
+                                            showMenu = false
+                                            viewModel.publishDraftNow(activityId)
+                                        }
+                                    )
+                                }
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.rename)) },
                                     leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },

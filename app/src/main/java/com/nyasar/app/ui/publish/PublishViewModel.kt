@@ -105,6 +105,80 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
             SupabaseClientProvider.client.auth.currentUserOrNull() != null
 
     /**
+     * Wikiloc-style "Save as Draft" (2026-09): save + apply the form data
+     * (kept in Room columns for the deferred publish) + auto-backup, but
+     * publish is DEFERRED — the user opens the draft from History later
+     * and publishes explicitly (which then queues offline as usual).
+     */
+    fun saveAsDraft(
+        activityId: String,
+        title: String,
+        difficulty: PublishDifficulty,
+        difficultyDescription: String?,
+        trailType: PublishTrailType,
+        description: String?,
+        isPublic: Boolean
+    ) {
+        viewModelScope.launch {
+            val activity = activityDao.getById(activityId) ?: return@launch
+            activityDao.update(
+                activity.copy(
+                    name = title.trim().ifBlank { activity.name },
+                    status = com.nyasar.app.data.db.ActivityStatus.DRAFT
+                )
+            )
+            // Draft form data persists via the SAME pending queue (REPLACE on
+            // sourceId) — but in DRAFT hold-back: the flush skips rows whose
+            // source is still a draft. When the user publishes from the draft
+            // editor, the row flips source-side and the same row drains.
+            enqueuePending(activityId, difficulty, difficultyDescription, trailType, description, isPublic)
+            // Backup: a draft IS a finished recording worth getting off the
+            // phone (backed up as 'completed' per BackupManager's status
+            // mapping — cloud schema has no 'draft' state).
+            com.nyasar.app.backup.BackupManager.scheduleActivityBackup(getApplication(), activityId)
+        }
+    }
+
+    /**
+     * Publish an existing DRAFT now — invoked from the draft editor in
+     * History. The activity must already be in 'draft' status; publishing
+     * flips it to 'completed' and runs the normal publish (which queues
+     * itself when offline).
+     */
+    fun publishDraft(activityId: String) {
+        viewModelScope.launch { publishDraftBlocking(activityId) }
+    }
+
+    /** Synchronous core of [publishDraft] — callers that need to observe
+     *  completion (the draft editor's refresh) await this directly. */
+    suspend fun publishDraftBlocking(activityId: String) {
+        val row = pendingPublishDao.takeOldestForSource(activityId) ?: return
+        val difficulty = enumValueOrNone<PublishDifficulty>(row.difficulty)
+        val trailType = enumValueOrNone<PublishTrailType>(row.trailType)
+        val activity = activityDao.getById(activityId) ?: run {
+            pendingPublishDao.dequeue(activityId)
+            return
+        }
+        // Draft → completed: it is about to be a public activity.
+        if (activity.status == com.nyasar.app.data.db.ActivityStatus.DRAFT) {
+            activityDao.update(activity.copy(status = com.nyasar.app.data.db.ActivityStatus.COMPLETED))
+        }
+        val queued = !performPublish(
+            activityId = activityId,
+            difficulty = difficulty,
+            difficultyDescription = row.difficultyDescription,
+            trailType = trailType,
+            description = row.description,
+            isPublic = row.isPublic
+        )
+        if (queued) {
+            // keep the row (performPublish leaves it) — network-regain
+            // flush will finish; the activity is already completed so
+            // the flush's normal path handles it.
+        }
+    }
+
+    /**
      * The Review form's single action — SAVE first (local, always),
      * backup second (silent), publish third (best-effort this tap, queued
      * otherwise). The title update is applied before anything else so the
@@ -222,7 +296,8 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
     ) {
         pendingPublishDao.enqueue(
             PendingPublishEntity(
-                activityId = activityId,
+                sourceId = activityId,
+                sourceKind = PendingPublishEntity.KIND_ACTIVITY,
                 difficulty = difficulty.toApi(),
                 difficultyDescription = difficultyDescription?.trim()?.takeIf { it.isNotEmpty() },
                 trailType = trailType.toApi(),
@@ -241,27 +316,47 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
      */
     suspend fun flushPendingPublishes() {
         if (!canPublish) return
-        var guard = 0
-        while (guard++ < MAX_FLUSH_BATCH) {
-            val row = pendingPublishDao.takeOldest() ?: return
-            val activity = activityDao.getById(row.activityId)
-            if (activity == null) {
-                // Source activity was deleted/discard-recovered while queued.
-                pendingPublishDao.dequeue(row.activityId)
-            } else {
-                // Re-derive enum round-trip safely (schema literals → enum or NONE).
-                val difficulty = enumValueOrNone<PublishDifficulty>(row.difficulty)
-                val trailType = enumValueOrNone<PublishTrailType>(row.trailType)
-                val transient = performPublish(
-                    activityId = row.activityId,
+        // takeOldestBatch() is a non-destructive SELECT — a row only leaves
+        // the queue via dequeue. DRAFT rows are deliberately held back (the
+        // flush skips them) so the flush works over a bounded batch instead
+        // of re-reading the top row forever: a draft at the head of the
+        // queue must never starve the completed rows behind it.
+        val batch = pendingPublishDao.takeOldestBatch(MAX_FLUSH_BATCH)
+        for (row in batch) {
+            // Re-derive enum round-trip safely (schema literals → enum or NONE).
+            val difficulty = enumValueOrNone<PublishDifficulty>(row.difficulty)
+            val trailType = enumValueOrNone<PublishTrailType>(row.trailType)
+            val transient = when (row.sourceKind) {
+                PendingPublishEntity.KIND_ROUTE -> performRoutePublish(
+                    routeId = row.sourceId,
                     difficulty = difficulty,
                     difficultyDescription = row.difficultyDescription,
                     trailType = trailType,
                     description = row.description,
                     isPublic = row.isPublic
                 )
-                if (transient) return // offline again — finish the flush quietly
+                else -> {
+                    val activity = activityDao.getById(row.sourceId)
+                    if (activity == null) {
+                        // Source activity was deleted/discard-recovered while queued.
+                        pendingPublishDao.dequeue(row.sourceId)
+                        false
+                    } else if (activity.status == com.nyasar.app.data.db.ActivityStatus.DRAFT) {
+                        // Wikiloc-style draft: deliberately held back. The row
+                        // stays queued (it carries the draft's publish form
+                        // data); publishDraft flips the status and drains it.
+                        false
+                    } else performPublish(
+                        activityId = row.sourceId,
+                        difficulty = difficulty,
+                        difficultyDescription = row.difficultyDescription,
+                        trailType = trailType,
+                        description = row.description,
+                        isPublic = row.isPublic
+                    )
+                }
             }
+            if (transient) return // offline again — finish the flush quietly
         }
     }
 
@@ -285,7 +380,14 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value is PublishState.Publishing) return
         _state.value = PublishState.Publishing
         viewModelScope.launch {
-            _state.value = if (performPublish(activityId, difficulty, difficultyDescription, trailType, description, isPublic)) {
+            val transient = performPublish(activityId, difficulty, difficultyDescription, trailType, description, isPublic)
+            if (transient) {
+                // Same contract as saveAndPublish: a transient failure keeps
+                // the request alive via the offline queue instead of dying
+                // with this scope.
+                enqueuePending(activityId, difficulty, difficultyDescription, trailType, description, isPublic)
+            }
+            _state.value = if (transient) {
                 PublishState.Idle(PublishUiError.NETWORK)
             } else {
                 val state = _state.value
@@ -312,36 +414,88 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value is PublishState.Publishing) return
         _state.value = PublishState.Publishing
         viewModelScope.launch {
-            val route = routeDao.getById(routeId)
-                ?: return@launch resetWith(PublishUiError.GENERIC)
-            // Parse the stored GPX once: the track feeds track_polyline (the
-            // queryable summary); the uploaded file is the untouched original.
-            val trackPoints = try {
-                routeRepository.loadDocument(route).allTrackPoints
-            } catch (_: Exception) {
-                return@launch resetWith(PublishUiError.GENERIC)
-            }
-            if (trackPoints.isEmpty()) {
-                return@launch resetWith(PublishUiError.EMPTY_TRACK)
-            }
-            val outcome = repository.publishRoute(
-                PublishRepository.RoutePublishInput(
-                    route = route,
-                    trackPoints = trackPoints.map { it.lat to it.lon },
-                    difficulty = difficulty.toApi(),
-                    difficultyDescription = difficultyDescription,
-                    trailType = trailType.toApi(),
-                    description = description,
-                    isPublic = isPublic
+            if (performRoutePublish(routeId, difficulty, difficultyDescription, trailType, description, isPublic)) {
+                // Transient failure: queue it, the network-regain flush
+                // will finish the job — the sheet reports queued, not error.
+                pendingPublishDao.enqueue(
+                    PendingPublishEntity(
+                        sourceId = routeId,
+                        sourceKind = PendingPublishEntity.KIND_ROUTE,
+                        difficulty = difficulty.toApi(),
+                        difficultyDescription = difficultyDescription?.trim()?.takeIf { it.isNotEmpty() },
+                        trailType = trailType.toApi(),
+                        description = description?.trim()?.takeIf { it.isNotEmpty() },
+                        isPublic = isPublic,
+                        queuedAtEpochMs = System.currentTimeMillis()
+                    )
                 )
+                _state.value = PublishState.Idle(PublishUiError.NETWORK)
+            }
+            // Non-transient outcomes already settled _state inside
+            // performRoutePublish (Success/Idle+error).
+        }
+    }
+
+    /** Core library-route publish, shared by the UI path and the queue
+     *  flush. Returns true when the failure was TRANSIENT (offline) —
+     *  false for success/duplicate (state set to Success) or a permanent
+     *  rejection (state set to the mapped error; queue row dequeued). */
+    private suspend fun performRoutePublish(
+        routeId: String,
+        difficulty: PublishDifficulty,
+        difficultyDescription: String?,
+        trailType: PublishTrailType,
+        description: String?,
+        isPublic: Boolean
+    ): Boolean {
+        val route = routeDao.getById(routeId) ?: run {
+            // Route deleted while queued.
+            pendingPublishDao.dequeue(routeId)
+            return false
+        }
+        // Parse the stored GPX once: the track feeds track_polyline (the
+        // queryable summary); the uploaded file is the untouched original.
+        val trackPoints = try {
+            routeRepository.loadDocument(route).allTrackPoints
+        } catch (_: Exception) {
+            _state.value = PublishState.Idle(PublishUiError.GENERIC)
+            return false
+        }
+        if (trackPoints.isEmpty()) {
+            _state.value = PublishState.Idle(PublishUiError.EMPTY_TRACK)
+            pendingPublishDao.dequeue(routeId)
+            return false
+        }
+        val outcome = repository.publishRoute(
+            PublishRepository.RoutePublishInput(
+                route = route,
+                trackPoints = trackPoints.map { it.lat to it.lon },
+                difficulty = difficulty.toApi(),
+                difficultyDescription = difficultyDescription,
+                trailType = trailType.toApi(),
+                description = description,
+                isPublic = isPublic
             )
-            _state.value = when (outcome) {
-                is PublishRepository.PublishOutcome.Success ->
-                    PublishState.Success(outcome.routeId, outcome.gpxUrl)
-                is PublishRepository.PublishOutcome.AlreadyPublished ->
-                    PublishState.Success(outcome.existingRouteId, "")
-                is PublishRepository.PublishOutcome.Failure ->
-                    PublishState.Idle(outcome.error.toUi())
+        )
+        return when (outcome) {
+            is PublishRepository.PublishOutcome.Success -> {
+                pendingPublishDao.dequeue(routeId)
+                _state.value = PublishState.Success(outcome.routeId, outcome.gpxUrl)
+                false
+            }
+            is PublishRepository.PublishOutcome.AlreadyPublished -> {
+                pendingPublishDao.dequeue(routeId)
+                _state.value = PublishState.Success(outcome.existingRouteId, "")
+                false
+            }
+            is PublishRepository.PublishOutcome.Failure -> when (outcome.error) {
+                PublishError.NETWORK -> true // transient — caller queues
+                else -> {
+                    Log.w(TAG, "route publish rejected ($routeId): ${outcome.error}")
+                    pendingPublishDao.dequeue(routeId)
+                    _state.value = PublishState.Idle(outcome.error.toUi())
+                    false
+                }
             }
         }
     }
@@ -355,10 +509,6 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
      *  ViewModel's own scope and never surfaces UI state. */
     fun flushInScope() {
         viewModelScope.launch { runCatching { flushPendingPublishes() } }
-    }
-
-    private fun resetWith(error: PublishUiError) {
-        _state.value = PublishState.Idle(error)
     }
 
     companion object {

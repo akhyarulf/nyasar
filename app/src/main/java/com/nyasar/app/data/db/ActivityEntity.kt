@@ -45,4 +45,12 @@ object ActivityStatus {
     const val PAUSED = "paused"
     const val COMPLETED = "completed"
     const val DISCARDED = "discarded"
+    /** Wikiloc-style "Save as Draft" (2026-09): saved + backed up locally,
+     *  publish deliberately deferred. Shown in History with a draft chip;
+     *  opening one lands on the same review-style editor and the publish
+     *  happens from there (or auto-joins the offline queue). NOT in the
+     *  cloud schema's status CHECK — drafts back up as 'completed' (a
+     *  draft IS a finished recording; draft-ness is a local publishing
+     *  concern, not a recording-state concern). */
+    const val DRAFT = "draft"
 }

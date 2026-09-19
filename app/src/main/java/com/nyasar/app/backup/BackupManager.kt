@@ -555,6 +555,18 @@ class BackupManager(
          *  re-sync) and for the same account re-signing-in (idempotent
          *  anyway, and legitimately useful after offline recording). */
         @Volatile private var lastAutoSyncUserId: String? = null
+        @Volatile private var lastNetworkSyncUserId: String? = null
+
+        /** Sync on network-regain (NetworkSyncTrigger) — same body as
+         *  [scheduleInitialSync] but with its OWN once-per-user guard so
+         *  a login sync and a network-regain sync can both run (the work
+         *  itself is idempotent anyway; the guards just prevent spam). */
+        fun scheduleNetworkSync(context: Context) {
+            val userId = com.nyasar.app.data.supabase.BackupRepository.currentUserIdOrNull() ?: return
+            if (userId == lastNetworkSyncUserId) return
+            lastNetworkSyncUserId = userId
+            runInitialSyncBody(context)
+        }
 
         /** Auto-sync on login/session-restore (konsep "tanpa tombol"):
          *  restore first (cloud → local, skip-existing — a new device
@@ -566,6 +578,11 @@ class BackupManager(
         fun scheduleInitialSync(context: Context, userId: String) {
             if (userId == lastAutoSyncUserId) return
             lastAutoSyncUserId = userId
+            runInitialSyncBody(context)
+        }
+
+        /** Shared body of both sync triggers (login + network-regain). */
+        private fun runInitialSyncBody(context: Context) {
             autoBackupScope.launch {
                 val manager = get(context)
                 when (val r = manager.restoreAll()) {

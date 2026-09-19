@@ -393,7 +393,9 @@ private fun PublishUiError.toStringRes(): Int = when (this) {
         PublishUiError.EMPTY_TRACK -> R.string.publish_error_empty_track
         PublishUiError.INSERT -> R.string.publish_error_insert
         PublishUiError.UPLOAD -> R.string.publish_error_upload
-        PublishUiError.NETWORK -> R.string.publish_error_network
+        // Offline ≠ failure anymore: the request is queued and the flush
+        // (login / network-regain) publishes it automatically — say so.
+        PublishUiError.NETWORK -> R.string.save_publish_queued_hint
         PublishUiError.GENERIC -> R.string.publish_error_generic
     }
 

@@ -1240,6 +1240,24 @@ fun RecordingScreen(
                         previewRouteId = null
                     }
                 },
+                onSaveDraft = { title, difficulty, diffDesc, trailType, description, isPublic ->
+                    val savedActivityId = summary.activityId
+                    if (savedActivityId != null) {
+                        // Wikiloc-style draft: save + backup, publish DEFERRED
+                        // until the user opens it from History.
+                        publishViewModel.saveAsDraft(
+                            activityId = savedActivityId,
+                            title = title,
+                            difficulty = difficulty,
+                            difficultyDescription = diffDesc,
+                            trailType = trailType,
+                            description = description,
+                            isPublic = isPublic
+                        )
+                    }
+                    summarySnapshot = null
+                    previewRouteId = null
+                },
                 onDiscard = {
                     viewModel.discardRecording(summary.activityId)
                     summarySnapshot = null

@@ -628,6 +628,9 @@
     <string name="publish_title">Publish Route</string>
     <string name="publish_section_title">Publishing (automatic on save)</string>
     <string name="save_publish_queued_hint">Not signed in / no signal yet — the activity is still saved and will publish automatically once you’re online.</string>
+    <string name="save_as_draft">Save as Draft</string>
+    <string name="draft_chip">Draft</string>
+    <string name="publish_draft_now">Publish now</string>
     <string name="publish_name_label">Route name</string>
     <string name="publish_difficulty_label">Difficulty</string>
     <string name="publish_difficulty_desc_label">Difficulty note (optional)</string>

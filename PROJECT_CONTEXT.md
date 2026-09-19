@@ -761,30 +761,44 @@ tombol "Backup now"/"Restore now":
 - **RecordingViewModel.updateActivityTitle dihapus** (digabung ke
   saveAndPublish); discardRecording membersihkan queue row-nya.
 - Antrian publish di-drop permanen kalau server menolak 4xx (log) —
-  satu activity jelek tidak pernah macetkan antrean.
-  - **⏳ Ide arah solusi (belum diputuskan final, hasil diskusi user
-    melihat referensi Wikiloc "Save Trail"):** ganti flow publish dari
-    "tombol Publish manual belakangan dari Activity Detail" (yang
-    sekarang) jadi **layar yang muncul otomatis begitu recording
-    selesai** — mirip Wikiloc: form singkat (nama/distance/elevation/
-    difficulty/description, privacy Public/Private) LANGSUNG muncul
-    setelah stop recording, dengan toggle **"Save as Draft"**. Draft =
-    activity tersimpan lokal dulu, upload publish-nya ditunda sampai
-    user buka lagi nanti (saat ada sinyal). Ini bisa jadi solusi murah
-    untuk masalah antrian upload di atas — user yang punya alasan
-    Wikiloc-style ("masih di gunung sinyal jelek", "mau lengkapi
-    deskripsi nanti", "trip multi-hari") tinggal pilih draft, bukan
-    dipaksa publish/gagal upload saat itu juga.
-  - Catatan dari referensi Wikiloc YANG SENGAJA TIDAK diikuti kalau
-    arah ini dikerjakan: opsi **Photos** ("find photos automatically")
-    — bertentangan dengan keputusan final "fitur foto dihapus total"
-    (poin 1 di atas); opsi **Trail Buddies** di layar yang sama —
-    tetap ikuti keputusan "Ide Masa Depan" (sengaja ditunda, lihat di
-    bawah), jangan dimasukkan ke layar save-trail ini duluan.
-  - Kalau arah ini dipilih, perlu dipikirkan juga: apakah ini
-    MENGGANTIKAN `PublishRouteSheet` yang sudah ada (dipicu manual
-    dari Activity Detail) atau jadi tambahan di samping itu — belum
-    diputuskan, didiskusikan lagi nanti.
+  satu activity jelek tidak macetkan antrean.
+  - **✅ DIPUTUSKAN + DIEKSEKUSI (2026-09, hasil diskusi user melihat
+    referensi Wikiloc "Save Trail"):** flow publish sekarang = layar
+    review otomatis setelah stop recording dengan form lengkap
+    (difficulty/difficulty description/trail type/description/visibility)
+    + **tombol "Save as Draft"**. Satu tombol **Simpan Aktivitas** =
+    save lokal + auto-backup + publish (atau antri kalau offline).
+    Draft = activity tersimpan lokal (status `draft`), publish-nya
+    DEFERRED sampai user buka dari History → tombol
+    "Publikasikan sekarang" di Activity Detail.
+  - Sesuai keputusan: opsi Photos & Trail Buddies Wikiloc TIDAK
+    diikuti (foto dihapus total; Trail Buddies tetap "Ide Masa Depan").
+  -Yang DULU jadi pertanyaan (menggantikan PublishRouteSheet atau
+    tambahan) → jawabannya: Activity Detail menu Publish DIHAPUS;
+    publish manual tersisa di Library (RoutePreview). Sheet activity
+    lama jadi unused (dokumentasi).
+
+### Fix fungsional lain (2026-09, satu slice dgn draft)
+
+- **Network-trigger flush (⏳→✅):** `NetworkSyncTrigger` (backup/)
+  daftar ConnectivityManager.NetworkCallback di MainActivity.onCreate;
+  begitu ada koneksi & ada session → scheduleInitialSync (backup+flush
+  pending publish). Skenario "rekam offline di gunung, app tetap
+  terbuka, sinyal balik di basecamp" → sync jalan TANPA restart app.
+- **Publish Library route offline → antrian (⏳→✅):**
+  `pending_publishes` di-remote-key jadi polymorphic
+  (`sourceId` + `sourceKind` "activity"|"route") — DB v10 dengan
+  migrasi 9→10 yang mempertahankan row lama (v8→9 dibuat ulang
+  byte-for-byte mengikuti schema yang sudah di-ship di HEAD sebelumnya
+  — device existing aman dari schema mismatch). PublishRouteSheet di
+  Library kalau offline → row antri sourceKind=route → auto-flush saat
+  online; sheet menampilkan pesan "queued" bukan error mati.
+- **Anti-starvation flush:** draft row di queue di-SKIP tanpa menghapus
+  (sengaja ditahan user), flush pakai batch query yang memproses row
+  non-draft di belakangnya (takeOldest non-destruktif + skip-set).
+- **Draft flush-safe:** flush skip status DRAFT (publishDraftNow di
+  ActivityDetailViewModel = update status completed dulu, lalu langsung
+  attempt publish; kalau masih offline tetap jadi row antrian).
 
 ## Ide Masa Depan (BELUM masuk skema, sengaja ditunda)
 

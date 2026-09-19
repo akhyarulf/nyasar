@@ -18,7 +18,7 @@ data class ActivityHistoryUiState(
 )
 
 /**
- * Reads existing ActivityDao.observeCompleted() — already ordered newest
+ * Reads ActivityDao.observeCompletedAndDrafts() — already ordered newest
  * first by the query itself, no new database or table. Collected manually
  * (rather than stateIn on the DAO Flow directly) so a thrown exception from
  * Room surfaces as ERROR state instead of silently cancelling the collector,
@@ -64,7 +64,7 @@ class ActivityHistoryViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             try {
-                dao.observeCompleted().collect { activities ->
+                dao.observeCompletedAndDrafts().collect { activities ->
                     _uiState.value = ActivityHistoryUiState(
                         loadState = HistoryLoadState.LOADED,
                         activities = activities

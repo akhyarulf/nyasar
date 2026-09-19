@@ -12,22 +12,29 @@ import androidx.room.Query
 @Dao
 interface PendingPublishDao {
 
-    /** Queue is keyed by activityId — re-saving/re-queuing overwrites. */
+    /** Queue is keyed by sourceId — re-saving/re-queuing overwrites. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun enqueue(row: PendingPublishEntity)
 
-    /** Oldest first — publish order follows recording order. */
-    @Query("SELECT * FROM pending_publishes ORDER BY queuedAtEpochMs ASC")
-    suspend fun takeOldest(): PendingPublishEntity?
+    /** Oldest first — publish order follows request order. Non-destructive
+     *  SELECT: rows leave the queue only via dequeue. The flush fetches a
+     *  bounded batch (draft rows are held back IN MEMORY, not here — a
+     *  draft must never starve the completed rows behind it). */
+    @Query("SELECT * FROM pending_publishes ORDER BY queuedAtEpochMs ASC LIMIT :limit")
+    suspend fun takeOldestBatch(limit: Int): List<PendingPublishEntity>
+
+    /** Direct row for one source — the draft editor's publish-now path. */
+    @Query("SELECT * FROM pending_publishes WHERE sourceId = :sourceId LIMIT 1")
+    suspend fun takeOldestForSource(sourceId: String): PendingPublishEntity?
 
     @Query("SELECT COUNT(*) FROM pending_publishes")
     suspend fun count(): Int
 
-    /** Success (or terminal rejection) — the activity no longer owes the cloud anything. */
-    @Query("DELETE FROM pending_publishes WHERE activityId = :activityId")
-    suspend fun dequeue(activityId: String)
+    /** Success (or terminal rejection) — the source no longer owes the cloud anything. */
+    @Query("DELETE FROM pending_publishes WHERE sourceId = :sourceId")
+    suspend fun dequeue(sourceId: String)
 
-    /** Discard/delete the activity → its queue row must not outlive it. */
-    @Query("DELETE FROM pending_publishes WHERE activityId = :activityId")
-    suspend fun removeForActivity(activityId: String)
+    /** Discard/delete the source → its queue row must not outlive it. */
+    @Query("DELETE FROM pending_publishes WHERE sourceId = :sourceId")
+    suspend fun removeForSource(sourceId: String)
 }

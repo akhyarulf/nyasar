@@ -57,6 +57,17 @@ fun PostRecordingForm(
         description: String?,
         isPublic: Boolean
     ) -> Unit,
+    /** Wikiloc-style "Save as Draft": everything above still applies —
+     *  the activity saves + backs up, but publish is DEFERRED until the
+     *  user opens the draft later from History. */
+    onSaveDraft: (
+        title: String,
+        difficulty: PublishDifficulty,
+        difficultyDescription: String?,
+        trailType: PublishTrailType,
+        description: String?,
+        isPublic: Boolean
+    ) -> Unit,
     onDiscard: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -358,6 +369,30 @@ fun PostRecordingForm(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     textAlign = TextAlign.Center
                 )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Wikiloc-style draft: same form data, publish deferred. Can
+            // save a draft even when canSave is false? No — an empty track
+            // has nothing to publish later either; keep the canSave gate.
+            OutlinedButton(
+                onClick = {
+                    onSaveDraft(
+                        title.ifBlank {
+                            context.getString(R.string.activity_title_format, formatTimeForTitle(summary.elapsedTimeMs))
+                        },
+                        difficulty,
+                        difficultyDescription.trim().takeIf { it.isNotEmpty() },
+                        trailType,
+                        description.trim().takeIf { it.isNotEmpty() },
+                        isPublic
+                    )
+                },
+                enabled = canSave,
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
+                Text(stringResource(R.string.save_as_draft))
             }
 
             Spacer(Modifier.height(12.dp))

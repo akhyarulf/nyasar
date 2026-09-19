@@ -296,6 +296,59 @@ class BrowseRepository {
         }
     }
 
+    /** Saved/bookmark list (Fase 4 saved_routes): the user's PRIVATE
+     *  to-do list of public routes, newest bookmark first. Join back to the
+     *  same column set as browse() (FK-hinted profiles embed, same PGRST201
+     *  reason) so the Saved screen can reuse [PublicRouteCard] verbatim.
+     *  One round-trip — no fetch-ids-then-fetch-routes waterfalls. */
+    suspend fun savedRoutes(client: SupabaseClient, limit: Int = 100): Outcome {
+        if (!SupabaseClientProvider.isConfigured) {
+            return Outcome.Failure(BrowseError.NOT_CONFIGURED)
+        }
+        return try {
+            val result = client.postgrest["saved_routes"]
+                .select(columns = Columns.list(
+                    "created_at",
+                    "routes!saved_routes_route_id_fkey(" +
+                        "id, user_id, name, difficulty, trail_type, sport_type, " +
+                        "distance_meters, elevation_gain_m, max_elevation_m, " +
+                        "moving_time_ms, description, track_polyline, gpx_file_url, " +
+                        "likes_count, comments_count, created_at, " +
+                        "profiles!routes_user_id_fkey(username)"
+                )                ) {
+                    order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+                    limit(limit.toLong())
+                }
+                .decodeList<SavedRouteRow>()
+                // route can legitimately be null here: RLS hides non-public
+                // rows from the routes embed, so a bookmark whose route was
+                // un-published/deleted decodes as null and is SKIPPED (never
+                // a crash, never a ghost row) instead of failing the list.
+                .mapNotNull { it.route }
+            Outcome.Success(result)
+        } catch (e: RestException) {
+            Log.e(TAG, "savedRoutes failed: ${e.message}", e)
+            Outcome.Failure(BrowseError.UNKNOWN)
+        } catch (e: HttpRequestTimeoutException) {
+            Log.e(TAG, "savedRoutes timeout: ${e.message}")
+            Outcome.Failure(BrowseError.NETWORK)
+        } catch (e: IOException) {
+            Log.e(TAG, "savedRoutes network error: ${e.message}")
+            Outcome.Failure(BrowseError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "savedRoutes unexpected: ${e.message}", e)
+            Outcome.Failure(BrowseError.UNKNOWN)
+        }
+    }
+
+    @Serializable
+    private data class SavedRouteRow(
+        @SerialName("route_id") val routeId: String,
+        /** Null when the embed is filtered out by RLS (route un-published or
+         *  deleted) — see the mapNotNull in savedRoutes(). */
+        val routes: PublicRoute? = null
+    )
+
     suspend fun detail(client: SupabaseClient, routeId: String): DetailOutcome {
         if (!SupabaseClientProvider.isConfigured) {
             return DetailOutcome.Failure(BrowseError.NOT_CONFIGURED)

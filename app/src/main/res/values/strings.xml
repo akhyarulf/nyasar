@@ -648,8 +648,9 @@
     <string name="nav_profile">Profil</string>
     <string name="profile_title">Profil</string>
     <string name="profile_tab_history">Riwayat</string>
-    <string name="profile_tab_settings">Pengaturan</string>
     <string name="browse_title">Jelajah Rute</string>
+    <string name="saved_title">Tersimpan</string>
+    <string name="saved_empty">Belum ada rute tersimpan\nTekan ikon bookmark di Jelajah untuk menyimpan</string>
     <string name="browse_search_hint">Cari nama rute…</string>
     <string name="browse_clear_search">Hapus pencarian</string>
     <string name="browse_filter_difficulty">Kesulitan</string>

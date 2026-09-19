@@ -648,8 +648,9 @@
     <string name="nav_profile">Profile</string>
     <string name="profile_title">Profile</string>
     <string name="profile_tab_history">History</string>
-    <string name="profile_tab_settings">Settings</string>
     <string name="browse_title">Explore Routes</string>
+    <string name="saved_title">Saved</string>
+    <string name="saved_empty">No saved routes yet\nTap the bookmark icon in Explore to save one</string>
     <string name="browse_search_hint">Search route names…</string>
     <string name="browse_clear_search">Clear search</string>
     <string name="browse_filter_difficulty">Difficulty</string>

@@ -231,7 +231,9 @@ fun BrowseScreen(
 }
 
 @Composable
-private fun PublicRouteCard(
+/** Shared with the Profile → Saved tab (same card everywhere a bookmarked
+ *  route appears). internal, not private, for exactly that cross-package use. */
+internal fun PublicRouteCard(
     route: BrowseRepository.PublicRoute,
     liked: Boolean,
     likePending: Boolean,

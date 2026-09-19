@@ -33,7 +33,7 @@ import com.nyasar.app.ui.theme.NyasarMotion
  * - Map     — the previous HomeScreen fullscreen map, MOVED (not rebuilt).
  * - Record  — unchanged, straight onto the recording screen.
  * - Library — TrackAndMapsScreen unchanged (GPX import/draw/offline maps).
- * - Profile — History + Settings merged behind one tab.
+ * - Profile — History + Saved tabs; Settings behind the header's gear icon.
  *
  * The old standalone "history"/"settings" routes still exist as nav
  * destinations ONLY inside the Profile tab (see ProfileScreen) — they are

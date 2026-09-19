@@ -594,17 +594,18 @@ private fun NyasarNavHost(
                 pendingFocusBounds = pendingHomeFocusBounds,
                 onFocusBoundsConsumed = { pendingHomeFocusBounds = null },
                 onOpenRoute = { routeId -> navController.navigate("preview/$routeId") },
-                onOpenSettings = { navController.navigate("profile?tab=settings") },
+                onOpenSettings = { navController.navigate("settings") },
                 onStartRecording = { navController.navigate("start-activity") },
                 onResumeRecording = { navController.navigate("recording?autoStart=false") },
                 onOpenHistory = { navController.navigate("profile?tab=history") },
                 onOpenDrawRoute = { navController.navigate("draw-route") }
             )
         }
-        // IA rework 2026: History + Settings are merged behind the Profile
-        // tab; the standalone tab routes below survive ONLY as nested
-        // destinations ("profile?tab=…") hosting the same screens with a
-        // back-arrow header, reached from the Map tab's gear/history buttons.
+        // IA rework 2026 (rev2): History + Saved are merged behind the
+        // Profile tab; Settings moved behind the Profile header's gear icon
+        // (standalone "settings" route with a back arrow). The legacy
+        // "profile?tab=…" nested destination survives for the Map tab's
+        // history button (tab=history|saved).
         composable(
             "profile",
             enterTransition = { tabEnter },
@@ -617,7 +618,8 @@ private fun NyasarNavHost(
                 onOpenActivity = { id -> navController.navigate("activity/$id") },
                 onShareActivity = { id -> navController.navigate("share-card/$id") },
                 onShareGpx = rememberShareActivityGpxHandler(),
-                onOpenOfflineMaps = { navController.navigate("offline-maps") },
+                onOpenRoute = { id -> navController.navigate("route/$id") },
+                onOpenSettings = { navController.navigate("settings") },
                 onOpenAccount = { navController.navigate("auth/login") },
                 onGoToRecord = { goToTab("recording?autoStart=false") },
                 onBack = { navController.popBackStack() }
@@ -639,12 +641,13 @@ private fun NyasarNavHost(
         ) { backStackEntry ->
             val tab = backStackEntry.arguments?.getString("tab")
             ProfileScreen(
-                initialTab = if (tab == "settings") ProfileTab.SETTINGS else ProfileTab.HISTORY,
+                initialTab = if (tab == "saved") ProfileTab.SAVED else ProfileTab.HISTORY,
                 showHeader = false,
                 onOpenActivity = { id -> navController.navigate("activity/$id") },
                 onShareActivity = { id -> navController.navigate("share-card/$id") },
                 onShareGpx = rememberShareActivityGpxHandler(),
-                onOpenOfflineMaps = { navController.navigate("offline-maps") },
+                onOpenRoute = { id -> navController.navigate("route/$id") },
+                onOpenSettings = { navController.navigate("settings") },
                 onOpenAccount = { navController.navigate("auth/login") },
                 onGoToRecord = { goToTab("recording?autoStart=false") },
                 onBack = { navController.popBackStack() }

@@ -603,6 +603,25 @@ ujung UI.** (Detail per slice di bawah.)
     bagian Fase 4 schema). ❌ Sisa satu-satunya: menghapus komentar
     via dashboard/SQL manual tetap satu-satunya moderasi selain baca
     tabel reports langsung di Supabase.
+- 🟢 **LAYAR DAFTAR BOOKMARK (2026-09-19): tab Profile kini History | Saved;
+  Settings pindah ke ikon gear di pojok kanan-atas Profile (route
+  standalone "settings", back arrow).** Keluhan awalnya benar: data
+  bookmark tersimpan tapi tidak ada tempat melihatnya.
+  - `BrowseRepository.savedRoutes()`: 1 round-trip join saved_routes→routes
+    (embed FK-hint `routes!saved_routes_route_id_fkey` + nested profiles,
+    pola sama dengan browse()), order by bookmark terbaru. Embed yang
+    ter-RLS-filter decode jadi null → `mapNotNull` (bookmark ke rute yang
+    di-unpublish/hapus dilewati, bukan crash).
+  - `SavedViewModel` + `SavedEmbedded` (ui/profile): daftar kartu pakai
+    `PublicRouteCard` browse persis (dibuka dari private→internal) — like
+    & toggle save sama; **unsave dari daftar menghapus kartu** (optimistic
+    + rollback, anti double-tap). Klik kartu → `route/{id}` (Route Detail
+    browse).
+  - IA Profile rev2: `ProfileTab` HISTORY|SAVED (SETTINGS dihapus),
+    gear (Icons.Default.Settings) di TopAppBar kedua mode hosting;
+    semua call site `profile?tab=settings` diganti `"settings"`.
+    `profile_tab_settings` string dihapus; nested destination
+    `profile?tab={tab}` bertahan hanya untuk tab=history|saved.
 
 #### Kartu Browse ala Strava (keputusan layout 2026-09-17)
 - Urutan kartu: header profil → nama+chips → deskripsi (max 2 baris) →

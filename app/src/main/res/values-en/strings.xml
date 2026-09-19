@@ -538,6 +538,8 @@
     <!-- ═══ Account / Authentication (Phase 1) ═══ -->
     <string name="account_section">Account</string>
     <string name="backup_section">Backup &amp; Restore</string>
+    <string name="backup_auto_title">Automatic backup is on</string>
+    <string name="backup_auto_desc">Every activity &amp; route is saved to your account as soon as it’s created; existing data is restored automatically when you sign in on a new phone.</string>
     <string name="backup_now">Back up now</string>
     <string name="backup_now_desc">Send all activities &amp; routes to your account</string>
     <string name="restore_now">Restore from backup</string>

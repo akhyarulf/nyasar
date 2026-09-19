@@ -525,5 +525,62 @@ class BackupManager(
                 }
             }
         }
+
+        /** Fire-and-forget auto-backup of one route — the counterpart of
+         *  [scheduleActivityBackup] for the three route-creation doors:
+         *  GPX import, drawn route, save-to-library. Same silence rules:
+         *  log-only failures; the next auto-sync (login/app start) and the
+         *  manual Settings row are the retry paths. */
+        fun scheduleRouteBackup(context: Context, routeId: String) {
+            autoBackupScope.launch {
+                val result = try {
+                    get(context).backupRoute(routeId)
+                } catch (e: Exception) {
+                    Log.e(TAG, "auto-backup crashed for route $routeId", e)
+                    null
+                }
+                when (result) {
+                    is BackupResult.Success ->
+                        Log.i(TAG, "auto-backup ok (route $routeId): uploaded=${result.uploaded} skipped=${result.skipped}")
+                    is BackupResult.Failure ->
+                        Log.i(TAG, "auto-backup not completed (route $routeId): ${result.kind}")
+                    null -> {}
+                }
+            }
+        }
+
+        /** The last user this process auto-synced for — [scheduleInitialSync]
+         *  runs at most once per user per process, but re-runs for a
+         *  DIFFERENT account (sign out → sign in as someone else must
+         *  re-sync) and for the same account re-signing-in (idempotent
+         *  anyway, and legitimately useful after offline recording). */
+        @Volatile private var lastAutoSyncUserId: String? = null
+
+        /** Auto-sync on login/session-restore (konsep "tanpa tombol"):
+         *  restore first (cloud → local, skip-existing — a new device
+         *  fills its History/Library), then backup-all (local → cloud,
+         *  stable-id upserts — anonymously-recorded/offline activities
+         *  flush to the account). Both directions are idempotent by
+         *  design, so a repeat is always safe. Runs in [autoBackupScope]:
+         *  survives recomposition, never blocks the nav gate. */
+        fun scheduleInitialSync(context: Context, userId: String) {
+            if (userId == lastAutoSyncUserId) return
+            lastAutoSyncUserId = userId
+            autoBackupScope.launch {
+                val manager = get(context)
+                when (val r = manager.restoreAll()) {
+                    is RestoreResult.Success ->
+                        Log.i(TAG, "auto-restore ok: routes=${r.restoredRoutes} activities=${r.restoredActivities} skipped=${r.skipped}")
+                    is RestoreResult.Failure ->
+                        Log.i(TAG, "auto-restore not completed: ${r.kind}")
+                }
+                when (val r = manager.backupAll()) {
+                    is BackupResult.Success ->
+                        Log.i(TAG, "auto-sync backup ok: uploaded=${r.uploaded} skipped=${r.skipped}")
+                    is BackupResult.Failure ->
+                        Log.i(TAG, "auto-sync backup not completed: ${r.kind}")
+                }
+            }
+        }
     }
 }

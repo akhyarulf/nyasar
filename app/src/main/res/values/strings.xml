@@ -538,6 +538,8 @@
     <!-- ═══ Akun / Autentikasi (Fase 1) ═══ -->
     <string name="account_section">Akun</string>
     <string name="backup_section">Backup &amp; Pulihkan</string>
+    <string name="backup_auto_title">Backup otomatis aktif</string>
+    <string name="backup_auto_desc">Setiap aktivitas &amp; rute tersimpan otomatis ke akunmu begitu dibuat; data lama dipulihkan otomatis saat masuk akun di HP baru.</string>
     <string name="backup_now">Backup sekarang</string>
     <string name="backup_now_desc">Kirim semua aktivitas &amp; jalur ke akunmu</string>
     <string name="restore_now">Pulihkan dari backup</string>

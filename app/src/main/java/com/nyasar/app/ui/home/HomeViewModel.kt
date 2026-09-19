@@ -236,6 +236,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val displayName = queryDisplayName(uri)
                 val route = repository.importFromUri(uri, displayName)
+                // Konsep backup tanpa tombol: route baru = data backup, langsung
+                // diupsert diam-diam (signed-in check ada di dalam manager).
+                com.nyasar.app.backup.BackupManager.scheduleRouteBackup(getApplication(), route.id)
                 onImported(route.id)
             } catch (e: GpxParseException) {
                 _importError.value = e.message

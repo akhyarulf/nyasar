@@ -71,6 +71,8 @@ class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val route: RouteEntity = routeRepository.importFromDrawnPoints(name, points)
+                // Konsep backup tanpa tombol: rute gambar = data backup.
+                com.nyasar.app.backup.BackupManager.scheduleRouteBackup(getApplication(), route.id)
                 _uiState.value = _uiState.value.copy(saving = false, savedRouteId = route.id)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(saving = false, error = getApplication<android.app.Application>().getString(R.string.error_saving_route))

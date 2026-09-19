@@ -414,6 +414,16 @@ private fun NyasarNavHost(
                         launchSingleTop = true
                     }
                 }
+                // Konsep backup tanpa tombol (PROJECT_CONTEXT): restore =
+                // efek samping login, backup = efek samping punya data.
+                // SignedIn juga tercapai saat session ter-restore di app
+                // start — persis momen yang diinginkan untuk sync awal.
+                // Idempoten (skip-existing + stable-id upsert), sekali per
+                // user per proses, dan tidak pernah memblok UI.
+                com.nyasar.app.backup.BackupManager.scheduleInitialSync(
+                    applicationContext,
+                    userId = s.userId
+                )
             }
             else -> Unit
         }

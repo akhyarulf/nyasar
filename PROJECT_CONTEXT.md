@@ -695,7 +695,7 @@ Yang dikerjakan:
   akan GAGAL upload (bucket belum ada) dan di-rollback aman.
 
 ### Backup otomatis "tanpa tombol" + gerbang login (keputusan desain 2026-09-19,
-HASIL DISKUSI — belum dikerjakan)
+✅ DIKERJAKAN 2026-09 — lihat catatan IMPLEMENTASI di bawah)
 Prinsip tunggal: **wajib login = layar yang aksinya menciptakan data yang
 harus ke-backup**; sisanya tetap anonymous-friendly. Backup & restore TANPA
 tombol "Backup now"/"Restore now":
@@ -707,6 +707,21 @@ tombol "Backup now"/"Restore now":
 - **Restore = efek samping dari sign-in.** Begitu akun terverifikasi di
   perangkat (baru), app diam-diam menarik backup & mengisi History/Library.
   Tidak ada tombol karena tidak ada keputusan manual yang diminta user.
+- **IMPLEMENTASI (2026-09):** backup activity otomatis sudah jalan sejak
+  Fase 2/3 (scheduleActivityBackup — RecordingService + RecordingViewModel,
+  termasuk crash-recovery). DITAMBAHKAN: (a) `scheduleRouteBackup` di 4
+  pintu route — HomeViewModel & TrackAndMapsViewModel (import GPX),
+  DrawRouteViewModel (rute gambar), PublicRouteDetailViewModel
+  .saveToLibrary — fire-and-forget, silent, signed-in check di manager;
+  (b) `scheduleInitialSync(userId)` dari LaunchedEffect session di
+  MainActivity: tiap masuk SignedIn (login ATAU session restore app
+  start) → restoreAll dulu lalu backupAll, sekali per user per proses
+  (lastAutoSyncUserId), idempoten (skip-existing + stable-id upsert),
+  tak pernah memblok UI; (c) Settings: tombol Backup/Pulihkan manual
+  dihapus, section jadi status saja ("Backup otomatis aktif").
+  Waypoint add/edit BELUM auto-backup sendiri (ikut source-nya: activity
+  atau route di-backup ulang = waypointsJson ikut) — cukup untuk saat ini.
+  Retry-queue offline BELUM (tetap open item di bawah).
 - **Gerbang login (waktu save, bukan waktu mulai):** (1) Record/Start
   Activity di langkah SAVE — copy: "Masuk supaya rekaman ini tersimpan
   selamanya"; rekaman jangan dibuang — tetap lokal "pending backup",

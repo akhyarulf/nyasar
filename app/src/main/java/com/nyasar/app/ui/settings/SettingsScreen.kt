@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Info
@@ -133,48 +132,21 @@ internal fun SettingsContent(
                 val hasPermission = remember {
                     LocationRepository(viewModel.getApplication()).hasLocationPermission()
                 }
-                // Fase 3 backup actions: Toast feedback, rows disable while
-                // a backup/restore job runs.
-                val backupViewModel: BackupSettingsViewModel = viewModel()
-                val backupUi by backupViewModel.ui.collectAsState()
-                val context = androidx.compose.ui.platform.LocalContext.current
-                androidx.compose.runtime.LaunchedEffect(backupUi) {
-                    when (val b = backupUi) {
-                        is BackupSettingsViewModel.BackupUi.Done -> {
-                            android.widget.Toast.makeText(
-                                context,
-                                context.getString(b.messageRes, *b.args.toTypedArray()),
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                            backupViewModel.clearResult()
-                        }
-                        is BackupSettingsViewModel.BackupUi.Failed -> {
-                            android.widget.Toast.makeText(
-                                context,
-                                context.getString(b.errorRes),
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                            backupViewModel.clearResult()
-                        }
-                        else -> {}
-                    }
-                }
-                // ── Fase 3: Backup & Pulihkan — only meaningful signed in.
+                // (Fase 3 manual backup actions removed — backup/restore is
+                // now fully automatic: data-creation auto-upserts + login
+                // auto-sync. BackupSettingsViewModel intentionally remains
+                // compiled for potential future diagnostics use.)
+                // ── Backup otomatis (konsep "tanpa tombol") — status saja.
+                // Backup dan restore terjadi sendiri: backup = efek samping
+                // setiap penciptaan data (activity selesai, GPX import, rute
+                // gambar, save-to-library), restore = efek samping login.
+                // Tidak ada aksi manual di sini — hanya penjelasan status.
                 if (sessionState is com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn) {
                     SettingsSection(stringResource(R.string.backup_section)) {
                         SettingRow(
                             icon = Icons.Default.CloudUpload,
-                            title = stringResource(R.string.backup_now),
-                            subtitle = stringResource(R.string.backup_now_desc),
-                            onClick = if (backupUi is BackupSettingsViewModel.BackupUi.Working) null
-                            else backupViewModel::backupAll
-                        )
-                        SettingRow(
-                            icon = Icons.Default.CloudDownload,
-                            title = stringResource(R.string.restore_now),
-                            subtitle = stringResource(R.string.restore_now_desc),
-                            onClick = if (backupUi is BackupSettingsViewModel.BackupUi.Working) null
-                            else backupViewModel::restoreAll
+                            title = stringResource(R.string.backup_auto_title),
+                            subtitle = stringResource(R.string.backup_auto_desc)
                         )
                     }
                 }

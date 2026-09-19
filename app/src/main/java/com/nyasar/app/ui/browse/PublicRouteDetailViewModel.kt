@@ -400,6 +400,11 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
                             xml = outcome.gpxXml,
                             displayName = route.name
                         )
+                        // Konsep backup tanpa tombol: rute tersimpan ke library
+                        // langsung di-upsert ke backup pribadi.
+                        com.nyasar.app.backup.BackupManager.scheduleRouteBackup(
+                            getApplication(), entity.id
+                        )
                         SaveState.Saved(entity.id)
                     } catch (e: Exception) {
                         android.util.Log.e("PublicRouteDetailVM", "saveToLibrary import failed", e)

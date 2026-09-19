@@ -111,7 +111,9 @@ class TrackAndMapsViewModel(private val app: Application) : AndroidViewModel(app
             _importError.value = null
             try {
                 val displayName = queryDisplayName(uri)
-                routeRepository.importFromUri(uri, displayName)
+                val imported = routeRepository.importFromUri(uri, displayName)
+                // Konsep backup tanpa tombol: auto-upsert route baru.
+                com.nyasar.app.backup.BackupManager.scheduleRouteBackup(app, imported.id)
                 load()
             } catch (e: com.nyasar.app.gpx.GpxParseException) {
                 _importError.value = e.message

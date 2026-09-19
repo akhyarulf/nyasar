@@ -49,6 +49,14 @@
 <footer>
   <a href="privacy-policy.html">Privacy Policy</a> &middot; <a href="terms-of-service.html">Terms of Service</a>
 </footer>
+<!-- Endpoint Supabase di-inject workflow Pages jadi config.js saat
+     deploy; fallback inline menjaga halaman tetap berfungsi (tanpa
+     detail rute) kalau config.js gagal termuat. -->
+<script>
+  window.NYASAR_SUPABASE_URL = window.NYASAR_SUPABASE_URL || '';
+  window.NYASAR_SUPABASE_ANON_KEY = window.NYASAR_SUPABASE_ANON_KEY || '';
+</script>
+<script src="../config.js"></script>
 <script>
 /*
  * Landing ringkas per rute publik: baca ?id=… dan ambil metadata rute

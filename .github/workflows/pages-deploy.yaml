@@ -26,18 +26,22 @@ jobs:
         uses: actions/checkout@v4
 
       # Halaman route landing fetch metadata via Supabase REST anon.
-      # Key disuntik saat build dari repo secrets (nilai non-rahasia:
-      # anon key memang publik, URL juga) — kalau secret belum diset,
-      # halaman tetap jalan dengan fallback "buka di aplikasi".
+      # Endpoint disuntik via dist/config.js yang digenerate saat deploy
+      # (nilai non-rahasia: anon key memang publik, URL juga) — kalau
+      # secret belum diset, config.js kosong dan halaman tetap jalan
+      # dengan fallback "buka di aplikasi". Nama key: SUPABASE_ANON_KEY,
+      # fallback ke SUPABASE_PUBLISHABLE_KEY (nama yang dipakai workflow
+      # build app ini sejak awal).
       - name: Inject Supabase endpoints
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           mkdir -p dist
           cp -a web/. dist/
-          sed -i "s|window.NYASAR_SUPABASE_URL ||= ''|window.NYASAR_SUPABASE_URL = '${SUPABASE_URL}'|" dist/route/index.html
-          sed -i "s|window.NYASAR_SUPABASE_ANON_KEY ||= ''|window.NYASAR_SUPABASE_ANON_KEY = '${SUPABASE_ANON_KEY}'|" dist/route/index.html
+          printf 'window.NYASAR_SUPABASE_URL = "%s";\nwindow.NYASAR_SUPABASE_ANON_KEY = "%s";\n' \
+            "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > dist/config.js
+          echo "config.js: $(head -c 120 dist/config.js)"
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

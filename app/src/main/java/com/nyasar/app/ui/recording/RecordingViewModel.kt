@@ -393,6 +393,14 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         val activity = _recoveryCandidate.value ?: return
         _recoveryCandidate.value = null
         viewModelScope.launch {
+            // v9: same queue hygiene as discardRecording — a recovered
+            // activity discarded from the review sheet must not leave a
+            // pending-publish row the flush would trip over forever.
+            try {
+                AppDatabase.get(getApplication()).pendingPublishDao().removeForActivity(activity.id)
+            } catch (_: Exception) {
+                // best-effort
+            }
             dao.deletePointsForActivity(activity.id)
             dao.deleteById(activity.id)
         }

@@ -9,5 +9,8 @@ MAPTILER_API_KEY=your_maptiler_key_here
 # Login Google: the WEB client id from Google Cloud Console (the same id
 # registered in Supabase Dashboard -> Auth -> Providers -> Google). Leave
 # empty and the Google button simply does not appear in the app.
-GOOGLE_OAUTH_WEB_CLIENT_ID=https://your-project-ref.supabase.co
+# Client ID web OAuth Google — BUKAN URL! Format asli:
+# 1234567890-abcdefg.apps.googleusercontent.com
+# (dari Google Cloud Console → Credentials → OAuth 2.0 Client ID tipe Web)
+GOOGLE_OAUTH_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key_here

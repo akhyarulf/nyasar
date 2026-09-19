@@ -454,3 +454,22 @@ private fun PublishTrailType.toLabel(): String = stringResource(
         PublishTrailType.POINT_TO_POINT -> R.string.publish_trail_point_to_point
     }
 )
+
+/** Carried over verbatim from the pre-merge PostRecordingForm. */
+private fun formatTimeForTitle(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val m = (totalSeconds % 3600) / 60
+    val s = totalSeconds % 60
+    return if (m > 0) "${m}m${s}s" else "${s}s"
+}
+
+/** Private in RecordingScreen — duplicated here (5 lines) rather than
+ *  widening its visibility for one caller. */
+private fun formatDuration(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
+    else "%02d:%02d".format(minutes, seconds)
+}

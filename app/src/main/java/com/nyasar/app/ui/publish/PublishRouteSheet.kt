@@ -65,8 +65,6 @@ import com.nyasar.app.ui.theme.NyasarContentWidth
  * linked — the same list Export/Share uses), so publish never recomputes or
  * disagrees with the other GPX-producing paths.
  */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 /** Activity publish sheet — superseded (IA "save = publish"): the Review
  *  form now carries the publish fields and [PublishViewModel.saveAndPublish]
  *  performs save+publish in one tap. Kept OUT of the UI on purpose; the

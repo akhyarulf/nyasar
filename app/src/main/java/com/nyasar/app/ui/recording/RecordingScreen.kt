@@ -1220,13 +1220,7 @@ fun RecordingScreen(
                     // The screen pops right after the local save commits
                     // (onSaved) — the upload never blocks the UI.
                     val savedActivityId = summary.activityId
-                    if (savedActivityId == null) {
-                        // Defensive (snapshot contract guarantees non-null) —
-                        // never strand the user on a dead review form.
-                        summarySnapshot = null
-                        previewRouteId = null
-                        return@onSave
-                    }
+                    if (savedActivityId != null) {
                     publishViewModel.saveAndPublish(
                         activityId = savedActivityId,
                         title = title,
@@ -1236,6 +1230,12 @@ fun RecordingScreen(
                         description = description,
                         isPublic = isPublic
                     ) { _ ->
+                        summarySnapshot = null
+                        previewRouteId = null
+                    }
+                    } else {
+                        // Defensive (snapshot contract guarantees non-null) —
+                        // never strand the user on a dead review form.
                         summarySnapshot = null
                         previewRouteId = null
                     }

@@ -141,14 +141,14 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
             //    exists. Offline/failed → queue for the next flush.
             if (!canPublish) {
                 enqueuePending(activityId, difficulty, difficultyDescription, trailType, description, isPublic)
-                onSaved(publishQueuedForLater = true)
+                onSaved(true)
                 return@launch
             }
             val queued = !performPublish(activityId, difficulty, difficultyDescription, trailType, description, isPublic)
             if (queued) {
                 enqueuePending(activityId, difficulty, difficultyDescription, trailType, description, isPublic)
             }
-            onSaved(publishQueuedForLater = queued)
+            onSaved(queued)
         }
     }
 
@@ -244,23 +244,24 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         var guard = 0
         while (guard++ < MAX_FLUSH_BATCH) {
             val row = pendingPublishDao.takeOldest() ?: return
-            val activity = activityDao.getById(row.activityId) ?: run {
+            val activity = activityDao.getById(row.activityId)
+            if (activity == null) {
                 // Source activity was deleted/discard-recovered while queued.
                 pendingPublishDao.dequeue(row.activityId)
-                continue
+            } else {
+                // Re-derive enum round-trip safely (schema literals → enum or NONE).
+                val difficulty = enumValueOrNone<PublishDifficulty>(row.difficulty)
+                val trailType = enumValueOrNone<PublishTrailType>(row.trailType)
+                val transient = performPublish(
+                    activityId = row.activityId,
+                    difficulty = difficulty,
+                    difficultyDescription = row.difficultyDescription,
+                    trailType = trailType,
+                    description = row.description,
+                    isPublic = row.isPublic
+                )
+                if (transient) return // offline again — finish the flush quietly
             }
-            // Re-derive enum round-trip safely (schema literals → enum or NONE).
-            val difficulty = enumValueOrNone<PublishDifficulty>(row.difficulty)
-            val trailType = enumValueOrNone<PublishTrailType>(row.trailType)
-            val transient = performPublish(
-                activityId = row.activityId,
-                difficulty = difficulty,
-                difficultyDescription = row.difficultyDescription,
-                trailType = trailType,
-                description = row.description,
-                isPublic = row.isPublic
-            )
-            if (transient) return // offline again — finish the flush quietly
         }
     }
 

@@ -421,7 +421,7 @@ private fun NyasarNavHost(
                 // Idempoten (skip-existing + stable-id upsert), sekali per
                 // user per proses, dan tidak pernah memblok UI.
                 com.nyasar.app.backup.BackupManager.scheduleInitialSync(
-                    applicationContext,
+                    activityContext,
                     userId = s.userId
                 )
             }

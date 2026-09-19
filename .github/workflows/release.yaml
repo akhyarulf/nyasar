@@ -54,6 +54,17 @@ jobs:
           mkdir -p keystore
           echo "$KEYSTORE_BASE64" | base64 --decode > keystore/nyasar-release.keystore
 
+      # SHA-256 cert fingerprint untuk web/.well-known/assetlinks.json
+      # (App Links autoVerify — link app.nyasarnyaman.my.id buka app
+      # tanpa dialog). Copy nilai yang tercetak di log ini ke field
+      # sha256_cert_fingerprints di assetlinks.json.
+      - name: Print release cert SHA-256 (untuk assetlinks.json)
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          keytool -list -v -keystore keystore/nyasar-release.keystore \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.KEY_ALIAS }}" 2>/dev/null | grep 'SHA256:' || true
+
       - name: Write local.properties (MapTiler key from repo secret, if set)
         if: steps.secrets.outputs.configured == 'true'
         run: |

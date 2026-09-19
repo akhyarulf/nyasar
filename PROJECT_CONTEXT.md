@@ -590,11 +590,33 @@ ujung UI.** (Detail per slice di bawah.)
 - Like bersifat sinyal sosial publik — bukan Save (Save = simpan ke
   Library lokal, sudah ada terpisah). Comment belum bisa dihapus dari UI
   (RLS delete own sudah siap, UI menyusul).
-- Share: plain-text link `https://nyasar.app/route/{id}` via chooser
-  sistem; kartu browse pakai helper internal, detail pakai callback
-  ke MainActivity (`shareText`).
-- 🟢 **SISA FASE 4 SELESAI (2026-09-18): Save/bookmark + Report + hapus
-  komentar sendiri.** Semua client-side — schema_v1 sudah menyiapkan
+- Share: plain-text link via chooser sistem; kartu browse pakai helper
+  internal, detail pakai callback ke MainActivity (`shareText`). Domain
+  link resmi: **`https://app.nyasarnyaman.my.id/route?id={id}`** — lihat
+  keputusan App Links di bawah (domain `nyasar.app` lama tidak pernah
+  teregistrasi).
+- 🟢 **Konsep "app bisa dibuka pakai link" — Android App Links
+  (2026-09-19).** Domain `app.nyasarnyaman.my.id` (DNS + domain milik
+  user) di-host GitHub Pages gratis, sumber folder `web/` di repo:
+  - `web/` = landing statis (index, privacy, terms — pindahan dari root
+    repo) + `route/index.html` (landing ringkas per rute publik: fetch
+    metadata via Supabase REST anon, tombol unduh GPX, CTA app) +
+    `CNAME` + `.well-known/assetlinks.json` (template — SHA-256 cert
+    diisi manual).
+  - App: `AppLinks.kt` (sumber link terpusat), intent-filter
+    `autoVerify` host `app.nyasarnyaman.my.id` path `/route` di
+    AndroidManifest, `navDeepLink` di composable `route/{routeId}`
+    (MainActivity). Link dibuka di HP dengan app → langsung Route
+    Detail tanpa dialog; tanpa app → landing web.
+  - CI: workflow `pages-deploy.yaml` deploy `web/` ke Pages (inject
+    `SUPABASE_URL`/`SUPABASE_ANON_KEY` dari repo secrets, fallback
+    halaman tanpa fetch jika kosong); `release.yaml` print SHA-256 cert
+    release di log (buat diisi ke assetlinks.json).
+  - **Langkah manual user**: (1) DNS A-record apex + CNAME
+    `app` → `<user>.github.io`, (2) set custom domain di Pages settings,
+    (3) jalankan workflow Pages, (4) isi SHA-256 debug+release di
+    `assetlinks.json`, (5) set secrets `SUPABASE_URL` +
+    `SUPABASE_ANON_KEY` di repo. Detail lengkap di `web/README.md`. Semua client-side — schema_v1 sudah menyiapkan
   tabel + RLS sejak awal, NOL migration baru:
   - `SocialRepository` nambah: `toggleSave` (saved_routes, read-state-
     then-write anti-race, PK (user_id, route_id)), `fetchSavedRouteIds`

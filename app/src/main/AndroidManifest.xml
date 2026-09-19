@@ -50,6 +50,23 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/gpx+xml" />
             </intent-filter>
+
+            <!-- Android App Links (konsep "app bisa dibuka pakai link",
+                 2026-09): https://app.nyasarnyaman.my.id/route/{id} dibuka
+                 di HP yang punya Nyasar → langsung masuk Route Detail;
+                 autoVerify membuat Android mengecek
+                 /.well-known/assetlinks.json di domain itu berisi SHA-256
+                 dari signing cert kita — jika cocok, link membuka app
+                 TANPA dialog "pilih aplikasi". Tanpa app terpasang, link
+                 tetap dibuka browser (web landing route di host yang
+                 sama). Nav host-nya via navDeepLink di MainActivity
+                 (composable "route/{routeId}"). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.nyasarnyaman.my.id" android:pathPrefix="/route" />
+            </intent-filter>
         </activity>
 
         <service

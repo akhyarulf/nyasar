@@ -1,0 +1,11 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.nyasar.app",
+    "sha256_cert_fingerprints": [
+      "ISI_SHA256_RELEASE_CERT_DI_SINI",
+      "ISI_SHA256_DEBUG_CERT_DI_SINI"
+    ]
+  }
+}]

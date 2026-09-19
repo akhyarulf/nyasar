@@ -1,0 +1,52 @@
+name: Deploy web landing (GitHub Pages)
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'web/**', '.github/workflows/pages-deploy.yaml' ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Halaman route landing fetch metadata via Supabase REST anon.
+      # Key disuntik saat build dari repo secrets (nilai non-rahasia:
+      # anon key memang publik, URL juga) — kalau secret belum diset,
+      # halaman tetap jalan dengan fallback "buka di aplikasi".
+      - name: Inject Supabase endpoints
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          mkdir -p dist
+          cp -a web/. dist/
+          sed -i "s|window.NYASAR_SUPABASE_URL ||= ''|window.NYASAR_SUPABASE_URL = '${SUPABASE_URL}'|" dist/route/index.html
+          sed -i "s|window.NYASAR_SUPABASE_ANON_KEY ||= ''|window.NYASAR_SUPABASE_ANON_KEY = '${SUPABASE_ANON_KEY}'|" dist/route/index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

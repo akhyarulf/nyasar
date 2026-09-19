@@ -494,7 +494,7 @@ internal fun formatRelativeDate(iso: String): String {
 /** System share sheet for a route — plain text deep link style; no server
  *  involvement. Uses the same chooser mechanism as the GPX share. */
 internal fun shareRoute(context: android.content.Context, route: BrowseRepository.PublicRoute) {
-    val text = "${route.name} — Nyasar\nhttps://nyasar.app/route/${route.id}"
+    val text = "${route.name} — Nyasar\n${com.nyasar.app.AppLinks.routeLink(route.id)}"
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, text)

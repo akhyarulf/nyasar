@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nyasar — Rute Pendakian</title>
+<style>
+  :root { --green: #2E5339; --bg: #f6f5f1; --card: #ffffff; --muted: #666; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); color: #222; }
+  header { background: var(--green); color: #fff; padding: 48px 20px 40px; text-align: center; }
+  header h1 { margin: 0 0 6px; font-size: 1.7em; }
+  header p { margin: 0; opacity: .85; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  .card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 12px 28px; }
+  .stat b { display: block; font-size: 1.15em; }
+  .stat span { color: var(--muted); font-size: .85em; }
+  .btn {
+    display: inline-block; margin-top: 12px; padding: 12px 22px; border-radius: 999px;
+    background: var(--green); color: #fff; text-decoration: none; font-weight: 600;
+  }
+  .hint { color: var(--muted); font-size: .9em; }
+  footer { text-align: center; color: #888; font-size: .85em; padding: 24px 0 40px; }
+  footer a { color: var(--green); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Nyasar</h1>
+  <p>Navigasi hiking offline untuk pendaki gunung di Indonesia</p>
+</header>
+<main>
+  <div class="card" id="route-card">
+    <h2 id="route-name">Memuat rute&hellip;</h2>
+    <p class="hint" id="route-meta"></p>
+    <div class="stats" id="route-stats" hidden>
+      <div class="stat"><b id="stat-distance">-</b><span>Jarak</span></div>
+      <div class="stat"><b id="stat-elevation">-</b><span>Elevasi</span></div>
+      <div class="stat"><b id="stat-difficulty">-</b><span>Kesulitan</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <a class="btn" href="#" id="download-btn" hidden>Unduh file GPX</a>
+    <p class="hint" id="download-hint">Buka rute ini langsung di aplikasi Nyasar untuk navigasi offline.</p>
+    <a class="btn" href="index.html">Pelajari aplikasinya</a>
+  </div>
+</main>
+<footer>
+  <a href="privacy-policy.html">Privacy Policy</a> &middot; <a href="terms-of-service.html">Terms of Service</a>
+</footer>
+<script>
+/*
+ * Landing ringkas per rute publik: baca ?id=… dan ambil metadata rute
+ * dari Supabase REST (anon key diset saat deploy via GitHub secret
+ * SUPABASE_URL / SUPABASE_ANON_KEY — lihat .github/workflows/pages-deploy.yaml).
+ * Kalau rute privat / gagal fetch → tampil pesan netral, tanpa bocor data.
+ */
+(function () {
+  var id = new URLSearchParams(location.search).get('id');
+  var SUPABASE_URL = window.NYASAR_SUPABASE_URL || '';
+  var ANON_KEY = window.NYASAR_SUPABASE_ANON_KEY || '';
+  if (!id) { document.getElementById('route-name').textContent = 'Rute tidak ditemukan'; return; }
+
+  // Semua link /route/{id} dari app membawa query ?id=…; halaman statis
+  // GitHub Pages tidak bisa server-render, jadi fetch client-side.
+  if (!SUPABASE_URL || !ANON_KEY) {
+    document.getElementById('route-name').textContent = 'Rute Nyasar';
+    document.getElementById('route-meta').textContent =
+      'Detail rute tersedia di aplikasi Nyasar (unduh lewat tombol di bawah).';
+    return;
+  }
+  fetch(SUPABASE_URL + '/rest/v1/routes?id=eq.' + encodeURIComponent(id) + '&select=name,is_public,difficulty,distance_m,elevation_gain_m', {
+    headers: { apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY }
+  })
+    .then(function (r) { return r.ok ? r.json() : []; })
+    .then(function (rows) {
+      var r = rows && rows[0];
+      var nameEl = document.getElementById('route-name');
+      var metaEl = document.getElementById('route-meta');
+      if (!r || !r.is_public) {
+        nameEl.textContent = 'Rute tidak tersedia';
+        metaEl.textContent = 'Rute ini privat atau sudah dihapus.';
+        return;
+      }
+      nameEl.textContent = r.name || 'Rute Nyasar';
+      metaEl.textContent = 'Rute pendakian publik dibagikan lewat Nyasar';
+      document.getElementById('route-stats').hidden = false;
+      document.getElementById('stat-distance').textContent =
+        r.distance_m ? (r.distance_m / 1000).toFixed(1) + ' km' : '-';
+      document.getElementById('stat-elevation').textContent =
+        r.elevation_gain_m ? '+' + Math.round(r.elevation_gain_m) + ' m' : '-';
+      document.getElementById('stat-difficulty').textContent = r.difficulty || 'Not rated';
+      var gpx = document.getElementById('download-btn');
+      gpx.hidden = false;
+      gpx.href = SUPABASE_URL + '/storage/v1/object/public/route-gpx/' + id + '.gpx.gz';
+    })
+    .catch(function () {
+      document.getElementById('route-name').textContent = 'Rute Nyasar';
+    });
+})();
+</script>
+</body>
+</html>

@@ -16,6 +16,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import com.nyasar.app.AppLinks
 import com.nyasar.app.ui.theme.NyasarMotion
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -580,7 +581,15 @@ private fun NyasarNavHost(
         // "Simpan ke Library" imports the original GPX as a LOCAL route and
         // lands on its preview — preview/{routeId} pops back here via the
         // system back, then to Browse.
-        composable("route/{routeId}") { backStackEntry ->
+        // Android App Links: link web https://app.nyasarnyaman.my.id/route/{id}
+        // (intent-filter autoVerify di AndroidManifest) mendarat persis di
+        // layar Route Detail publik ini.
+        composable(
+            "route/{routeId}",
+            deepLinks = listOf(
+                androidx.navigation.navDeepLink { uriPattern = AppLinks.BASE + "/route?id={routeId}" }
+            )
+        ) { backStackEntry ->
             val routeId = backStackEntry.arguments?.getString("routeId") ?: return@composable
             PublicRouteDetailScreen(
                 routeId = routeId,
@@ -588,7 +597,7 @@ private fun NyasarNavHost(
                 onRequireSignIn = { navController.navigate("auth/login") },
                 onShare = { shareText(
                     "Nyasar — jelajah rute publik",
-                    "https://nyasar.app/route/$routeId"
+                    AppLinks.routeLink(routeId)
                 ) },
                 onBack = { navController.popBackStack() }
             )

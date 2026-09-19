@@ -346,7 +346,9 @@ class PublishRepository {
         return out.toByteArray()
     }
 
-    /** gpx_file_url value for private routes: not a URL, a routed marker. */
+    /** gpx_file_url value for private routes: not a URL, a routed marker.
+     *  Lives on the (public) companion so other repositories can route on
+     *  it — see BrowseRepository.downloadGpx. */
     const val PRIVATE_PATH_PREFIX = "private:"
 
     /**
@@ -444,7 +446,7 @@ class PublishRepository {
         bucket.upload(path, bytes)
     }
 
-    private companion object {
-        const val TAG = "PublishRepository"
+    companion object {
+        private const val TAG = "PublishRepository"
     }
 }

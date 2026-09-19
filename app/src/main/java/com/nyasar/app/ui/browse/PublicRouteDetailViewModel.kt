@@ -11,6 +11,7 @@ import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
+import io.github.jan.supabase.gotrue.auth
 import com.nyasar.app.gpx.GpxParser
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.map.TileProvider

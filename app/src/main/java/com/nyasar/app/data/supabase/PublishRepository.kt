@@ -66,7 +66,10 @@ class PublishRepository {
         /** One of schema's trail_type enum values or null. */
         val trailType: String? = null,
         /** Free-form routes.description column. */
-        val description: String? = null
+        val description: String? = null,
+        /** Visibility (Wikiloc 2-level): true = Everyone (Browse),
+         *  false = Only you (hidden from Browse/search by RLS). */
+        val isPublic: Boolean = true
     )
 
     /** Everything the library-route-publish pipeline needs. The GPX file is
@@ -79,7 +82,9 @@ class PublishRepository {
         val difficulty: String? = null,
         val difficultyDescription: String? = null,
         val trailType: String? = null,
-        val description: String? = null
+        val description: String? = null,
+        /** Same visibility contract as [PublishInput]. */
+        val isPublic: Boolean = true
     )
 
     sealed class PublishOutcome {
@@ -132,7 +137,10 @@ class PublishRepository {
         @SerialName("start_lat") val startLat: Double?,
         @SerialName("start_lng") val startLng: Double?,
         @SerialName("gpx_file_url") val gpxFileUrl: String?,
-        val description: String?
+        val description: String?,
+        /** false = Only you — RLS keeps the row out of every public query
+         *  (schema_v1 policy "Public routes are viewable by everyone"). */
+        @SerialName("is_public") val isPublic: Boolean = true
     )
 
     /** Publish a recorded activity (Fase 2 slice 1). */
@@ -173,7 +181,8 @@ class PublishRepository {
             startLat = input.points.first().lat,
             startLng = input.points.first().lon,
             gpxFileUrl = null,
-            description = input.description?.trim()?.takeIf { it.isNotEmpty() }
+            description = input.description?.trim()?.takeIf { it.isNotEmpty() },
+            isPublic = input.isPublic
         )
 
         // 3: GPX (reusing GpxExporter verbatim) -> gzip -> Storage.
@@ -231,7 +240,8 @@ class PublishRepository {
             startLat = input.trackPoints.first().first,
             startLng = input.trackPoints.first().second,
             gpxFileUrl = null,
-            description = input.description?.trim()?.takeIf { it.isNotEmpty() }
+            description = input.description?.trim()?.takeIf { it.isNotEmpty() },
+            isPublic = input.isPublic
         )
 
         // The route's original GPX is the published artifact — uploaded
@@ -248,7 +258,16 @@ class PublishRepository {
     }
 
     /** Shared tail of both pipelines: INSERT row -> upload gzip'ed GPX ->
-     *  rollback on upload failure -> best-effort gpx_file_url backfill. */
+     *  rollback on upload failure -> best-effort gpx_file_url backfill.
+     *
+     *  Bucket choice follows the row's visibility (privacy audit closure):
+     *  public → `route-gpx` (public-read, world-downloadable — Keputusan
+     *  poin 6 unchanged); private → `route-gpx-private` (migration 0006,
+     *  owner-only — otherwise the file would leak the full track even with
+     *  the row hidden by RLS). gpx_file_url for private routes stores the
+     *  object PATH MARKER ("private:<path>") instead of a public URL — a
+     *  URL would be 403 for everyone (incl. some proxies) and a path marker
+     *  keeps downloadGpx's routing unambiguous. */
     private suspend fun uploadPipeline(
         client: io.github.jan.supabase.SupabaseClient,
         row: RouteInsertRow,
@@ -268,15 +287,24 @@ class PublishRepository {
             null
         } ?: return PublishOutcome.Failure(PublishError.ROUTE_INSERT_FAILED)
 
-        // 3: gzip'ed GPX -> Storage.
+        // 3: gzip'ed GPX -> Storage (bucket per visibility).
         val path = "${row.userId}/${inserted.id}.gpx.gz"
+        val bucketName = if (row.isPublic) "route-gpx" else "route-gpx-private"
         val gpxUrl = try {
             withContext(Dispatchers.IO) {
-                // upload() returns the object path, not a URL — build the
-                // public URL explicitly (bucket `route-gpx` is public per
-                // supabase/migrations/0003_route_gpx_bucket.sql).
-                client.pluginManager.getPlugin(Storage)["route-gpx"].upload(path, gzippedGpx)
-                client.pluginManager.getPlugin(Storage)["route-gpx"].publicUrl(path)
+                val bucket = client.pluginManager.getPlugin(Storage)[bucketName]
+                if (row.isPublic) {
+                    // upload() returns the object path, not a URL — build the
+                    // public URL explicitly (bucket `route-gpx` is public per
+                    // supabase/migrations/0003_route_gpx_bucket.sql).
+                    bucket.upload(path, gzippedGpx)
+                    bucket.publicUrl(path)
+                } else {
+                    // Private bucket: no public URL exists. Store the path
+                    // marker so downloadGpx routes to the authenticated read.
+                    bucket.upload(path, gzippedGpx)
+                    PRIVATE_PATH_PREFIX + path
+                }
             }
         } catch (e: RestException) {
             Log.e(TAG, "gpx upload failed: ${e.error} ${e.description ?: ""}", e)
@@ -316,6 +344,104 @@ class PublishRepository {
         val out = ByteArrayOutputStream()
         GZIPOutputStream(out).use { gz -> gz.write(bytes) }
         return out.toByteArray()
+    }
+
+    /** gpx_file_url value for private routes: not a URL, a routed marker. */
+    const val PRIVATE_PATH_PREFIX = "private:"
+
+    /**
+     * Flip a route's visibility (Wikiloc "Everyone ⇄ Only you"), owned
+     * surfaces only — the Route Detail screen of one's OWN route. Two
+     * coordinated writes, best-effort ordered so a partial failure never
+     * leaves the WORSE leak state:
+     *
+     *  → private: move the GPX file FIRST, flip the row SECOND. If the move
+     *    fails we abort before hiding the row — worst case the route stays
+     *    public with its file, identical to today's behavior, never
+     *    "private row + still-public file" (the leak).
+     *  → public: flip the row FIRST, move the file SECOND. If the move fails
+     *    the row is already public and Browse works off track_polyline;
+     *    worst case the owner re-toggles.
+     *
+     * Returns the final state (false = stays/effectively private) so the UI
+     * switch can settle authoritatively.
+     */
+    suspend fun setRouteVisibility(
+        client: io.github.jan.supabase.SupabaseClient,
+        routeId: String,
+        isPublic: Boolean
+    ): Boolean {
+        val userId = client.auth.currentUserOrNull()?.id ?: return !isPublic
+        val path = "$userId/$routeId.gpx.gz"
+        val storage = client.pluginManager.getPlugin(Storage)
+        return try {
+            if (!isPublic) {
+                // Move file to the private bucket before hiding the row.
+                val bytes = storage["route-gpx"].downloadPublic(path)
+                uploadFresh(storage, "route-gpx-private", path, bytes)
+                try {
+                    storage["route-gpx"].delete(path)
+                } catch (e: Exception) {
+                    // Non-fatal: a stale public copy without a row pointing
+                    // at it is harmless (orphan object, not a leak).
+                    Log.e(TAG, "old public gpx delete failed (non-fatal): ${e.message}")
+                }
+            }
+            client.postgrest["routes"].update(
+                update = {
+                    set("is_public", isPublic)
+                    if (isPublic) {
+                        set("gpx_file_url", storage["route-gpx"].publicUrl(path))
+                    } else {
+                        set("gpx_file_url", PRIVATE_PATH_PREFIX + path)
+                    }
+                }
+            ) {
+                filter { eq("id", routeId) }
+            }
+            if (isPublic) {
+                // Row flipped public: move the file over (row first — see
+                // doc). A missing private object (older private routes predating
+                // 0006 uploaded... none — but a deleted file) must not crash.
+                try {
+                    val bytes = storage["route-gpx-private"].downloadAuthenticated(path)
+                    uploadFresh(storage, "route-gpx", path, bytes)
+                    try {
+                        storage["route-gpx-private"].delete(path)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "old private gpx delete failed (non-fatal): ${e.message}")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "private gpx move-to-public failed (row public, file missing): ${e.message}")
+                }
+            }
+            isPublic
+        } catch (e: RestException) {
+            Log.e(TAG, "setRouteVisibility failed: ${e.error} ${e.description ?: ""}", e)
+            !isPublic
+        } catch (e: Exception) {
+            Log.e(TAG, "setRouteVisibility unexpected", e)
+            !isPublic
+        }
+    }
+
+    /** Bucket-to-bucket move upload that tolerates a stale object at the
+     *  target path (e.g. an earlier toggle's delete failed): clear-then-
+     *  upload, both steps best-effort — uses only the upload/delete APIs the
+     *  rest of this file already exercises, no upsert surface assumed. */
+    private suspend fun uploadFresh(
+        storage: io.github.jan.supabase.storage.Storage,
+        bucketName: String,
+        path: String,
+        bytes: ByteArray
+    ) {
+        val bucket = storage[bucketName]
+        try {
+            bucket.delete(path)
+        } catch (_: Exception) {
+            // Target absent — the common case; clearing is just belt-and-braces.
+        }
+        bucket.upload(path, bytes)
     }
 
     private companion object {

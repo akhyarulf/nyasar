@@ -41,6 +41,7 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
 
     private val repository = BrowseRepository()
     private val socialRepository = SocialRepository()
+    private val publishRepository = com.nyasar.app.data.supabase.PublishRepository()
     private val routeRepository = RouteRepository(application)
     private val settingsRepository = SettingsRepository(application)
 
@@ -120,6 +121,40 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
     /** Save toggle in flight (button disabled). */
     private val _savePending = MutableStateFlow(false)
     val savePending = _savePending.asStateFlow()
+
+    /** Visibility toggle in flight (owner's Public⇄Private switch disabled
+     *  while the file moves buckets). */
+    private val _visibilityPending = MutableStateFlow(false)
+    val visibilityPending = _visibilityPending.asStateFlow()
+
+    /**
+     * Owner-only: flip this route Everyone⇄Only-you. Optimistic on the row's
+     * `isPublic`; the repository result (which reflects the ordered
+     * file-move-then-row-flip dance and its failure modes) settles it
+     * authoritatively. Only reachable from the owner's own detail — anon and
+     * non-owner callers are ignored (the switch isn't even rendered). */
+    fun setVisibility(route: BrowseRepository.RouteDetail, isPublic: Boolean) {
+        val myId = SupabaseClientProvider.client.auth.currentUserOrNull()?.id ?: return
+        if (route.userId != myId) return
+        if (_visibilityPending.value) return
+        if (route.isPublic == isPublic) return
+        _visibilityPending.value = true
+        // Optimistic
+        _state.value = when (val s = _state.value) {
+            is State.Ready -> s.copy(route = s.route.copy(isPublic = isPublic))
+            else -> s
+        }
+        viewModelScope.launch {
+            val settled = publishRepository.setRouteVisibility(
+                SupabaseClientProvider.client, route.id, isPublic
+            )
+            _state.value = when (val s = _state.value) {
+                is State.Ready -> s.copy(route = s.route.copy(isPublic = settled))
+                else -> s
+            }
+            _visibilityPending.value = false
+        }
+    }
 
     /** Comments thread + post lifecycle for the detail section. */
     sealed class CommentsState {

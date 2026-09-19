@@ -90,6 +90,10 @@ class BrowseRepository {
         @SerialName("likes_count") val likesCount: Int = 0,
         @SerialName("comments_count") val commentsCount: Int = 0,
         @SerialName("created_at") val createdAt: String,
+        /** Wikiloc 2-level visibility. detail() selects it so the owner's
+         *  Route Detail can render + toggle it; the browse LIST omits the
+         *  column (RLS guarantees every listed row is public anyway). */
+        val isPublic: Boolean = true,
         val profiles: PublicProfile? = null
     )
 
@@ -375,6 +379,10 @@ class BrowseRepository {
                     "elevation_loss_m", "max_elevation_m", "min_elevation_m", "moving_time_ms",
                     "description", "track_polyline", "gpx_file_url",
                     "likes_count", "comments_count", "created_at",
+                    // Visibility — the owner's detail screen renders and
+                    // toggles it; RLS makes non-public rows invisible to
+                    // everyone but the owner, so this never leaks state.
+                    "is_public",
                     "profiles!routes_user_id_fkey(username)"
                 )) {
                     filter { eq("id", routeId) }
@@ -410,12 +418,18 @@ class BrowseRepository {
     }
 
     /**
-     * Download GPX — "full open" (Keputusan poin 6). Fetches the gzip'ed
-     * original GPX from the PUBLIC `route-gpx` bucket (no session needed) and
-     * decompresses it with the platform GZIPInputStream. The object path is
-     * rebuilt from the row's own ids ({userId}/{routeId}.gpx.gz — the exact
-     * format PublishRepository.upload writes) so URL-encoding differences in
-     * the stored gpx_file_url string can't break the download.
+     * Download GPX — "full open" (Keputusan poin 6) for PUBLIC routes: the
+     * gzip'ed original GPX comes from the PUBLIC `route-gpx` bucket (no
+     * session needed). PRIVATE routes (gpx_file_url carries the
+     * [PublishRepository.PRIVATE_PATH_PREFIX] marker written by the publish
+     * pipeline / visibility toggle) download AUTHENTICATED from the
+     * `route-gpx-private` bucket instead (migration 0006, owner-only RLS) —
+     * only the owner can ever hold a RouteDetail row for a private route
+     * anyway (RLS hides it from everyone else, so this surface is safe).
+     * The object path is rebuilt from the row's own ids
+     * ({userId}/{routeId}.gpx.gz — the exact format the upload writes) so
+     * URL-encoding differences in the stored gpx_file_url string can't break
+     * the download.
      */
     suspend fun downloadGpx(client: SupabaseClient, route: RouteDetail): GpxOutcome {
         if (!SupabaseClientProvider.isConfigured) {
@@ -424,11 +438,15 @@ class BrowseRepository {
         if (route.gpxFileUrl.isNullOrBlank()) {
             return GpxOutcome.Failure(BrowseError.NO_GPX_FILE)
         }
+        val isPrivate = route.gpxFileUrl.startsWith(PublishRepository.PRIVATE_PATH_PREFIX)
         return try {
             val storage = client.pluginManager.getPlugin(io.github.jan.supabase.storage.Storage)
-            val bucket = storage["route-gpx"]
             val path = storagePathFor(route.userId, route.id)
-            val bytes = bucket.downloadPublic(path)
+            val bytes = if (isPrivate) {
+                storage["route-gpx-private"].downloadAuthenticated(path)
+            } else {
+                storage["route-gpx"].downloadPublic(path)
+            }
             val gpx = java.util.zip.GZIPInputStream(bytes.inputStream()).use { stream ->
                 stream.readBytes().toString(Charsets.UTF_8)
             }

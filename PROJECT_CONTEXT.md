@@ -654,34 +654,56 @@ ujung UI.** (Detail per slice di bawah.)
   terverifikasi dari source native: return `point * pixelRatio` = px
   bitmap fisik, jadi gak perlu konversi lagi).
 
-### Visibility/Privacy (konsep sudah didiskusikan, BELUM dikerjakan)
+### Visibility/Privacy — 🟢 SELESAI (2026-09-19)
 Keputusan desain dari diskusi user (referensi screenshot Strava &
-Wikiloc):
-- **Activity hasil rekam sudah 100% private by architecture** — tidak
-  pernah dikirim ke mana-mana kecuali `activity_backups` (RLS cuma
-  pemilik). Setara "Only You" Strava; tidak perlu UI apa pun.
-- **Yang relevan cuma `routes` (hasil publish)** — sekarang SEMUA
-  public karena PublishRepository tidak set `is_public` (numpang
-  default DB `true`, schema_v1.sql:146).
-- **Model yang dipilih: Wikiloc 2-level** (Everyone/Only you), BUKAN
-  Strava 3-level — level "Followers" butuh sistem followers yang
-  belum ada (Fase 4); "Hidden Details" & "Mute Activity" adalah
-  konsep feed sosial yang tidak relevan (Nyasar tidak punya feed).
-  Kalau nanti Fase 4 bawa followers, tinggal tambah level ketiga.
-- **Rencana implementasi:** (1) pilihan Public/Private di form
-  Publish, default Public; (2) simpan sebagai `is_public = false` —
-  NOL migration, kolom + RLS sudah ada dan sudah direspek
-  BrowseRepository (public only); (3) baris Privacy di detail rute
-  milik sendiri untuk ubah belakangan; (4) rute private tetap tampil
-  di list milik sendiri, hilang dari Browse/search (server-side via
-  RLS); (5) `is_draft` JANGAN disentuh — draft = konten belum
-  lengkap, private = sengaja tidak publik (dua konsep beda, komentar
-  schema_v1.sql:147 sudah benar).
-- **⚠️ Audit wajib kalau slice ini dikerjakan:** RLS menutup tabel
-  database, TAPI file GPX hasil publish tersimpan di Storage — kalau
-  bucket-nya public-read, rute private tetap bocor via URL GPX-nya.
-  Perlu cek policy bucket Storage (atau pindahkan GPX private ke
-  bucket privat).
+Wikiloc), model **Wikiloc 2-level** (Everyone/Only you) — bukan Strava
+3-level ("Followers" butuh sistem followers; feed-sosial tidak relevan).
+Yang dikerjakan:
+- **Form Publish**: segmented "Siapa yang bisa lihat" — Semua orang /
+  Hanya saya (default Semua orang = perilaku lama). Kedua jalur publish
+  (activity & library GPX) meneruskan `isPublic`.
+- **Route Detail milik sendiri**: baris visibilitas (ikon + label +
+  hint + Switch) — owner saja; viewer lain tidak pernah melihat baris
+  ini karena RLS menyembunyikan rute private dari mereka.
+- **🔒 Audit GPX-bocor DITUTUP (migration 0006)**: bucket baru
+  **privat** `route-gpx-private` (owner-only policy, layout path sama
+  `{uid}/{routeId}.gpx.gz`). Rute private upload ke sana;
+  `gpx_file_url` menyimpan marker `private:<path>` (bukan URL).
+  `downloadGpx` membaca marker → `downloadAuthenticated`. Toggle
+  visibilitas memindahkan file antar bucket dengan urutan anti-bocor:
+  → private: pindah file DULU baru flip row (gagal = tetap public
+  seperti perilaku lama, tidak pernah "row private + file public");
+  → public: flip row DULU baru pindah file (gagal move = row sudah
+  public, browse jalan dari track_polyline).
+- **`is_draft` tidak disentuh** — draft ≠ private (konten belum lengkap
+  vs sengaja tidak publik).
+- **ⓘ WAJIB dijalankan manual** (sama seperti 0002-0005): Supabase
+  Dashboard → SQL Editor → paste `supabase/migrations/0006_private_gpx_bucket.sql` → Run.
+  Sebelum migration dijalankan, publish dengan visibilitas "Hanya saya"
+  akan GAGAL upload (bucket belum ada) dan di-rollback aman.
+
+### Backup otomatis "tanpa tombol" + gerbang login (keputusan desain 2026-09-19,
+HASIL DISKUSI — belum dikerjakan)
+Prinsip tunggal: **wajib login = layar yang aksinya menciptakan data yang
+harus ke-backup**; sisanya tetap anonymous-friendly. Backup & restore TANPA
+tombol "Backup now"/"Restore now":
+- **Backup = efek samping dari save.** Setiap operasi kolom kiri (save
+  activity, import GPX, save drawn route, add/edit waypoint) yang sukses →
+  sinkron diam-diam ke `activity_backups` (RLS owner-only, pas). Failed
+  upload → data tetap lokal ditandai "pending backup", auto-flush saat
+  online/login lagi.
+- **Restore = efek samping dari sign-in.** Begitu akun terverifikasi di
+  perangkat (baru), app diam-diam menarik backup & mengisi History/Library.
+  Tidak ada tombol karena tidak ada keputusan manual yang diminta user.
+- **Gerbang login (waktu save, bukan waktu mulai):** (1) Record/Start
+  Activity di langkah SAVE — copy: "Masuk supaya rekaman ini tersimpan
+  selamanya"; rekaman jangan dibuang — tetap lokal "pending backup",
+  flush otomatis begitu login; (2) Import GPX (Map & Library); (3) Draw
+  route (save); (4) Tambah/edit waypoint; (5) Publish (sudah begitu).
+- **Tetap tanpa login (read-only/lokal):** Browse + Route Detail browse
+  (like/komen/save sudah minta login per-aksi), Map tab, History +
+  Activity Detail (data yang SUDAH ke-backup), Share card, Offline maps
+  (device-specific, bukan kandidat backup), Settings.
 
 ### Belum kepikiran desainnya sama sekali (bukan cuma belum dikerjakan)
 - **Antrian upload Publish/Backup saat tidak ada sinyal** — konteks

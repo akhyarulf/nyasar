@@ -93,7 +93,9 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
-        description: String?
+        description: String?,
+        /** Wikiloc 2-level visibility chosen in the publish form. */
+        isPublic: Boolean = true
     ) {
         if (_state.value is PublishState.Publishing) return
         _state.value = PublishState.Publishing
@@ -109,7 +111,8 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
                     difficulty = difficulty.toApi(),
                     difficultyDescription = difficultyDescription,
                     trailType = trailType.toApi(),
-                    description = description
+                    description = description,
+                    isPublic = isPublic
                 )
             )
             _state.value = when (outcome) {
@@ -132,7 +135,9 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
-        description: String?
+        description: String?,
+        /** Wikiloc 2-level visibility chosen in the publish form. */
+        isPublic: Boolean = true
     ) {
         if (_state.value is PublishState.Publishing) return
         _state.value = PublishState.Publishing
@@ -156,7 +161,8 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
                     difficulty = difficulty.toApi(),
                     difficultyDescription = difficultyDescription,
                     trailType = trailType.toApi(),
-                    description = description
+                    description = description,
+                    isPublic = isPublic
                 )
             )
             _state.value = when (outcome) {

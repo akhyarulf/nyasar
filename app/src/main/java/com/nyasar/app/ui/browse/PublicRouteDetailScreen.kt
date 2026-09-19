@@ -31,9 +31,11 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -321,6 +323,60 @@ fun PublicRouteDetailScreen(
                                 )
                             }
                             Spacer(Modifier.height(12.dp))
+
+                            // (2b) Visibility row — ONLY on one's own route:
+                            // Wikiloc-style Everyone⇄Only-you switch. RLS hides
+                            // private rows from everyone but the owner, so a
+                            // viewer never sees this row at all on their routes.
+                            val myUserId = com.nyasar.app.data.supabase.SupabaseClientProvider
+                                .client.auth.currentUserOrNull()?.id
+                            if (myUserId != null && route.userId == myUserId) {
+                                val visibilityPending by viewModel.visibilityPending.collectAsState()
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            if (route.isPublic) Icons.Default.Public else Icons.Default.Lock,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                stringResource(
+                                                    if (route.isPublic) R.string.route_visibility_public
+                                                    else R.string.route_visibility_private
+                                                ),
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                stringResource(
+                                                    if (route.isPublic) R.string.route_visibility_public_hint
+                                                    else R.string.route_visibility_private_hint
+                                                ),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Switch(
+                                            checked = route.isPublic,
+                                            enabled = !visibilityPending,
+                                            onCheckedChange = { checked ->
+                                                viewModel.setVisibility(route, checked)
+                                            }
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(12.dp))
+                            }
 
                             // (3) Stats — Strava row format (label above, bold
                             // value below): Distance / Elev Gain / Time.

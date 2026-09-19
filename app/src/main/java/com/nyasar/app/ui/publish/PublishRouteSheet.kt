@@ -15,11 +15,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -72,14 +76,15 @@ fun PublishRouteSheet(
         pointCount = pointCount,
         waypointCount = waypoints.size,
         onDismiss = onDismiss,
-        onPublish = { difficulty, diffDesc, trailType, description ->
+        onPublish = { difficulty, diffDesc, trailType, description, isPublic ->
             viewModel.publish(
                 activityId = activityId,
                 waypoints = waypoints,
                 difficulty = difficulty,
                 difficultyDescription = diffDesc,
                 trailType = trailType,
-                description = description
+                description = description,
+                isPublic = isPublic
             )
         },
         viewModel = viewModel
@@ -105,13 +110,14 @@ fun PublishLibraryRouteSheet(
         pointCount = pointCount,
         waypointCount = waypointCount,
         onDismiss = onDismiss,
-        onPublish = { difficulty, diffDesc, trailType, description ->
+        onPublish = { difficulty, diffDesc, trailType, description, isPublic ->
             viewModel.publishRoute(
                 routeId = routeId,
                 difficulty = difficulty,
                 difficultyDescription = diffDesc,
                 trailType = trailType,
-                description = description
+                description = description,
+                isPublic = isPublic
             )
         },
         viewModel = viewModel
@@ -126,7 +132,7 @@ private fun PublishFormSheet(
     pointCount: Int,
     waypointCount: Int,
     onDismiss: () -> Unit,
-    onPublish: (PublishDifficulty, String?, PublishTrailType, String?) -> Unit,
+    onPublish: (PublishDifficulty, String?, PublishTrailType, String?, Boolean) -> Unit,
     viewModel: PublishViewModel
 ) {
     val context = LocalContext.current
@@ -140,6 +146,9 @@ private fun PublishFormSheet(
     var difficultyDescription by rememberSaveable { mutableStateOf("") }
     var trailType by rememberSaveable { mutableStateOf(PublishTrailType.NONE.name) }
     var description by rememberSaveable { mutableStateOf("") }
+    // Visibility (Wikiloc 2-level): default Public — matches the old
+    // behavior where every publish was implicitly public.
+    var isPublic by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(state) {
         val s = state
@@ -230,6 +239,51 @@ private fun PublishFormSheet(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // ── Visibility (Wikiloc 2-level: Everyone / Only you) — sits
+            //    right before the info box so it reads as "who gets this".
+            Text(
+                stringResource(R.string.publish_visibility_label),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.fillMaxWidth()
+            )
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = isPublic,
+                    onClick = { isPublic = true },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                ) {
+                    Icon(
+                        Icons.Default.Public,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.publish_visibility_public))
+                }
+                SegmentedButton(
+                    selected = !isPublic,
+                    onClick = { isPublic = false },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                ) {
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.publish_visibility_private))
+                }
+            }
+            Text(
+                stringResource(
+                    if (isPublic) R.string.publish_visibility_public_hint
+                    else R.string.publish_visibility_private_hint
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 shape = RoundedCornerShape(12.dp),
@@ -285,7 +339,8 @@ private fun PublishFormSheet(
                         PublishDifficulty.valueOf(difficulty),
                         difficultyDescription,
                         PublishTrailType.valueOf(trailType),
-                        description
+                        description,
+                        isPublic
                     )
                 },
                 enabled = canPublish && !publishing,

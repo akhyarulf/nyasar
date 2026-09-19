@@ -649,6 +649,15 @@
     <string name="profile_title">Profile</string>
     <string name="profile_tab_history">History</string>
     <string name="browse_title">Explore Routes</string>
+    <string name="publish_visibility_label">Who can see this</string>
+    <string name="publish_visibility_public">Everyone</string>
+    <string name="publish_visibility_private">Only you</string>
+    <string name="publish_visibility_public_hint">Shows in Explore — searchable &amp; downloadable by others</string>
+    <string name="publish_visibility_private_hint">Hidden from Explore — only you can see &amp; download it</string>
+    <string name="route_visibility_public">Public — everyone</string>
+    <string name="route_visibility_private">Private — only you</string>
+    <string name="route_visibility_public_hint">This route shows in Explore &amp; anyone can download it</string>
+    <string name="route_visibility_private_hint">Hidden from Explore — its GPX file is locked too</string>
     <string name="saved_title">Saved</string>
     <string name="saved_empty">No saved routes yet\nTap the bookmark icon in Explore to save one</string>
     <string name="browse_search_hint">Search route names…</string>

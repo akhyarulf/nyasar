@@ -315,7 +315,7 @@ class BrowseRepository {
                         "moving_time_ms, description, track_polyline, gpx_file_url, " +
                         "likes_count, comments_count, created_at, " +
                         "profiles!routes_user_id_fkey(username)"
-                )                ) {
+                )) {
                     order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
                     limit(limit.toLong())
                 }
@@ -324,7 +324,7 @@ class BrowseRepository {
                 // rows from the routes embed, so a bookmark whose route was
                 // un-published/deleted decodes as null and is SKIPPED (never
                 // a crash, never a ghost row) instead of failing the list.
-                .mapNotNull { it.route }
+                .mapNotNull { it.routes }
             Outcome.Success(result)
         } catch (e: RestException) {
             Log.e(TAG, "savedRoutes failed: ${e.message}", e)

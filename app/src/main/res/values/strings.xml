@@ -626,6 +626,8 @@
     <!-- Publikasikan rute (Fase 2) -->
     <string name="publish_route">Publikasikan rute</string>
     <string name="publish_title">Publikasikan Rute</string>
+    <string name="publish_section_title">Publikasi (otomatis saat disimpan)</string>
+    <string name="save_publish_queued_hint">Belum masuk akun / belum ada sinyal — aktivitas tetap tersimpan dan akan dipublikasikan otomatis begitu online.</string>
     <string name="publish_name_label">Nama rute</string>
     <string name="publish_difficulty_label">Tingkat kesulitan</string>
     <string name="publish_difficulty_desc_label">Catatan kesulitan (opsional)</string>

@@ -67,7 +67,15 @@ import com.nyasar.app.ui.theme.NyasarContentWidth
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PublishRouteSheet(
+/** Activity publish sheet — superseded (IA "save = publish"): the Review
+ *  form now carries the publish fields and [PublishViewModel.saveAndPublish]
+ *  performs save+publish in one tap. Kept OUT of the UI on purpose; the
+ *  composable is retained so [PublishLibraryRouteSheet]'s shared form stays
+ *  diffable against its documented origin. */
+@Suppress("unused")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PublishRouteSheet(
     activityId: String,
     pointCount: Int,
     waypoints: List<WaypointEntity>,

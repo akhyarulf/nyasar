@@ -443,14 +443,8 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Update activity title after recording stops. Called from PostRecordingForm.
      */
-    fun updateActivityTitle(activityId: String?, title: String) {
-        if (activityId == null) return
-        viewModelScope.launch {
-            dao.getById(activityId)?.let { activity ->
-                dao.update(activity.copy(name = title))
-            }
-        }
-    }
+    /** (Superseded by PublishViewModel.saveAndPublish — the Review form's
+     *  single Save now applies the title inline before publishing.) */
 
     /**
      * Discard/delete an activity after recording stops. Called from PostRecordingForm.
@@ -464,6 +458,13 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
                 waypointRepository.onActivityDeleted(activityId)
             } catch (_: Exception) {
                 // never block discard on waypoint cleanup
+            }
+            // v9: a queued publish must not outlive its (now deleted) source —
+            // otherwise the flush would resurrect nothing and log errors forever.
+            try {
+                AppDatabase.get(getApplication()).pendingPublishDao().removeForActivity(activityId)
+            } catch (_: Exception) {
+                // queue cleanup is best-effort
             }
             dao.deletePointsForActivity(activityId)
             dao.deleteById(activityId)

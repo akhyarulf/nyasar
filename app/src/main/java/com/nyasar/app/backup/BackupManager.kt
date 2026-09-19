@@ -580,6 +580,15 @@ class BackupManager(
                     is BackupResult.Failure ->
                         Log.i(TAG, "auto-sync backup not completed: ${r.kind}")
                 }
+                // Offline publish queue ("save = publish"): with the session
+                // freshly live, drain activities that saved offline — their
+                // publishes land on the SAME cloud rows the dedupe probe
+                // guarantees.
+                try {
+                    com.nyasar.app.ui.publish.PendingPublishFlusher.flush(context)
+                } catch (e: Exception) {
+                    Log.e(TAG, "pending-publish flush crashed", e)
+                }
             }
         }
     }

@@ -89,6 +89,10 @@ class PublishRepository {
 
     sealed class PublishOutcome {
         data class Success(val routeId: String, val gpxUrl: String) : PublishOutcome()
+        /** [existingRouteId] is set when the source was ALREADY published
+         *  (unique source indexes) — nothing was uploaded; the cloud row
+         *  that already exists is the result. Treat as success everywhere. */
+        data class AlreadyPublished(val existingRouteId: String) : PublishOutcome()
         data class Failure(val error: PublishError) : PublishOutcome()
     }
 
@@ -143,7 +147,12 @@ class PublishRepository {
         @SerialName("is_public") val isPublic: Boolean = true
     )
 
-    /** Publish a recorded activity (Fase 2 slice 1). */
+    /** Publish a recorded activity (Fase 2 slice 1; sekarang juga dipanggil
+     *  otomatis oleh save-and-publish dan queue-flush). Idempotent: a source
+     *  activity that already has a routes row (its unique partial index
+     *  idx_routes_source_activity) returns [PublishOutcome.AlreadyPublished]
+     *  instead of a duplicate-row failure — re-saves, queue flushes and
+     *  double-taps all converge on the SAME cloud row. */
     suspend fun publish(context: Context, input: PublishInput): PublishOutcome {
         if (!SupabaseClientProvider.isConfigured) {
             return PublishOutcome.Failure(PublishError.NOT_CONFIGURED)
@@ -152,6 +161,13 @@ class PublishRepository {
         val userId = client.auth.currentUserOrNull()?.id
             ?: return PublishOutcome.Failure(PublishError.NOT_SIGNED_IN)
         if (input.points.isEmpty()) return PublishOutcome.Failure(PublishError.EMPTY_TRACK)
+
+        // Anti-double probe (konsep "biar ga double"): the schema's unique
+        // partial index already blocks duplicates server-side; probe first so
+        // the retry path reads as a clean success instead of an insert error.
+        fetchExistingRouteId(client, sourceActivityId = input.activity.id)?.let {
+            return PublishOutcome.AlreadyPublished(it)
+        }
 
         val row = RouteInsertRow(
             userId = userId,
@@ -213,6 +229,11 @@ class PublishRepository {
             ?: return PublishOutcome.Failure(PublishError.NOT_SIGNED_IN)
         if (input.trackPoints.isEmpty()) return PublishOutcome.Failure(PublishError.EMPTY_TRACK)
 
+        // Anti-double for library routes too (idx_routes_source_route).
+        fetchExistingRouteId(client, sourceRouteId = input.route.id)?.let {
+            return PublishOutcome.AlreadyPublished(it)
+        }
+
         // sport_type stays at its schema default: RouteEntity has no sport —
         // GPX files don't carry one (browse filters treat UNSPECIFIED as
         // "unspecified", the chips simply don't match it).
@@ -255,6 +276,30 @@ class PublishRepository {
             return PublishOutcome.Failure(PublishError.UNKNOWN)
         }
         return uploadPipeline(client, row, gpxBytes)
+    }
+
+    /** Probe: the cloud routes row id for a source key, or null. Used by
+     *  the anti-double path (activity publish). Route publish probes by
+     *  source_route_id through the same helper. */
+    private suspend fun fetchExistingRouteId(
+        client: io.github.jan.supabase.SupabaseClient,
+        sourceActivityId: String? = null,
+        sourceRouteId: String? = null
+    ): String? = try {
+        client.postgrest["routes"]
+            .select(columns = io.github.jan.supabase.postgrest.query.Columns.list("id")) {
+                filter {
+                    if (sourceActivityId != null) eq("source_activity_id", sourceActivityId)
+                    if (sourceRouteId != null) eq("source_route_id", sourceRouteId)
+                }
+                limit(1)
+            }
+            .decodeList<RouteInserted>().firstOrNull()?.id
+    } catch (e: Exception) {
+        // Probe failure must never block a first publish: null = proceed
+        // (the unique index still guards server-side).
+        Log.w(TAG, "publish dedupe probe skipped: ${e.message}")
+        null
     }
 
     /** Shared tail of both pipelines: INSERT row -> upload gzip'ed GPX ->

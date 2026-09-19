@@ -1209,12 +1209,36 @@ fun RecordingScreen(
         // "Kembali" does NOT call onExit(): the user stays on this same
         // screen, which is now back to the two-button IDLE state.
         summarySnapshot?.let { summary ->
+            val publishViewModel: com.nyasar.app.ui.publish.PublishViewModel = viewModel()
+            val canPublishNow = publishViewModel.canPublish
             PostRecordingForm(
                 summary = summary,
-                onSave = { title ->
-                    viewModel.updateActivityTitle(summary.activityId, title)
-                    summarySnapshot = null
-                    previewRouteId = null
+                canPublish = canPublishNow,
+                onSave = { title, _, difficulty, diffDesc, trailType, description, isPublic ->
+                    // "Save = publish" (konsep 2026-09): ONE call — local save
+                    // first, auto-backup, then publish (or offline-queue).
+                    // The screen pops right after the local save commits
+                    // (onSaved) — the upload never blocks the UI.
+                    val savedActivityId = summary.activityId
+                    if (savedActivityId == null) {
+                        // Defensive (snapshot contract guarantees non-null) —
+                        // never strand the user on a dead review form.
+                        summarySnapshot = null
+                        previewRouteId = null
+                        return@onSave
+                    }
+                    publishViewModel.saveAndPublish(
+                        activityId = savedActivityId,
+                        title = title,
+                        difficulty = difficulty,
+                        difficultyDescription = diffDesc,
+                        trailType = trailType,
+                        description = description,
+                        isPublic = isPublic
+                    ) { _ ->
+                        summarySnapshot = null
+                        previewRouteId = null
+                    }
                 },
                 onDiscard = {
                     viewModel.discardRecording(summary.activityId)

@@ -733,11 +733,35 @@ tombol "Backup now"/"Restore now":
   (device-specific, bukan kandidat backup), Settings.
 
 ### Belum kepikiran desainnya sama sekali (bukan cuma belum dikerjakan)
-- **Antrian upload Publish/Backup saat tidak ada sinyal** — konteks
+- **Antrian upload Publish/Backup saat tidak ada sinyal** — (UPDATE
+  2026-09: PUBLISH kini punya antrian — lihat "save = publish" di atas;
+  BACKUP tidak butuh antrian eksplisit karena backupAll idempoten dan
+  auto-jalan di tiap login/app start. Yang masih terbuka: publish dari
+  LIBRARY route offline.) Konteks
   app ini adalah pendakian gunung, biasanya TIDAK ada koneksi internet
   pas activity baru selesai. Desain Publish/Backup saat ini asumsikan
   upload bisa langsung jalan — belum ada rencana retry-queue, kapan
   upload sebenarnya terjadi, atau UI "menunggu sinyal" buat user.
+
+### ✅ Save Activity = Publish Route (digabung, 2026-09) + Publish UI khusus Library
+- **Review Activity** (PostRecordingForm) kini memuat form publish
+  (difficulty, trail type, deskripsi, visibility) + tombol tunggal
+  "Simpan Aktivitas" → PublishViewModel.saveAndPublish: save lokal
+  DULU (tidak pernah tergantung jaringan) → auto-backup → publish.
+  Publish tidak langsung (belum login/offline) → masuk antrian
+  `pending_publishes` (Room v9, MIGRATION_8_9) → auto-flush saat
+  login (scheduleInitialSync) via PendingPublishFlusher.
+- **Anti-double**: PublishRepository kini probe dulu (fetchExistingRouteId
+  by source_activity_id / source_route_id) — publish ulang mengembalikan
+  PublishOutcome.AlreadyPublished, bukan row duplikat (unique partial
+  index tetap pengaman server-side). Flush queue juga idempoten.
+- **Publish manual hanya di Library** (RoutePreview →
+  PublishLibraryRouteSheet) — menu Publish dihapus dari Activity Detail.
+  Sheet PublishRouteSheet (activity) jadi private/unused (dokumentasi).
+- **RecordingViewModel.updateActivityTitle dihapus** (digabung ke
+  saveAndPublish); discardRecording membersihkan queue row-nya.
+- Antrian publish di-drop permanen kalau server menolak 4xx (log) —
+  satu activity jelek tidak pernah macetkan antrean.
   - **⏳ Ide arah solusi (belum diputuskan final, hasil diskusi user
     melihat referensi Wikiloc "Save Trail"):** ganti flow publish dari
     "tombol Publish manual belakangan dari Activity Detail" (yang

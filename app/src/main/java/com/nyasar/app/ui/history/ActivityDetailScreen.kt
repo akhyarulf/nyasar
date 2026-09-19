@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -36,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.GpxExporter
-import com.nyasar.app.ui.publish.PublishRouteSheet
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.navigation.LatLng
@@ -75,7 +73,6 @@ fun ActivityDetailScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var showPublishSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // --- Export GPX via Storage Access Framework (spec P3G final fix) ---
@@ -215,11 +212,11 @@ fun ActivityDetailScreen(
                                         }
                                     )
                                 }
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.publish_route)) },
-                                    leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) },
-                                    onClick = { showMenu = false; showPublishSheet = true }
-                                )
+                                // Publish menu item REMOVED (IA "save = publish"):
+                                // publishing now happens automatically at Save
+                                // time on the Review form; the only remaining
+                                // manual publish UI lives on Library routes
+                                // (RoutePreview).
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.rename)) },
                                     leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
@@ -377,17 +374,9 @@ fun ActivityDetailScreen(
         )
     }
 
-    // Publish to Supabase (Fase 2 slice 1): one explicit action from the
-    // overflow menu. Reuses the same point/waypoint data already loaded for
-    // Export/Share — publish never re-derives it.
-    if (showPublishSheet) {
-        PublishRouteSheet(
-            activityId = activityId,
-            pointCount = state.rawPoints.size,
-            waypoints = state.waypointsDuringActivity,
-            onDismiss = { showPublishSheet = false }
-        )
-    }
+    // Publish sheet host REMOVED (IA "save = publish"): publishing moved to
+    // the Review form's single Save action + offline queue. See PublishViewModel
+    // .saveAndPublish / flushPendingPublishes.
 
     // Waypoint detail (spec P3F priority: tap marker/list → detail). Same
     // sheet HomeScreen uses for the live map — Edit/Delete are legitimate

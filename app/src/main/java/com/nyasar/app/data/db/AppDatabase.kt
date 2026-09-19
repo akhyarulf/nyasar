@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [RouteEntity::class, ActivityEntity::class, ActivityPointEntity::class, WaypointEntity::class],
-    version = 8,
+    entities = [RouteEntity::class, ActivityEntity::class, ActivityPointEntity::class, WaypointEntity::class, PendingPublishEntity::class],
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -17,6 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun routeDao(): RouteDao
     abstract fun activityDao(): ActivityDao
     abstract fun waypointDao(): WaypointDao
+    abstract fun pendingPublishDao(): PendingPublishDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -61,6 +62,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v8 -> v9 (offline publish queue, "save = publish" konsep): new
+         * pending_publishes table — one row per activity still owing the
+         * cloud a publish (no account yet / offline at the trailhead).
+         * Pure additive CREATE TABLE — nothing else touches, explicit
+         * non-destructive Migration like 6→7/7→8.
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS pending_publishes (" +
+                        "activityId TEXT NOT NULL PRIMARY KEY NOT NULL, " +
+                        "difficulty TEXT, " +
+                        "difficultyDescription TEXT, " +
+                        "trailType TEXT, " +
+                        "description TEXT, " +
+                        "isPublic INTEGER NOT NULL, " +
+                        "queuedAtEpochMs INTEGER NOT NULL)"
+                )
+            }
+        }
+
         /** One-time cleanup of pre-removal photo files. Idempotent and
          *  cheap when the directory doesn't exist (deleteRecursively on a
          *  missing File is a no-op returning false). Runs on the first
@@ -102,8 +125,9 @@ abstract class AppDatabase : RoomDatabase() {
                     // Migration (see MIGRATION_6_7); v7 -> v8 drops the
                     // photo table via explicit Migration (see MIGRATION_7_8)
                     // — also non-destructive to the rest of the data.
+                    // v8 -> v9 adds pending_publishes (explicit, see above).
                     .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
-                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .build().also {
                         instance = it
                         cleanupLegacyPhotoFiles(context)

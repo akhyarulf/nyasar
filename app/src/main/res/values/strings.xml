@@ -207,6 +207,16 @@
 
     <!-- Activity Detail additional -->
     <string name="rename">Ganti nama</string>
+    <string name="edit_activity">Edit aktivitas</string>
+    <string name="edit_route">Edit rute</string>
+    <string name="edit_published">Edit publikasi</string>
+    <string name="edit_publish_title">Edit publikasi</string>
+    <string name="edit_publish_subtitle">Perbarui nama, kesulitan, deskripsi, dan siapa yang bisa melihat.</string>
+    <string name="edit_publish_name_label">Nama</string>
+    <string name="edit_publish_save">Simpan perubahan</string>
+    <string name="status_published_public">Publik</string>
+    <string name="status_published_private">Privat</string>
+    <string name="status_publish_queued">Menunggu koneksi — akan terbit sendiri</string>
     <string name="waypoint_label">Waypoint</string>
     <string name="splits">Segmen</string>
     <string name="bagikan_gpx">Bagikan GPX</string>
@@ -633,6 +643,7 @@
     <string name="publish_draft_now">Publikasikan sekarang</string>
     <string name="publish_name_label">Nama rute</string>
     <string name="publish_difficulty_label">Tingkat kesulitan</string>
+    <string name="publish_trail_label">Jenis jalur</string>
     <string name="publish_difficulty_desc_label">Catatan kesulitan (opsional)</string>
     <string name="publish_privacy_note">Titik GPS mentah tidak pernah dikirim — hanya di HP kamu.</string>
     <string name="publish_difficulty_none">Belum dinilai</string>

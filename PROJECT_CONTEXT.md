@@ -800,6 +800,45 @@ tombol "Backup now"/"Restore now":
   ActivityDetailViewModel = update status completed dulu, lalu langsung
   attempt publish; kalau masih offline tetap jadi row antrian).
 
+### Bugfix + edit published (2026-09-19, slice pasca-fix fungsional)
+
+- **Overlap toggle "Who can see this" (FIX):** Material3
+  `SegmentedButton` merender checkmark leading SENDIRI saat selected;
+  slot trailing-lambda adalah LABEL. Mengisi Icon+Text di slot itu
+  menimpa checkmark bawaan (huruf & ikon bertumpuk, terlihat dobel).
+  Fix di SEMUA tempat (PublishRouteSheet, PostRecordingForm, dan sheet
+  edit baru): label TEXT ONLY, tanpa Icon.
+- **Edit Activity (ganti "Rename"):** menu di Activity Detail kini
+  membuka form edit lengkap (judul + difficulty/difficulty desc/trail
+  type/deskripsi/visibility) — `EditActivityDialog` + `EditPublishSheet`.
+  Prefill prioritas: cloud row (kalau sudah publish) → pending row
+  (draft/queued form data) → default. Simpan = 1 panggilan
+  `PublishViewModel.editPublished`: rename Room (activity ATAU route,
+  lokal dulu, jalan offline) → pending row di-REPLACE dengan form baru
+  (flush berikutnya re-publish; probe anti-double menjaga row cloud
+  tetap satu) → cloud sync best-effort (`updatePublishedMeta` +
+  `setRouteVisibility` untuk pindah bucket public/private). Offline →
+  lokal tetap berubah, cloud menyusul.
+- **Edit publikasi di Route Preview:** tombol publish (CloudUpload)
+  berubah jadi Edit (ikon edit) begitu probe menemukan row cloud — sheet
+  edit prefilled dari metadata cloud; simpan mem-patch row yang SAMA
+  (tidak pernah publish kedua) dan me-rename route lokal. Tambah juga
+  tombol "Edit rute" (rename lokal saja) di samping judul.
+- **Status publish di Library & Route Preview:** badge Publik/Privat/
+  "Menunggu koneksi" per rute. Sumber: row pending (QUEUED menang,
+  akan self-flush) → probe `fetchPublishedMeta` (baru di
+  PublishRepository; select is_public+metadata by source_route_id/
+  source_activity_id) → NONE (belum). Probe best-effort — offline/
+  belum login aman (NONE), tidak pernah memblok layar/list.
+- **README.md ditulis ulang** ramah pengguna, tanpa emoji, mencerminkan
+  fitur terkini (Jelajah komunitas, save=publish+draft, backup otomatis,
+  edit publikasi). Old claims basi ("tanpa akun", "foto") dibersihkan.
+- API PublishRepository baru: `fetchPublishedMeta`,
+  `updatePublishedMeta` (+`PublishedMeta`/`PublishedMetaRow`); VM baru:
+  `editPublished`; composable baru: `EditPublishSheet`,
+  `EditActivityDialog`; badge enum: `PublishBadge` (Library),
+  `PublishStatus` (RoutePreview).
+
 ## Ide Masa Depan (BELUM masuk skema, sengaja ditunda)
 
 Dicatat biar tidak lupa/ditemukan ulang dari nol, TIDAK dibuatkan

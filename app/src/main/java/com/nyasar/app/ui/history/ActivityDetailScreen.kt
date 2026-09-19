@@ -230,7 +230,7 @@ fun ActivityDetailScreen(
                                     )
                                 }
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.rename)) },
+                                    text = { Text(stringResource(R.string.edit_activity)) },
                                     leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                                     onClick = { showMenu = false; showRenameDialog = true }
                                 )
@@ -342,30 +342,23 @@ fun ActivityDetailScreen(
         }
     }
 
-    // Rename dialog (spec P3F §9)
-    if (showRenameDialog) {
-        var text by remember(state.activity?.id) { mutableStateOf(state.activity?.name ?: "") }
-        AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            title = { Text(stringResource(R.string.rename_activity)) },
-            text = {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.rename(text)
+    // Edit Activity dialog (formerly just "Rename"): title + difficulty /
+    // trail type / description / visibility, so a finished activity stays
+    // correctable WITHOUT re-publishing anything by hand. Wikiloc parity.
+    state.activity?.let { activity ->
+        if (showRenameDialog) {
+            com.nyasar.app.ui.publish.EditActivityDialog(
+                activityId = activity.id,
+                initialTitle = activity.name,
+                onDismiss = { showRenameDialog = false },
+                onSave = { title, difficulty, diffDesc, trailType, desc, isPublic ->
                     showRenameDialog = false
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
+                    scope.launch {
+                        viewModel.editActivity(activity.id, title, difficulty, diffDesc, trailType, desc, isPublic)
+                    }
+                }
+            )
+        }
     }
 
     // Delete confirmation (spec P3F §10, WAJIB confirmation)

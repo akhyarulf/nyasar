@@ -12,8 +12,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -255,18 +253,15 @@ fun PostRecordingForm(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(6.dp))
+            // NOTE: SegmentedButton renders its own leading check when
+            // selected — pass TEXT ONLY. Icon+Text inside the slot overlaps
+            // the built-in check (double-render bug).
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(
                     selected = isPublic,
                     onClick = { isPublic = true },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                 ) {
-                    Icon(
-                        Icons.Default.Public,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.publish_visibility_public))
                 }
                 SegmentedButton(
@@ -274,12 +269,6 @@ fun PostRecordingForm(
                     onClick = { isPublic = false },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                 ) {
-                    Icon(
-                        Icons.Default.Lock,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.publish_visibility_private))
                 }
             }

@@ -23,7 +23,11 @@ interface PendingPublishDao {
     @Query("SELECT * FROM pending_publishes ORDER BY queuedAtEpochMs ASC LIMIT :limit")
     suspend fun takeOldestBatch(limit: Int): List<PendingPublishEntity>
 
-    /** Direct row for one source — the draft editor's publish-now path. */
+    /** Direct row for one source — the draft editor's publish-now path.
+     *  Also doubles as the activity metadata edit's write target: editing a
+     *  published activity's form re-queues the fields here so any later
+     *  flush re-publishes fresh data (AlreadyPublished short-circuit keeps
+     *  it a single cloud row). */
     @Query("SELECT * FROM pending_publishes WHERE sourceId = :sourceId LIMIT 1")
     suspend fun takeOldestForSource(sourceId: String): PendingPublishEntity?
 

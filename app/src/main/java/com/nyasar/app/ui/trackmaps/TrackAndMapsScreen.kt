@@ -247,11 +247,33 @@ private fun TrackRow(row: TrackRowUi, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(row.route.name) },
         supportingContent = {
-            Text(
-                "%.1f km \u00b7 $statusText".format(km),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column {
+                Text(
+                    "%.1f km \u00b7 $statusText".format(km),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // Publish badge (Library: mana yang sudah dipublish) —
+                // hidden for NONE so unpublished routes stay uncluttered.
+                when (row.publishState) {
+                    com.nyasar.app.ui.trackmaps.PublishBadge.PUBLIC -> PublishBadgeChip(
+                        stringResource(R.string.status_published_public),
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    com.nyasar.app.ui.trackmaps.PublishBadge.PRIVATE -> PublishBadgeChip(
+                        stringResource(R.string.status_published_private),
+                        MaterialTheme.colorScheme.tertiaryContainer,
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    com.nyasar.app.ui.trackmaps.PublishBadge.QUEUED -> PublishBadgeChip(
+                        stringResource(R.string.status_publish_queued),
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    else -> {}
+                }
+            }
         },
         trailingContent = {
             Icon(
@@ -266,6 +288,22 @@ private fun TrackRow(row: TrackRowUi, onClick: () -> Unit) {
             .pressScale(rowInteraction)
             .clickable(interactionSource = rowInteraction, indication = null, onClick = onClick)
     )
+}
+
+@Composable
+private fun PublishBadgeChip(text: String, container: androidx.compose.ui.graphics.Color, content: androidx.compose.ui.graphics.Color) {
+    Surface(
+        color = container,
+        contentColor = content,
+        shape = RoundedCornerShape(999.dp),
+        modifier = Modifier.padding(top = 2.dp)
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        )
+    }
 }
 
 @Composable

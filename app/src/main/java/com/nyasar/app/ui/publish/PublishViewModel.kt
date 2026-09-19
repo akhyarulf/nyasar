@@ -500,6 +500,97 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Edit an ALREADY-PUBLISHED source (activity or library route). One
+     * call does all persistence:
+     *  1. Room rename (activity or route row) — local truth first, works
+     *     offline.
+     *  2. Metadata form re-queue: the pending-publish row for this source
+     *     is REPLACEd with the new fields, so the local record always
+     *     carries the user's latest form data (a future flush re-publishes
+     *     it; the anti-double probe keeps the cloud row single).
+     *  3. Cloud sync (best-effort): metadata patch onto the existing
+     *     routes row + visibility toggle via setRouteVisibility (which
+     *     performs the private/public bucket moves). Offline → metadata
+     *     still re-queued in step 2 and the toggle reports failure via
+     *     [onDone](false) so callers can show an honest hint.
+     */
+    fun editPublished(
+        sourceId: String,
+        isActivity: Boolean,
+        title: String,
+        difficulty: PublishDifficulty,
+        difficultyDescription: String?,
+        trailType: PublishTrailType,
+        description: String?,
+        isPublic: Boolean,
+        onDone: (cloudOk: Boolean) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            // 1 LOCAL — rename the source row (never network-dependent).
+            if (isActivity) {
+                activityDao.getById(sourceId)?.let { activityDao.update(it.copy(name = title)) }
+            } else {
+                routeDao.getById(sourceId)?.let { routeDao.update(it.copy(name = title)) }
+            }
+            // 2 LOCAL — persist the form data on the pending row (REPLACE).
+            pendingPublishDao.enqueue(
+                PendingPublishEntity(
+                    sourceId = sourceId,
+                    sourceKind = if (isActivity) PendingPublishEntity.KIND_ACTIVITY else PendingPublishEntity.KIND_ROUTE,
+                    difficulty = difficulty.toApi(),
+                    difficultyDescription = difficultyDescription?.trim()?.takeIf { it.isNotEmpty() },
+                    trailType = trailType.toApi(),
+                    description = description?.trim()?.takeIf { it.isNotEmpty() },
+                    isPublic = isPublic,
+                    queuedAtEpochMs = System.currentTimeMillis()
+                )
+            )
+            // NOTE: for activities this pending row is exactly the draft/
+            // retry contract — a COMPLETED already-published activity now has
+            // a queue row again; the flush will find it, publish hits the
+            // AlreadyPublished short-circuit (row stays single) and dequeues.
+
+            // 3 CLOUD — best-effort, mirrors PublishRepository's error style.
+            if (!canPublish) {
+                onDone(false)
+                return@launch
+            }
+            var cloudOk = true
+            try {
+                val meta = repository.fetchPublishedMeta(
+                    sourceActivityId = if (isActivity) sourceId else null,
+                    sourceRouteId = if (isActivity) null else sourceId
+                )
+                if (meta == null) {
+                    // Not published in the cloud (or probe failed offline) —
+                    // nothing to patch; the queued row covers the local form.
+                    cloudOk = false
+                } else {
+                    cloudOk = repository.updatePublishedMeta(
+                        cloudRouteId = meta.cloudRouteId,
+                        name = title,
+                        difficulty = difficulty.toApi(),
+                        difficultyDescription = difficultyDescription,
+                        trailType = trailType.toApi(),
+                        description = description
+                    )
+                    if (cloudOk && isPublic != meta.isPublic) {
+                        cloudOk = runCatching {
+                            repository.setRouteVisibility(
+                                SupabaseClientProvider.client, meta.cloudRouteId, isPublic
+                            )
+                        }.getOrDefault(false)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w(TAG, "editPublished cloud sync failed: ${e.message}")
+                cloudOk = false
+            }
+            onDone(cloudOk)
+        }
+    }
+
     /** Back to a clean idle form (clears any error banner). */
     fun reset() {
         _state.value = PublishState.Idle()

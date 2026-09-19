@@ -41,8 +41,19 @@ data class RoutePreviewUiState(
     /** Path to the route's original stored GPX (RouteRepository.gpxFile) —
      *  kept here so Route Preview's Share button can hand the file straight
      *  off to FileProvider without re-deriving it in the UI layer. */
-    val gpxFilePath: String? = null
+    val gpxFilePath: String? = null,
+    /** Publish status of this library route, resolved best-effort on load:
+     *  PUBLIC/PRIVATE = a cloud row exists (fetchPublishedMeta succeeded),
+     *  QUEUED = an offline pending-publish row is waiting, NOT_PUBLISHED =
+     *  nothing in the cloud yet. Probe failure offline lands on QUEUED or
+     *  NOT_PUBLISHED — never blocks the screen. */
+    val publishStatus: PublishStatus = PublishStatus.NOT_PUBLISHED,
+    /** Cloud metadata for the Edit-Publish sheet prefill (null when not
+     *  published or the probe failed). */
+    val publishedMeta: com.nyasar.app.data.supabase.PublishRepository.PublishedMeta? = null
 )
+
+enum class PublishStatus { PUBLIC, PRIVATE, QUEUED, NOT_PUBLISHED }
 
 class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -254,6 +265,25 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
 
             val doc = repository.loadDocument(route)
             val settings = settingsRepository.settings.first()
+
+            // Publish status (best-effort, never blocks the screen):
+            // queued-offline row wins (it will self-flush), then the cloud
+            // probe, then plain not-published.
+            val pendingDao = com.nyasar.app.data.db.AppDatabase.get(getApplication()).pendingPublishDao()
+            val queued = runCatching { pendingDao.takeOldestForSource(routeId) }.getOrNull()
+            val cloudMeta = if (queued == null) {
+                runCatching {
+                    com.nyasar.app.data.supabase.PublishRepository()
+                        .fetchPublishedMeta(sourceRouteId = routeId)
+                }.getOrNull()
+            } else null
+            val status = when {
+                queued != null -> PublishStatus.QUEUED
+                cloudMeta != null && cloudMeta.isPublic -> PublishStatus.PUBLIC
+                cloudMeta != null -> PublishStatus.PRIVATE
+                else -> PublishStatus.NOT_PUBLISHED
+            }
+
             _uiState.value = RoutePreviewUiState(
                 name = route.name,
                 distanceKm = route.distanceMeters / 1000.0,
@@ -265,8 +295,42 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
                 track = doc.allTrackPoints,
                 waypoints = doc.waypoints,
                 provider = TileProviderFactory.byId(settings.providerId),
-                gpxFilePath = route.localGpxFilePath
+                gpxFilePath = route.localGpxFilePath,
+                publishStatus = status,
+                publishedMeta = cloudMeta
             )
+        }
+    }
+
+    /** Rename the library route locally (Edit-Route dialog). */
+    fun renameRoute(routeId: String, newName: String) {
+        viewModelScope.launch {
+            repository.getRoute(routeId)?.let { route ->
+                com.nyasar.app.data.db.AppDatabase.get(getApplication()).routeDao()
+                    .update(route.copy(name = newName))
+            }
+            load(routeId)
+        }
+    }
+
+    /** Best-effort status/meta refresh after an edit/publish lands. */
+    fun refreshPublishStatus(routeId: String) {
+        viewModelScope.launch {
+            val pendingDao = com.nyasar.app.data.db.AppDatabase.get(getApplication()).pendingPublishDao()
+            val queued = runCatching { pendingDao.takeOldestForSource(routeId) }.getOrNull()
+            val cloudMeta = if (queued == null) {
+                runCatching {
+                    com.nyasar.app.data.supabase.PublishRepository()
+                        .fetchPublishedMeta(sourceRouteId = routeId)
+                }.getOrNull()
+            } else null
+            val status = when {
+                queued != null -> PublishStatus.QUEUED
+                cloudMeta != null && cloudMeta.isPublic -> PublishStatus.PUBLIC
+                cloudMeta != null -> PublishStatus.PRIVATE
+                else -> PublishStatus.NOT_PUBLISHED
+            }
+            _uiState.value = _uiState.value.copy(publishStatus = status, publishedMeta = cloudMeta)
         }
     }
 }

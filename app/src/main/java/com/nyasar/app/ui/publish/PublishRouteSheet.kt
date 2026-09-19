@@ -17,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -249,6 +248,9 @@ private fun PublishFormSheet(
 
             // ── Visibility (Wikiloc 2-level: Everyone / Only you) — sits
             //    right before the info box so it reads as "who gets this".
+            //    NOTE: SegmentedButton renders its own leading check when
+            //    selected — pass TEXT ONLY here. Icon+Text inside the slot
+            //    overlaps the built-in check (double-render bug).
             Text(
                 stringResource(R.string.publish_visibility_label),
                 style = MaterialTheme.typography.labelLarge,
@@ -260,12 +262,6 @@ private fun PublishFormSheet(
                     onClick = { isPublic = true },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                 ) {
-                    Icon(
-                        Icons.Default.Public,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.publish_visibility_public))
                 }
                 SegmentedButton(
@@ -273,12 +269,6 @@ private fun PublishFormSheet(
                     onClick = { isPublic = false },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                 ) {
-                    Icon(
-                        Icons.Default.Lock,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.publish_visibility_private))
                 }
             }

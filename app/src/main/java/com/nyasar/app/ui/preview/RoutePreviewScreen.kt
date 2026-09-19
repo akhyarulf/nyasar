@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationOn
@@ -99,6 +100,8 @@ fun RoutePreviewScreen(
     LaunchedEffect(routeId) { viewModel.load(routeId) }
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val editScope = androidx.compose.runtime.rememberCoroutineScope()
+    val publishEditViewModel: com.nyasar.app.ui.publish.PublishViewModel = viewModel()
     val waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel()
     // v7: DB rows for this route (GPX-imported + user pins linked here) and
     // independent pins — the two extra marker sources this screen feeds the
@@ -135,6 +138,12 @@ fun RoutePreviewScreen(
     // Publish this imported route to Browse (sisa Slice 1) — same sheet form
     // as activity publish; the ViewModel picks the library-route pipeline.
     var showPublishSheet by remember { mutableStateOf(false) }
+    // Edit-published sheet (owner edits metadata of an already-published
+    // route) — the CloudUpload button becomes an Edit button once the
+    // publish probe finds a cloud row.
+    var showEditSheet by remember { mutableStateOf(false) }
+    // Edit-Route dialog: rename the LOCAL library route (title only).
+    var showEditRouteDialog by remember { mutableStateOf(false) }
     // Highlight marker position when user scrubs the elevation chart
     var highlightLatLng by remember { mutableStateOf<LatLng?>(null) }
 
@@ -341,10 +350,30 @@ fun RoutePreviewScreen(
                         onClick = { shareRouteGpx(context, path, state.name ?: "route") }
                     )
                 }
+                // Publish/Edit toggle (2026-09): not published yet → the
+                // publish sheet; already published (or queued offline) →
+                // the edit sheet with prefilled cloud metadata. The badge
+                // chip under the map names the state explicitly.
                 RoundIconButton(
-                    icon = Icons.Default.CloudUpload,
-                    contentDescription = stringResource(R.string.publish_title),
-                    onClick = { showPublishSheet = true }
+                    icon = if (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.NOT_PUBLISHED) {
+                        Icons.Default.CloudUpload
+                    } else {
+                        Icons.Default.Edit
+                    },
+                    contentDescription = stringResource(
+                        if (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.NOT_PUBLISHED) {
+                            R.string.publish_title
+                        } else {
+                            R.string.edit_published
+                        }
+                    ),
+                    onClick = {
+                        if (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.NOT_PUBLISHED) {
+                            showPublishSheet = true
+                        } else {
+                            showEditSheet = true
+                        }
+                    }
                 )
                 RoundIconButton(
                     icon = Icons.Default.CloudDownload,
@@ -403,13 +432,44 @@ fun RoutePreviewScreen(
         // waypoint list → offline entry.
         Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(16.dp))
-            Text(
-                state.name ?: stringResource(R.string.default_route_name),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    state.name ?: stringResource(R.string.default_route_name),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                // Edit-Route (local title) — always available on the user's
+                // own library route.
+                androidx.compose.material3.TextButton(onClick = { showEditRouteDialog = true }) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.edit_route))
+                }
+            }
+            // Publish status badge (Library "mana yang sudah dipublish"):
+            // PUBLIC / PRIVATE / QUEUED (offline, will self-publish) /
+            // hidden when simply not published yet.
+            when (state.publishStatus) {
+                com.nyasar.app.ui.preview.PublishStatus.PUBLIC -> StatusBadge(
+                    text = stringResource(R.string.status_published_public),
+                    container = MaterialTheme.colorScheme.primaryContainer,
+                    content = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                com.nyasar.app.ui.preview.PublishStatus.PRIVATE -> StatusBadge(
+                    text = stringResource(R.string.status_published_private),
+                    container = MaterialTheme.colorScheme.tertiaryContainer,
+                    content = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+                com.nyasar.app.ui.preview.PublishStatus.QUEUED -> StatusBadge(
+                    text = stringResource(R.string.status_publish_queued),
+                    container = MaterialTheme.colorScheme.surfaceVariant,
+                    content = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                else -> {}
+            }
             Spacer(Modifier.height(12.dp))
 
             // Stats — Strava-style INLINE grid (muted label over bold value,
@@ -681,7 +741,74 @@ fun RoutePreviewScreen(
             routeId = routeId,
             pointCount = state.track.size,
             waypointCount = state.waypoints.size,
-            onDismiss = { showPublishSheet = false }
+            onDismiss = {
+                showPublishSheet = false
+                viewModel.refreshPublishStatus(routeId)
+            }
+        )
+    }
+
+    // Edit-published sheet — prefilled from the cloud row; saving patches
+    // metadata + visibility on that same row (never a second publish) and
+    // renames the local route.
+    if (showEditSheet) {
+        val meta = state.publishedMeta
+        com.nyasar.app.ui.publish.EditPublishSheet(
+            initialName = state.name.orEmpty(),
+            meta = com.nyasar.app.ui.publish.PublishRepositoryMeta(
+                isPublic = meta?.isPublic
+                    ?: (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.PUBLIC),
+                difficulty = meta?.difficulty,
+                difficultyDescription = meta?.difficultyDescription,
+                trailType = meta?.trailType,
+                description = meta?.description
+            ),
+            onDismiss = { showEditSheet = false },
+            onSave = { title, difficulty, diffDesc, trailType, desc, isPublic ->
+                showEditSheet = false
+                editScope.launch {
+                    publishEditViewModel.editPublished(
+                        sourceId = routeId,
+                        isActivity = false,
+                        title = title,
+                        difficulty = difficulty,
+                        difficultyDescription = diffDesc,
+                        trailType = trailType,
+                        description = desc,
+                        isPublic = isPublic
+                    )
+                    viewModel.renameRoute(routeId, title)
+                    viewModel.refreshPublishStatus(routeId)
+                }
+            }
+        )
+    }
+
+    // Edit-Route (local title) — plain text dialog.
+    if (showEditRouteDialog) {
+        var text by remember { mutableStateOf(state.name.orEmpty()) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showEditRouteDialog = false },
+            title = { Text(stringResource(R.string.edit_route)) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showEditRouteDialog = false
+                    if (text.isNotBlank()) viewModel.renameRoute(routeId, text.trim())
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showEditRouteDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
         )
     }
 
@@ -917,6 +1044,22 @@ private fun WaypointDetailSheet(waypoint: GpxWaypoint, onDismiss: () -> Unit) {
                 Text(it, style = MaterialTheme.typography.bodyMedium)
             }
         }
+    }
+}
+
+@Composable
+private fun StatusBadge(text: String, container: androidx.compose.ui.graphics.Color, content: androidx.compose.ui.graphics.Color) {
+    androidx.compose.material3.Surface(
+        color = container,
+        contentColor = content,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+        modifier = Modifier.padding(top = 6.dp)
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
     }
 }
 

@@ -183,6 +183,34 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Full Edit-Activity (title + publish metadata) — delegates cloud
+     *  sync/persistence to [PublishViewModel.editPublished], then re-reads
+     *  the row so the screen reflects the new name at once. */
+    fun editActivity(
+        activityId: String,
+        title: String,
+        difficulty: com.nyasar.app.ui.publish.PublishDifficulty,
+        difficultyDescription: String?,
+        trailType: com.nyasar.app.ui.publish.PublishTrailType,
+        description: String?,
+        isPublic: Boolean
+    ) {
+        val vm = com.nyasar.app.ui.publish.PublishViewModel(getApplication())
+        viewModelScope.launch {
+            vm.editPublished(
+                sourceId = activityId,
+                isActivity = true,
+                title = title,
+                difficulty = difficulty,
+                difficultyDescription = difficultyDescription,
+                trailType = trailType,
+                description = description,
+                isPublic = isPublic
+            )
+            load(activityId)
+        }
+    }
+
     /** Wikiloc-style draft → publish now. Delegates to PublishViewModel's
      *  publishDraft (status flip + queue drain); the status flip lands in
      *  Room before this returns, so the chip/menu entry disappear on the

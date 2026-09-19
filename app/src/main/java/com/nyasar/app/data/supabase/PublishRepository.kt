@@ -111,6 +111,18 @@ class PublishRepository {
     @Serializable
     private data class RouteInserted(val id: String)
 
+    /** Read-back shape for [fetchPublishedMeta] — the editable metadata
+     *  columns only. */
+    @Serializable
+    private data class PublishedMetaRow(
+        val id: String,
+        @SerialName("is_public") val isPublic: Boolean,
+        val difficulty: String?,
+        @SerialName("difficulty_description") val difficultyDescription: String?,
+        @SerialName("trail_type") val trailType: String?,
+        val description: String?
+    )
+
     /** Exact column layout of schema_v1.sql `routes` AFTER migration 0004
      *  (INSERT subset — likes_count/comments_count/is_public/is_draft/
      *  timestamps keep their defaults). mountain_name/region are gone
@@ -280,7 +292,98 @@ class PublishRepository {
 
     /** Probe: the cloud routes row id for a source key, or null. Used by
      *  the anti-double path (activity publish). Route publish probes by
-     *  source_route_id through the same helper. */
+     *  source_route_id through the same helper. */    /** Metadata snapshot of the user's published row for a local source
+     *  (activity or library route) — powers the Library/RoutePreview
+     *  "published?" status and the Edit-Publish form prefill. */
+    data class PublishedMeta(
+        val cloudRouteId: String,
+        val isPublic: Boolean,
+        val difficulty: String?,
+        val difficultyDescription: String?,
+        val trailType: String?,
+        val description: String?
+    )
+
+    /** Fetch the published metadata for a source (by source_activity_id or
+     *  source_route_id). Returns null when the source has never been
+     *  published — including when offline or unauthenticated (callers treat
+     *  null as "not published", which is also the safe offline answer). */
+    suspend fun fetchPublishedMeta(
+        sourceActivityId: String? = null,
+        sourceRouteId: String? = null
+    ): PublishedMeta? {
+        if (!SupabaseClientProvider.isConfigured) return null
+        val client = SupabaseClientProvider.client
+        if (client.auth.currentUserOrNull() == null) return null
+        return try {
+            client.postgrest["routes"]
+                .select(
+                    columns = io.github.jan.supabase.postgrest.query.Columns.list(
+                        "id", "is_public", "difficulty", "difficulty_description",
+                        "trail_type", "description"
+                    )
+                ) {
+                    filter {
+                        if (sourceActivityId != null) eq("source_activity_id", sourceActivityId)
+                        if (sourceRouteId != null) eq("source_route_id", sourceRouteId)
+                    }
+                    limit(1)
+                }
+                .decodeList<PublishedMetaRow>()
+                .firstOrNull()
+                ?.let {
+                    PublishedMeta(
+                        cloudRouteId = it.id,
+                        isPublic = it.is_public,
+                        difficulty = it.difficulty,
+                        difficultyDescription = it.difficulty_description,
+                        trailType = it.trail_type,
+                        description = it.description
+                    )
+                }
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchPublishedMeta failed: ${e.message}")
+            null
+        }
+    }
+
+    /** Update the editable metadata of an already-published row. Visibility
+     *  changes go through [setRouteVisibility] (bucket moves) — NOT here;
+     *  this only patches name/difficulty/difficulty_description/trail_type/
+     *  description. Returns true when the update landed. */
+    suspend fun updatePublishedMeta(
+        cloudRouteId: String,
+        name: String,
+        difficulty: String?,
+        difficultyDescription: String?,
+        trailType: String?,
+        description: String?
+    ): Boolean {
+        if (!SupabaseClientProvider.isConfigured) return false
+        val client = SupabaseClientProvider.client
+        if (client.auth.currentUserOrNull() == null) return false
+        return try {
+            client.postgrest["routes"].update(
+                update = {
+                    set("name", name)
+                    set("difficulty", difficulty)
+                    set("difficulty_description", difficultyDescription?.trim()?.takeIf { it.isNotEmpty() })
+                    set("trail_type", trailType)
+                    set("description", description?.trim()?.takeIf { it.isNotEmpty() })
+                }
+            ) {
+                filter { eq("id", cloudRouteId) }
+            }
+            true
+        } catch (e: RestException) {
+            Log.e(TAG, "updatePublishedMeta failed: ${e.error}", e)
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "updatePublishedMeta unexpected", e)
+            false
+        }
+    }
+
     private suspend fun fetchExistingRouteId(
         client: io.github.jan.supabase.SupabaseClient,
         sourceActivityId: String? = null,

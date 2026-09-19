@@ -23,8 +23,15 @@ enum class TrackAndMapsFilter { ALL, TRACK, OFFLINE }
  *  flashing a wrong answer before settling. */
 data class TrackRowUi(
     val route: RouteEntity,
-    val hasOfflineCoverage: Boolean? = null
+    val hasOfflineCoverage: Boolean? = null,
+    /** Publish status for the Library list badge (2026-09): a queued row
+     *  (offline publish waiting to flush) wins over the cloud probe; the
+     *  probe itself is best-effort — offline/unauthenticated leaves null
+     *  (= "belum dipublish", the safe default for a private-first app). */
+    val publishState: PublishBadge = PublishBadge.NONE
 )
+
+enum class PublishBadge { PUBLIC, PRIVATE, QUEUED, NONE }
 
 data class TrackAndMapsUiState(
     val loading: Boolean = true,
@@ -80,7 +87,7 @@ class TrackAndMapsViewModel(private val app: Application) : AndroidViewModel(app
                 routes.map { route ->
                     val bounds = routeBounds(route)
                     val covered = bounds?.let { rb -> regions.any { it.overlaps(rb) } }
-                    TrackRowUi(route, hasOfflineCoverage = covered)
+                    TrackRowUi(route, hasOfflineCoverage = covered, publishState = publishBadge(route.id))
                 }
             }
 
@@ -125,6 +132,22 @@ class TrackAndMapsViewModel(private val app: Application) : AndroidViewModel(app
 
     fun dismissImportError() {
         _importError.value = null
+    }
+
+    /** Publish badge for one library route — queued-offline wins (it will
+     *  self-flush), then the cloud probe, else "not published". All probes
+     *  are best-effort: offline/unauthenticated degrade to NONE without
+     *  ever slowing the list down beyond one small SELECT + one cheap
+     *  per-route query. */
+    private suspend fun publishBadge(routeId: String): PublishBadge {
+        val pendingDao = com.nyasar.app.data.db.AppDatabase.get(app).pendingPublishDao()
+        val queued = runCatching { pendingDao.takeOldestForSource(routeId) }.getOrNull()
+        if (queued != null) return PublishBadge.QUEUED
+        val meta = runCatching {
+            com.nyasar.app.data.supabase.PublishRepository()
+                .fetchPublishedMeta(sourceRouteId = routeId)
+        }.getOrNull() ?: return PublishBadge.NONE
+        return if (meta.isPublic) PublishBadge.PUBLIC else PublishBadge.PRIVATE
     }
 
     private fun queryDisplayName(uri: android.net.Uri): String? {

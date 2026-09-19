@@ -205,6 +205,16 @@
 
     <!-- Activity Detail additional -->
     <string name="rename">Rename</string>
+    <string name="edit_activity">Edit activity</string>
+    <string name="edit_route">Edit route</string>
+    <string name="edit_published">Edit publication</string>
+    <string name="edit_publish_title">Edit publication</string>
+    <string name="edit_publish_subtitle">Update the name, difficulty, description, and who can see this.</string>
+    <string name="edit_publish_name_label">Name</string>
+    <string name="edit_publish_save">Save changes</string>
+    <string name="status_published_public">Public</string>
+    <string name="status_published_private">Private</string>
+    <string name="status_publish_queued">Waiting for connection — will publish itself</string>
     <string name="waypoint_label">Waypoint</string>
     <string name="splits">Splits</string>
     <string name="bagikan_gpx">Share GPX</string>
@@ -633,6 +643,7 @@
     <string name="publish_draft_now">Publish now</string>
     <string name="publish_name_label">Route name</string>
     <string name="publish_difficulty_label">Difficulty</string>
+    <string name="publish_trail_label">Trail type</string>
     <string name="publish_difficulty_desc_label">Difficulty note (optional)</string>
     <string name="publish_privacy_note">Raw GPS points are never uploaded — they stay on your phone.</string>
     <string name="publish_difficulty_none">Not rated</string>

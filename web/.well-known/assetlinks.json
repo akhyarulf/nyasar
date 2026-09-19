@@ -4,8 +4,8 @@
     "namespace": "android_app",
     "package_name": "com.nyasar.app",
     "sha256_cert_fingerprints": [
-      "ISI_SHA256_RELEASE_CERT_DI_SINI",
-      "ISI_SHA256_DEBUG_CERT_DI_SINI"
+      "AC:19:A2:06:12:75:69:DD:94:7B:77:1E:4E:CE:53:F7:B2:22:BF:23:A6:CC:47:F9:74:11:75:D4:82:87:2B:93",
+      "AC:19:A2:06:12:75:69:DD:94:7B:77:1E:4E:CE:53:F7:B2:22:BF:23:A6:CC:47:F9:74:11:75:D4:82:87:2B:93"
     ]
   }
 }]

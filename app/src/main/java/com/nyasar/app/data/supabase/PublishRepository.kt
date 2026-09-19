@@ -334,10 +334,10 @@ class PublishRepository {
                 ?.let {
                     PublishedMeta(
                         cloudRouteId = it.id,
-                        isPublic = it.is_public,
+                        isPublic = it.isPublic,
                         difficulty = it.difficulty,
-                        difficultyDescription = it.difficulty_description,
-                        trailType = it.trail_type,
+                        difficultyDescription = it.difficultyDescription,
+                        trailType = it.trailType,
                         description = it.description
                     )
                 }

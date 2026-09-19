@@ -613,6 +613,14 @@
     <string name="account_delete_confirm_word">HAPUS</string>
     <string name="account_close">Tutup</string>
 
+    <!-- Layar Akun (IA rev3) -->
+    <string name="account_title">Akun</string>
+    <string name="account_member_since">Bergabung sejak %1$s</string>
+    <string name="account_edit_username">Edit username</string>
+    <string name="account_save_username">Simpan username</string>
+    <string name="account_manage_desc">Ganti password, email, atau hapus akun</string>
+    <string name="account_sign_in_cta">Masuk / Daftar</string>
+
     <!-- Publikasikan rute (Fase 2) -->
     <string name="publish_route">Publikasikan rute</string>
     <string name="publish_title">Publikasikan Rute</string>

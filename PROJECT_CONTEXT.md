@@ -337,10 +337,18 @@ supaya semua call site `navigate("home")` tetap valid). Record & Library
 tidak berubah. History + Saved digabung di tab Profile (`"profile"`
 di bottom bar + nested `"profile?tab="` dengan header back-arrow;
 route `"history"`/`"settings"` tetap terdaftar sebagai sub-destinasi).
-Rev3 (Wikiloc-style): di ATAS sub-tab ada kartu identitas — avatar
-lingkaran inisial username + nama + email (tap → Settings, tempat
-account management); kalau belum login jadi kartu ajakan masuk
-(tap → auth/login). Settings tetap lewat gear di pojok kanan-atas.
+Rev3 (Wikiloc-style): di ATAS sub-tab (di atas TabRow) ada kartu
+identitas — avatar lingkaran inisial username + nama + email. Tap →
+route `account` (LAYAR AKUN BARU, ui/profile/AccountScreen.kt):
+hero profil + "bergabung sejak" (profiles.created_at, via
+ProfileStatus.createdAt), edit username (live availability check,
+updateProfileUsername — bukan confirmUsername-gate), logout, dan
+sheet kelola akun (password/email/hapus — AccountManageSheet dipindah
+dari Settings, kini internal di ui/settings). Kalau belum login,
+kartu jadi ajakan masuk (tap → auth/login). Settings (gear pojok
+kanan-atas) TIDAK lagi punya section Akun — onOpenAccount dihapus
+dari SettingsScreen/SettingsContent. SignedIn memberSince: String?
+ditambah ke session state (dari getProfileStatus).
 Gate auth pasca daftar/login mendarat ke Browse, bukan Home.
 
 1. ✅ `publish/PolylineEncoder.kt` — encode standar Google/Strava +

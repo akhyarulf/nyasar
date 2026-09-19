@@ -45,9 +45,11 @@ import com.nyasar.app.R
 /**
  * Profile tab (IA rework 2026, rev3): a Wikiloc-style profile header card
  * (avatar initial + username + email, or a sign-in invite when signed out)
- * sits ABOVE the History/Saved sub-tabs; Settings lives behind the gear icon
- * in the top-right corner (navigates to the standalone "settings" route).
- * Child screens are REUSED VERBATIM — this file adds no new feature logic,
+ * sits ABOVE the History/Saved sub-tabs — above the tabs, so it reads as
+ * the page identity, not a list row. Tapping it opens the standalone
+ * Account screen ("account" route) when signed in, or sign-in when not;
+ * Settings lives behind the gear icon in the top-right corner. Child
+ * screens are REUSED VERBATIM — this file adds no new feature logic,
  * it only hosts them and owns the sub-tab state.
  *
  * Two hosting modes, selected by [showHeader]:
@@ -72,6 +74,9 @@ fun ProfileScreen(
     onShareGpx: (String) -> Unit,
     onOpenRoute: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    /** Header tap while signed in → the standalone Account screen. */
+    onOpenProfile: () -> Unit,
+    /** Header tap while signed out + Saved-pane sign-in prompt → auth. */
     onOpenAccount: () -> Unit,
     onGoToRecord: () -> Unit,
     onBack: () -> Unit
@@ -112,11 +117,11 @@ fun ProfileScreen(
                     }
                 }
             )
-            tabRow()
             ProfileHeaderCard(
-                onOpenAccount = onOpenAccount,
-                onOpenSettings = onOpenSettings
+                onOpenProfile = onOpenProfile,
+                onOpenSignIn = onOpenAccount
             )
+            tabRow()
             when (selectedTab) {
                 ProfileTab.HISTORY.ordinal -> ProfileHistoryPane(
                     onOpenActivity = onOpenActivity,
@@ -163,11 +168,11 @@ fun ProfileScreen(
             }
         ) { padding ->
             Column(Modifier.padding(padding).fillMaxSize()) {
-                tabRow()
                 ProfileHeaderCard(
-                    onOpenAccount = onOpenAccount,
-                    onOpenSettings = onOpenSettings
+                    onOpenProfile = onOpenProfile,
+                    onOpenSignIn = onOpenAccount
                 )
+                tabRow()
                 when (selectedTab) {
                     ProfileTab.HISTORY.ordinal -> ProfileHistoryPane(
                         onOpenActivity = onOpenActivity,
@@ -186,16 +191,16 @@ fun ProfileScreen(
 }
 
 /**
- * Wikiloc-style identity header above the sub-tabs.
- * - Signed in: avatar circle with the username initial + name + email.
- *   Tapping opens Settings, where account management rows live (logout,
- *   change password/email, delete) — no duplicate account UI here.
- * - Signed out / restoring: invite card that navigates to sign-in.
+ * Wikiloc-style identity header ABOVE the sub-tabs.
+ * - Signed in: avatar circle with the username initial + name + email;
+ *   tap → the standalone Account screen (edit username, manage/delete,
+ *   logout).
+ * - Signed out / restoring: invite card; tap → sign-in.
  */
 @Composable
 private fun ProfileHeaderCard(
-    onOpenAccount: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenProfile: () -> Unit,
+    onOpenSignIn: () -> Unit
 ) {
     val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
     val session by authViewModel.sessionState.collectAsState()
@@ -204,7 +209,7 @@ private fun ProfileHeaderCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = if (signedIn != null) onOpenSettings else onOpenAccount)
+            .clickable(onClick = if (signedIn != null) onOpenProfile else onOpenSignIn)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

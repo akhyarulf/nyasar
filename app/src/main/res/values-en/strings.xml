@@ -613,6 +613,14 @@
     <string name="account_delete_confirm_word">DELETE</string>
     <string name="account_close">Close</string>
 
+    <!-- Account screen (IA rev3) -->
+    <string name="account_title">Account</string>
+    <string name="account_member_since">Member since %1$s</string>
+    <string name="account_edit_username">Edit username</string>
+    <string name="account_save_username">Save username</string>
+    <string name="account_manage_desc">Change password, email, or delete account</string>
+    <string name="account_sign_in_cta">Sign in / Register</string>
+
     <!-- Publish route (Phase 2) -->
     <string name="publish_route">Publish route</string>
     <string name="publish_title">Publish Route</string>

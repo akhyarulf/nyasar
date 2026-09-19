@@ -69,7 +69,9 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         data class SignedIn(
             val userId: String,
             val email: String?,
-            val username: String?
+            val username: String?,
+            /** ISO-8601 profiles.created_at ("member since"), null = unknown. */
+            val memberSince: String? = null
         ) : SessionState()
     }
 
@@ -193,7 +195,8 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         _sessionState.value = SessionState.SignedIn(
             userId = userId,
             email = session.user?.email,
-            username = status.username
+            username = status.username,
+            memberSince = status.createdAt
         )
     }
 
@@ -291,6 +294,31 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
                         username = username.trim().lowercase()
                     )
                     pendingEmail = null
+                }
+                is AuthRepository.Outcome.Failure -> {
+                    _usernameForm.value = _usernameForm.value.copy(busy = false, errorRes = r.error.messageRes())
+                }
+            }
+        }
+    }
+
+    /**
+     * Voluntary username change from the profile screen (differs from
+     * [confirmUsername], which exits the NeedsUsername gate): updates the
+     * profiles row and patches the CURRENT SignedIn state in place, so
+     * email/memberSince never reset — confirmUsername's path rebuilds the
+     * session from pendingEmail, which is null outside the fresh-signup
+     * flow.
+     */
+    fun updateProfileUsername(username: String) {
+        val current = _sessionState.value as? SessionState.SignedIn ?: return
+        if (_usernameForm.value.busy) return
+        _usernameForm.value = _usernameForm.value.copy(busy = true, errorRes = null)
+        viewModelScope.launch {
+            when (val r = repo.updateUsername(current.userId, username)) {
+                is AuthRepository.Outcome.Success -> {
+                    _usernameForm.value = UsernameFormState()
+                    _sessionState.value = current.copy(username = username.trim().lowercase())
                 }
                 is AuthRepository.Outcome.Failure -> {
                     _usernameForm.value = _usernameForm.value.copy(busy = false, errorRes = r.error.messageRes())

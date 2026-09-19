@@ -6,22 +6,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 /**
- * Settings content without its own Scaffold/TopAppBar — embedded directly by
- * ProfileScreen's Settings sub-tab (IA rework 2026). Everything below the
- * header (account card, GPS, offline, recording, units, appearance, language,
- * data, about) is REUSED VERBATIM from SettingsScreen via the shared
- * [SettingsContent] composable; this wrapper adds no feature logic.
+ * Settings content without its own Scaffold/TopAppBar — currently without a
+ * host (IA rev3 moved Settings to a standalone route only; ProfileScreen no
+ * longer hosts a Settings sub-tab). Kept as the embeddable seam so a future
+ * host can reuse [SettingsContent] verbatim.
  */
 @Composable
 fun SettingsEmbedded(
     onOpenOfflineMaps: () -> Unit,
-    onOpenAccount: () -> Unit,
     onBack: () -> Unit
 ) {
     Box(Modifier.fillMaxSize()) {
         SettingsContent(
             onOpenOfflineMaps = onOpenOfflineMaps,
-            onOpenAccount = onOpenAccount,
             onBack = onBack
         )
     }

@@ -37,7 +37,10 @@ class AuthRepository {
         /** False until the user picks a real username (replaces the
          *  trigger's auto-generated temp one). Default keeps decoding
          *  working for selects that only request id+username. */
-        val username_is_set: Boolean = false
+        val username_is_set: Boolean = false,
+        /** Epoch millis of profiles.created_at — "member since" on the
+         *  profile screen. Default 0 = unknown (never shown as a date). */
+        val created_at: String? = null
     )
 
     /**
@@ -47,7 +50,10 @@ class AuthRepository {
      */
     data class ProfileStatus(
         val username: String?,
-        val usernameIsSet: Boolean
+        val usernameIsSet: Boolean,
+        /** ISO-8601 timestamptz of profiles.created_at, or null when
+         *  unknown (decode/error/not requested). */
+        val createdAt: String? = null
     )
 
     /** Neutral error categories the UI can localize. */
@@ -407,13 +413,15 @@ class AuthRepository {
         if (!SupabaseClientProvider.isConfigured) return ProfileStatus(null, usernameIsSet = true)
         return try {
             val row = SupabaseClientProvider.client.postgrest["profiles"]
-                .select(columns = io.github.jan.supabase.postgrest.query.Columns.list("id", "username", "username_is_set")) {
+                .select(columns = io.github.jan.supabase.postgrest.query.Columns.list(
+                    "id", "username", "username_is_set", "created_at"
+                )) {
                     filter {
                         eq("id", userId)
                     }
                 }
                 .decodeSingleOrNull<Profile>()
-            row?.let { ProfileStatus(it.username, it.username_is_set) }
+            row?.let { ProfileStatus(it.username, it.username_is_set, it.created_at) }
                 ?: ProfileStatus(null, usernameIsSet = true)
         } catch (e: Exception) {
             Log.e(TAG, "getProfileStatus failed", e)

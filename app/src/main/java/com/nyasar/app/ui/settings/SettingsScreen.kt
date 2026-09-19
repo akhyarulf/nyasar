@@ -12,11 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Delete
@@ -57,7 +54,6 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
     onOpenOfflineMaps: () -> Unit = {},
-    onOpenAccount: () -> Unit = {},
     onBack: () -> Unit
 ) {
     // Standalone wrapper (kept for the "settings" route used by map screens'
@@ -78,7 +74,6 @@ fun SettingsScreen(
         Box(Modifier.padding(padding).fillMaxSize()) {
             SettingsContent(
                 onOpenOfflineMaps = onOpenOfflineMaps,
-                onOpenAccount = onOpenAccount,
                 onBack = onBack
             )
         }
@@ -86,10 +81,10 @@ fun SettingsScreen(
 }
 
 /**
- * Settings content without its own Scaffold/TopAppBar — embedded directly by
- * ProfileScreen's Settings sub-tab (IA rework 2026) AND reused by the
- * standalone [SettingsScreen] wrapper above, so both hostings stay identical
- * with a single source of truth.
+ * Settings content without its own Scaffold/TopAppBar — reused by the
+ * standalone [SettingsScreen] wrapper. Account management no longer lives
+ * here (IA rev3): identity, username edit and manage/delete moved to the
+ * Account screen (ui/profile/AccountScreen.kt).
  */
 /** Internal on purpose: only [SettingsScreen] and [SettingsEmbedded]
  *  (same module/package) may host it — but `internal` keeps that guarantee
@@ -97,7 +92,6 @@ fun SettingsScreen(
 @Composable
 internal fun SettingsContent(
     onOpenOfflineMaps: () -> Unit,
-    onOpenAccount: () -> Unit,
     onBack: () -> Unit,
     viewModel: SettingsViewModel = viewModel()
 ) {
@@ -132,17 +126,12 @@ internal fun SettingsContent(
                 // basemap selection now lives in the in-map BasemapPickerSheet
                 // (Strava-style grid). The persisted providerId state in
                 // SettingsRepository is untouched: map screens still read it.
+                // NOTE: the Account section moved out (IA rev3): identity +
+                // username edit + manage/delete live on the Account screen,
+                // reached from the profile header card.
 
                 val hasPermission = remember {
                     LocationRepository(viewModel.getApplication()).hasLocationPermission()
-                }
-                // Phase 1 account management: sheet visibility + its host.
-                var showManageAccount by remember { mutableStateOf(false) }
-                if (showManageAccount) {
-                    AccountManageSheet(
-                        authViewModel = authViewModel,
-                        onDismiss = { showManageAccount = false }
-                    )
                 }
                 // Fase 3 backup actions: Toast feedback, rows disable while
                 // a backup/restore job runs.
@@ -170,71 +159,6 @@ internal fun SettingsContent(
                         else -> {}
                     }
                 }
-                // ── Account section (Phase 1): signed-in status + logout, or
-                // a login entry point. Placed FIRST, matching how Strava-like
-                // apps put the account card at the top; layout/visuals reuse
-                // the exact SettingRow/SettingsSection language below.
-                SettingsSection(stringResource(R.string.account_section)) {
-                    when (val s = sessionState) {
-                        is com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn -> {
-                            SettingRow(
-                                icon = Icons.Default.AccountCircle,
-                                iconTint = MaterialTheme.colorScheme.primary,
-                                title = s.username ?: stringResource(R.string.account_no_username),
-                                subtitle = s.email
-                            )
-                            SettingRow(
-                                icon = Icons.Default.Logout,
-                                title = stringResource(R.string.account_logout),
-                                subtitle = stringResource(R.string.account_logout_desc),
-                                onClick = { authViewModel.signOut() }
-                            )
-                            // ── Phase 1: manage account (change password /
-                            // change email / delete account). Opens the sheet
-                            // at the bottom of this file; results surface
-                            // through AuthViewModel.accountAction inside it.
-                            SettingRow(
-                                icon = Icons.Default.ManageAccounts,
-                                title = stringResource(R.string.account_manage_title),
-                                subtitle = null,
-                                onClick = { showManageAccount = true },
-                                trailing = {
-                                    Icon(
-                                        Icons.Default.ChevronRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            )
-                        }
-                        is com.nyasar.app.ui.auth.AuthViewModel.SessionState.Restoring -> {
-                            SettingRow(
-                                icon = Icons.Default.AccountCircle,
-                                title = stringResource(R.string.account_checking_session),
-                                subtitle = null
-                            )
-                        }
-                        else -> {
-                            // SignedOut + Unconfigured both offer the login
-                            // entry; Unconfigured builds simply land on a
-                            // screen explaining setup is missing (graceful).
-                            SettingRow(
-                                icon = Icons.Default.AccountCircle,
-                                title = stringResource(R.string.account_not_signed_in),
-                                subtitle = stringResource(R.string.account_sign_in_desc),
-                                onClick = onOpenAccount,
-                                trailing = {
-                                    Icon(
-                                        Icons.Default.ChevronRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            )
-                        }
-                    }
-                }
-
                 // ── Fase 3: Backup & Pulihkan — only meaningful signed in.
                 if (sessionState is com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn) {
                     SettingsSection(stringResource(R.string.backup_section)) {
@@ -547,9 +471,11 @@ private fun RadioOption(label: String, selected: Boolean, onSelect: () -> Unit) 
  * description that only CLOUD data dies — Room data on this device stays
  * (explicit product decision, stated verbatim in the dialog).
  */
+/** Hosted by the Account screen (ui/profile/AccountScreen.kt) — the
+ *  account section left Settings, so the sheet moved with it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountManageSheet(
+internal fun AccountManageSheet(
     authViewModel: com.nyasar.app.ui.auth.AuthViewModel,
     onDismiss: () -> Unit
 ) {
@@ -758,7 +684,7 @@ private fun AccountManageSheet(
 }
 
 @Composable
-private fun AccountActionRow(
+internal fun AccountActionRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
@@ -796,7 +722,7 @@ private fun AccountActionRow(
 
 /** Success message + explicit close button shown after a completed action. */
 @Composable
-private fun AccountActionDone(text: String, onClose: () -> Unit) {
+internal fun AccountActionDone(text: String, onClose: () -> Unit) {
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium,
@@ -809,7 +735,7 @@ private fun AccountActionDone(text: String, onClose: () -> Unit) {
 }
 
 @Composable
-private fun AccountActionError(errorRes: Int?) {
+internal fun AccountActionError(errorRes: Int?) {
     if (errorRes != null) {
         Spacer(Modifier.height(8.dp))
         Text(
@@ -821,7 +747,7 @@ private fun AccountActionError(errorRes: Int?) {
 }
 
 @Composable
-private fun AccountPasswordField(
+internal fun AccountPasswordField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,

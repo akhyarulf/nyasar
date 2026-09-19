@@ -620,6 +620,7 @@ private fun NyasarNavHost(
                 onShareGpx = rememberShareActivityGpxHandler(),
                 onOpenRoute = { id -> navController.navigate("route/$id") },
                 onOpenSettings = { navController.navigate("settings") },
+                onOpenProfile = { navController.navigate("account") },
                 onOpenAccount = { navController.navigate("auth/login") },
                 onGoToRecord = { goToTab("recording?autoStart=false") },
                 onBack = { navController.popBackStack() }
@@ -648,6 +649,7 @@ private fun NyasarNavHost(
                 onShareGpx = rememberShareActivityGpxHandler(),
                 onOpenRoute = { id -> navController.navigate("route/$id") },
                 onOpenSettings = { navController.navigate("settings") },
+                onOpenProfile = { navController.navigate("account") },
                 onOpenAccount = { navController.navigate("auth/login") },
                 onGoToRecord = { goToTab("recording?autoStart=false") },
                 onBack = { navController.popBackStack() }
@@ -830,7 +832,19 @@ private fun NyasarNavHost(
         ) {
             SettingsScreen(
                 onOpenOfflineMaps = { navController.navigate("offline-maps") },
-                onOpenAccount = { navController.navigate("auth/login") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        // ── IA rev3: Account screen behind the profile header card ──
+        composable(
+            "account",
+            enterTransition = { tabEnter },
+            exitTransition = { tabExit },
+            popEnterTransition = { tabEnter },
+            popExitTransition = { tabExit }
+        ) {
+            com.nyasar.app.ui.profile.AccountScreen(
+                onOpenSignIn = { navController.navigate("auth/login") },
                 onBack = { navController.popBackStack() }
             )
         }

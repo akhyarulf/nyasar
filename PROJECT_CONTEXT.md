@@ -612,11 +612,27 @@ ujung UI.** (Detail per slice di bawah.)
     `SUPABASE_URL`/`SUPABASE_ANON_KEY` dari repo secrets, fallback
     halaman tanpa fetch jika kosong); `release.yaml` print SHA-256 cert
     release di log (buat diisi ke assetlinks.json).
-  - **Langkah manual user**: (1) DNS A-record apex + CNAME
-    `app` → `<user>.github.io`, (2) set custom domain di Pages settings,
-    (3) jalankan workflow Pages, (4) isi SHA-256 debug+release di
-    `assetlinks.json`, (5) set secrets `SUPABASE_URL` +
-    `SUPABASE_ANON_KEY` di repo. Detail lengkap di `web/README.md`. Semua client-side — schema_v1 sudah menyiapkan
+  - **Langkah manual user**: (1) DNS CNAME `app` → `<user>.github.io`
+    (apex milik Blogger user), (2) set custom domain + Source "GitHub
+    Actions" di Pages settings, (3) workflow Pages jalan otomatis.
+    Detail lengkap di `web/README.md`.
+  - 🟢 **Status 2026-09-20: LIVE.** DNS tersebar, HTTPS 200,
+    assetlinks.json terisi: SHA-256 release (dari log workflow) +
+    SHA-256 debug dari keystore committed.
+- 🟢 **Debug keystore committed — konsep "debug key tanpa ribet"
+  (2026-09-20).** `keystore/debug.keystore` (PKCS12, alias
+  `androiddebugkey`, pass `android`, RSA 2048, 30 tahun) di-COMMIT ke
+  repo — debug key bukan rahasia (hanya menandatangani APK debug).
+  Semua debug build (lokal + CI) memakainya via signingConfig
+  `sharedDebug` di app/build.gradle.kts (fallback ke default Gradle
+  kalau file tidak ada), jadi SHA-256 debug di assetlinks.json cocok
+  selamanya — App Links autoVerify jalan juga di debug build. Generate
+  ulang/rotasi: `python3 scripts/gen_debug_keystore.py` (script pure-
+  Python, cryptography lib) + update assetlinks.json. .gitignore:
+  `keystore/*` dengan exception `!keystore/debug.keystore` (release
+  keystore tetap rahasia, hanya via CI secrets).
+- 🟢 **SISA FASE 4 SELESAI (2026-09-18): Save/bookmark + Report + hapus
+  komentar sendiri.** Semua client-side — schema_v1 sudah menyiapkan
   tabel + RLS sejak awal, NOL migration baru:
   - `SocialRepository` nambah: `toggleSave` (saved_routes, read-state-
     then-write anti-race, PK (user_id, route_id)), `fetchSavedRouteIds`

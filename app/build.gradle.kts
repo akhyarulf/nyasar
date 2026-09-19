@@ -74,6 +74,18 @@ android {
             keyAlias = System.getenv("KEY_ALIAS")
             keyPassword = System.getenv("KEY_PASSWORD")
         }
+        // COMMITTED debug keystore (konsep "debug key tanpa ribet",
+        // 2026-09): satu key yang sama untuk debug build lokal & CI,
+        // supaya SHA-256 debug di web/.well-known/assetlinks.json
+        // (App Links autoVerify) cocok selamanya. Debug key bukan
+        // rahasia — hanya menandatangani APK debug. Kalau file hilang
+        // (clone partial), Gradle fallback ke debug default-nya sendiri.
+        create("sharedDebug") {
+            storeFile = rootProject.file("keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
@@ -90,6 +102,9 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            if (rootProject.file("keystore/debug.keystore").exists()) {
+                signingConfig = signingConfigs.getByName("sharedDebug")
+            }
         }
     }
 

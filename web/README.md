@@ -38,14 +38,14 @@ web/
    - Custom domain: isi `app.nyasarnyaman.my.id`, centang **Enforce HTTPS**
      setelah sertifikat selesai diterbitkan.
 3. **Isi SHA-256 certificate di `web/.well-known/assetlinks.json`:**
-   - Debug cert (HP install via Android Studio / sideload debug):
-     ```
-     keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep SHA256:
-     ```
+   - Debug cert: SUDAH TERISI otomatis — debug keystore di-commit di
+     `keystore/debug.keystore` (alias `androiddebugkey`, pass `android`) dan
+     semua debug build (lokal + CI) memakainya, jadi SHA-256-nya stabil.
+     Regenerasi hanya kalau mau rotasi: `python3 scripts/gen_debug_keystore.py`.
    - Release cert: workflow "Release Nyasar AAB" otomatis mencetaknya di log
      (step "Print release cert SHA-256") — copy dari sana.
-   - Ganti dua placeholder di `assetlinks.json`, commit, workflow Pages
-     akan deploy ulang otomatis.
+   - Ganti placeholder release cert (debug sudah terisi dari keystore
+     committed), commit, workflow Pages akan deploy ulang otomatis.
 4. **Secrets repo** (Settings → Secrets and variables → Actions):
    - `SUPABASE_URL` — URL project Supabase (https://xxx.supabase.co)
    - `SUPABASE_ANON_KEY` — anon/publishable key (memang publik, aman

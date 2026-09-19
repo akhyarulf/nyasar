@@ -2,9 +2,21 @@
 # CI receives the keystore via the KEYSTORE_BASE64 GitHub secret instead;
 # for local release builds place the file outside version control
 # (or point KEYSTORE_FILE at any untracked path).
-keystore/
+# NB: `keystore/*` (bukan `keystore/`) supaya exception di bawah bisa
+# me-re-include file tertentu — Git tidak bisa re-include di dalam
+# direktori yang foldernya sendiri di-exclude.
+keystore/*
 *.keystore
 *.jks
+#
+# EXCEPTION — keystore/debug.keystore is COMMITTED on purpose (2026-09):
+# a debug key is not a secret (it only signs debug APKs), and committing
+# it makes every debug build — local, CI, any clone — use the SAME
+# stable key so the SHA-256 in web/.well-known/assetlinks.json (App
+# Links autoVerify) matches forever. Regenerate with
+# `python3 scripts/gen_debug_keystore.py`; rotate = delete + regen +
+# update assetlinks.json.
+!keystore/debug.keystore
 
 # local.properties holds per-developer SDK paths AND real API keys
 # (MAPTILER_API_KEY, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) — never

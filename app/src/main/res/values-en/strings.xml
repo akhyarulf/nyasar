@@ -648,6 +648,8 @@
     <string name="nav_profile">Profile</string>
     <string name="profile_title">Profile</string>
     <string name="profile_tab_history">History</string>
+    <string name="profile_sign_in_title">Sign in / Register</string>
+    <string name="profile_sign_in_subtitle">Keep your recordings safe forever</string>
     <string name="browse_title">Explore Routes</string>
     <string name="publish_visibility_label">Who can see this</string>
     <string name="publish_visibility_public">Everyone</string>

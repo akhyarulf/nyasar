@@ -648,6 +648,8 @@
     <string name="nav_profile">Profil</string>
     <string name="profile_title">Profil</string>
     <string name="profile_tab_history">Riwayat</string>
+    <string name="profile_sign_in_title">Masuk / Daftar</string>
+    <string name="profile_sign_in_subtitle">Amankan rekamanmu selamanya</string>
     <string name="browse_title">Jelajah Rute</string>
     <string name="publish_visibility_label">Siapa yang bisa lihat</string>
     <string name="publish_visibility_public">Semua orang</string>

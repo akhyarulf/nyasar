@@ -1,15 +1,26 @@
 package com.nyasar.app.ui.profile
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -17,20 +28,27 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 
 /**
- * Profile tab (IA rework 2026, rev2): History + Saved merged behind one tab
- * with two sub-tabs; Settings lives behind the gear icon in the top-right
- * corner (navigates to the standalone "settings" route). Child screens are
- * REUSED VERBATIM — this file adds no new feature logic, it only hosts them
- * and owns the sub-tab state.
+ * Profile tab (IA rework 2026, rev3): a Wikiloc-style profile header card
+ * (avatar initial + username + email, or a sign-in invite when signed out)
+ * sits ABOVE the History/Saved sub-tabs; Settings lives behind the gear icon
+ * in the top-right corner (navigates to the standalone "settings" route).
+ * Child screens are REUSED VERBATIM — this file adds no new feature logic,
+ * it only hosts them and owns the sub-tab state.
  *
  * Two hosting modes, selected by [showHeader]:
  * - showHeader = true  — opened from the bottom bar as plain "profile":
@@ -95,6 +113,10 @@ fun ProfileScreen(
                 }
             )
             tabRow()
+            ProfileHeaderCard(
+                onOpenAccount = onOpenAccount,
+                onOpenSettings = onOpenSettings
+            )
             when (selectedTab) {
                 ProfileTab.HISTORY.ordinal -> ProfileHistoryPane(
                     onOpenActivity = onOpenActivity,
@@ -142,6 +164,10 @@ fun ProfileScreen(
         ) { padding ->
             Column(Modifier.padding(padding).fillMaxSize()) {
                 tabRow()
+                ProfileHeaderCard(
+                    onOpenAccount = onOpenAccount,
+                    onOpenSettings = onOpenSettings
+                )
                 when (selectedTab) {
                     ProfileTab.HISTORY.ordinal -> ProfileHistoryPane(
                         onOpenActivity = onOpenActivity,
@@ -156,6 +182,75 @@ fun ProfileScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Wikiloc-style identity header above the sub-tabs.
+ * - Signed in: avatar circle with the username initial + name + email.
+ *   Tapping opens Settings, where account management rows live (logout,
+ *   change password/email, delete) — no duplicate account UI here.
+ * - Signed out / restoring: invite card that navigates to sign-in.
+ */
+@Composable
+private fun ProfileHeaderCard(
+    onOpenAccount: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
+    val session by authViewModel.sessionState.collectAsState()
+
+    val signedIn = session as? com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = if (signedIn != null) onOpenSettings else onOpenAccount)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            if (signedIn != null) {
+                Text(
+                    text = signedIn.username?.trim()?.take(1)?.uppercase()
+                        ?: stringResource(R.string.account_no_username).take(1),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            } else {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = signedIn?.username
+                    ?: stringResource(R.string.profile_sign_in_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = signedIn?.email?.takeIf { it.isNotBlank() }
+                    ?: stringResource(R.string.profile_sign_in_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

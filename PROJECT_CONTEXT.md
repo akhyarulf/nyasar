@@ -334,9 +334,13 @@ sampai `feec4ee`, CI hijau): bottom bar 5 tab — Browse | Map | Record |
 Library | Profile.** Browse = Fase 2 poin 3, sekarang START DESTINATION
 app. Map = HomeScreen lama (route string `"home"` SENGAJA tidak berubah
 supaya semua call site `navigate("home")` tetap valid). Record & Library
-tidak berubah. History + Settings digabung di tab Profile (`"profile"`
+tidak berubah. History + Saved digabung di tab Profile (`"profile"`
 di bottom bar + nested `"profile?tab="` dengan header back-arrow;
 route `"history"`/`"settings"` tetap terdaftar sebagai sub-destinasi).
+Rev3 (Wikiloc-style): di ATAS sub-tab ada kartu identitas — avatar
+lingkaran inisial username + nama + email (tap → Settings, tempat
+account management); kalau belum login jadi kartu ajakan masuk
+(tap → auth/login). Settings tetap lewat gear di pojok kanan-atas.
 Gate auth pasca daftar/login mendarat ke Browse, bukan Home.
 
 1. ✅ `publish/PolylineEncoder.kt` — encode standar Google/Strava +

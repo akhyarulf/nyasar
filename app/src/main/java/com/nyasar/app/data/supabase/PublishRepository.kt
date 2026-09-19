@@ -346,11 +346,6 @@ class PublishRepository {
         return out.toByteArray()
     }
 
-    /** gpx_file_url value for private routes: not a URL, a routed marker.
-     *  Lives on the (public) companion so other repositories can route on
-     *  it — see BrowseRepository.downloadGpx. */
-    const val PRIVATE_PATH_PREFIX = "private:"
-
     /**
      * Flip a route's visibility (Wikiloc "Everyone ⇄ Only you"), owned
      * surfaces only — the Route Detail screen of one's OWN route. Two
@@ -448,5 +443,10 @@ class PublishRepository {
 
     companion object {
         private const val TAG = "PublishRepository"
+
+        /** gpx_file_url value for private routes: not a URL, a routed
+         *  marker. Public so other repositories can route on it — see
+         *  BrowseRepository.downloadGpx. */
+        const val PRIVATE_PATH_PREFIX = "private:"
     }
 }

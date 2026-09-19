@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import com.nyasar.app.ui.auth.AuthViewModel
+import com.nyasar.app.ui.settings.AccountActionRow
 import com.nyasar.app.ui.settings.AccountManageSheet
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat

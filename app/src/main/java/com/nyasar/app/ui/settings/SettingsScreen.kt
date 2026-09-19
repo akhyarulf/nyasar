@@ -683,6 +683,8 @@ internal fun AccountManageSheet(
     }
 }
 
+/** Also hosted by the Account screen (ui/profile) — internal suffices
+ *  (same module); AccountScreen imports it. */
 @Composable
 internal fun AccountActionRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,

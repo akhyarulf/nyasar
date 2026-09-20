@@ -582,6 +582,14 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
                             )
                         }.getOrDefault(false)
                     }
+                    // Live-update fix (2026-09-20): a SUCCESSFUL cloud sync
+                    // means the queue no longer owes anything — the re-queued
+                    // row from step 2 must leave the queue NOW, or every
+                    // publish-status surface (Library badges, Route Preview
+                    // probe) keeps reading QUEUED/stale until the next
+                    // restart-triggered flush drains it. Failure keeps the
+                    // row queued (offline → later flush finishes the job).
+                    if (cloudOk) pendingPublishDao.dequeue(sourceId)
                 }
             } catch (e: Exception) {
                 android.util.Log.w(TAG, "editPublished cloud sync failed: ${e.message}")

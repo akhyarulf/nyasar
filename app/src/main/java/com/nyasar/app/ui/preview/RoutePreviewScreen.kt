@@ -776,38 +776,50 @@ fun RoutePreviewScreen(
                         difficultyDescription = diffDesc,
                         trailType = trailType,
                         description = desc,
-                        isPublic = isPublic
+                                                isPublic = isPublic
                     )
-                    viewModel.renameRoute(routeId, title)
-                    viewModel.refreshPublishStatus(routeId)
+                    // load() = live refresh lengkap: nama dari Room + badge
+                    // status + meta terbaru (dequeue-on-success di VM sudah
+                    // membersihkan antrian, jadi QUEUED hilang seketika).
+                    viewModel.load(routeId)
                 }
             }
         )
     }
 
-    // Edit-Route (local title) — plain text dialog.
+    // Edit-Route (2026-09-20): form lengkap ala Edit Activity — nama +
+    // difficulty + trail type + deskripsi + visibility via EditPublishSheet.
+    // Nggak cuma rename lagi; data prefilled dari published meta (kalau
+    // sudah publish) atau dari row antrian (kalau queued/belum).
     if (showEditRouteDialog) {
-        var text by remember { mutableStateOf(state.name.orEmpty()) }
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showEditRouteDialog = false },
-            title = { Text(stringResource(R.string.edit_route)) },
-            text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    showEditRouteDialog = false
-                    if (text.isNotBlank()) viewModel.renameRoute(routeId, text.trim())
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showEditRouteDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+        com.nyasar.app.ui.publish.EditPublishSheet(
+            initialName = state.name.orEmpty(),
+            meta = com.nyasar.app.ui.publish.PublishRepositoryMeta(
+                isPublic = state.publishedMeta?.isPublic
+                    ?: (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.PUBLIC),
+                difficulty = state.publishedMeta?.difficulty,
+                difficultyDescription = state.publishedMeta?.difficultyDescription,
+                trailType = state.publishedMeta?.trailType,
+                description = state.publishedMeta?.description
+            ),
+            onDismiss = { showEditRouteDialog = false },
+            onSave = { title, difficulty, diffDesc, trailType, desc, isPublic ->
+                showEditRouteDialog = false
+                editScope.launch {
+                    publishEditViewModel.editPublished(
+                        sourceId = routeId,
+                        isActivity = false,
+                        title = title,
+                        difficulty = difficulty,
+                        difficultyDescription = diffDesc,
+                        trailType = trailType,
+                        description = desc,
+                        isPublic = isPublic
+                    )
+                    // load() re-reads Room + publish status — the badge,
+                    // the map header stats and the title all update in place
+                    // (live, no app restart, no re-entry needed).
+                    viewModel.load(routeId)
                 }
             }
         )

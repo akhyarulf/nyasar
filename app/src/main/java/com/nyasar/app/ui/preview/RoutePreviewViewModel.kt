@@ -302,16 +302,9 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Rename the library route locally (Edit-Route dialog). */
-    fun renameRoute(routeId: String, newName: String) {
-        viewModelScope.launch {
-            repository.getRoute(routeId)?.let { route ->
-                com.nyasar.app.data.db.AppDatabase.get(getApplication()).routeDao()
-                    .update(route.copy(name = newName))
-            }
-            load(routeId)
-        }
-    }
+    // renameRoute() dihapus (2026-09-20): Edit-Route kini form lengkap via
+    // PublishViewModel.editPublished (yang juga me-rename lokal di step 1-nya)
+    // + load() untuk refresh langsung.
 
     /** Best-effort status/meta refresh after an edit/publish lands. */
     fun refreshPublishStatus(routeId: String) {

@@ -312,6 +312,12 @@ class BrowseRepository {
         return try {
             val result = client.postgrest["saved_routes"]
                 .select(columns = Columns.list(
+                    // route_id WAJIB ada: SavedRouteRow menuntutnya non-null
+                    // (dan dipakai sebagai key list Saved). Tanpa kolom ini
+                    // decodeList melempar MissingFieldException → seluruh
+                    // tab Saved jadi "Something went wrong" padahal datanya
+                    // ada (bug 2026-09-20).
+                    "route_id",
                     "created_at",
                     "routes!saved_routes_route_id_fkey(" +
                         "id, user_id, name, difficulty, trail_type, sport_type, " +

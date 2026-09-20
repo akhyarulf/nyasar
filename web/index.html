@@ -3,40 +3,128 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nyasar — Navigasi Hiking Offline</title>
-<style>
-  body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 60px auto; padding: 0 20px; line-height: 1.6; color: #222; text-align: center; }
-  h1 { color: #2E5339; font-size: 2.2em; margin-bottom: 4px; }
-  p.tagline { color: #555; font-size: 1.1em; margin-top: 0; }
-  .links { margin-top: 40px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-  .links a {
-    display: inline-block;
-    padding: 12px 24px;
-    border: 1px solid #2E5339;
-    border-radius: 8px;
-    color: #2E5339;
-    text-decoration: none;
-    font-weight: 500;
-  }
-  .links a:hover { background: #2E5339; color: #fff; }
-  footer { margin-top: 60px; color: #888; font-size: 0.9em; }
-</style>
+<title>Nyasar — Navigasi Hiking Offline untuk Pendaki Indonesia</title>
+<meta name="description" content="Aplikasi navigasi hiking offline-first: rekam GPS tanpa sinyal, peta topografi offline, jelajahi rute pendaki lain. Data GPS-mu tetap di HP-mu.">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h1>🥾 Nyasar</h1>
-<p class="tagline">Aplikasi navigasi hiking offline-first untuk pendaki gunung di Indonesia.</p>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">⛰</span> Nyasar
+    </a>
+    <span class="spacer"></span>
+    <nav class="nav-links">
+      <a href="#features" data-i18n="nav.features">Fitur</a>
+      <a href="#how" data-i18n="nav.how">Cara Pakai</a>
+      <a href="privacy-policy.html" data-i18n="nav.privacy">Privasi</a>
+      <a href="terms-of-service.html" data-i18n="nav.terms">Syarat</a>
+      <span class="lang-switch" role="group" aria-label="Bahasa / Language">
+        <button type="button" data-lang="id">ID</button>
+        <button type="button" data-lang="en">EN</button>
+      </span>
+    </nav>
+  </div>
+</header>
 
-<p>Rekam rute GPS, navigasi tanpa koneksi internet, kelola waypoint, dan (opsional) bagikan rute pendakianmu ke pendaki lain.</p>
+<main>
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="hero-inner">
+      <span class="hero-kicker"><span class="dot"></span><span data-i18n="hero.kicker">Offline-first · GPS · Untuk pendaki Indonesia</span></span>
+      <h1 data-i18n-html="hero.title">Sesat itu biasa. <em>Nyasar</em> itu pilihan.</h1>
+      <!-- fallback ID sudah inline; lang.js mengganti via data-i18n-html -->
+      <p class="lead" data-i18n="hero.lead">Nyasar adalah aplikasi navigasi hiking offline-first untuk Android. Rekam rute GPS di tengah hutan tanpa sinyal, ikuti jalur yang sudah dibagikan pendaki lain, dan pulang dengan selamat — tanpa paket data.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#" id="play-store-link"><span>📱</span> <span data-i18n="hero.cta.download">Unduh di Google Play</span></a>
+        <a class="btn btn-ghost" href="route/index.html"><span>🧭</span> <span data-i18n="hero.cta.browse">Jelajahi Rute Publik</span></a>
+      </div>
+      <p class="hero-note" data-i18n="hero.note">Gratis · Data GPX-mu tetap di HP-mu</p>
+    </div>
+  </section>
 
-<div class="links">
-  <a href="privacy-policy.html">Privacy Policy</a>
-  <a href="terms-of-service.html">Terms of Service</a>
-</div>
+  <!-- ============ STATS ============ -->
+  <section class="section" style="padding-top:44px; padding-bottom:0;">
+    <div class="stats-strip">
+      <div class="stat"><b>Offline</b><span data-i18n="stat.offline">Peta & rute offline</span></div>
+      <div class="stat"><b>GPX</b><span data-i18n="stat.gpx">Import / export GPX</span></div>
+      <div class="stat"><b>100%</b><span data-i18n="stat.priv">GPS mentah tak pernah diunggah</span></div>
+      <div class="stat"><b>Gratis</b><span data-i18n="stat.share">Bagikan rute ke sesama pendaki</span></div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURES ============ -->
+  <section class="section" id="features">
+    <div class="section-head">
+      <h2 data-i18n="feat.title">Semua yang kamu butuh di gunung</h2>
+      <p data-i18n="feat.sub">Dirancang untuk kondisi sinyal kosong: peta, rekaman, dan navigasi bekerja penuh secara lokal di perangkat.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card"><div class="icon">📍</div><h3 data-i18n="feat.1.t">Rekam GPS tanpa sinyal</h3><p data-i18n="feat.1.d">Lacak jalur, jarak, elevasi, dan kecepatan. Perekaman berjalan di latar belakang dengan notifikasi — layar mati pun tetap jalan.</p></div>
+      <div class="card"><div class="icon">🗺️</div><h3 data-i18n="feat.2.t">Peta topografi offline</h3><p data-i18n="feat.2.d">Unduh area gunung sebelum berangkat. Peta topografi & satelit tetap tampil jauh dari tower BTS.</p></div>
+      <div class="card"><div class="icon">🧭</div><h3 data-i18n="feat.3.t">Navigasi ikuti rute</h3><p data-i18n="feat.3.d">Ambil rute dari Library atau Explore — aplikasi memandu dengan penanda arah dan peringatan kalau keluar jalur.</p></div>
+      <div class="card"><div class="icon">📍</div><h3 data-i18n="feat.4.t">Waypoint & penanda</h3><p data-i18n="feat.4.d">Simpan titik penting: sumber air, simpang, pos. Beri kategori dan catatan agar mudah ditemukan lagi.</p></div>
+      <div class="card"><div class="icon">🌏</div><h3 data-i18n="feat.5.t">Jelajahi rute pendaki lain</h3><p data-i18n="feat.5.d">Rute publik dari komunitas: lihat statistik, baca catatan medan, unduh GPX-nya, langsung ikuti.</p></div>
+      <div class="card"><div class="icon">☁️</div><h3 data-i18n="feat.6.t">Backup otomatis</h3><p data-i18n="feat.6.d">Aktifkan akun dan seluruh aktivitasmu tersimpan aman di cloud — ganti HP tanpa kehilangan sejarah pendakian.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ HOW ============ -->
+  <section class="section" id="how" style="padding-top:24px;">
+    <div class="section-head">
+      <h2 data-i18n="how.title">Siap naik dalam tiga langkah</h2>
+      <p data-i18n="how.sub">Sebelum berangkat siapkan semuanya dari rumah — nanti di atas, sinyal bukan urusan lagi.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><h3 data-i18n="how.1.t">Unduh area peta</h3><p data-i18n="how.1.d">Pilih area gunung tujuanmu dan simpan untuk mode offline.</p></div>
+      <div class="step"><h3 data-i18n="how.2.t">Rekam atau ambil rute</h3><p data-i18n="how.2.d">Rekam jalurmu sendiri, atau unduh rute publik dari pendaki lain.</p></div>
+      <div class="step"><h3 data-i18n="how.3.t">Naik & bagikan</h3><p data-i18n="how.3.d">Nikmati pendakian, simpan jejaknya, lalu bagikan ke komunitas.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ PRIVACY BAND ============ -->
+  <section class="section" style="padding-top:24px;">
+    <div class="band">
+      <h2 data-i18n="band.title">Datamu milikmu</h2>
+      <p data-i18n="band.d">Nyasar menyimpan rekaman GPS-mu di perangkat secara default. Titik GPS mentah tidak pernah diunggah — yang dibagikan hanya rute ringkas yang kamu pilih sendiri untuk dipublikasikan.</p>
+      <div class="cta-row">
+        <a class="btn btn-ghost" href="privacy-policy.html" data-i18n="band.cta">Baca Kebijakan Privasi</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section class="section" style="padding-top:24px; padding-bottom:64px;">
+    <div class="section-head">
+      <h2 data-i18n="cta.title">Naik gunung dengan percaya diri</h2>
+      <p data-i18n="cta.d">Unduh Nyasar, dan jadikan sesat bagian dari petualangan — bukan kekhawatiran.</p>
+      <div class="cta-row" style="margin-top:22px;">
+        <a class="btn btn-primary" href="#" id="play-store-link-2"><span>📱</span> <span data-i18n="cta.get">Unduh Aplikasinya</span></a>
+      </div>
+    </div>
+  </section>
+</main>
 
 <footer>
-  <p>Nyasar &middot; Kontak: <a href="mailto:akhyarul.fuqoha@gmail.com">akhyarul.fuqoha@gmail.com</a></p>
+  <div class="footer-inner">
+    <span>© 2026 Nyasar · <span data-i18n="footer.made">Dibuat dengan teliti untuk pendaki Indonesia.</span></span>
+    <span>
+      <a href="privacy-policy.html" data-i18n="footer.privacy">Privacy Policy</a> &nbsp;·&nbsp;
+      <a href="terms-of-service.html" data-i18n="footer.terms">Terms of Service</a> &nbsp;·&nbsp;
+      <a href="mailto:akhyarul.fuqoha@gmail.com" data-i18n="footer.contact">Kontak</a>
+    </span>
+  </div>
 </footer>
 
+<script src="lang.js"></script>
+<script>
+  // Toggle bahasa — semua halaman memakai pola ini.
+  document.querySelectorAll(".lang-switch button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (window.nyasarApplyLang) window.nyasarApplyLang(b.getAttribute("data-lang"));
+    });
+  });
+</script>
 </body>
 </html>

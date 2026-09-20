@@ -52,8 +52,8 @@ Masuk akun sekali, dan setiap rute serta rekaman tersimpan otomatis ke akunmu �
 
 ## Cara Mulai (Android 8.0+)
 
-1. **Unduh APK Nyasar** dari tab [Actions](https://github.com/akhyarulf/nyasar/actions) repo ini: buka run terbaru yang hijau (berhasil), masuk ke halaman run-nya, lalu unduh artifact `nyasar-debug-apk` di bagian bawah. Ekstrak zip-nya untuk mendapatkan file APK.
-2. Buka file APK-nya di HP. Kalau muncul peringatan, izinkan *"Install dari sumber tidak dikenal"* — normal untuk aplikasi di luar Play Store.
+1. **Unduh APK Nyasar** dari [halaman Releases](https://github.com/akhyarulf/nyasar/releases/latest) repo ini — atau langsung dari tautan permanen [Nyasar.apk](https://github.com/akhyarulf/nyasar/releases/latest/download/Nyasar.apk). Setiap rilis versi baru (tag `v*`) otomatis dibangun dan diterbitkan di sana, jadi tautan itu selalu menunjuk ke versi terbaru. Ingin mencoba build pengembangan terbaru? APK debug juga tersedia di tab [Actions](https://github.com/akhyarulf/nyasar/actions): buka run terbaru yang hijau, lalu unduh artifact `nyasar-debug-apk` (ekstrak zip-nya untuk mendapatkan APK).
+2. Buka file APK-nya di HP. Kalau muncul peringatan, izinkan *"Install dari sumber tidak dikenal"* — normal untuk aplikasi yang dipasang langsung dari file APK.
 3. Berikan izin **lokasi** saat diminta (wajib, karena inti aplikasi adalah GPS). Izin notifikasi opsional.
 4. Impor GPX pertamamu dari tab **Library**, atau langsung buka file GPX dari aplikasi lain dengan *"Open with → Nyasar"*.
 5. Selamat menjelajah. Dan semoga tidak jadi nyasar.
@@ -111,6 +111,6 @@ cd nyasar
 ./gradlew testDebugUnitTest    # jalankan unit test
 ```
 
-Stack singkat: Kotlin + Jetpack Compose, MapLibre GL, Room, Supabase, dan arsitektur offline-first. Setiap push ke `main` otomatis di-build oleh GitHub Actions (APK debug + AAB rilis).
+Stack singkat: Kotlin + Jetpack Compose, MapLibre GL, Room, Supabase, dan arsitektur offline-first. Setiap push ke `main` otomatis di-build oleh GitHub Actions (APK debug), push tag `v*` menerbitkan APK release ke [Releases](https://github.com/akhyarulf/nyasar/releases), dan folder `web/` dideploy ke [app.nyasarnyaman.my.id](https://app.nyasarnyaman.my.id).
 
 Punya ide fitur atau menemukan bug? [Buka issue](https://github.com/akhyarulf/nyasar/issues) — kontribusi sangat diterima!

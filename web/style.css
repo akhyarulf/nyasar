@@ -276,8 +276,29 @@ body {
   letter-spacing: -.015em; margin-bottom: 4px;
 }
 .route-card .meta { color: var(--ink-mute); font-size: .9rem; margin-bottom: 20px; }
+
+/* Badges di atas judul rute */
+.route-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.badge {
+  display: inline-flex; align-items: center;
+  font-size: .74rem; font-weight: 800; letter-spacing: .4px;
+  padding: 4px 12px; border-radius: 999px; text-transform: uppercase;
+}
+.b-easy     { background: rgba(46, 83, 57, .14);  color: var(--forest); }
+.b-moderate { background: rgba(242, 169, 0, .16); color: #8A6200; }
+.b-hard     { background: rgba(178, 52, 45, .14); color: #B2342D; }
+.b-trail    { background: var(--surface-tint);    color: var(--nyasar-dark); }
+
+/* Peta rute (Leaflet) */
+.route-map {
+  height: 320px; border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--line); margin-bottom: 20px;
+  background: var(--surface-tint);
+}
+.route-map .leaflet-container { height: 100%; width: 100%; }
+
 .route-stats {
-  display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   margin-bottom: 22px;
 }
 .route-stat {
@@ -286,6 +307,10 @@ body {
 }
 .route-stat b { display: block; color: var(--forest); font-size: 1.15rem; }
 .route-stat span { color: var(--ink-mute); font-size: .78rem; font-weight: 600; }
+.route-desc-title {
+  color: var(--forest); font-size: 1.05rem; margin: 4px 0 8px; font-weight: 700;
+}
+.route-desc { color: var(--ink-soft); font-size: .96rem; white-space: pre-line; }
 .route-actions { display: flex; flex-direction: column; gap: 10px; }
 .route-actions .btn { justify-content: center; }
 .route-hint { color: var(--ink-mute); font-size: .88rem; text-align: center; margin-top: 6px; }

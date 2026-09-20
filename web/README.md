@@ -23,8 +23,9 @@ web/
 - HP **dengan** app Nyasar → Android membuka app langsung ke Route Detail
   (tanpa dialog pilih aplikasi) berkat `autoVerify` di AndroidManifest +
   assetlinks.json yang cocok.
-- HP **tanpa** app → dibuka browser: landing ringkas rute (nama, jarak,
-  elevasi, kesulitan, tombol unduh GPX, ajakan install).
+- HP **tanpa** app → dibuka browser: landing rute lengkap (peta jalur
+  Leaflet, statistik jarak/naik/turun/elevasi/waktu, deskripsi, badge
+  kesulitan, tombol unduh GPX, ajakan install — bahasa ID/EN).
 
 ## Langkah setup (sekali jalan)
 

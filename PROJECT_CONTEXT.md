@@ -876,6 +876,31 @@ tombol "Backup now"/"Restore now":
   `editPublished`; composable baru: `EditPublishSheet`,
   `EditActivityDialog`; badge enum: `PublishBadge` (Library),
   `PublishStatus` (RoutePreview).
+- **Distribusi resmi = GitHub Releases, bukan Play Store (2026-09-20,
+  keputusan user: tidak mau bayar $25).** Workflow baru
+  `release-apk.yaml` (trigger: push tag `v*` + manual dispatch) build
+  `assembleRelease` ditandatangani keystore dari secrets, rename jadi
+  `Nyasar.apk`, lalu `gh release create` — nama file stabil bikin
+  tautan unduh permanen
+  `https://github.com/akhyarulf/nyasar/releases/latest/download/Nyasar.apk`
+  selalu menunjuk rilis terbaru. Landing web (hero + CTA bawah) dan
+  README.md kini menunjuk ke tautan itu (bukan lagi "Google Play" yang
+  tidak pernah ada, bukan juga halaman Releases generik). Catatan
+  keamanan: App Links tetap lolos autoVerify karena cert signing APK
+  sideload = cert yang terdaftar di assetlinks.json.
+- **Landing route web dirombak (uncommitted sebelumnya, kini di-fix +
+  didokumentasikan):** kartu peta Leaflet (OSM tiles, casing gelap +
+  garis amber — warna app), badge kesulitan/jenis jalur, statistik
+  lengkap (jarak/naik/turun/puncak/terendah/waktu), deskripsi,
+  tombol "Buka di aplikasi" (hanya UA Android), fallback error card
+  per-state. Embed `profiles` di query REST-nya WAJIB pakai FK hint
+  `profiles!routes_user_id_fkey(username,display_name)` — tanpa hint,
+  PGRST201 "more than one relationship" (routes punya 3 relasi ke
+  profiles) bikin SEMUA route landing gagal fetch dan selalu jatuh ke
+  "Rute tidak tersedia". Bug ini ketemu pas audit: persis pola yang
+  sudah pernah di-dokumentasikan di BrowseRepository (Slice 2),
+  terulang di permukaan web yang baru ditulis. Jangan diulang ketiga
+  kalinya.
 
 ## Ide Masa Depan (BELUM masuk skema, sengaja ditunda)
 

@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nyasar — Rute Pendakian</title>
-<meta name="description" content="Detail rute pendakian publik yang dibagikan lewat aplikasi Nyasar — jarak, elevasi, kesulitan, dan file GPX siap unduh.">
+<meta name="description" content="Detail rute pendakian publik yang dibagikan lewat aplikasi Nyasar — peta jalur, statistik elevasi, dan file GPX siap unduh.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -24,22 +25,34 @@
 </header>
 
 <main class="route-main">
-  <div class="route-card">
-    <h1 id="route-name" data-i18n="route.load">Memuat rute…</h1>
+  <!-- Kartu utama: nama + badge + peta + statistik + deskripsi -->
+  <div class="route-card" id="route-head" hidden>
+    <div class="route-badges" id="route-badges"></div>
+    <h1 id="route-name">…</h1>
     <p class="meta" id="route-meta"></p>
-    <div class="route-stats" id="route-stats" hidden>
-      <div class="route-stat"><b id="stat-distance">-</b><span data-i18n="route.dist">Jarak</span></div>
-      <div class="route-stat"><b id="stat-elevation">-</b><span data-i18n="route.elev">Elevasi</span></div>
-      <div class="route-stat"><b id="stat-difficulty">-</b><span data-i18n="route.diff">Kesulitan</span></div>
+    <div class="route-map" id="route-map" hidden></div>
+    <div class="route-stats" id="route-stats"></div>
+    <div id="route-desc-wrap" hidden>
+      <h2 class="route-desc-title" data-i18n="route.desc">Deskripsi</h2>
+      <p class="route-desc" id="route-desc"></p>
     </div>
   </div>
 
-  <div class="route-card">
+  <!-- Kartu aksi -->
+  <div class="route-card" id="route-actions" hidden>
     <div class="route-actions">
-      <a class="btn btn-primary" href="#" id="download-btn" hidden>⬇ <span data-i18n="route.dl">Unduh file GPX</span></a>
-      <p class="route-hint" id="download-hint" data-i18n="route.dl.hint">Buka rute ini langsung di aplikasi Nyasar untuk navigasi offline.</p>
+      <a class="btn btn-primary" href="#" id="download-btn">⬇ <span data-i18n="route.dl">Unduh file GPX</span></a>
+      <a class="btn btn-ghost" href="#" id="openapp-btn" hidden>📍 <span data-i18n="route.openapp">Buka di aplikasi Nyasar</span></a>
+      <p class="route-hint" id="download-hint" data-i18n="route.dl.note">File GPX terkompresi (.gz) — bisa langsung disimpan ke Library lewat aplikasi Nyasar.</p>
       <a class="btn btn-ghost" href="../index.html" data-i18n="route.learn">Pelajari aplikasinya</a>
     </div>
+  </div>
+
+  <!-- Kartu error / fallback -->
+  <div class="route-card" id="route-error" hidden>
+    <h1 id="error-title">…</h1>
+    <p class="meta" id="error-desc"></p>
+    <a class="btn btn-ghost" href="../index.html" data-i18n="route.learn">Pelajari aplikasinya</a>
   </div>
 </main>
 
@@ -61,6 +74,7 @@
 </script>
 <script src="../config.js"></script>
 <script src="../lang.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   // Toggle bahasa
   document.querySelectorAll(".lang-switch button").forEach(function (b) {
@@ -69,48 +83,186 @@
     });
   });
 
-  // Teks rute punya beberapa state — kubuatkan peta state → i18n key supaya
-  // perubahan bahasa SETELAH fetch selesai tetap konsisten.
-  var ROUTE_STATE = { kind: null, data: null };
-  function renderRoute() {
-    var lang = window.NYASAR_LANG || "id";
-    var T = {
-      load: lang === "en" ? "Loading route…" : "Memuat rute…",
-      notfound: lang === "en" ? "Route unavailable" : "Rute tidak tersedia",
-      notfoundD: lang === "en" ? "This route is private, was removed, or the link is invalid." : "Rute ini privat, sudah dihapus, atau tautannya tidak valid.",
-      generic: lang === "en" ? "Nyasar route" : "Rute Nyasar",
-      genericD: lang === "en" ? "Full route details are available in the Nyasar app — get it via the button below." : "Detail rute tersedia di aplikasi Nyasar — unduh lewat tombol di bawah.",
-      byline: lang === "en" ? "A public hiking route shared via Nyasar" : "Rute pendakian publik dibagikan lewat Nyasar",
-      diff: lang === "en" ? "Not rated" : "Belum dinilai"
-    };
-    var nameEl = document.getElementById("route-name");
-    var metaEl = document.getElementById("route-meta");
-    var stats = document.getElementById("route-stats");
-    var dl = document.getElementById("download-btn");
-    var hint = document.getElementById("download-hint");
-
-    if (ROUTE_STATE.kind === "ok" && ROUTE_STATE.data) {
-      var r = ROUTE_STATE.data;
-      nameEl.textContent = r.name || T.generic;
-      metaEl.textContent = T.byline;
-      stats.hidden = false;
-      document.getElementById("stat-distance").textContent =
-        r.distance_meters ? (r.distance_meters / 1000).toFixed(1) + " km" : "-";
-      document.getElementById("stat-elevation").textContent =
-        r.elevation_gain_m ? "+" + Math.round(r.elevation_gain_m) + " m" : "-";
-      document.getElementById("stat-difficulty").textContent = r.difficulty || T.diff;
-      dl.hidden = false;
-      hint.hidden = true;
-      dl.href = window.NYASAR_SUPABASE_URL + "/storage/v1/object/public/route-gpx/" + r.id + ".gpx.gz";
-    } else if (ROUTE_STATE.kind === "missing") {
-      nameEl.textContent = T.notfound;
-      metaEl.textContent = T.notfoundD;
-    } else if (ROUTE_STATE.kind === "generic") {
-      nameEl.textContent = T.generic;
-      metaEl.textContent = T.genericD;
-    } else {
-      nameEl.textContent = T.load;
+  // ── Decoder polyline (algoritma sama dengan PolylineEncoder.kt di app) ──
+  function decodePolyline(str) {
+    var out = [], i = 0, lat = 0, lng = 0, F = 1e5;
+    while (i < str.length) {
+      var shift = 0, val = 0, b;
+      do { b = str.charCodeAt(i++) - 63; val |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lat += (val & 1) ? ~(val >> 1) : (val >> 1);
+      shift = 0; val = 0;
+      do { b = str.charCodeAt(i++) - 63; val |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lng += (val & 1) ? ~(val >> 1) : (val >> 1);
+      out.push([lat / F, lng / F]);
     }
+    return out;
+  }
+
+  // ── State rute — satu sumber untuk render + re-render saat ganti bahasa ──
+  var ROUTE_STATE = { kind: "load", data: null, points: null, map: null };
+
+  function fmtKm(m) { return m ? (m / 1000).toFixed(1) + " km" : "-"; }
+  function fmtM(m) { return (m == null || isNaN(m)) ? "-" : Math.round(m) + " m"; }
+  function fmtTime(ms) {
+    if (!ms) return "-";
+    var h = Math.floor(ms / 3600000), m = Math.round((ms % 3600000) / 60000);
+    if ((window.NYASAR_LANG || "id") === "en") return (h ? h + " h " : "") + m + " min";
+    return (h ? h + " j " : "") + m + " mnt";
+  }
+  function diffLabel(v) {
+    var L = window.NYASAR_LANG || "id";
+    var id = { easy: "Mudah", moderate: "Sedang", difficult: "Sulit", very_difficult: "Sangat sulit" };
+    var en = { easy: "Easy", moderate: "Moderate", difficult: "Difficult", very_difficult: "Very difficult" };
+    if (!v) return L === "en" ? "Not rated" : "Belum dinilai";
+    return (L === "en" ? en : id)[v] || v;
+  }
+  function trailLabel(v) {
+    var L = window.NYASAR_LANG || "id";
+    var id = { loop: "Lingkar", out_and_back: "Pulang-pergi", point_to_point: "Titik ke titik" };
+    var en = { loop: "Loop", out_and_back: "Out & back", point_to_point: "Point to point" };
+    if (!v) return null;
+    return (L === "en" ? en : id)[v] || v;
+  }
+  function fmtDate(iso) {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString(
+      (window.NYASAR_LANG || "id") === "en" ? "en-GB" : "id-ID",
+      { day: "numeric", month: "long", year: "numeric" }
+    );
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  function renderRoute() {
+    var s = ROUTE_STATE;
+    el("route-head").hidden = s.kind !== "ok";
+    el("route-actions").hidden = s.kind !== "ok";
+    el("route-error").hidden = s.kind === "ok";
+
+    if (s.kind === "ok" && s.data) {
+      var r = s.data;
+      el("route-name").textContent = r.name || "Rute Nyasar";
+
+      // Badge kesulitan + jenis jalur
+      var badges = [];
+      var d = diffLabel(r.difficulty);
+      var dcls = { easy: "b-easy", moderate: "b-moderate", difficult: "b-hard", very_difficult: "b-hard" }[r.difficulty] || "b-easy";
+      badges.push('<span class="badge ' + dcls + '">' + d + "</span>");
+      var t = trailLabel(r.trail_type);
+      if (t) badges.push('<span class="badge b-trail">' + t + "</span>");
+      el("route-badges").innerHTML = badges.join("");
+
+      // Meta: penulis + tanggal
+      var author = (r.profiles && (r.profiles.display_name || r.profiles.username)) || null;
+      var meta = [];
+      if (author) meta.push(author);
+      if (r.created_at) meta.push(fmtDate(r.created_at));
+      el("route-meta").textContent = meta.length
+        ? (window.NYASAR_LANG === "en" ? "by " + meta.join(" · ") : "oleh " + meta.join(" · "))
+        : (window.NYASAR_LANG === "en" ? "A public route shared via Nyasar" : "Rute publik dibagikan lewat Nyasar");
+
+      // Statistik lengkap — label diterjemahkan langsung saat render.
+      function statLabel(key) {
+        var id = { dist: "Jarak", gain: "Naik", loss: "Turun", max: "Puncak", min: "Terendah", time: "Waktu" };
+        var en = { dist: "Distance", gain: "Ascent", loss: "Descent", max: "Max alt", min: "Min alt", time: "Time" };
+        return ((window.NYASAR_LANG || "id") === "en" ? en : id)[key] || key;
+      }
+      var st = [];
+      function addStat(val, key) { st.push('<div class="route-stat"><b>' + val + '</b><span>' + statLabel(key) + '</span></div>'); }
+      addStat(fmtKm(r.distance_meters), "dist");
+      addStat(fmtM(r.elevation_gain_m), "gain");
+      addStat(fmtM(r.elevation_loss_m), "loss");
+      addStat(fmtM(r.max_elevation_m), "max");
+      addStat(fmtTime(r.moving_time_ms), "time");
+      addStat(fmtM(r.min_elevation_m), "min");
+      el("route-stats").innerHTML = st.join("");
+
+      // Deskripsi
+      var desc = (r.description || "").trim();
+      el("route-desc-wrap").hidden = !desc;
+      el("route-desc").textContent = desc;
+
+      // Unduh GPX: URL resmi dari DB kalau ada dan valid.
+      // Kalau tidak, file-nya SELALU ada di path deterministik
+      // {userId}/{routeId}.gpx.gz di bucket publik route-gpx (persis
+      // format yang ditulis PublishRepository) — jangan pernah pakai
+      // pola r.gpx_file_url tanpa cek, karena kolom bisa null (backfill
+      // best-effort) dan URL lama/expired menghasilkan 404 NoSuchKey.
+      var supa = (window.NYASAR_SUPABASE_URL || "").replace(/\/$/, "");
+      var fallback = supa + "/storage/v1/object/public/route-gpx/" +
+        encodeURIComponent((r.user_id || "") + "/" + r.id + ".gpx.gz");
+      var direct = r.gpx_file_url && r.gpx_file_url.indexOf("private:") !== 0
+        ? r.gpx_file_url : fallback;
+      el("download-btn").href = direct;
+      el("download-btn").hidden = !(supa && r.user_id);
+      el("download-hint").hidden = el("download-btn").hidden;
+      // Cek file-nya benar-benar ada — kalau 404 (NoSuchKey), sembunyikan
+      // tombol + hint supaya tidak ada link mati. Non-blocking: halaman
+      // tetap render penuh duluan.
+      if (!el("download-btn").hidden) {
+        validateGpxLink(direct, function () {
+          if (el("download-btn").href === direct) {   // state belum ganti rute
+            el("download-btn").hidden = true;
+            el("download-hint").hidden = true;
+          }
+        });
+      }
+
+      // Tombol buka di app — hanya di Android (App Links autoVerify).
+      el("openapp-btn").hidden = !/Android/i.test(navigator.userAgent);
+      el("openapp-btn").href = location.href;
+
+      drawMap(s.points);
+    } else {
+      var T = {
+        load: window.NYASAR_LANG === "en" ? ["Loading route…", ""] : ["Memuat rute…", ""],
+        notfound: window.NYASAR_LANG === "en"
+          ? ["Route unavailable", "This route is private, was removed, or the link is invalid."]
+          : ["Rute tidak tersedia", "Rute ini privat, sudah dihapus, atau tautannya tidak valid."],
+        generic: window.NYASAR_LANG === "en"
+          ? ["Nyasar route", "Open this link on a phone with the Nyasar app, or learn more below."]
+          : ["Rute Nyasar", "Buka tautan ini di HP dengan aplikasi Nyasar, atau pelajari lebih lanjut di bawah."]
+      };
+      var pick = T[s.kind] || T.load;
+      el("error-title").textContent = pick[0];
+      el("error-desc").textContent = pick[1];
+    }
+  }
+
+  // Fallback berbasis fetch: kalau HEAD/GET file GPX di Storage gagal
+  // (404 NoSuchKey — umumnya rute lawas atau file terhapus), tombol
+  // unduh disembunyikan agar tidak ada link mati yang membingungkan.
+  function validateGpxLink(url, onMissing) {
+    if (!url) { onMissing(); return; }
+    fetch(url, { method: "HEAD" })
+      .then(function (res) { if (!res.ok) onMissing(); })
+      .catch(function () { /* jaringan bermasalah: biarkan tombol tetap tampil */ });
+  }
+  function drawMap(points) {
+    var box = el("route-map");
+    if (!points || !points.length) { box.hidden = true; return; }
+    box.hidden = false;
+    if (!window.L) { box.hidden = true; return; }          // CDN gagal — biarkan tanpa peta
+    if (ROUTE_STATE.map) return;                            // sudah tergambar
+
+    var map = L.map("route-map", { scrollWheelZoom: false });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    // Kasing gelap + garis hijau di atasnya — gaya jalur yang mudah dibaca.
+    L.polyline(points, { color: "#2E5339", weight: 7, opacity: 0.55, lineJoin: "round" }).addTo(map);
+    L.polyline(points, { color: "#F2A900", weight: 3.5, opacity: 0.95 }).addTo(map);
+
+    var start = points[0], end = points[points.length - 1];
+    L.circleMarker(start, { radius: 6, color: "#fff", weight: 2, fillColor: "#2E5339", fillOpacity: 1 })
+      .addTo(map).bindTooltip((window.NYASAR_LANG === "en" ? "Start" : "Mulai"));
+    L.circleMarker(end, { radius: 6, color: "#fff", weight: 2, fillColor: "#1A1C19", fillOpacity: 1 })
+      .addTo(map).bindTooltip((window.NYASAR_LANG === "en" ? "Finish" : "Selesai"));
+
+    map.fitBounds(L.polyline(points).getBounds(), { padding: [22, 22] });
+    ROUTE_STATE.map = map;
   }
 
   // Re-render saat bahasa diganti (hook setelah apply() bawaan).
@@ -126,20 +278,37 @@
     var id = new URLSearchParams(location.search).get("id");
     var SUPABASE_URL = window.NYASAR_SUPABASE_URL || "";
     var ANON_KEY = window.NYASAR_SUPABASE_ANON_KEY || "";
-    if (!id) { ROUTE_STATE.kind = "generic"; renderRoute(); return; }
-    if (!SUPABASE_URL || !ANON_KEY) { ROUTE_STATE.kind = "generic"; renderRoute(); return; }
-    fetch(SUPABASE_URL + "/rest/v1/routes?id=eq." + encodeURIComponent(id) + "&select=id,name,is_public,difficulty,distance_meters,elevation_gain_m", {
+    if (!id || !SUPABASE_URL || !ANON_KEY) { ROUTE_STATE.kind = "generic"; renderRoute(); return; }
+
+    // Embed profiles WAJIB pakai FK hint (profiles!routes_user_id_fkey):
+    // routes punya TIGA relasi ke profiles (FK langsung + via route_likes &
+    // saved_routes), tanpa hint PostgREST menolak dengan PGRST201 — pelajaran
+    // yang sama dari BrowseRepository di app (lihat PROJECT_CONTEXT.md).
+    var COLS = "id,name,is_public,difficulty,distance_meters,elevation_gain_m,elevation_loss_m," +
+      "max_elevation_m,min_elevation_m,moving_time_ms,description,trail_type,created_at," +
+      "user_id,gpx_file_url,track_polyline,profiles!routes_user_id_fkey(username,display_name)";
+
+    fetch(SUPABASE_URL + "/rest/v1/routes?id=eq." + encodeURIComponent(id) + "&select=" + COLS, {
       headers: { apikey: ANON_KEY, Authorization: "Bearer " + ANON_KEY }
     })
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (rows) {
         var r = rows && rows[0];
-        if (!r || !r.is_public) { ROUTE_STATE.kind = "missing"; renderRoute(); return; }
-        ROUTE_STATE = { kind: "ok", data: r };
+        if (!r || !r.is_public) { ROUTE_STATE.kind = "notfound"; renderRoute(); return; }
+        var pts = [];
+        try { pts = r.track_polyline ? decodePolyline(r.track_polyline) : []; } catch (e) { pts = []; }
+        ROUTE_STATE = { kind: "ok", data: r, points: pts, map: null };
+        if (r.name) {
+          document.title = r.name + " — Nyasar";
+          var m = document.querySelector('meta[name="description"]');
+          if (m) m.setAttribute("content", r.name + " — rute pendakian publik di aplikasi Nyasar: peta jalur, statistik, dan GPX.");
+        }
         renderRoute();
       })
       .catch(function () { ROUTE_STATE.kind = "generic"; renderRoute(); });
   })();
+
+  renderRoute(); // render state awal (loading)
 </script>
 </body>
 </html>

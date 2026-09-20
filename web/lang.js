@@ -15,9 +15,9 @@
       "hero.kicker": "Offline-first · GPS · Untuk pendaki Indonesia",
       "hero.title": "Sesat itu biasa. <em>Nyasar</em> itu pilihan.",
       "hero.lead": "Nyasar adalah aplikasi navigasi hiking offline-first untuk Android. Rekam rute GPS di tengah hutan tanpa sinyal, ikuti jalur yang sudah dibagikan pendaki lain, dan pulang dengan selamat — tanpa paket data.",
-      "hero.cta.download": "Unduh di Google Play",
+      "hero.cta.download": "Unduh APK (gratis)",
       "hero.cta.browse": "Jelajahi Rute Publik",
-      "hero.note": "Gratis · Data GPX-mu tetap di HP-mu",
+      "hero.note": "Gratis · Tanpa Play Store · Data GPX-mu tetap di HP-mu",
 
       "stat.offline": "Peta & rute offline",
       "stat.gpx": "Import / export GPX",
@@ -54,7 +54,8 @@
 
       "cta.title": "Naik gunung dengan percaya diri",
       "cta.d": "Unduh Nyasar, dan jadikan sesat bagian dari petualangan — bukan kekhawatiran.",
-      "cta.get": "Unduh Aplikasinya",
+      "cta.get": "Unduh APK Nyasar",
+      "cta.hint": "APK langsung dari GitHub Releases — gratis, tanpa Play Store. Buka file-nya di HP untuk install.",
 
       "footer.privacy": "Privacy Policy",
       "footer.terms": "Terms of Service",
@@ -68,10 +69,16 @@
       "route.generic.d": "Detail rute tersedia di aplikasi Nyasar — unduh lewat tombol di bawah.",
       "route.byline": "Rute pendakian publik dibagikan lewat Nyasar",
       "route.dist": "Jarak",
-      "route.elev": "Elevasi",
+      "route.gain": "Naik",
+      "route.loss": "Turun",
+      "route.max": "Puncak",
+      "route.min": "Terendah",
+      "route.time": "Waktu",
       "route.diff": "Kesulitan",
+      "route.desc": "Deskripsi",
       "route.dl": "Unduh file GPX",
-      "route.dl.hint": "Buka rute ini langsung di aplikasi Nyasar untuk navigasi offline.",
+      "route.openapp": "Buka di aplikasi Nyasar",
+      "route.dl.note": "File GPX terkompresi (.gz) — bisa langsung disimpan ke Library lewat aplikasi Nyasar.",
       "route.learn": "Pelajari aplikasinya",
 
       "legal.back": "Kembali ke beranda"
@@ -86,9 +93,9 @@
       "hero.kicker": "Offline-first · GPS · Built for Indonesian hikers",
       "hero.title": "Getting lost is normal. <em>Being prepared</em> is better.",
       "hero.lead": "Nyasar is an offline-first hiking navigation app for Android. Record GPS tracks deep in the forest with zero signal, follow trails shared by other hikers, and make it home safe — no data plan required.",
-      "hero.cta.download": "Get it on Google Play",
+      "hero.cta.download": "Download APK (free)",
       "hero.cta.browse": "Explore public routes",
-      "hero.note": "Free · Your raw GPS data stays on your phone",
+      "hero.note": "Free · No Play Store needed · Your raw GPS data stays on your phone",
 
       "stat.offline": "Offline maps & routes",
       "stat.gpx": "Import / export GPX",
@@ -125,7 +132,8 @@
 
       "cta.title": "Hike with confidence",
       "cta.d": "Get Nyasar and make getting lost part of the adventure — not the worry.",
-      "cta.get": "Download the app",
+      "cta.get": "Download the Nyasar APK",
+      "cta.hint": "APK straight from GitHub Releases — free, no Play Store. Open the file on your phone to install.",
 
       "footer.privacy": "Privacy Policy",
       "footer.terms": "Terms of Service",
@@ -139,10 +147,16 @@
       "route.generic.d": "Full route details are available in the Nyasar app — get it via the button below.",
       "route.byline": "A public hiking route shared via Nyasar",
       "route.dist": "Distance",
-      "route.elev": "Elevation",
+      "route.gain": "Ascent",
+      "route.loss": "Descent",
+      "route.max": "Max alt",
+      "route.min": "Min alt",
+      "route.time": "Time",
       "route.diff": "Difficulty",
+      "route.desc": "Description",
       "route.dl": "Download GPX file",
-      "route.dl.hint": "Open this route directly in the Nyasar app for offline navigation.",
+      "route.openapp": "Open in the Nyasar app",
+      "route.dl.note": "Compressed GPX file (.gz) — import it into your Library via the Nyasar app.",
       "route.learn": "Learn about the app",
 
       "legal.back": "Back to home"

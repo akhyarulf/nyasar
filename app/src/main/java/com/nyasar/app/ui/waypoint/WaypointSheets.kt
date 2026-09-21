@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -80,13 +82,19 @@ fun WaypointFormSheet(
     // waypoint karena UI event berulang").
     var saving by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
         Column(
             Modifier
                 .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(16.dp))
@@ -246,13 +254,19 @@ fun WaypointDetailSheet(
 ) {
     val category = WaypointCategory.fromStorageValue(waypoint.category)
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
         Column(
             Modifier
                 .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(

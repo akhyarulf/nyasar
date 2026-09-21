@@ -1,6 +1,8 @@
 package com.nyasar.app.ui.drawroute
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MyLocation
@@ -216,8 +218,11 @@ private fun FinishRouteSheet(
 ) {
     var name by remember { mutableStateOf("") }
 
-    ModalBottomSheet(onDismissRequest = { if (!saving) onDismiss() }) {
-        Column(Modifier.widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth).fillMaxWidth().padding(16.dp).padding(bottom = 24.dp)) {
+    ModalBottomSheet(
+        onDismissRequest = { if (!saving) onDismiss() },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(Modifier.widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth).fillMaxWidth().navigationBarsPadding().imePadding().padding(16.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.save_route), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(

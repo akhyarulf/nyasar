@@ -51,6 +51,7 @@ fun SportFilterSheet(
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color(0xFF1A1D20),
         contentColor = Color.White
     ) {
@@ -58,6 +59,8 @@ fun SportFilterSheet(
             modifier = Modifier
                 .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(bottom = 16.dp)
         ) {
             // Header

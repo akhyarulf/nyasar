@@ -83,7 +83,7 @@
     <string name="history">Riwayat</string>
     <string name="no_history">Belum ada aktivitas.\nMulai recording untuk melihat riwayat di sini.</string>
     <string name="distance">Jarak</string>
-    <string name="elev_gain">Elev Gain</string>
+    <string name="elev_gain">Naik</string>
     <string name="time">Waktu</string>
 
     <!-- Activity Detail -->
@@ -174,7 +174,7 @@
     <string name="english">English</string>
 
     <!-- Layer menu -->
-    <string name="layer_standard">Standard</string>
+    <string name="layer_standard">Standar</string>
     <string name="layer_satellite">Satellite</string>
     <string name="layer_terrain">Terrain</string>
     <string name="change_provider">Ganti provider (%s)</string>

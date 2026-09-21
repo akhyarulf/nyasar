@@ -74,6 +74,11 @@ isinya bukan rahasia untuk app Android).
 - **Polyline test vector** resmi Google: `_p~iF~ps|U_ulLnnqC_mqNvxq`@`.
 - **Shallow clone bikin `git rev-list --count HEAD` = 1** — checkout di
   workflow rilis wajib `fetch-depth: 0` (versionCode dari jumlah commit).
+- **ModalBottomSheet (material3 1.2.1 / BOM 2024.06):** default buka
+  setengah (butuh `rememberModalBottomSheetState(skipPartiallyExpanded =
+  true)`) dan TIDAK menghormati navigation bar / keyboard — konten sheet
+  wajib diberi `.navigationBarsPadding().imePadding()` manual. Semua 11
+  sheet app sudah dibegitu (2026-09-21); sheet BARU wajib ikut pola ini.
 - **Member Compose yang dibaca composable top-level di file yang sama**
   tidak boleh `private` (CI pernah gagal: `Cannot access 'pendingUpdate'`).
 - **MapSnapshotter fit kamera:** `mercY(maxLat) − mercY(minLat)` selalu

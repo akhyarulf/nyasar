@@ -472,13 +472,18 @@ internal fun AccountManageSheet(
         }
     }
 
-    ModalBottomSheet(onDismissRequest = {
-        authViewModel.clearAccountAction()
-        onDismiss()
-    }) {
+    ModalBottomSheet(
+        onDismissRequest = {
+            authViewModel.clearAccountAction()
+            onDismiss()
+        },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 28.dp)
         ) {

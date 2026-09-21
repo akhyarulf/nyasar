@@ -572,11 +572,14 @@ private fun BrowseFilterSheet(
         onDismissRequest = {
             if (viewModel.isDirty(draft)) viewModel.applyFilters()
             onDismiss()
-        }
+        },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
         Column(
             Modifier
                 .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 24.dp)
         ) {

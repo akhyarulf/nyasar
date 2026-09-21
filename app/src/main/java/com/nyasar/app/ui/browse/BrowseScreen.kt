@@ -118,8 +118,7 @@ fun BrowseScreen(
                     selected = activeFilters > 0,
                     onClick = { showFilterSheet = true },
                     label = { Text(stringResource(R.string.browse_filter_filters), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    modifier = Modifier.weight(1f, fill = false)
+                    leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 )
                 if (activeFilters > 0) {
                     Surface(

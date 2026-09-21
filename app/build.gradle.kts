@@ -70,6 +70,13 @@ android {
             "GOOGLE_OAUTH_WEB_CLIENT_ID",
             "\"${localProps.getProperty("GOOGLE_OAUTH_WEB_CLIENT_ID", "")}\""
         )
+
+        // Locale filter (ringankan APK, tetap satu universal): app hanya
+        // menyediakan strings default (Indonesia) + values-en. Tanpa filter,
+        // semua library (appcompat/material3/play-services) ikut menyetir
+        // teks terjemahan 80+ bahasa — ratusan KB terbuang. "in" adalah
+        // qualifier resmi Android untuk Indonesia (folder values-in).
+        resourceConfigurations.addAll(listOf("in", "en"))
     }
 
     signingConfigs {
@@ -96,6 +103,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // Buang resource yang tidak direferensikan kode/manifest.
+            // material-icons-extended menyertakan ribuan ikon vektor dari
+            // semua set; hanya yang benar-benar dipakai Compose yang lolos.
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Sign with the release keystore only when it is actually present
             // (CI after secrets are configured, or a local machine that has

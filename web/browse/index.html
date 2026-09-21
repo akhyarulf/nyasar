@@ -15,10 +15,45 @@
 <meta name="twitter:image" content="../og-image.png">
 <link rel="stylesheet" href="../style.css">
 <style>
-/* ---------- Browse-specific: grid kartu rute ---------- */
-.browse-hero { padding: 56px 20px 34px; text-align: center; }
-.browse-hero h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); color: var(--forest); letter-spacing: -.02em; }
+/* ---------- Browse-specific: toolbar + grid kartu rute ---------- */
+.browse-hero { padding: 56px 20px 30px; text-align: center; }
+.browse-hero h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); color: var(--accent); letter-spacing: -.02em; }
 .browse-hero p { color: var(--ink-soft); max-width: 640px; margin: 10px auto 0; }
+
+/* Toolbar search + filter — pola visual pills dari app (FilterChips). */
+.browse-toolbar {
+  max-width: 1080px; margin: 0 auto; padding: 0 20px 26px;
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center;
+}
+.browse-search { position: relative; flex: 1 1 260px; max-width: 380px; }
+.browse-search input {
+  width: 100%; padding: 12px 40px 12px 16px;
+  font: inherit; font-size: .95rem; color: var(--ink);
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 999px;
+  outline: none; transition: border-color .15s ease;
+}
+.browse-search input:focus { border-color: var(--accent); }
+.browse-search input::placeholder { color: var(--ink-mute); }
+.browse-search .clear-btn {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  border: 0; background: var(--surface-tint); color: var(--ink-soft);
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  font-size: .9rem; line-height: 1; display: none;
+}
+.browse-search.has-value .clear-btn { display: block; }
+.diff-filter { display: flex; gap: 8px; flex-wrap: wrap; }
+.diff-chip {
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  font: inherit; font-size: .84rem; font-weight: 700;
+  padding: 8px 16px; border-radius: 999px; cursor: pointer;
+  transition: all .15s ease;
+}
+.diff-chip:hover { border-color: var(--accent); }
+.diff-chip.active { background: var(--forest); border-color: var(--forest); color: #fff; }
+.browse-count {
+  max-width: 1080px; margin: 0 auto; padding: 0 20px 14px;
+  color: var(--ink-mute); font-size: .85rem; text-align: center;
+}
 .route-grid {
   max-width: 1080px; margin: 0 auto; padding: 8px 20px 72px;
   display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px;
@@ -29,7 +64,8 @@
   box-shadow: var(--shadow-sm); transition: transform .18s ease, box-shadow .18s ease;
 }
 .route-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
-.route-card .preview { display: block; width: 100%; aspect-ratio: 16/9; background: linear-gradient(160deg, #EAF1E8 0%, #F6F9F4 100%); }
+.route-card .preview { display: block; width: 100%; aspect-ratio: 16/9;
+  background: linear-gradient(160deg, var(--preview-a) 0%, var(--preview-b) 100%); }
 .route-card .preview svg { width: 100%; height: 100%; display: block; }
 .rc-body { padding: 16px 18px 18px; }
 .rc-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -40,11 +76,11 @@
 }
 .rc-author { font-size: .85rem; color: var(--ink-mute); margin: 0 0 12px; }
 .rc-stats { display: flex; gap: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
-.rc-stat b { display: block; font-size: .95rem; color: var(--forest); }
+.rc-stat b { display: block; font-size: .95rem; color: var(--accent); }
 .rc-stat span { font-size: .72rem; color: var(--ink-mute); text-transform: uppercase; letter-spacing: .4px; }
-.browse-state { max-width: 640px; margin: 30px auto 80px; text-align: center; color: var(--ink-soft); }
+.browse-state { max-width: 640px; margin: 30px auto 80px; text-align: center; color: var(--ink-soft); padding: 0 20px; }
 .browse-state .btn { margin-top: 16px; }
-@media (max-width: 640px) { .route-grid { grid-template-columns: 1fr; padding: 8px 14px 56px; } }
+@media (max-width: 640px) { .route-grid { grid-template-columns: 1fr; padding: 8px 14px 56px; } .browse-toolbar { padding: 0 14px 22px; } }
 </style>
 </head>
 <body>
@@ -69,6 +105,21 @@
     <h1 data-i18n="browse.title">Jelajahi Rute Publik</h1>
     <p data-i18n="browse.sub">Jalur-jalur yang dibagikan pendaki lain lewat aplikasi Nyasar — lihat statistiknya, unduh GPX-nya, langsung ikuti.</p>
   </section>
+
+  <!-- Search + filter kesulitan (client-side, data sudah ter-load) -->
+  <div class="browse-toolbar">
+    <div class="browse-search" id="browse-search">
+      <input type="search" id="search-input" data-i18n-attr="[placeholder,browse.search_hint]" placeholder="Cari nama rute…" aria-label="Search routes">
+      <button type="button" class="clear-btn" id="search-clear" aria-label="Clear">×</button>
+    </div>
+    <div class="diff-filter" id="diff-filter" role="group" aria-label="Difficulty">
+      <button type="button" class="diff-chip" data-diff="easy" data-i18n="browse.diff_easy">Mudah</button>
+      <button type="button" class="diff-chip" data-diff="moderate" data-i18n="browse.diff_moderate">Sedang</button>
+      <button type="button" class="diff-chip" data-diff="difficult" data-i18n="browse.diff_difficult">Sulit</button>
+      <button type="button" class="diff-chip" data-diff="very_difficult" data-i18n="browse.diff_very">Sangat sulit</button>
+    </div>
+  </div>
+  <p class="browse-count" id="browse-count" hidden></p>
 
   <div class="browse-state" id="browse-state" data-i18n="browse.loading">Memuat rute…</div>
   <div class="route-grid" id="route-grid" hidden></div>
@@ -102,8 +153,12 @@
 
   // ── State ──
   var STATE = { kind: "load", rows: [] }; // load | ok | empty | error | noconfig
+  // Filter client-side (datasudah penuh di STATE.rows, max 60 — filter
+  // di browser = nol latensi & tetap jalan saat OfflinePage-like states).
+  var FILTER = { q: "", diffs: {} };
   var grid = document.getElementById("route-grid");
   var stateBox = document.getElementById("browse-state");
+  var countBox = document.getElementById("browse-count");
 
   function el(id) { return document.getElementById(id); }
   function t(id) {
@@ -182,13 +237,35 @@
     return { easy: "b-easy", moderate: "b-moderate", difficult: "b-hard", very_difficult: "b-hard" }[v] || "b-easy";
   }
 
-  // ── Render grid dari STATE ──
+  // ── Render grid dari STATE (+ filter) ──
+  function filteredRows() {
+    var q = FILTER.q.trim().toLowerCase();
+    var active = Object.keys(FILTER.diffs).filter(function (k) { return FILTER.diffs[k]; });
+    if (!q && !active.length) return STATE.rows;
+    return STATE.rows.filter(function (r) {
+      if (q && String(r.name || "").toLowerCase().indexOf(q) === -1) return false;
+      if (active.length && active.indexOf(r.difficulty) === -1) return false;
+      return true;
+    });
+  }
+
   function render() {
     var L = (window.NYASAR_LANG || "id") === "en" ? EN : ID;
     if (STATE.kind === "ok") {
-      stateBox.hidden = true;
-      grid.hidden = false;
-      var html = STATE.rows.map(function (r) {
+      var rows = filteredRows();
+      // Chips + hasil kosong akibat filter beda pesannya dari "belum ada rute".
+      var anyData = STATE.rows.length > 0;
+      stateBox.hidden = anyData && rows.length > 0;
+      grid.hidden = !(anyData && rows.length > 0);
+      countBox.hidden = !anyData;
+      if (anyData) {
+        countBox.textContent = (window.NYASAR_LANG === "en"
+          ? rows.length + " of " + STATE.rows.length + " routes"
+          : rows.length + " dari " + STATE.rows.length + " rute");
+      }
+      if (!anyData) { stateBox.textContent = t("browse.empty"); return; }
+      if (!rows.length) { stateBox.textContent = t("browse.no_match"); return; }
+      var html = rows.map(function (r) {
         var pts = [];
         try { pts = r.track_polyline ? decodePolyline(r.track_polyline) : []; } catch (e) { pts = []; }
         var author = (r.profiles && (r.profiles.display_name || r.profiles.username)) || L.anon;
@@ -211,12 +288,13 @@
       grid.innerHTML = html;
       // Nama rute via textContent (anti-XSS dari data DB).
       var names = grid.querySelectorAll(".rc-name");
-      STATE.rows.forEach(function (r, i) {
+      rows.forEach(function (r, i) {
         if (names[i]) names[i].textContent = r.name || (window.NYASAR_LANG === "en" ? "Nyasar route" : "Rute Nyasar");
       });
       return;
     }
     grid.hidden = true;
+    countBox.hidden = true;
     stateBox.hidden = false;
     if (STATE.kind === "empty") {
       stateBox.textContent = t("browse.empty");
@@ -248,6 +326,37 @@
       original(lang);
       render();
     };
+  })();
+
+  // ── Wiring search + filter chips ──
+  (function () {
+    var input = document.getElementById("search-input");
+    var wrap = document.getElementById("browse-search");
+    var clear = document.getElementById("search-clear");
+    // Debounce 250ms — pola sama dengan BrowseScreen app (350ms di sana;
+    // di sini cuma filter array lokal, lebih pendek cukup).
+    var timer = null;
+    input.addEventListener("input", function () {
+      wrap.classList.toggle("has-value", !!input.value);
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        FILTER.q = input.value || "";
+        render();
+      }, 250);
+    });
+    clear.addEventListener("click", function () {
+      input.value = ""; FILTER.q = "";
+      wrap.classList.remove("has-value");
+      render(); input.focus();
+    });
+    document.querySelectorAll(".diff-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        var d = chip.getAttribute("data-diff");
+        FILTER.diffs[d] = !FILTER.diffs[d];
+        chip.classList.toggle("active", FILTER.diffs[d]);
+        render();
+      });
+    });
   })();
 
   // ── Fetch rute publik (REST anon, RLS menyaring is_public) ──

@@ -80,11 +80,18 @@
       "route.openapp": "Buka di aplikasi Nyasar",
       "route.dl.note": "File GPX terkompresi (.gz) — bisa langsung disimpan ke Library lewat aplikasi Nyasar.",
       "route.browse": "Jelajahi rute lainnya",
+      "route.share": "Bagikan rute ini",
       "route.learn": "Pelajari aplikasinya",
 
       "nav.download": "Unduh",
       "browse.title": "Jelajahi Rute Publik",
       "browse.sub": "Jalur-jalur yang dibagikan pendaki lain lewat aplikasi Nyasar — lihat statistiknya, unduh GPX-nya, langsung ikuti.",
+      "browse.search_hint": "Cari nama rute…",
+      "browse.diff_easy": "Mudah",
+      "browse.diff_moderate": "Sedang",
+      "browse.diff_difficult": "Sulit",
+      "browse.diff_very": "Sangat sulit",
+      "browse.no_match": "Tidak ada rute yang cocok dengan pencarian/filter ini.",
       "browse.loading": "Memuat rute…",
       "browse.empty": "Belum ada rute publik. Jadilah yang pertama mempublikasikan dari aplikasi!",
       "browse.error": "Koneksi bermasalah — muat ulang halaman untuk mencoba lagi.",
@@ -167,11 +174,18 @@
       "route.openapp": "Open in the Nyasar app",
       "route.dl.note": "Compressed GPX file (.gz) — import it into your Library via the Nyasar app.",
       "route.browse": "Explore more routes",
+      "route.share": "Share this route",
       "route.learn": "Learn about the app",
 
       "nav.download": "Download",
       "browse.title": "Explore Public Routes",
       "browse.sub": "Trails shared by fellow hikers via the Nyasar app — check the stats, download the GPX, follow along.",
+      "browse.search_hint": "Search route names…",
+      "browse.diff_easy": "Easy",
+      "browse.diff_moderate": "Moderate",
+      "browse.diff_difficult": "Difficult",
+      "browse.diff_very": "Very difficult",
+      "browse.no_match": "No routes match this search/filter.",
       "browse.loading": "Loading routes…",
       "browse.empty": "No public routes yet. Be the first to publish one from the app!",
       "browse.error": "Connection problem — reload the page to try again.",
@@ -190,6 +204,15 @@
     document.querySelectorAll("[data-i18n-html]").forEach(function (el) {
       var v = dict[el.getAttribute("data-i18n-html")];
       if (typeof v === "string") el.innerHTML = v;
+    });
+    // Terjemahan ATRIBUT (mis. placeholder input): format "[attr,key]".
+    // Dipakai elemen form yang teksnya hidup di atribut, bukan textContent.
+    document.querySelectorAll("[data-i18n-attr]").forEach(function (el) {
+      var spec = el.getAttribute("data-i18n-attr") || "";
+      var m = spec.match(/^\s*\[\s*([a-zA-Z-]+)\s*,\s*([^\]]+)\s*\]\s*$/);
+      if (!m) return;
+      var v = dict[m[2]];
+      if (typeof v === "string") el.setAttribute(m[1], v);
     });
     // Blok konten panjang (dokumen legal) memakai pasangan data-show-lang:
     // elemen dengan bahasa lain disembunyikan — pola render-dual / show-one

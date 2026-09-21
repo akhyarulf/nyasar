@@ -54,6 +54,9 @@
     <div class="route-actions">
       <a class="btn btn-primary" href="#" id="download-btn">⬇ <span data-i18n="route.dl">Unduh file GPX</span></a>
       <a class="btn btn-ghost" href="#" id="openapp-btn" hidden>📍 <span data-i18n="route.openapp">Buka di aplikasi Nyasar</span></a>
+      <div class="share-row">
+        <button type="button" class="btn btn-ghost share-btn" id="share-btn">↗ <span data-i18n="route.share">Bagikan rute ini</span></button>
+      </div>
       <p class="route-hint" id="download-hint" data-i18n="route.dl.note">File GPX terkompresi (.gz) — bisa langsung disimpan ke Library lewat aplikasi Nyasar.</p>
       <a class="btn btn-ghost" href="../browse/index.html" data-i18n="route.browse">Jelajahi rute lainnya</a>
       <a class="btn btn-ghost" href="../index.html" data-i18n="route.learn">Pelajari aplikasinya</a>
@@ -250,6 +253,39 @@
       .then(function (res) { if (!res.ok) onMissing(); })
       .catch(function () { /* jaringan bermasalah: biarkan tombol tetap tampil */ });
   }
+
+  // ── Share rute: Web Share API (WA/TG dsb. di HP), fallback salin+Toast ──
+  (function () {
+    var btn = el("share-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var payload = { title: document.title, url: location.href };
+      var L = (window.NYASAR_LANG || "id") === "en"
+        ? { copied: "Link copied", fail: "Could not share — copy the address bar link" }
+        : { copied: "Link tersalin", fail: "Gagal membagikan — salin link di address bar" };
+      if (navigator.share) {
+        // Perlu try/catch: AbortError saat user menutup sheet share = normal.
+        navigator.share(payload).catch(function () {});
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(location.href).then(function () {
+          toast(L.copied);
+        }).catch(function () { toast(L.fail); });
+      } else {
+        toast(L.fail);
+      }
+    });
+    function toast(msg) {
+      var t = document.createElement("div");
+      t.className = "share-toast";
+      t.textContent = msg;
+      document.body.appendChild(t);
+      requestAnimationFrame(function () { t.classList.add("show"); });
+      setTimeout(function () {
+        t.classList.remove("show");
+        setTimeout(function () { t.remove(); }, 300);
+      }, 2200);
+    }
+  })();
   function drawMap(points) {
     var box = el("route-map");
     if (!points || !points.length) { box.hidden = true; return; }

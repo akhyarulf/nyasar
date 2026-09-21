@@ -324,7 +324,7 @@ class BrowseRepository {
                         "distance_meters, elevation_gain_m, max_elevation_m, " +
                         "moving_time_ms, description, track_polyline, gpx_file_url, " +
                         "likes_count, comments_count, created_at, " +
-                        "profiles!routes_user_id_fkey(username)"
+                        "profiles!routes_user_id_fkey(username))"
                 )) {
                     order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
                     limit(limit.toLong())

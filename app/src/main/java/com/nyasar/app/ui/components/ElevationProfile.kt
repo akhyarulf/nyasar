@@ -71,10 +71,10 @@ fun ElevationProfile(
 
     val lineColor = MaterialTheme.colorScheme.primary
     val fillColor = lineColor.copy(alpha = 0.2f)
-    val gridColor = Color(0xFF444444)
-    val labelColor = Color(0xFF999999)
-    val tooltipBg = Color(0xFF1E1E1E)
-    val tooltipText = Color(0xFFE0E0E0)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val tooltipBg = MaterialTheme.colorScheme.inverseSurface
+    val tooltipText = MaterialTheme.colorScheme.inverseOnSurface
 
     val context = LocalContext.current
     val interTypeface: Typeface = remember {

@@ -295,19 +295,35 @@ internal fun PublicRouteCard(
                         maxLines = 1
                     )
                 }
-                SportType.fromString(route.sportType).let { sport ->
-                    Icon(
-                        imageVector = sport.icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
+                // End of the byline: difficulty/trail badges first (moved up
+                // here from the name row — short pastel chips read better on
+                // the byline line and long route names no longer push them
+                // off a single line), then the sport icon. When neither
+                // badge exists, the sport icon stands alone as before.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(NyasarSpacing.xs)
+                ) {
+                    route.difficulty?.let { d -> BrowseRepository.DifficultyFilter.fromWire(d) }?.let { chip ->
+                        DifficultyChip(label = stringResource(chip.labelRes), wire = chip.wire)
+                    }
+                    route.trailType?.let { t -> BrowseRepository.TrailTypeFilter.fromWire(t) }?.let { chip ->
+                        TrailTypeChip(label = stringResource(chip.labelRes))
+                    }
+                    SportType.fromString(route.sportType).let { sport ->
+                        Icon(
+                            imageVector = sport.icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
-            // (2) Route name + difficulty/trail chips inline (chips stay —
-            //     they carry publish-form data the byline has nowhere else
-            //     to show).
+            // (2) Route name (full width — difficulty/trail badges live in
+            //     the byline row above now, so long names get the whole line
+            //     instead of squeezing chips off-screen).
             Column(Modifier.padding(horizontal = NyasarSpacing.lg)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -318,14 +334,6 @@ internal fun PublicRouteCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    route.difficulty?.let { d -> BrowseRepository.DifficultyFilter.fromWire(d) }?.let { chip ->
-                        Spacer(Modifier.width(NyasarSpacing.sm))
-                        DifficultyChip(label = stringResource(chip.labelRes), wire = chip.wire)
-                    }
-                    route.trailType?.let { t -> BrowseRepository.TrailTypeFilter.fromWire(t) }?.let { chip ->
-                        Spacer(Modifier.width(NyasarSpacing.xs))
-                        TrailTypeChip(label = stringResource(chip.labelRes))
-                    }
                 }
 
                 // (3) Description (Strava shows it right under the name).

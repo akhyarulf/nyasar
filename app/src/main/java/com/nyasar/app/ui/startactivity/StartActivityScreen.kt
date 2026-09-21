@@ -60,13 +60,13 @@ fun StartActivityScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF16181A))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         IconButton(
             onClick = onBack,
             modifier = Modifier.align(Alignment.TopStart).padding(12.dp)
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = MaterialTheme.colorScheme.onSurface)
         }
 
         AnimatedAppear {
@@ -82,13 +82,13 @@ fun StartActivityScreen(
             Text(
                 routeName ?: stringResource(R.string.no_route),
                 style = MaterialTheme.typography.headlineSmall,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 if (routeName != null) stringResource(R.string.route_selected) else stringResource(R.string.free_recording_desc),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(Modifier.height(24.dp))
@@ -143,7 +143,7 @@ fun StartActivityScreen(
                     Icon(
                         Icons.Default.PlayArrow,
                         contentDescription = stringResource(R.string.start_cd),
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(40.dp)
                     )
                 }
@@ -185,7 +185,7 @@ private fun ModePill(
                 .pressScale(interaction)
                 .scale(selectedScale)
                 .clip(CircleShape)
-                .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+                .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                 .border(
                     width = if (selected) 2.dp else 0.dp,
                     color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -197,14 +197,14 @@ private fun ModePill(
             Icon(
                 icon,
                 contentDescription = label,
-                tint = if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.5f)
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Spacer(Modifier.height(6.dp))
         Text(
             label,
             style = MaterialTheme.typography.labelMedium,
-            color = if (selected) Color.White else Color.White.copy(alpha = 0.5f)
+            color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

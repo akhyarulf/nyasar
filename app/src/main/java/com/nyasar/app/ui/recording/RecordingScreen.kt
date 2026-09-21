@@ -783,7 +783,8 @@ fun RecordingScreen(
         )
 
         // Floating back/minimize button (Strava-style) with semi-transparent
-        // circular background and proper status bar inset.
+        // circular background and proper status bar inset. Sits over live
+        // map tiles either way, so its dark scrim stays theme-independent.
         Surface(
             onClick = onExit,
             modifier = Modifier
@@ -1063,11 +1064,12 @@ fun RecordingScreen(
             }
         }
 
-        // Strava-style stat card (spec: dark solid panel, not theme-adaptive
-        // surface) — big 3-column primary stats (Time/Distance/Elevation
-        // gain), expand affordance top-right, secondary stats (moving-time-
-        // only vs speed) folded into the expanded state instead of always
-        // shown, keeping the collapsed card matching the reference design.
+        // Strava-style stat card — theme-adaptive surface (was a hardcoded
+        // near-black that ignored the light theme): big 3-column primary
+        // stats (Time/Distance/Elevation gain), expand affordance top-right,
+        // secondary stats (moving-time-only vs speed) folded into the
+        // expanded state instead of always shown, keeping the collapsed
+        // card matching the reference design.
         var statsExpanded by remember { mutableStateOf(false) }
         Surface(
             modifier = Modifier
@@ -1085,8 +1087,8 @@ fun RecordingScreen(
                     statBarHeight = with(density) { size.height.toDp() }
                 },
             shape = RoundedCornerShape(topStart = NyasarRadius.xl, topEnd = NyasarRadius.xl),
-            color = Color(0xFF16181A),
-            contentColor = Color.White
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            contentColor = MaterialTheme.colorScheme.onSurface
         ) {
             Column(Modifier.padding(20.dp)) {
                 // Expand affordance: compact 36dp button (was a full-height
@@ -1119,7 +1121,7 @@ fun RecordingScreen(
                             Icon(
                                 if (expanded) Icons.Default.CloseFullscreen else Icons.Default.OpenInFull,
                                 contentDescription = if (expanded) stringResource(R.string.collapse_stats_cd) else stringResource(R.string.expand_stats_cd),
-                                tint = Color.White.copy(alpha = 0.7f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -1158,7 +1160,7 @@ fun RecordingScreen(
                 ) {
                     Column(Modifier.fillMaxWidth()) {
                     Spacer(Modifier.height(20.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         BigStatBlock(formatDuration(state.movingTimeMs), stringResource(R.string.recording_stat_moving_time), compact = true, modifier = Modifier.weight(1f))
@@ -1566,14 +1568,14 @@ private fun BigStatBlock(
                     compact -> MaterialTheme.typography.titleLarge
                     else -> MaterialTheme.typography.headlineMedium
                 },
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
         Spacer(Modifier.height(2.dp))
         Text(
             label,
             style = MaterialTheme.typography.labelMedium,
-            color = Color.White.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -1659,7 +1661,7 @@ private fun RecordingControls(
                             Icon(
                                 animatedSport.icon,
                                 contentDescription = stringResource(R.string.select_sport_cd),
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(28.dp)
                             )
                         }
@@ -1676,7 +1678,7 @@ private fun RecordingControls(
                         Text(
                             stringResource(animatedSport.labelRes),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1693,7 +1695,7 @@ private fun RecordingControls(
                             Text(
                                 it,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1706,7 +1708,7 @@ private fun RecordingControls(
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = stringResource(R.string.delete_route_cd),
-                                        tint = Color.White.copy(alpha = 0.6f),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -1759,13 +1761,13 @@ private fun RecordingControls(
                             .size(56.dp)
                             .pressScale(addRouteInteraction)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.1f)),
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Route,
                             contentDescription = stringResource(R.string.pick_route_cd),
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -1773,7 +1775,7 @@ private fun RecordingControls(
                     Text(
                         stringResource(R.string.add_route_label),
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1821,8 +1823,8 @@ private fun RecordingControls(
                     onClick = onStop,
                     modifier = Modifier.weight(1f).height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White.copy(alpha = 0.12f),
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentColor = MaterialTheme.colorScheme.onSurface
                     )
                 ) {
                     Icon(Icons.Default.Stop, contentDescription = null)
@@ -1849,7 +1851,7 @@ private fun RecordingControls(
 @Composable
 private fun RecordingSummaryOverlay(summary: RecordingUiState, onBack: () -> Unit) {
     val elevations = remember(summary.recordedTrack) { summary.recordedTrack.mapNotNull { it.elevationM } }
-    Surface(Modifier.fillMaxSize(), color = Color(0xFF16181A), contentColor = Color.White) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow, contentColor = MaterialTheme.colorScheme.onSurface) {
         Column(
             Modifier.fillMaxSize().padding(24.dp).verticalScrollCompat(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -1889,7 +1891,7 @@ private fun SummaryRow(label: String, value: String) {
     ) {
         Text(value, style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(2.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.6f))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

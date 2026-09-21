@@ -83,7 +83,8 @@ class MainActivity : AppCompatActivity() {
      *  saat ada rilis LEBIH BARU dari build terpasang — null dalam semua
      *  kasus lain (belum ada rilis, offline, rate-limit, downgrade), jadi
      *  dialog update iner sebelum rilis pertama terbit. */
-    private var pendingUpdate by mutableStateOf<com.nyasar.app.update.UpdateChecker.UpdateInfo?>(null)
+    // visible ke NyasarNavHost (top-level di file yang sama) — jadi private
+    var pendingUpdate by mutableStateOf<com.nyasar.app.update.UpdateChecker.UpdateInfo?>(null)
 
     /** False until the first DataStore settings emission. While false, the
      *  splash screen is held on-screen via the official OnPreDraw

@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nyasar — Rute Pendakian</title>
 <meta name="description" content="Detail rute pendakian publik yang dibagikan lewat aplikasi Nyasar — peta jalur, statistik elevasi, dan file GPX siap unduh.">
+<link rel="canonical" id="canonical-link" href="https://app.nyasarnyaman.my.id/route">
+<!-- Social share default; title/description/og:url dioverride per-rute
+     dari fetch Supabase di script bawah. -->
+<meta property="og:title" content="Nyasar — Rute Pendakian">
+<meta property="og:description" content="Peta jalur, statistik elevasi, dan file GPX siap unduh — dibagikan lewat aplikasi Nyasar.">
+<meta property="og:image" content="https://app.nyasarnyaman.my.id/og-image.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Nyasar — Rute Pendakian">
+<meta name="twitter:description" content="Peta jalur, statistik elevasi, dan file GPX siap unduh — dibagikan lewat aplikasi Nyasar.">
+<meta name="twitter:image" content="https://app.nyasarnyaman.my.id/og-image.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="../style.css">
 </head>
@@ -44,6 +55,7 @@
       <a class="btn btn-primary" href="#" id="download-btn">⬇ <span data-i18n="route.dl">Unduh file GPX</span></a>
       <a class="btn btn-ghost" href="#" id="openapp-btn" hidden>📍 <span data-i18n="route.openapp">Buka di aplikasi Nyasar</span></a>
       <p class="route-hint" id="download-hint" data-i18n="route.dl.note">File GPX terkompresi (.gz) — bisa langsung disimpan ke Library lewat aplikasi Nyasar.</p>
+      <a class="btn btn-ghost" href="../browse/index.html" data-i18n="route.browse">Jelajahi rute lainnya</a>
       <a class="btn btn-ghost" href="../index.html" data-i18n="route.learn">Pelajari aplikasinya</a>
     </div>
   </div>
@@ -302,6 +314,19 @@
           document.title = r.name + " — Nyasar";
           var m = document.querySelector('meta[name="description"]');
           if (m) m.setAttribute("content", r.name + " — rute pendakian publik di aplikasi Nyasar: peta jalur, statistik, dan GPX.");
+          // Social share per-rute: judul/deskripsi/canonical ngikutin data.
+          // (og:image tetap kartu brand — decoder polyline di-og-image
+          // bukan hal yang praktis untuk di-render server-side di Pages.)
+          var ogT = document.querySelector('meta[property="og:title"]');
+          if (ogT) ogT.setAttribute("content", r.name + " — Nyasar");
+          var ogD = document.querySelector('meta[property="og:description"]');
+          if (ogD) ogD.setAttribute("content", r.name + " — rute pendakian publik: peta jalur, statistik, GPX siap unduh.");
+          var ogU = document.createElement("meta");
+          ogU.setAttribute("property", "og:url");
+          ogU.setAttribute("content", location.href);
+          document.head.appendChild(ogU);
+          var canonical = document.getElementById("canonical-link");
+          if (canonical) canonical.setAttribute("href", location.href);
         }
         renderRoute();
       })

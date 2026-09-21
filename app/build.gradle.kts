@@ -25,8 +25,13 @@ android {
         applicationId = "com.nyasar.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0-p0"
+        // Versi dari CI, bukan hardcoded: workflow release-apk.yaml
+        // mengoper VERSION_NAME dari tag (v1.2.3 → "1.2.3") dan
+        // VERSION_CODE dari jumlah commit (monoton naik, penting kalau
+        // nanti migrasi ke Play). Build lokal tanpa env → fallback ke
+        // nilai di bawah, jadi `./gradlew assembleDebug` tetap jalan.
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("VERSION_NAME")?.takeUnless { it.isBlank() } ?: "0.1.0-p0"
 
         // MapTiler API key is injected via local.properties -> BuildConfig,
         // never hardcoded and never committed.

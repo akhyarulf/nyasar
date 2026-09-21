@@ -39,6 +39,8 @@ Belasan pilihan basemap dunia: OpenStreetMap, OpenTopoMap, CyclOSM, peta hiking,
 ### Komunitas di tab Jelajah
 Temukan rute dari pengguna lain: cari, saring berdasarkan tingkat kesulitan, jenis jalur, dan panjang, urutkan berdasarkan yang terbaru atau terpopuler. Sukai, berkomentar, simpan rute orang ke library-mu, dan unduh GPX-nya. Rute milikmu sendiri bisa diedit kapan saja — nama, kesulitan, deskripsi, sampai visibilitas (publik/privat).
 
+Rute publik juga bisa dilihat **tanpa aplikasi sekalipun** di [app.nyasarnyaman.my.id/browse](https://app.nyasarnyaman.my.id/browse/) — grid kartu rute dengan preview jalur dan statistik, klik untuk detail lengkap + unduh GPX. Bagus buat dibagikan ke teman yang belum install.
+
 ### Backup otomatis
 Masuk akun sekali, dan setiap rute serta rekaman tersimpan otomatis ke akunmu — tanpa tombol. Ganti HP atau login di perangkat lain, data langsung terisi kembali. Semua diproses diam-diam di belakang layar.
 
@@ -57,6 +59,9 @@ Masuk akun sekali, dan setiap rute serta rekaman tersimpan otomatis ke akunmu �
 3. Berikan izin **lokasi** saat diminta (wajib, karena inti aplikasi adalah GPS). Izin notifikasi opsional.
 4. Impor GPX pertamamu dari tab **Library**, atau langsung buka file GPX dari aplikasi lain dengan *"Open with → Nyasar"*.
 5. Selamat menjelajah. Dan semoga tidak jadi nyasar.
+
+### Update selanjutnya
+Setiap kali app dibuka, Nyasar ngecek halaman Releases repo ini sekali per sesi. Ada versi lebih baru dari yang terpasang? Muncul dialog "Update tersedia" dengan tombol unduh — kamu tidak perlu pantau repo manual. Tidak ada rilis baru, tidak ada apa pun yang muncul; cek ini diam kalau offline.
 
 ### Soal kunci MapTiler (opsional)
 Beberapa pilihan gaya peta berjalan lewat layanan MapTiler yang butuh kunci gratis dari [cloud.maptiler.com](https://cloud.maptiler.com). **Tanpa kunci apa pun, aplikasi tetap berfungsi penuh** — otomatis memakai OpenFreeMap. Pasang kunci hanya jika kamu ingin membuka pilihan gaya peta dari MapTiler.

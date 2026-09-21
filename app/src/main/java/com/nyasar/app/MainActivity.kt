@@ -79,6 +79,12 @@ class MainActivity : AppCompatActivity() {
 
     private var pendingImportUri by mutableStateOf<Uri?>(null)
 
+    /** Hasil cek update in-app (rilis GitHub Releases). Non-null hanya
+     *  saat ada rilis LEBIH BARU dari build terpasang — null dalam semua
+     *  kasus lain (belum ada rilis, offline, rate-limit, downgrade), jadi
+     *  dialog update iner sebelum rilis pertama terbit. */
+    private var pendingUpdate by mutableStateOf<com.nyasar.app.update.UpdateChecker.UpdateInfo?>(null)
+
     /** False until the first DataStore settings emission. While false, the
      *  splash screen is held on-screen via the official OnPreDraw
      *  suspension (keepOnScreenCondition) — so the splash never hands off
@@ -119,6 +125,16 @@ class MainActivity : AppCompatActivity() {
         // backup backlog drain automatically the moment signal returns,
         // even if the app never left the foreground.
         com.nyasar.app.backup.NetworkSyncTrigger.register(this)
+
+        // Update in-app untuk distribusi sideload (GitHub Releases):
+        // sekali per proses, fire-and-forget, hasilnya di-display via
+        // dialog di NyasarNavHost. Semua kegagalan (belum ada rilis =
+        // 404, offline, rate-limit) berakhir null = tidak ada dialog.
+        lifecycleScope.launch {
+            pendingUpdate = com.nyasar.app.update.UpdateChecker.check(
+                com.nyasar.app.BuildConfig.VERSION_NAME
+            )
+        }
 
         setContent {
             // Read theme mode directly here (not via a ViewModel) since it
@@ -403,6 +419,54 @@ private fun NyasarNavHost(
     // Supabase credentials) never gate at all — the app stays fully usable.
     val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
     val sessionState by authViewModel.sessionState.collectAsState()
+
+    // ── Update in-app (GitHub Releases) ──
+    // State hidup di MainActivity (pendingUpdate): satu cek per proses.
+    // Dialog dirender di level NavHost supaya muncul di mana pun user
+    // berada. Dismiss = state lokal saja; tidak pernah dicek ulang di
+    // proses yang sama (anti-nag). Nggak ada rilis = pendingUpdate null
+    // = nggak pernah dirender (iner by design sebelum rilis pertama).
+    val mainActivity = activityContext as? MainActivity
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    val updateInfo = mainActivity?.pendingUpdate
+    LaunchedEffect(updateInfo) {
+        if (updateInfo != null) showUpdateDialog = true
+    }
+    if (showUpdateDialog && updateInfo != null) {
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = { Text(stringResource(R.string.update_available_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.update_available_body,
+                        updateInfo.latestVersion,
+                        updateInfo.currentVersion
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUpdateDialog = false
+                    // Buka halaman release di browser; runCatching karena
+                    // perangkat tanpa browser adalah kasus tepi yang sah.
+                    runCatching {
+                        activityContext.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(updateInfo.downloadUrl)
+                            )
+                        )
+                    }
+                }) { Text(stringResource(R.string.update_download_cta)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                    Text(stringResource(R.string.update_later_cta))
+                }
+            }
+        )
+    }
     LaunchedEffect(sessionState) {
         when (val s = sessionState) {
             is com.nyasar.app.ui.auth.AuthViewModel.SessionState.NeedsUsername -> {

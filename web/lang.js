@@ -79,7 +79,16 @@
       "route.dl": "Unduh file GPX",
       "route.openapp": "Buka di aplikasi Nyasar",
       "route.dl.note": "File GPX terkompresi (.gz) — bisa langsung disimpan ke Library lewat aplikasi Nyasar.",
+      "route.browse": "Jelajahi rute lainnya",
       "route.learn": "Pelajari aplikasinya",
+
+      "nav.download": "Unduh",
+      "browse.title": "Jelajahi Rute Publik",
+      "browse.sub": "Jalur-jalur yang dibagikan pendaki lain lewat aplikasi Nyasar — lihat statistiknya, unduh GPX-nya, langsung ikuti.",
+      "browse.loading": "Memuat rute…",
+      "browse.empty": "Belum ada rute publik. Jadilah yang pertama mempublikasikan dari aplikasi!",
+      "browse.error": "Koneksi bermasalah — muat ulang halaman untuk mencoba lagi.",
+      "browse.noconfig": "Daftar rute belum tersedia di halaman ini — buka aplikasi Nyasar untuk menjelajah rute publik.",
 
       "legal.back": "Kembali ke beranda"
     },
@@ -157,7 +166,16 @@
       "route.dl": "Download GPX file",
       "route.openapp": "Open in the Nyasar app",
       "route.dl.note": "Compressed GPX file (.gz) — import it into your Library via the Nyasar app.",
+      "route.browse": "Explore more routes",
       "route.learn": "Learn about the app",
+
+      "nav.download": "Download",
+      "browse.title": "Explore Public Routes",
+      "browse.sub": "Trails shared by fellow hikers via the Nyasar app — check the stats, download the GPX, follow along.",
+      "browse.loading": "Loading routes…",
+      "browse.empty": "No public routes yet. Be the first to publish one from the app!",
+      "browse.error": "Connection problem — reload the page to try again.",
+      "browse.noconfig": "The route list is not available on this page — open the Nyasar app to explore public routes.",
 
       "legal.back": "Back to home"
     }

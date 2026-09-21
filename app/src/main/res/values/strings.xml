@@ -757,4 +757,9 @@
     <string name="report_submit">Kirim laporan</string>
     <string name="report_submitted">Laporan terkirim. Terima kasih.</string>
     <string name="report_failed">Gagal mengirim laporan — coba lagi</string>
+    <!-- Update in-app (rilis via GitHub Releases, tanpa Play Store) -->
+    <string name="update_available_title">Update tersedia</string>
+    <string name="update_available_body">Versi %1$s sudah rilis — kamu memakai %2$s. Unduh APK terbaru dari halaman rilis, lalu buka file-nya untuk memasang.</string>
+    <string name="update_download_cta">Unduh versi baru</string>
+    <string name="update_later_cta">Nanti Saja</string>
 </resources>

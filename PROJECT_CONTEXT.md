@@ -81,6 +81,51 @@ plan Blaze (butuh kartu kredit) bahkan untuk pemakaian kecil.
    tetap TRAIL_RUN, cuma activity baru yang defaultnya berubah).
    `schema_v1.sql` sudah sinkron dengan ini.
 
+8. **Distribusi FINAL: GitHub Releases, tanpa Play Store, tanpa AAB**
+   (2026-09-21). Workflow AAB (`release.yaml`) DIHAPUS — AAB hanya
+   berguna buat Play Store yang tidak akan pernah jadi jalur distribusi.
+   Sumber kebenaran sekarang satu: `release-apk.yaml` (tag `v*` atau
+   Run workflow → APK release signed → GitHub Release sebagai
+   `Nyasar.apk`). Tambahan pada workflow ini:
+   - **Versi dari tag**: `versionName` = tag tanpa `v`
+     (v1.2.3-beta → "1.2.3-beta"), `versionCode` = jumlah commit
+     (`git rev-list --count HEAD`, monoton naik siap kalau nanti
+     migrasi ke Play). `app/build.gradle.kts` membaca env
+     `VERSION_NAME`/`VERSION_CODE` dengan fallback "0.1.0-p0"/1 —
+     build lokal tanpa env tetap jalan, tidak ada versi hardcoded
+     yang lupa di-bump lagi.
+   - **Print cert SHA-256 release** pindah ke workflow ini (dulu di
+     workflow AAB yang dihapus) — referensi tunggal untuk isi
+     `web/.well-known/assetlinks.json`.
+9. **Update in-app untuk distribusi sideload** (2026-09-21).
+   Kelemahan terbesar hidup tanpa Play Store: user tidak pernah tahu
+   ada versi baru. Fix: `update/UpdateChecker.kt` — sekali per proses
+   di `MainActivity.onCreate`, GET `api.github.com …/releases/latest`,
+   bandingkan tag vs `BuildConfig.VERSION_NAME` (semantik: 1.2.10 >
+   1.2.9, prerelease kalah dari rilis senomor; downgrade = bukan
+   update). Ada rilis lebih baru → dialog Compose level NavHost
+   (judul "Update tersedia", tombol buka URL APK). SEMUA kegagalan
+   berakhir "tidak ada dialog": belum ada rilis (404 — kondisi normal
+   sebelum tag pertama), offline, rate-limit 60/jam (sekali per proses
+   jauh di bawah), draft/prerelease, asset `Nyasar.apk` tidak ada.
+   Inert by design — aman di-commit kapan pun, baru "hidup" saat
+   rilis pertama terbit.
+10. **Halaman browse rute publik di web** (`web/browse/index.html`,
+   2026-09-21). CTA landing "Jelajahi Rute Publik" tadinya membawa
+   orang ke `/route` tanpa `?id` yang cuma nampilin fallback card —
+   jebakan UX untuk calon user yang belum install app. Sekarang ada
+   halaman browse sungguhan: grid kartu (badge kesulitan/jenis jalur,
+   nama, penulis, jarak/naik/waktu) + preview jalur SVG murni
+   (decode `track_polyline`, casing gelap + trace amber — identitas
+   peta web, tanpa tile = murah & offline-safe untuk puluhan kartu).
+   Query REST anon sama aturan dengan halaman route: embed profiles
+   WAJIB FK hint `profiles!routes_user_id_fkey` (PGRST201). i18n
+   ID/EN penuh, nama rute di-set via textContent (anti-XSS), 60 rute
+   terbaru. Sitemap/robots + og-image (`scripts/gen_og_image.py`,
+   PNG pure-Python pola `gen_splash_logo.py`) melengkapi share &
+   indexing; meta og/twitter per-rute di-update dinamis saat fetch
+   sukses.
+
 ## Konsep Backup Pribadi (masih konsep, belum diimplementasi)
 
 Fitur TERPISAH dari "Publish" (Keputusan poin 6) — jangan disamakan:

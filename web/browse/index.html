@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nyasar — Jelajahi Rute Publik</title>
+<meta name="description" content="Koleksi rute pendakian publik dari komunitas Nyasar: peta jalur, jarak, elevasi, dan file GPX siap unduh — gratis, tanpa akun.">
+<meta property="og:title" content="Jelajahi Rute Publik — Nyasar">
+<meta property="og:description" content="Rute pendakian publik dari komunitas Nyasar: peta jalur, statistik, dan GPX siap unduh.">
+<meta property="og:image" content="../og-image.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Jelajahi Rute Publik — Nyasar">
+<meta name="twitter:description" content="Rute pendakian publik dari komunitas Nyasar: peta jalur, statistik, dan GPX siap unduh.">
+<meta name="twitter:image" content="../og-image.png">
+<link rel="stylesheet" href="../style.css">
+<style>
+/* ---------- Browse-specific: grid kartu rute ---------- */
+.browse-hero { padding: 56px 20px 34px; text-align: center; }
+.browse-hero h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); color: var(--forest); letter-spacing: -.02em; }
+.browse-hero p { color: var(--ink-soft); max-width: 640px; margin: 10px auto 0; }
+.route-grid {
+  max-width: 1080px; margin: 0 auto; padding: 8px 20px 72px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px;
+}
+.route-card {
+  display: block; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); overflow: hidden; text-decoration: none; color: inherit;
+  box-shadow: var(--shadow-sm); transition: transform .18s ease, box-shadow .18s ease;
+}
+.route-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.route-card .preview { display: block; width: 100%; aspect-ratio: 16/9; background: linear-gradient(160deg, #EAF1E8 0%, #F6F9F4 100%); }
+.route-card .preview svg { width: 100%; height: 100%; display: block; }
+.rc-body { padding: 16px 18px 18px; }
+.rc-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.rc-name {
+  font-size: 1.08rem; font-weight: 800; color: var(--ink);
+  margin: 0 0 4px; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.rc-author { font-size: .85rem; color: var(--ink-mute); margin: 0 0 12px; }
+.rc-stats { display: flex; gap: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.rc-stat b { display: block; font-size: .95rem; color: var(--forest); }
+.rc-stat span { font-size: .72rem; color: var(--ink-mute); text-transform: uppercase; letter-spacing: .4px; }
+.browse-state { max-width: 640px; margin: 30px auto 80px; text-align: center; color: var(--ink-soft); }
+.browse-state .btn { margin-top: 16px; }
+@media (max-width: 640px) { .route-grid { grid-template-columns: 1fr; padding: 8px 14px 56px; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../index.html"><span class="brand-mark">⛰</span> Nyasar</a>
+    <span class="spacer"></span>
+    <nav class="nav-links">
+      <a href="../index.html#features" data-i18n="nav.features">Fitur</a>
+      <a href="../index.html" data-i18n="nav.download">Unduh</a>
+      <span class="lang-switch" role="group" aria-label="Bahasa / Language">
+        <button type="button" data-lang="id">ID</button>
+        <button type="button" data-lang="en">EN</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="browse-hero">
+    <h1 data-i18n="browse.title">Jelajahi Rute Publik</h1>
+    <p data-i18n="browse.sub">Jalur-jalur yang dibagikan pendaki lain lewat aplikasi Nyasar — lihat statistiknya, unduh GPX-nya, langsung ikuti.</p>
+  </section>
+
+  <div class="browse-state" id="browse-state" data-i18n="browse.loading">Memuat rute…</div>
+  <div class="route-grid" id="route-grid" hidden></div>
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <span>© 2026 Nyasar</span>
+    <span>
+      <a href="../privacy-policy.html" data-i18n="footer.privacy">Privacy Policy</a> &nbsp;·&nbsp;
+      <a href="../terms-of-service.html" data-i18n="footer.terms">Terms of Service</a>
+    </span>
+  </div>
+</footer>
+
+<!-- config.js di-generate workflow Pages saat deploy (Supabase endpoints);
+     fallback inline menjaga halaman tetap jalan (pesan ramah) bila gagal. -->
+<script>
+  window.NYASAR_SUPABASE_URL = window.NYASAR_SUPABASE_URL || '';
+  window.NYASAR_SUPABASE_ANON_KEY = window.NYASAR_SUPABASE_ANON_KEY || '';
+</script>
+<script src="../config.js"></script>
+<script src="../lang.js"></script>
+<script>
+  // Toggle bahasa — pola sama dengan semua halaman.
+  document.querySelectorAll(".lang-switch button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (window.nyasarApplyLang) window.nyasarApplyLang(b.getAttribute("data-lang"));
+    });
+  });
+
+  // ── State ──
+  var STATE = { kind: "load", rows: [] }; // load | ok | empty | error | noconfig
+  var grid = document.getElementById("route-grid");
+  var stateBox = document.getElementById("browse-state");
+
+  function el(id) { return document.getElementById(id); }
+  function t(id) {
+    var d = (window.NYASAR_LANG || "id") === "en" ? EN : ID;
+    return d[id] || id;
+  }
+  // Label dinamis kartu — duplikat kecil dari lang.js karena dibangun di JS.
+  var ID = {
+    by: "oleh", anon: "Pendaki anonim", dist: "Jarak", gain: "Naik", time: "Waktu",
+    diff: { easy: "Mudah", moderate: "Sedang", difficult: "Sulit", very_difficult: "Sangat sulit" },
+    trail: { loop: "Lingkar", out_and_back: "Pulang-pergi", point_to_point: "Titik ke titik" },
+    notrated: "Belum dinilai"
+  };
+  var EN = {
+    by: "by", anon: "Anonymous hiker", dist: "Distance", gain: "Ascent", time: "Time",
+    diff: { easy: "Easy", moderate: "Moderate", difficult: "Difficult", very_difficult: "Very difficult" },
+    trail: { loop: "Loop", out_and_back: "Out & back", point_to_point: "Point to point" },
+    notrated: "Not rated"
+  };
+
+  function fmtKm(m) { return m ? (m / 1000).toFixed(1) + " km" : "-"; }
+  function fmtM(m) { return (m == null || isNaN(m)) ? "-" : Math.round(m) + " m"; }
+  function fmtTime(ms) {
+    if (!ms) return "-";
+    var h = Math.floor(ms / 3600000), m = Math.round((ms % 3600000) / 60000);
+    if ((window.NYASAR_LANG || "id") === "en") return (h ? h + " h " : "") + m + " min";
+    return (h ? h + " j " : "") + m + " mnt";
+  }
+
+  // ── Decoder polyline (algoritma sama dengan web/route & app) ──
+  function decodePolyline(str) {
+    var out = [], i = 0, lat = 0, lng = 0, F = 1e5;
+    while (i < str.length) {
+      var shift = 0, val = 0, b;
+      do { b = str.charCodeAt(i++) - 63; val |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lat += (val & 1) ? ~(val >> 1) : (val >> 1);
+      shift = 0; val = 0;
+      do { b = str.charCodeAt(i++) - 63; val |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lng += (val & 1) ? ~(val >> 1) : (val >> 1);
+      out.push([lat / F, lng / F]);
+    }
+    return out;
+  }
+
+  // ── Preview jalur sebagai SVG murni (tanpa tile) — murah, offline-safe,
+  //    dan jalan untuk ratusan kartu sekaligus. ViewBox 400x225, rute
+  //    di-fit dengan padding. Casing gelap + trace amber (identitas peta web). ──
+  function svgPreview(points) {
+    var W = 400, H = 225, PAD = 24;
+    if (!points || points.length < 2) {
+      // Tanpa track: ilustrasi gunung statis (tetap cantik).
+      return '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid slice">' +
+        '<path d="M0 ' + H + " L90 70 L150 130 L230 40 L320 120 L400 60 L" + W + " " + H + ' Z" fill="#CBDAC6" opacity=".55"/>' +
+        '<path d="M0 ' + H + " L90 70 L150 130 L230 40 L320 120 L400 60 L" + W + " " + H + ' Z" fill="none" stroke="#5A7562" stroke-opacity=".35" stroke-width="2"/></svg>';
+    }
+    var lats = points.map(function (p) { return p[0]; });
+    var lngs = points.map(function (p) { return p[1]; });
+    var minLat = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
+    var minLng = Math.min.apply(null, lngs), maxLng = Math.max.apply(null, lngs);
+    var spanLat = (maxLat - minLat) || 1e-9, spanLng = (maxLng - minLng) || 1e-9;
+    var scale = Math.min((W - 2 * PAD) / spanLng, (H - 2 * PAD) / spanLat);
+    var offX = (W - spanLng * scale) / 2, offY = (H - spanLat * scale) / 2;
+    var pts = points.map(function (p) {
+      return (offX + (p[1] - minLng) * scale).toFixed(1) + "," + (H - offY - (p[0] - minLat) * scale).toFixed(1);
+    });
+    var d = "M" + pts.join(" L");
+    var s = pts[0].split(","), e = pts[pts.length - 1].split(",");
+    return '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet">' +
+      '<path d="' + d + '" fill="none" stroke="#2E5339" stroke-opacity=".45" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<path d="' + d + '" fill="none" stroke="#F2A900" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<circle cx="' + s[0] + '" cy="' + s[1] + '" r="6" fill="#2E5339" stroke="#fff" stroke-width="2"/>' +
+      '<circle cx="' + e[0] + '" cy="' + e[1] + '" r="6" fill="#1A1C19" stroke="#fff" stroke-width="2"/></svg>';
+  }
+
+  function diffClass(v) {
+    return { easy: "b-easy", moderate: "b-moderate", difficult: "b-hard", very_difficult: "b-hard" }[v] || "b-easy";
+  }
+
+  // ── Render grid dari STATE ──
+  function render() {
+    var L = (window.NYASAR_LANG || "id") === "en" ? EN : ID;
+    if (STATE.kind === "ok") {
+      stateBox.hidden = true;
+      grid.hidden = false;
+      var html = STATE.rows.map(function (r) {
+        var pts = [];
+        try { pts = r.track_polyline ? decodePolyline(r.track_polyline) : []; } catch (e) { pts = []; }
+        var author = (r.profiles && (r.profiles.display_name || r.profiles.username)) || L.anon;
+        var badges = [];
+        if (r.difficulty) badges.push('<span class="badge ' + diffClass(r.difficulty) + '">' + (L.diff[r.difficulty] || r.difficulty) + "</span>");
+        if (r.trail_type && L.trail[r.trail_type]) badges.push('<span class="badge b-trail">' + L.trail[r.trail_type] + "</span>");
+        return '<a class="route-card" href="../route/?id=' + encodeURIComponent(r.id) + '">' +
+          '<div class="preview">' + svgPreview(pts) + "</div>" +
+          '<div class="rc-body">' +
+            '<div class="rc-badges">' + badges.join("") + "</div>" +
+            '<h3 class="rc-name"></h3>' +
+            '<p class="rc-author">' + L.by + " " + escapeHtml(author) + "</p>" +
+            '<div class="rc-stats">' +
+              '<div class="rc-stat"><b>' + fmtKm(r.distance_meters) + "</b><span>" + L.dist + "</span></div>" +
+              '<div class="rc-stat"><b>' + fmtM(r.elevation_gain_m) + "</b><span>" + L.gain + "</span></div>" +
+              '<div class="rc-stat"><b>' + fmtTime(r.moving_time_ms) + "</b><span>" + L.time + "</span></div>" +
+            "</div>" +
+          "</div></a>";
+      }).join("");
+      grid.innerHTML = html;
+      // Nama rute via textContent (anti-XSS dari data DB).
+      var names = grid.querySelectorAll(".rc-name");
+      STATE.rows.forEach(function (r, i) {
+        if (names[i]) names[i].textContent = r.name || (window.NYASAR_LANG === "en" ? "Nyasar route" : "Rute Nyasar");
+      });
+      return;
+    }
+    grid.hidden = true;
+    stateBox.hidden = false;
+    if (STATE.kind === "empty") {
+      stateBox.textContent = t("browse.empty");
+    } else if (STATE.kind === "noconfig") {
+      stateBox.innerHTML = "";
+      var p = document.createElement("p");
+      p.textContent = t("browse.noconfig");
+      stateBox.appendChild(p);
+      var a = document.createElement("a");
+      a.className = "btn btn-ghost";
+      a.href = "../index.html";
+      a.textContent = t("route.learn");
+      stateBox.appendChild(a);
+    } else if (STATE.kind === "error") {
+      stateBox.textContent = t("browse.error");
+    } else {
+      stateBox.textContent = t("browse.loading");
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // Re-render saat bahasa diganti (hook setelah apply() bawaan).
+  (function () {
+    var original = window.nyasarApplyLang;
+    window.nyasarApplyLang = function (lang) {
+      original(lang);
+      render();
+    };
+  })();
+
+  // ── Fetch rute publik (REST anon, RLS menyaring is_public) ──
+  (function () {
+    var SUPA = (window.NYASAR_SUPABASE_URL || "").replace(/\/$/, "");
+    var KEY = window.NYASAR_SUPABASE_ANON_KEY || "";
+    if (!SUPA || !KEY) { STATE.kind = "noconfig"; render(); return; }
+    // Embed profiles WAJIB FK hint (3 relasi profiles↔routes → PGRST201).
+    var COLS = "id,name,distance_meters,elevation_gain_m,moving_time_ms," +
+      "difficulty,trail_type,track_polyline," +
+      "profiles!routes_user_id_fkey(username,display_name)";
+    fetch(SUPA + "/rest/v1/routes?is_public=eq.true&order=created_at.desc&limit=60&select=" + COLS, {
+      headers: { apikey: KEY, Authorization: "Bearer " + KEY }
+    })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (rows) {
+        STATE = { kind: rows && rows.length ? "ok" : "empty", rows: rows || [] };
+        render();
+      })
+      .catch(function () { STATE.kind = "error"; render(); });
+  })();
+
+  render(); // state awal (loading)
+</script>
+</body>
+</html>

@@ -757,4 +757,9 @@
     <string name="report_submit">Submit report</string>
     <string name="report_submitted">Report sent. Thank you.</string>
     <string name="report_failed">Failed to send report — try again</string>
+    <!-- Update in-app (GitHub Releases distribution, no Play Store) -->
+    <string name="update_available_title">Update available</string>
+    <string name="update_available_body">Version %1$s has been released — you are on %2$s. Download the latest APK from the releases page, then open the file to install.</string>
+    <string name="update_download_cta">Download new version</string>
+    <string name="update_later_cta">Later</string>
 </resources>

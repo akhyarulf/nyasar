@@ -35,9 +35,15 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # fetch-depth: 0 WAJIB — VERSION_CODE dihitung dari
+      # `git rev-list --count HEAD`; shallow clone (default) bikin
+      # counter-nya selalu 1 sehingga Android menolak "downgrade" saat
+      # install APK rilis berikutnya.
       - name: Checkout
         if: steps.secrets.outputs.configured == 'true'
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         if: steps.secrets.outputs.configured == 'true'
@@ -73,9 +79,28 @@ jobs:
         with:
           gradle-version: 8.7
 
+      # Versi dari tag, bukan hardcoded: v1.2.3-beta -> versionName
+      # "1.2.3-beta", versionCode = jumlah commit sejak awal riwayat
+      # (monoton naik tiap rilis, siap kalau nanti migrasi ke Play).
+      # Build lokal tanpa env tetap pakai fallback di build.gradle.kts.
+      - name: Compute version from tag
+        if: steps.secrets.outputs.configured == 'true'
+        id: version
+        run: |
+          RAW_TAG="${{ github.ref_name }}"
+          case "$RAW_TAG" in
+            v*) VERSION_NAME="${RAW_TAG#v}" ;;
+            *)  VERSION_NAME="" ;;   # manual dispatch tanpa tag -> fallback gradle
+          esac
+          VERSION_CODE=$(git rev-list --count HEAD)
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "versionName=$VERSION_NAME versionCode=$VERSION_CODE"
+
       # assembleRelease menghasilkan APK release yang ditandatangani lewat
       # signingConfig dari env KEYSTORE_* (lihat app/build.gradle.kts).
-      # APK — bukan AAB — karena distribusi sideload; AAB hanya untuk Play.
+      # APK — bukan AAB — karena distribusi sideload; AAB hanya untuk Play
+      # (workflow AAB sudah dihapus — tidak pernah dipakai).
       - name: Build signed release APK (assembleRelease)
         if: steps.secrets.outputs.configured == 'true'
         env:
@@ -83,7 +108,20 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
         run: gradle assembleRelease --no-daemon --stacktrace
+
+      # SHA-256 cert release — referensi tunggal untuk
+      # web/.well-known/assetlinks.json (App Links autoVerify). Workflow
+      # AAB lama yang dulu mencetak ini sudah dihapus, jadi langkah ini
+      # yang menggantikannya.
+      - name: Print release cert SHA-256 (untuk assetlinks.json)
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          keytool -list -v -keystore keystore/nyasar-release.keystore \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.KEY_ALIAS }}" 2>/dev/null | grep 'SHA256:' || true
 
       # Nama file stabil → link unduh permanen:
       # https://github.com/akhyarulf/nyasar/releases/latest/download/Nyasar.apk

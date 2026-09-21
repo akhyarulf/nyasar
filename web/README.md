@@ -10,9 +10,13 @@ Struktur:
 web/
   CNAME                        → app.nyasarnyaman.my.id (domain custom Pages)
   index.html                   → landing utama
+  browse/index.html            → jelajah rute publik (grid kartu, tanpa app)
+  route/index.html             → landing ringkas per rute publik (?id=…)
   privacy-policy.html          → kebijakan privasi
   terms-of-service.html        → syarat layanan
-  route/index.html             → landing ringkas per rute publik (?id=…)
+  og-image.png                 → kartu share sosial (og:image; digenerate
+                                 scripts/gen_og_image.py, 1200x630)
+  robots.txt + sitemap.xml     → pengindeksan mesin pencari
   .well-known/assetlinks.json  → verifikasi App Links (isi SHA-256 cert)
 ```
 
@@ -43,8 +47,10 @@ web/
      `keystore/debug.keystore` (alias `androiddebugkey`, pass `android`) dan
      semua debug build (lokal + CI) memakainya, jadi SHA-256-nya stabil.
      Regenerasi hanya kalau mau rotasi: `python3 scripts/gen_debug_keystore.py`.
-   - Release cert: workflow "Release Nyasar AAB" otomatis mencetaknya di log
-     (step "Print release cert SHA-256") — copy dari sana.
+   - Release cert: workflow "Release APK (GitHub Releases)"
+     (`release-apk.yaml`) mencetaknya di log setiap rilis (step "Print
+     release cert SHA-256") — copy dari sana. Workflow AAB lama sudah
+     dihapus (distribusi tidak lewat Play Store).
    - Ganti placeholder release cert (debug sudah terisi dari keystore
      committed), commit, workflow Pages akan deploy ulang otomatis.
 4. **Secrets repo** (Settings → Secrets and variables → Actions):

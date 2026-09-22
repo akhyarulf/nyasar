@@ -762,4 +762,9 @@
     <string name="update_available_body">Versi %1$s sudah rilis — kamu memakai %2$s. Unduh APK terbaru dari halaman rilis, lalu buka file-nya untuk memasang.</string>
     <string name="update_download_cta">Unduh versi baru</string>
     <string name="update_later_cta">Nanti Saja</string>
+    <!-- Gambar rute: snap-to-path (ikuti jalur OSM) -->
+    <string name="follow_paths_on_cd">Ikuti jalur aktif — ketuk untuk menggambar garis bebas</string>
+    <string name="follow_paths_off_cd">Garis bebas aktif — ketuk untuk mengikuti jalur asli</string>
+    <string name="snap_status_on">Mengikuti jalur asli (jejak & jalan OSM)</string>
+    <string name="snap_status_routing">Mencari jalur terdekat…</string>
 </resources>

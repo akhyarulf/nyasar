@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,11 +25,12 @@ import androidx.compose.ui.res.stringResource
 
 /**
  * Manual point-by-point route drawing (spec: "tap titik satu-satu di peta,
- * garis lurus otomatis nyambung antar titik" — the Ride with GPS "manual
- * mode" reference, deliberately NOT snap-to-road/community-heatmap like
- * Strava/Komoot default to, since those need a routing engine + hosted
- * road/trail data this app doesn't have, and hiking trails are often
- * unmapped anyway — see the earlier discussion on why P1 stays manual).
+ * garis mengikuti jalur asli"). With "ikuti jalur" ON (default), each new
+ * segment is upgraded from a straight line to the REAL trail/road geometry
+ * via PathSnapper (OSRM foot — the GPX Studio feel); OFF (or offline, or
+ * an unmapped trail) degrades to the original manual straight-line mode —
+ * the old P1 "deliberately manual" behavior remains the fallback, not a
+ * lock-in. Anchors (the taps) stay the undo/history model in the VM.
  *
  * This is for building a route BEFORE going outside, with no GPS
  * involved — distinct from Recording (GPS-tracked, while actually
@@ -122,7 +124,7 @@ fun DrawRouteScreen(
             // refit) on every single tap; drawnPoints has its own isolated
             // update path that doesn't touch the camera at all, letting
             // the user keep tapping without the map jumping around.
-            drawnPoints = state.points,
+            drawnPoints = state.pathPoints,
             onMapClick = { lat, lon -> viewModel.addPoint(lat, lon) },
             onMapReady = { mapInstance = it }
         )
@@ -139,6 +141,20 @@ fun DrawRouteScreen(
             actions = {
                 IconButton(onClick = viewModel::undoLastPoint, enabled = state.canUndo) {
                     Icon(Icons.Default.Undo, contentDescription = stringResource(R.string.undo_last_point_cd))
+                }
+                // "Ikuti jalur" toggle: snap new segments to real OSM
+                // trails/roads. Icon-only + contentDescription like every
+                // other top-bar action; the on/off state is visible from
+                // the icon itself (tint follows the enabled-ish state).
+                IconButton(onClick = { viewModel.setFollowPaths(!state.followPaths) }) {
+                    Icon(
+                        Icons.Default.Route,
+                        contentDescription = stringResource(
+                            if (state.followPaths) R.string.follow_paths_on_cd else R.string.follow_paths_off_cd
+                        ),
+                        tint = if (state.followPaths) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 // Manual fallback for the automatic centering above — that
                 // one silently no-ops on permission-denied or a slow fix,
@@ -186,6 +202,22 @@ fun DrawRouteScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    // Tiny status line: what the line on the map is doing
+                    // right now (snapping in flight / fallback because a
+                    // snap failed). Replaces guessing — with snapping the
+                    // line can visibly "move" a second after the tap.
+                    if (state.followPaths) {
+                        Text(
+                            stringResource(
+                                when {
+                                    state.snapping -> R.string.snap_status_routing
+                                    else -> R.string.snap_status_on
+                                }
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 Button(
                     onClick = { showFinishSheet = true },

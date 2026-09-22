@@ -765,6 +765,6 @@
     <!-- Gambar rute: snap-to-path (ikuti jalur OSM) -->
     <string name="follow_paths_on_cd">Ikuti jalur aktif — ketuk untuk menggambar garis bebas</string>
     <string name="follow_paths_off_cd">Garis bebas aktif — ketuk untuk mengikuti jalur asli</string>
-    <string name="snap_status_on">Mengikuti jalur asli (jejak & jalan OSM)</string>
+    <string name="snap_status_on">Mengikuti jalur asli (jejak &amp; jalan OSM)</string>
     <string name="snap_status_routing">Mencari jalur terdekat…</string>
 </resources>

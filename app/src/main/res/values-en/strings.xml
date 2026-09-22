@@ -765,6 +765,6 @@
     <!-- Draw route: snap-to-path (follow OSM ways) -->
     <string name="follow_paths_on_cd">Follow paths on — tap to draw freeform lines</string>
     <string name="follow_paths_off_cd">Freeform lines on — tap to follow real paths</string>
-    <string name="snap_status_on">Following real paths (OSM trails & roads)</string>
+    <string name="snap_status_on">Following real paths (OSM trails &amp; roads)</string>
     <string name="snap_status_routing">Finding the nearest path…</string>
 </resources>

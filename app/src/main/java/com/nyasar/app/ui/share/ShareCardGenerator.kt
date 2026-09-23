@@ -304,46 +304,45 @@ object ShareCardGenerator {
         // branding (drawn in row 1), drawing it twice would clutter the card.
     }
 
-    // ── Template 2: Stats — transparent + large centered stats + small route ──
+    // ── Template 2: Stats — transparent + Strava-stacked stats + centered route ──
 
     private fun drawStatsTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
 
+        // Strava anatomy for the transparent card (1:1): NO sport badge and
+        // NO corner watermark — three stat blocks stacked HIGH on the card
+        // (Distance → primary metric → Time), each a BOLD white label over a
+        // big value, then the route centered below, then the brand wordmark
+        // centered at the bottom. Transparent background stays fully clear.
         val cx = CARD_W / 2f
-        val big = textPaint(152f, interBold(ctx), WHITE)
-        val sm = textPaint(34f, interRegular(ctx), LIGHT)
+        val lbl = textPaint(36f, interBold(ctx), 0xF2FFFFFF.toInt())
+        val big = textPaint(96f, interBold(ctx), WHITE)
 
-        // Sport badge top-left (this template draws no title).
-        drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
+        fun block(label: String, value: String, labelY: Float, valueY: Float) {
+            c.drawText(label, cx - lbl.measureText(label) / 2, labelY, lbl)
+            c.drawText(value, cx - big.measureText(value) / 2, valueY, big)
+        }
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
-        val lblDistance = ctx.getString(R.string.share_stat_distance)
-        val lblTime = ctx.getString(R.string.share_stat_time)
-        c.drawText(lblDistance, cx - sm.measureText(lblDistance) / 2, CARD_H * 0.30f, sm)
-        c.drawText(dist, cx - big.measureText(dist) / 2, CARD_H * 0.38f, big)
-
-        c.drawText(lblTime, cx - sm.measureText(lblTime) / 2, CARD_H * 0.48f, sm)
-        c.drawText(dur, cx - big.measureText(dur) / 2, CARD_H * 0.56f, big)
-
+        block(ctx.getString(R.string.share_stat_distance), dist, CARD_H * 0.235f, CARD_H * 0.295f)
         if (sportMetric(a) == ShareMetric.PACE) {
-            val pace = formatPace(a)
-            val lblPace = ctx.getString(R.string.share_stat_pace)
-            c.drawText(lblPace, cx - sm.measureText(lblPace) / 2, CARD_H * 0.64f, sm)
-            c.drawText(pace, cx - big.measureText(pace) / 2, CARD_H * 0.72f, big)
+            block(ctx.getString(R.string.share_stat_pace), formatPace(a), CARD_H * 0.375f, CARD_H * 0.435f)
         } else {
-            val gain = formatElevGain(a)
-            val lblElev = ctx.getString(R.string.share_stat_elev_gain)
-            c.drawText(lblElev, cx - sm.measureText(lblElev) / 2, CARD_H * 0.64f, sm)
-            c.drawText("\u2191 $gain", cx - big.measureText("\u2191 $gain") / 2, CARD_H * 0.72f, big)
+            block(ctx.getString(R.string.share_stat_elev_gain), "\u2191 ${formatElevGain(a)}", CARD_H * 0.375f, CARD_H * 0.435f)
         }
+        block(ctx.getString(R.string.share_stat_time), dur, CARD_H * 0.515f, CARD_H * 0.575f)
 
+        // Route centered below the stats — green fill over dark casing (the
+        // same two-layer trick as the map template; no orange in the palette).
         if (track.size >= 2) {
-            drawRouteProportional(c, track, 200f, CARD_H * 0.79f, CARD_W - 200f, CARD_H * 0.91f, 12f, TRACK_FILL)
+            drawRouteProportional(c, track, 280f, CARD_H * 0.62f, CARD_W - 280f, CARD_H * 0.78f, 12f, TRACK_FILL, TRACK_CASE)
         }
 
-        drawWatermark(c, ctx)
+        // Centered brand wordmark, wide letter-spaced (Strava's logo slot).
+        val wordP = textPaint(48f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
+        c.drawText(WORDMARK_TEXT, cx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.835f, wordP)
     }
 
     // ── Template 3: Dark Card — dark textured bg + inset map card ──
@@ -470,23 +469,27 @@ object ShareCardGenerator {
     private fun drawRouteTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
 
-        // Sport badge top-left (this template draws no title).
-        drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
-
+        // Strava transparent-route card anatomy: big centered route (green
+        // over dark casing), two BOLD-label stat blocks below, brand
+        // wordmark centered at the bottom. No sport badge, no corner
+        // watermark — same consistency rules as the Stats template.
         if (track.size >= 2) {
-            drawRouteProportional(c, track, 120f, CARD_H * 0.12f, CARD_W - 120f, CARD_H * 0.62f, 14f, TRACK_FILL)
+            drawRouteProportional(c, track, 140f, CARD_H * 0.12f, CARD_W - 140f, CARD_H * 0.60f, 14f, TRACK_FILL, TRACK_CASE)
         }
 
-        val sy = CARD_H * 0.75f
-        val labelP = textPaint(30f, interRegular(ctx), LIGHT)
-        val statP = textPaint(112f, interBold(ctx), WHITE)
+        val sy = CARD_H * 0.70f
+        val labelP = textPaint(34f, interBold(ctx), 0xF2FFFFFF.toInt())
+        val statP = textPaint(104f, interBold(ctx), WHITE)
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
         val dur = formatDuration(a.movingTimeMs)
 
-        c.drawText(ctx.getString(R.string.share_stat_distance), 80f, sy, labelP); c.drawText(dist, 80f, sy + 96f, statP)
-        c.drawText(ctx.getString(R.string.share_stat_time), 600f, sy, labelP); c.drawText(dur, 600f, sy + 96f, statP)
+        c.drawText(ctx.getString(R.string.share_stat_distance), 80f, sy, labelP); c.drawText(dist, 80f, sy + 92f, statP)
+        c.drawText(ctx.getString(R.string.share_stat_time), 620f, sy, labelP); c.drawText(dur, 620f, sy + 92f, statP)
 
-        drawWatermark(c, ctx)
+        // Centered brand wordmark (Strava's logo slot), letter-spaced.
+        val wordP = textPaint(48f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
+        val cx = CARD_W / 2f
+        c.drawText(WORDMARK_TEXT, cx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.88f, wordP)
     }
 
     // ── Template 5: Grid — transparent + stat grid ──
@@ -494,9 +497,8 @@ object ShareCardGenerator {
     private fun drawGridTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity) {
         c.drawColor(Color.TRANSPARENT)
 
-        // Sport badge top-left.
-        drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
-
+        // Strava's transparent grid card: no badge, no corner watermark —
+        // the centered wordmark below is the branding.
         val col1 = CARD_W * 0.17f
         val col2 = CARD_W * 0.50f
         val col3 = CARD_W * 0.83f
@@ -545,7 +547,10 @@ object ShareCardGenerator {
         c.drawText(lblPoints, col3 - lblP.measureText(lblPoints) / 2, row2, lblP)
         c.drawText("${pointCount(a)}", col3 - valP.measureText("${pointCount(a)}") / 2, row2 + 92f, valP)
 
-        drawWatermark(c, ctx)
+        // Centered brand wordmark (Strava's logo slot), letter-spaced.
+        val wordP = textPaint(48f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
+        val wcx = CARD_W / 2f
+        c.drawText(WORDMARK_TEXT, wcx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.86f, wordP)
     }
 
     // ── Template 6: Minimal — solid green + name + big distance ──
@@ -633,7 +638,8 @@ object ShareCardGenerator {
     private fun drawRouteProportional(
         c: Canvas, track: List<TrackPoint>,
         left: Float, top: Float, right: Float, bottom: Float,
-        strokeW: Float, color: Int
+        strokeW: Float, color: Int,
+        casingColor: Int? = null
     ) {
         if (track.size < 2) return
         val minLat = track.minOf { it.lat }; val maxLat = track.maxOf { it.lat }
@@ -662,6 +668,15 @@ object ShareCardGenerator {
             val x = ox + (p.lon - minLon).toFloat() * cosLat * scale
             val y = oy + rh - (p.lat - minLat).toFloat() * scale
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        // Casing first (wider, dark) so the fill holds contrast on any
+        // background — same two-layer trick as the map template.
+        if (casingColor != null) {
+            c.drawPath(path, Paint().apply {
+                this.color = casingColor; style = Paint.Style.STROKE
+                strokeWidth = strokeW * 1.7f; strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND; isAntiAlias = true
+            })
         }
         c.drawPath(path, paint)
     }

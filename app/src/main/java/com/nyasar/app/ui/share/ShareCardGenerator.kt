@@ -558,32 +558,51 @@ object ShareCardGenerator {
         c.drawText(WORDMARK_TEXT, cx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.685f, wordP)
     }
 
-    // ── Template 6: Minimal — solid green + name + big distance ──
+    // ── Template 6: Minimal — Strava anatomy: transparent bg, glyph +
+    //    wordmark row, three left-aligned stat columns, nothing else ──
 
     private fun drawMinimalTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity) {
-        fillGradient(c, PRIMARY, Color.parseColor("#1A2A20"))
+        c.drawColor(Color.TRANSPARENT)
 
-        // Sport badge top-left.
-        drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
+        // Strava's minimal stats card (1:1): TRANSPARENT background; a
+        // left-aligned row of the sport glyph beside the brand wordmark;
+        // below it the three stat columns (Distance | Pace | Time) also
+        // left-aligned. No title, no route, no watermark — the emptiness
+        // is the design. (Was a solid-green centered card; Strava's sixth
+        // card is the quiet one.)
+        val leftX = 110f
 
-        val cx = CARD_W / 2f
-        val nameP = textPaint(56f, interBold(ctx), WHITE)
-        val name = ellipsize(a.name, CARD_W - 160f, nameP)
-        c.drawText(name, cx - nameP.measureText(name) / 2, CARD_H * 0.36f, nameP)
+        // Row 1: sport glyph + NYASAR wordmark side by side (Strava's
+        // shoe + STRAVA lockup), vertically centered against each other.
+        val glyphSize = 84f
+        val glyphY = CARD_H * 0.405f
+        val glyph = sportIconBitmap(SportType.fromString(a.sportType), glyphSize.roundToInt(), tint = WHITE)
+        c.drawBitmap(
+            glyph, null,
+            RectF(leftX, glyphY, leftX + glyphSize, glyphY + glyphSize),
+            Paint().apply { isFilterBitmap = true; isAntiAlias = true }
+        )
+        val wordP = textPaint(54f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.14f }
+        c.drawText(WORDMARK_TEXT, leftX + glyphSize + 30f, glyphY + glyphSize * 0.74f, wordP)
 
-        val dist = "%.2f km".format(a.distanceMeters / 1000.0)
-        val distP = textPaint(150f, interBold(ctx), WHITE)
-        c.drawText(dist, cx - distP.measureText(dist) / 2, CARD_H * 0.50f, distP)
-
-        val lblDistP = textPaint(34f, interRegular(ctx), LIGHT)
-        val lblDist = ctx.getString(R.string.share_stat_distance)
-        c.drawText(lblDist, cx - lblDistP.measureText(lblDist) / 2, CARD_H * 0.55f, lblDistP)
-
-        val dur = formatDuration(a.movingTimeMs)
-        val durP = textPaint(76f, interBold(ctx), WHITE)
-        c.drawText(dur, cx - durP.measureText(dur) / 2, CARD_H * 0.66f, durP)
-
-        drawWatermark(c, ctx)
+        // Row 2: three stat columns left-aligned from the same edge —
+        // the shared stat-row helper gives Strava's bold-white labels over
+        // big values and auto-shrinks for pathological lengths.
+        val primary: Pair<String, String> = if (sportMetric(a) == ShareMetric.PACE) {
+            ctx.getString(R.string.share_stat_pace) to formatPace(a)
+        } else {
+            ctx.getString(R.string.share_stat_elev_gain) to "\u2191 ${formatElevGain(a)}"
+        }
+        drawStatRow(
+            c, ctx,
+            columns = listOf(
+                ctx.getString(R.string.share_stat_distance) to "%.2f km".format(a.distanceMeters / 1000.0),
+                primary,
+                ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs)
+            ),
+            leftX = leftX, rightX = CARD_W - 90f,
+            labelBaselineY = glyphY + glyphSize + 140f, valueGap = 74f
+        )
     }
 
     // ── Helpers ──
@@ -619,7 +638,10 @@ object ShareCardGenerator {
         }
     }
 
-    /** Small "Nyasar" wordmark, right-aligned at (xRight, yBaseline). */
+    /** Small "Nyasar" wordmark, right-aligned at (xRight, yBaseline).
+     *  No longer called by any template — every card now carries the bigger
+     *  Strava-style branding (corner mark or centered lockup) — kept as a
+     *  helper for future templates. */
     private fun drawWatermark(c: Canvas, ctx: android.content.Context, xRight: Float = CARD_W - 56f, yBaseline: Float = CARD_H - 56f) {
         val p = textPaint(WATERMARK_SIZE, interBold(ctx), WATERMARK_COLOR)
         c.drawText(WATERMARK_TEXT, xRight - p.measureText(WATERMARK_TEXT), yBaseline, p)

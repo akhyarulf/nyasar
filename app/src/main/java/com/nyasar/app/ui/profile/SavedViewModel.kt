@@ -66,33 +66,37 @@ class SavedViewModel : ViewModel() {
         if (refreshInFlight) return
         refreshInFlight = true
         viewModelScope.launch {
-            if (_state.value !is SavedState.Loaded) _state.value = SavedState.Loading
-            if (!SupabaseClientProvider.isConfigured) {
-                if (_state.value !is SavedState.Loaded) {
-                    _state.value = SavedState.Error(SavedUiError(R.string.browse_error_not_configured))
-                }
-                refreshInFlight = false
-                return@launch
-            }
-            when (val outcome = repository.savedRoutes(SupabaseClientProvider.client)) {
-                is BrowseRepository.Outcome.Success -> {
-                    _state.value = SavedState.Loaded(routes = outcome.routes)
-                    // Merge the freshly fetched list INTO the shared state
-                    // (not overwrite — Browse may have just bookmarked a
-                    // route that isn't on this screen's snapshot yet; the
-                    // union keeps both surfaces truthful until the next
-                    // authoritative reload).
-                    SharedSocialState.syncSaved(outcome.routes.map { it.id }.toSet())
-                }
-                is BrowseRepository.Outcome.Failure -> {
-                    // A failed re-sync keeps the loaded list (better than
-                    // blanking it); only a first load surfaces the error.
+            try {
+                if (_state.value !is SavedState.Loaded) _state.value = SavedState.Loading
+                if (!SupabaseClientProvider.isConfigured) {
                     if (_state.value !is SavedState.Loaded) {
-                        _state.value = SavedState.Error(SavedUiError(errorResFor(outcome.error)))
+                        _state.value = SavedState.Error(SavedUiError(R.string.browse_error_not_configured))
+                    }
+                    return@launch
+                }
+                when (val outcome = repository.savedRoutes(SupabaseClientProvider.client)) {
+                    is BrowseRepository.Outcome.Success -> {
+                        _state.value = SavedState.Loaded(routes = outcome.routes)
+                        // Merge the freshly fetched list INTO the shared state
+                        // (not overwrite — Browse may have just bookmarked a
+                        // route that isn't on this screen's snapshot yet; the
+                        // union keeps both surfaces truthful until the next
+                        // authoritative reload).
+                        SharedSocialState.syncSaved(outcome.routes.map { it.id }.toSet())
+                    }
+                    is BrowseRepository.Outcome.Failure -> {
+                        // A failed re-sync keeps the loaded list (better than
+                        // blanking it); only a first load surfaces the error.
+                        if (_state.value !is SavedState.Loaded) {
+                            _state.value = SavedState.Error(SavedUiError(errorResFor(outcome.error)))
+                        }
                     }
                 }
+            } finally {
+                // Exception-safe: a crashed fetch must never wedge the guard
+                // shut (it would block every future pane-entry re-sync).
+                refreshInFlight = false
             }
-            refreshInFlight = false
         }
     }
 

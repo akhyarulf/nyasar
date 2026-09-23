@@ -373,6 +373,9 @@
     <string name="share_tpl_grid">Grid</string>
     <string name="share_tpl_minimal">Minimal</string>
     <string name="share_tpl_sticker">Sticker</string>
+    <!-- Text accompanying the image in the share sheet. %1$s = activity
+         name, %2$s = link (published route or download landing). -->
+    <string name="share_text_body">Check out my activity: %1$s #Nyasar\n%2$s</string>
 
     <!-- Sport types -->
     <string name="sport_run">Run</string>

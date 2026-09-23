@@ -31,8 +31,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.nyasar.app.AppLinks
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.data.supabase.PublishRepository
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.ui.components.AnimatedAppear
 import com.nyasar.app.ui.components.Stagger
@@ -105,6 +107,22 @@ fun ShareCardScreen(
     }
 
     val pagerState = rememberPagerState(pageCount = { templates.size })
+
+    // Link temani gambar di share sheet (resolves ONCE per screen):
+    //   - aktivitas sudah ter-publish ke cloud → deep link Route Detail
+    //     (https://app.nyasarnyaman.my.id/route?id=…) — HP dengan app
+    //     langsung terbuka ke detail, browser tampil landing rute.
+    //   - belum / offline / belum login → landing download — SELALU valid,
+    //     tidak ada alasan menahan share sampai rute di-publish. Probing
+    //     timeout-safe: gagal apa pun diam-diam jatuh ke landing.
+    var shareLink by remember { mutableStateOf(AppLinks.BASE) }
+    LaunchedEffect(activity.id) {
+        runCatching {
+            withContext(Dispatchers.IO) {
+                PublishRepository().fetchPublishedMeta(sourceActivityId = activity.id)
+            }?.cloudRouteId?.let { shareLink = AppLinks.routeLink(it) }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -242,7 +260,7 @@ fun ShareCardScreen(
                     val tpl = templates[pagerState.currentPage]
                     val bmp = bitmaps[tpl] ?: return@Button
                     scope.launch {
-                        val ok = shareImage(context, bmp, activity.name)
+                        val ok = shareImage(context, bmp, activity.name, shareLink)
                         // Bug fix: this silently did nothing on failure
                         // before (share sheet just never opened, no error,
                         // no indication anything was wrong) — only show a
@@ -297,7 +315,12 @@ fun ShareCardScreen(
     }
 }
 
-private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap, name: String): Boolean {
+private suspend fun shareImage(
+    context: android.content.Context,
+    bitmap: Bitmap,
+    name: String,
+    link: String
+): Boolean {
     return withContext(Dispatchers.IO) {
         try {
             val safeName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
@@ -318,7 +341,12 @@ private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap,
             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                putExtra(android.content.Intent.EXTRA_TEXT, "Check out my activity: $name #Nyasar")
+                // Teks temani bawa string resource (bilingual) + link —
+                // bukan lagi hard-code English.
+                putExtra(
+                    android.content.Intent.EXTRA_TEXT,
+                    context.getString(R.string.share_text_body, name, link)
+                )
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             val chooser = android.content.Intent.createChooser(intent, context.getString(R.string.share_via))

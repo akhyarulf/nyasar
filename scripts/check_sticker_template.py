@@ -34,13 +34,17 @@ check(re.search(r'"sticker"\s*->\s*"Sticker"', gen), 'templateLabel: no "Sticker
 check("private fun drawStickerTemplate(" in gen, "drawStickerTemplate function missing")
 for needle in ["share_stat_max_elev", "share_stat_elev_gain", "share_stat_elev_loss"]:
     check(needle in gen, f"sticker template missing stat string {needle}")
-# 6-stat layout: two rows x three columns via the shared drawGridRow loop
-# (labels + values drawn inside forEachIndexed — count string references instead)
+# 6-stat layout: two rows x three columns via the SHARED aligned grid
+# helper (drawAlignedStatGrid) — one auto-fit pass, columns line up
+# between rows (Strava's subscriber card anatomy, 2026-09 polish).
 fn = gen[gen.index("private fun drawStickerTemplate("):gen.index("// ── Helpers ──")]
 for needle in ["share_stat_distance", "share_stat_pace", "share_stat_time",
                "share_stat_elev_gain", "share_stat_elev_loss", "share_stat_max_elev"]:
     check(needle in fn, f"sticker fn missing {needle}")
-check(fn.count("drawGridRow(") >= 2, "sticker: two grid rows not drawn")
+check("drawAlignedStatGrid(c, ctx, rows = listOf(row1, row2)" in fn.replace("\n", " "),
+      "sticker: rows not drawn via drawAlignedStatGrid")
+# No arrows in the sticker card — Strava shows bare numbers (user request).
+check("\\u2191" not in fn and "\\u2193" not in fn, "sticker: elevation arrows must stay removed")
 
 # 4. Transparent hint in screen
 check('"sticker"' in screen, "ShareCardScreen: sticker not in the transparent/checkerboard list")

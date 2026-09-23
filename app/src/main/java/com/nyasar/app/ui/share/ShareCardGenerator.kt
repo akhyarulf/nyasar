@@ -214,27 +214,28 @@ object ShareCardGenerator {
             // Full-bleed center-crop: the map covers the ENTIRE card. Compute
             // the crop rect FIRST so the route overlay shares the same
             // coordinate space as the drawn pixels — the track must sit on
-            // the map, not on the letterbox.
+            // the map, not on the letterbox. (drawBitmap's src param takes an
+            // integer Rect; the rounding error is sub-pixel, invisible.)
             val bmpW = mapSnapshot.width.toFloat()
             val bmpH = mapSnapshot.height.toFloat()
             val cardAspect = CARD_W.toFloat() / CARD_H
             val bmpAspect = bmpW / bmpH
-            val srcRect: RectF
+            val srcRect: android.graphics.Rect
             val dstRect: RectF
             if (bmpAspect > cardAspect) {
                 // bitmap wider than the card → crop the SIDES
-                val visW = bmpH * cardAspect
-                val left = (bmpW - visW) / 2f
-                srcRect = RectF(left, 0f, left + visW, bmpH)
+                val visW = (bmpH * cardAspect).roundToInt()
+                val left = ((bmpW - visW) / 2f).roundToInt()
+                srcRect = android.graphics.Rect(left, 0, left + visW, mapSnapshot.height)
             } else {
                 // bitmap taller → crop top/bottom, biased UP (keep the sky
                 // out; maps have no sky, so bias keeps the route's center)
-                val visH = bmpW / cardAspect
-                val top = (bmpH - visH) / 2f
-                srcRect = RectF(0f, top, bmpW, top + visH)
+                val visH = (bmpW / cardAspect).roundToInt()
+                val top = ((bmpH - visH) / 2f).roundToInt()
+                srcRect = android.graphics.Rect(0, top, mapSnapshot.width, top + visH)
             }
             dstRect = RectF(0f, 0f, CARD_W.toFloat(), CARD_H.toFloat())
-            c.drawBitmap(mapSnapshot, srcRect, dstRect, Paint().apply { isFilterBitmap = true })
+            c.drawBitmap(mapSnapshot, srcRect, dstRect, Paint().apply { isFilterBitmap = true; isAntiAlias = true })
 
             // Strava scrim: transparent top → near-black bottom, weighted to
             // deepen through the LOWER HALF where the overlay block lives.

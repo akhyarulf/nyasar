@@ -349,9 +349,9 @@ object MapSnapshotHelper {
             canvas.drawPath(
                 path,
                 Paint().apply {
-                    color = casingColor
+                    this.color = casingColor
                     style = Paint.Style.STROKE
-                    strokeWidth = strokeWidth * 1.7f
+                    this.strokeWidth = strokeWidth * 1.7f
                     strokeCap = Paint.Cap.ROUND
                     strokeJoin = Paint.Join.ROUND
                     isAntiAlias = true

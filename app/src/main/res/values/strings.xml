@@ -359,6 +359,8 @@
     <string name="share_stat_time">Time</string>
     <string name="share_stat_pace">Pace</string>
     <string name="share_stat_elev_gain">Elev Gain</string>
+    <string name="share_stat_elev_loss">Elev Loss</string>
+    <string name="share_stat_max_elev">Max Elev</string>
     <string name="share_stat_max_speed">Max Speed</string>
     <string name="share_stat_points">Points</string>
     <string name="share_stat_duration">Duration</string>
@@ -370,6 +372,7 @@
     <string name="share_tpl_route">Route</string>
     <string name="share_tpl_grid">Grid</string>
     <string name="share_tpl_minimal">Minimal</string>
+    <string name="share_tpl_sticker">Sticker</string>
 
     <!-- Sport types -->
     <string name="sport_run">Lari</string>

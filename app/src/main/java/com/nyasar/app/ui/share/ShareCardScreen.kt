@@ -147,7 +147,7 @@ fun ShareCardScreen(
                 ) {
                     if (bmp != null) {
                         // For transparent templates, show checkerboard hint
-                        val isTransparent = tpl in listOf("stats", "route", "grid")
+                        val isTransparent = tpl in listOf("stats", "route", "grid", "minimal", "sticker")
                         Box(Modifier.fillMaxSize()) {
                             if (isTransparent) {
                                 // Checkerboard background to indicate transparency
@@ -183,7 +183,8 @@ fun ShareCardScreen(
                                         "dark_card" -> R.string.share_tpl_dark
                                         "route" -> R.string.share_tpl_route
                                         "grid" -> R.string.share_tpl_grid
-                                        else -> R.string.share_tpl_minimal
+                                        "minimal" -> R.string.share_tpl_minimal
+                                        else -> R.string.share_tpl_sticker
                                     }
                                 ),
                                 modifier = Modifier.fillMaxSize(),
@@ -300,7 +301,14 @@ private suspend fun shareImage(context: android.content.Context, bitmap: Bitmap,
     return withContext(Dispatchers.IO) {
         try {
             val safeName = name.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            val file = File(context.cacheDir, "share_${safeName}_${System.currentTimeMillis()}.png")
+            // MUST live under cache/exports — that subpath is the only cache
+            // location declared in res/xml/file_paths.xml, and FileProvider
+            // refuses to share anything outside its declared paths
+            // (IllegalArgumentException → share sheet never opened → the
+            // "Failed to open share menu" toast; GPX exports already use
+            // this exact directory, see GpxExporter).
+            val dir = File(context.cacheDir, "exports").apply { mkdirs() }
+            val file = File(dir, "share_${safeName}_${System.currentTimeMillis()}.png")
             FileOutputStream(file).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
             }

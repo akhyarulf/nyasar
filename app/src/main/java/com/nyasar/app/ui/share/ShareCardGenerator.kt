@@ -47,7 +47,10 @@ import kotlin.math.roundToInt
  *   "dark_card"   — dark textured bg + inset map card + stats below
  *   "route"       — transparent bg + large centered route + stats at bottom
  *   "grid"        — transparent bg + 6-stat grid + branding
- *   "minimal"     — solid green + activity name + one big distance number
+ *   "minimal"     — transparent bg + glyph+wordmark lockup + 3 left stats
+ *   "sticker"     — transparent bg + glyph+wordmark row + 6-stat grid
+ *                   (Distance | Pace | Max Elev // Time | Elev Gain | Elev
+ *                   Loss) — Strava's subscriber 3x3 stats card, free here.
  */
 object ShareCardGenerator {
 
@@ -89,7 +92,7 @@ object ShareCardGenerator {
     private const val STAT_LABEL_SIZE = 26f
     private const val STAT_VALUE_SIZE = 76f
 
-    val TEMPLATES = listOf("map", "stats", "dark_card", "route", "grid", "minimal")
+    val TEMPLATES = listOf("map", "stats", "dark_card", "route", "grid", "minimal", "sticker")
 
     fun templateLabel(key: String): String = when (key) {
         "map" -> "Map"
@@ -98,6 +101,7 @@ object ShareCardGenerator {
         "route" -> "Route"
         "grid" -> "Poster"
         "minimal" -> "Minimal"
+        "sticker" -> "Sticker"
         else -> key
     }
 
@@ -118,6 +122,7 @@ object ShareCardGenerator {
             "route" -> drawRouteTemplate(c, context, activity, track)
             "grid" -> drawGridTemplate(c, context, activity, track)
             "minimal" -> drawMinimalTemplate(c, context, activity)
+            "sticker" -> drawStickerTemplate(c, context, activity, track)
             else -> drawMapTemplate(c, context, activity, track, mapSnapshot, mapBounds)
         }
         return bmp
@@ -138,6 +143,17 @@ object ShareCardGenerator {
 
     private fun formatElevGain(a: ActivityEntity): String =
         a.elevationGainM?.let { "${it.roundToInt()} m" } ?: "0 m"
+
+    private fun formatElevLoss(a: ActivityEntity): String =
+        a.elevationLossM?.let { "${it.roundToInt()} m" } ?: "0 m"
+
+    /** Highest point of the track — ActivityEntity doesn't store max
+     *  elevation, but the full point list is already in hand here. Falls
+     *  back to "—" when the recording carried no elevation data. */
+    private fun formatMaxElev(track: List<TrackPoint>): String {
+        val max = track.mapNotNull { it.elevationM }.maxOrNull() ?: return "—"
+        return "${max.roundToInt()} m"
+    }
 
     /** The 2–3 label/value columns every stats bar shows, per sport metric. */
     private fun statColumns(ctx: android.content.Context, a: ActivityEntity): List<Pair<String, String>> = buildList {
@@ -603,6 +619,80 @@ object ShareCardGenerator {
             leftX = leftX, rightX = CARD_W - 90f,
             labelBaselineY = glyphY + glyphSize + 140f, valueGap = 74f
         )
+    }
+
+    // ── Template 7: Sticker — Strava anatomy: transparent bg, glyph +
+    //    wordmark row, TWO ROWS of three left-aligned stat columns ──
+
+    private fun drawStickerTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
+        c.drawColor(Color.TRANSPARENT)
+
+        // Strava's subscriber stats card (1:1 anatomy, free here): same
+        // glyph + NYASAR lockup row as Minimal, then TWO rows of three
+        // left-aligned columns — Row 1: Distance | Pace | Max Elev, Row 2:
+        // Time | Elev Gain | Elev Loss. Pace swaps for Elev Gain when the
+        // sport's primary metric isn't pace, mirroring statColumns().
+        val leftX = 110f
+
+        // Row 1: sport glyph + NYASAR wordmark (same lockup as Minimal).
+        val glyphSize = 84f
+        val glyphY = CARD_H * 0.30f
+        val glyph = sportIconBitmap(SportType.fromString(a.sportType), glyphSize.roundToInt(), tint = WHITE)
+        c.drawBitmap(
+            glyph, null,
+            RectF(leftX, glyphY, leftX + glyphSize, glyphY + glyphSize),
+            Paint().apply { isFilterBitmap = true; isAntiAlias = true }
+        )
+        val wordP = textPaint(54f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.14f }
+        c.drawText(WORDMARK_TEXT, leftX + glyphSize + 30f, glyphY + glyphSize * 0.74f, wordP)
+
+        // Six stats — label/value pairs, same typography as the other cards.
+        val lblP = textPaint(STAT_LABEL_SIZE, interBold(ctx), 0xF2FFFFFF.toInt())
+        val valP = textPaint(58f, interBold(ctx), WHITE)
+        val primary: Pair<String, String> = if (sportMetric(a) == ShareMetric.PACE) {
+            ctx.getString(R.string.share_stat_pace) to formatPace(a)
+        } else {
+            ctx.getString(R.string.share_stat_elev_gain) to "\u2191 ${formatElevGain(a)}"
+        }
+        val row1 = listOf(
+            ctx.getString(R.string.share_stat_distance) to "%.2f km".format(a.distanceMeters / 1000.0),
+            primary,
+            ctx.getString(R.string.share_stat_max_elev) to formatMaxElev(track)
+        )
+        val row2 = listOf(
+            ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs),
+            ctx.getString(R.string.share_stat_elev_gain) to "\u2191 ${formatElevGain(a)}",
+            ctx.getString(R.string.share_stat_elev_loss) to "\u2193 ${formatElevLoss(a)}"
+        )
+
+        val gap = 44f
+        val rightX = CARD_W - 90f
+        val row1Y = glyphY + glyphSize + 140f
+        val row2Y = row1Y + 220f
+
+        // Each row auto-fits its own value size (the same step-down rule as
+        // drawStatRow) — long paces/loss values shrink before wrapping.
+        fun drawGridRow(columns: List<Pair<String, String>>, labelBaselineY: Float, startSize: Float) {
+            var size = startSize
+            var paint = textPaint(size, interBold(ctx), WHITE)
+            fun widths(): List<Float> =
+                columns.map { maxOf(lblP.measureText(it.first), paint.measureText(it.second)) }
+            var w = widths()
+            while (w.sum() + gap * (columns.size - 1) > rightX - leftX && size > 44f) {
+                size -= 4f
+                paint = textPaint(size, interBold(ctx), WHITE)
+                w = widths()
+            }
+            var x = leftX
+            columns.forEachIndexed { i, (label, value) ->
+                c.drawText(label, x, labelBaselineY, lblP)
+                c.drawText(value, x, labelBaselineY + 74f, paint)
+                x += w[i] + gap
+            }
+        }
+
+        drawGridRow(row1, row1Y, 58f)
+        drawGridRow(row2, row2Y, 58f)
     }
 
     // ── Helpers ──

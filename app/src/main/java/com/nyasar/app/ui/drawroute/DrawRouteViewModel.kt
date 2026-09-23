@@ -13,7 +13,7 @@ import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.map.BasemapEntry
 import com.nyasar.app.map.OfflineCoverageStore
 import com.nyasar.app.map.OverlayLayer
-import com.nyasar.app.map.providers.TileProvider
+import com.nyasar.app.map.TileProvider
 import com.nyasar.app.map.providers.TileProviderFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow

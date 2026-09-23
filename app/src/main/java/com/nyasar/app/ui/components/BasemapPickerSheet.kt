@@ -134,6 +134,11 @@ fun BasemapPickerSheet(
      *  waypoints). Hidden on every screen while false. */
     waypointsVisible: Boolean = false,
     onToggleWaypoints: () -> Unit = {},
+    /** Hide the Waypoint tile entirely (DrawRoute: its draft pins are the
+     *  screen's content — an app-wide hide toggle there is confusing). */
+    showWaypointsToggle: Boolean = true,
+    /** Hide the downloaded-areas tile (screens without coverage data). */
+    showOfflineAreasToggle: Boolean = true,
     /** Downloaded-area coverage overlay — green = complete, gray =
      *  incomplete, only for the active basemap's style. */
     offlineAreasEnabled: Boolean = false,
@@ -217,10 +222,10 @@ fun BasemapPickerSheet(
             // waypoint pins, downloaded-area coverage. Same 4-per-row wrap;
             // same border+check-badge toggle language as the sections above;
             // each toggle persists app-wide via SettingsRepository.
-            val dataTiles = listOf(
+            val dataTiles = listOfNotNull(
                 DataTile(stringResource(R.string.data_my_routes), Icons.Filled.Route, Color(0xFF42A5F5), myRoutesEnabled, onToggleMyRoutes),
-                DataTile(stringResource(R.string.data_waypoints), Icons.Filled.Place, Color(0xFFE8734D), waypointsVisible, onToggleWaypoints),
-                DataTile(stringResource(R.string.data_offline_areas), Icons.Filled.Layers, Color(0xFF6BAE4D), offlineAreasEnabled, onToggleOfflineAreas)
+                if (showWaypointsToggle) DataTile(stringResource(R.string.data_waypoints), Icons.Filled.Place, Color(0xFFE8734D), waypointsVisible, onToggleWaypoints) else null,
+                if (showOfflineAreasToggle) DataTile(stringResource(R.string.data_offline_areas), Icons.Filled.Layers, Color(0xFF6BAE4D), offlineAreasEnabled, onToggleOfflineAreas) else null
             )
             PickerGrid(items = dataTiles) { tile ->
                 DataToggleTile(

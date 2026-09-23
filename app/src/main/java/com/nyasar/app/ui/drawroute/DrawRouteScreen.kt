@@ -2,22 +2,35 @@ package com.nyasar.app.ui.drawroute
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nyasar.app.data.db.WaypointCategory
+import com.nyasar.app.data.db.WaypointEntity
 import com.nyasar.app.location.LocationRepository
-import com.nyasar.app.map.providers.TileProviderFactory
+import com.nyasar.app.navigation.LatLng
+import com.nyasar.app.ui.components.AnimatedAppear
+import com.nyasar.app.ui.components.BasemapPickerSheet
 import com.nyasar.app.ui.components.NyasarMapView
+import com.nyasar.app.ui.theme.NyasarElevation
+import com.nyasar.app.ui.waypoint.WaypointCrosshairScreen
+import com.nyasar.app.ui.waypoint.WaypointDetailSheet
+import com.nyasar.app.ui.waypoint.WaypointFormSheet
+import com.nyasar.app.ui.waypoint.rememberCrosshairCameraState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.nyasar.app.R
@@ -31,6 +44,13 @@ import androidx.compose.ui.res.stringResource
  * an unmapped trail) degrades to the original manual straight-line mode —
  * the old P1 "deliberately manual" behavior remains the fallback, not a
  * lock-in. Anchors (the taps) stay the undo/history model in the VM.
+ *
+ * Map controls parity (user request): the same floating right-side control
+ * stack as RoutePreview/Recording — basemap/overlay picker (shared
+ * DataStore, so layer picks here follow the user app-wide), drop-waypoint
+ * (crosshair overlay, drafts linked to the route on save), and recenter.
+ * Anchor taps render as blue DOTS (NyasarMapView drawnAnchors), so even
+ * the first tap is immediately visible.
  *
  * This is for building a route BEFORE going outside, with no GPS
  * involved — distinct from Recording (GPS-tracked, while actually
@@ -47,13 +67,36 @@ fun DrawRouteScreen(
     onNavigateToStart: (routeId: String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
-    val provider = remember { TileProviderFactory.default() }
+    val selectedBasemap by viewModel.selectedBasemap.collectAsState()
+    val currentProvider by viewModel.provider.collectAsState()
+    val activeOverlays by viewModel.activeOverlays.collectAsState()
+    val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    val myRouteLines by viewModel.myRouteLines.collectAsState()
+    val draftWaypoints by viewModel.draftWaypoints.collectAsState()
+    val offlineAreas by viewModel.offlineAreas.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val locationRepository = remember { LocationRepository(context) }
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var showFinishSheet by remember { mutableStateOf(false) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
+    var showBasemapSheet by remember { mutableStateOf(false) }
+    var showCrosshair by remember { mutableStateOf(false) }
+    // Waypoint overlays (detail/edit) — same VM contract as RoutePreview.
+    var selectedWaypoint by remember { mutableStateOf<WaypointEntity?>(null) }
+    val waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel()
+    val editingWaypointState by waypointViewModel.editingWaypoint.collectAsState()
+    // Live GPS dot while drawing (null until a fix / no permission).
+    var userFix by remember { mutableStateOf<LatLng?>(null) }
+
+    // Live GPS marker — drawing near your own position needs to know where
+    // "here" is; every other map screen shows the dot, so this one does too.
+    // Silently absent without permission (the recenter button handles that
+    // case with its own guard).
+    LaunchedEffect(Unit) {
+        if (!locationRepository.hasLocationPermission()) return@LaunchedEffect
+        locationRepository.observeLocation().collect { userFix = LatLng(it.lat, it.lon) }
+    }
 
     // Same reasoning/pattern as OfflineDownloadScreen's "Around Me": without
     // this the map opens on MapLibre's raw default camera (effectively
@@ -78,6 +121,10 @@ fun DrawRouteScreen(
             )
         )
     }
+
+    // v7 crosshair camera: the overlay reads the ACTIVE map's live camera,
+    // so it opens at exactly the position+zoom the user is viewing.
+    val crosshairTarget by rememberCrosshairCameraState(mapInstance, showCrosshair)
 
     // Two different outcomes need two different exits: "just save" goes
     // back to wherever the user came from (Track & Peta, where the new
@@ -117,7 +164,20 @@ fun DrawRouteScreen(
     Box(Modifier.fillMaxSize()) {
         NyasarMapView(
             modifier = Modifier.fillMaxSize(),
-            provider = provider,
+            provider = currentProvider,
+            basemapEntry = selectedBasemap,
+            // Draft waypoints render through the SAME user-pin layer as
+            // RoutePreview (null link = generic pin) — the pins show while
+            // drawing and are persisted linked to the route on save.
+            userWaypoints = draftWaypoints,
+            onUserWaypointClick = { id ->
+                selectedWaypoint = draftWaypoints.firstOrNull { wp -> wp.id == id }
+            },
+            // "Jalur Saya" overlay — same shared flag as the other map
+            // screens, rendered from the same RouteRepository flow.
+            myRoutes = myRouteLines,
+            // Downloaded-area coverage — same live store the other screens read.
+            offlineAreas = offlineAreas,
             track = emptyList(),
             // drawnPoints (not track) — track's LaunchedEffect key would
             // re-run the full style-setup effect (incl. a camera bounds
@@ -125,6 +185,12 @@ fun DrawRouteScreen(
             // update path that doesn't touch the camera at all, letting
             // the user keep tapping without the map jumping around.
             drawnPoints = state.pathPoints,
+            // Anchor dots (bug fix: the first tap used to be invisible —
+            // a one-point LineString renders nothing).
+            drawnAnchors = state.points,
+            // NyasarMapView's userLocation is the MapLibre LatLng type —
+            // convert from the app-domain fix (which GeoMath needs below).
+            userLocation = userFix?.let { org.maplibre.android.geometry.LatLng(it.lat, it.lon) },
             onMapClick = { lat, lon -> viewModel.addPoint(lat, lon) },
             onMapReady = { mapInstance = it }
         )
@@ -156,27 +222,41 @@ fun DrawRouteScreen(
                                else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                // Manual fallback for the automatic centering above — that
-                // one silently no-ops on permission-denied or a slow fix,
-                // so this button exists for the user to retry on demand
-                // instead of being stuck on a default view with no
-                // recourse.
-                IconButton(onClick = {
-                    scope.launch {
-                        if (!locationRepository.hasLocationPermission()) return@launch
-                        val fix = locationRepository.observeLocation().first()
-                        mapInstance?.animateCamera(
-                            org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(
-                                org.maplibre.android.geometry.LatLng(fix.lat, fix.lon), 14.0
-                            )
-                        )
-                    }
-                }) {
-                    Icon(Icons.Default.MyLocation, contentDescription = stringResource(R.string.go_to_location_cd))
-                }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
         )
+
+        // --- Right-side floating control stack (user request): the SAME
+        // set + look as RoutePreview/Recording — layer picker, add
+        // waypoint, recenter. Replaces the old bare MyLocation action in
+        // the top bar. (Recenter moved here; "go to location" semantics
+        // and guard are identical.)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 12.dp)
+                .offset(y = -(120.dp)),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            MapControlButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
+                showBasemapSheet = true
+            }
+            MapControlButton(icon = Icons.Default.Place, contentDescription = stringResource(R.string.add_waypoint_cd)) {
+                showCrosshair = true
+            }
+            MapControlButton(icon = Icons.Default.MyLocation, contentDescription = stringResource(R.string.go_to_location_cd)) {
+                scope.launch {
+                    if (!locationRepository.hasLocationPermission()) return@launch
+                    val fix = locationRepository.observeLocation().first()
+                    mapInstance?.animateCamera(
+                        org.maplibre.android.camera.CameraUpdateFactory.newLatLngZoom(
+                            org.maplibre.android.geometry.LatLng(fix.lat, fix.lon), 14.0
+                        )
+                    )
+                }
+            }
+        }
 
         // Live point count + straight-line distance so the user has some
         // feedback while drawing, without needing to open anything else.
@@ -227,6 +307,103 @@ fun DrawRouteScreen(
                 }
             }
         }
+
+        // Crosshair waypoint drop — overlay reads the live camera of THIS
+        // screen's map. Save = draft pin (linked to the route on finish).
+        // INSIDE the root Box so it stacks over the map (same pattern as
+        // RoutePreview's full-screen overlay).
+        if (showCrosshair) {
+            WaypointCrosshairScreen(
+                cameraTarget = crosshairTarget,
+                initialLinkedRouteId = null,
+                onSave = { lat, lon, name, category, _, _ ->
+                    // Draft: memory-only WaypointEntity (id = UUID, link null
+                    // until finish() persists it against the saved route).
+                    viewModel.addDraftWaypoint(
+                        WaypointEntity(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = name,
+                            category = category.name,
+                            lat = lat,
+                            lon = lon,
+                            elevationM = null,
+                            note = null,
+                            createdAtEpochMs = System.currentTimeMillis(),
+                            source = WaypointEntity.SOURCE_USER
+                        )
+                    )
+                    showCrosshair = false
+                },
+                onDismiss = { showCrosshair = false }
+            )
+        }
+    }
+
+    if (showBasemapSheet) {
+        BasemapPickerSheet(
+            selected = selectedBasemap,
+            onSelect = { entry ->
+                viewModel.setBasemap(entry)
+                showBasemapSheet = false
+            },
+            activeOverlays = activeOverlays,
+            onToggleOverlay = { viewModel.toggleOverlay(it) },
+            myRoutesEnabled = myRoutesEnabled,
+            onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
+            // Waypoint-pin gate & offline-coverage tiles belong to the other
+            // map screens' shared overlay set; on THIS screen the draft pins
+            // ARE the content (always shown) and coverage adds nothing, so
+            // both tiles are hidden instead of rendered as dead toggles.
+            showWaypointsToggle = false,
+            showOfflineAreasToggle = false,
+            onDismiss = { showBasemapSheet = false }
+        )
+    }
+
+    // Draft waypoint detail (tap a pin) — edit/delete mirror RoutePreview
+    // but operate on the DRAFT list only; nothing hits the DB until save.
+    selectedWaypoint?.let { wp ->
+        WaypointDetailSheet(
+            waypoint = wp,
+            distanceFromUserMeters = userFix?.let {
+                com.nyasar.app.navigation.GeoMath.distanceMeters(
+                    LatLng(it.lat, it.lon),
+                    LatLng(wp.lat, wp.lon)
+                )
+            },
+            onDismiss = { selectedWaypoint = null },
+            onEdit = {
+                waypointViewModel.startEditing(wp)
+                selectedWaypoint = null
+            },
+            onDelete = {
+                viewModel.removeDraftWaypoint(wp)
+                selectedWaypoint = null
+            }
+        )
+    }
+
+    // Edit draft waypoint form — same sheet component as RoutePreview,
+    // saving into the DRAFT list (coordinates/elevation stay fixed).
+    editingWaypointState?.let { wp ->
+        WaypointFormSheet(
+            title = stringResource(R.string.edit_waypoint),
+            initialName = wp.name,
+            initialCategory = WaypointCategory.fromStorageValue(wp.category),
+            initialNote = wp.note ?: "",
+            lat = wp.lat,
+            lon = wp.lon,
+            elevationM = wp.elevationM,
+            onDismiss = { waypointViewModel.dismissEditing() },
+            onSave = { name, cat, note, _, _ ->
+                viewModel.updateDraftWaypoint(wp, name, cat, note)
+                waypointViewModel.dismissEditing()
+            },
+            onDelete = {
+                viewModel.removeDraftWaypoint(wp)
+                waypointViewModel.dismissEditing()
+            }
+        )
     }
 
     if (showFinishSheet) {
@@ -238,6 +415,30 @@ fun DrawRouteScreen(
                 viewModel.finish(name)
             }
         )
+    }
+}
+
+/** Shared map-control recipe — same look as RoutePreview/Home's
+ *  RoundIconButton (theme surface circle over any basemap). Private to
+ *  this screen to avoid widening the other screens' private helpers. */
+@Composable
+private fun MapControlButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    AnimatedAppear {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = NyasarElevation.mapControlTonal,
+            shadowElevation = NyasarElevation.mapControlShadow,
+            modifier = Modifier.size(48.dp)
+        ) {
+            IconButton(onClick = onClick) {
+                Icon(icon, contentDescription = contentDescription, tint = MaterialTheme.colorScheme.onSurface)
+            }
+        }
     }
 }
 

@@ -39,6 +39,11 @@ private const val SOURCE_ACTUAL_TRACK = "nyasar-actual-track-source"
 private const val LAYER_ACTUAL_TRACK = "nyasar-actual-track-layer"
 private const val SOURCE_DRAWN_POINTS = "nyasar-drawn-points-source"
 private const val LAYER_DRAWN_POINTS = "nyasar-drawn-points-layer"
+// Draw-route ANCHOR dots: the drawn line is a LineString, which renders
+// nothing for a single point — without this layer the first tap was
+// invisible until a second point landed (user-reported).
+private const val SOURCE_DRAWN_ANCHORS = "nyasar-drawn-anchors-source"
+private const val LAYER_DRAWN_ANCHORS = "nyasar-drawn-anchors-layer"
 private const val SOURCE_WAYPOINTS = "nyasar-waypoints-source"
 private const val LAYER_WAYPOINTS = "nyasar-waypoints-layer"
 private const val SOURCE_USER_WAYPOINTS = "nyasar-user-waypoints-source"
@@ -152,6 +157,11 @@ fun NyasarMapView(
      *  track's route color (a drawn-but-unsaved line isn't a confirmed
      *  route yet either). */
     drawnPoints: List<TrackPoint> = emptyList(),
+    /** The taps (anchors) behind [drawnPoints] — rendered as circle dots so
+     *  even the FIRST tap is immediately visible (a one-point LineString
+     *  renders nothing). Same update wiring as [drawnPoints]: own source +
+     *  effect, never re-runs the style setup. */
+    drawnAnchors: List<TrackPoint> = emptyList(),
     waypoints: List<GpxWaypoint> = emptyList(),
     /** Master visibility for ALL waypoint pins (the GPX [waypoints] above
      *  AND [userWaypoints] below) — the "Waypoint" toggle in the picker
@@ -709,6 +719,28 @@ fun NyasarMapView(
                     )
                 }
 
+                // Anchor dots for the draw-route feature — seeded with the
+                // current anchors so a mid-drawing style reload (basemap
+                // switch) restores the dots too, exactly like the line above.
+                if (style.getSourceAs<GeoJsonSource>(SOURCE_DRAWN_ANCHORS) == null) {
+                    style.addSource(
+                        GeoJsonSource(
+                            SOURCE_DRAWN_ANCHORS,
+                            FeatureCollection.fromFeatures(
+                                drawnAnchors.map { Feature.fromGeometry(Point.fromLngLat(it.lon, it.lat)) }
+                            )
+                        )
+                    )
+                    style.addLayer(
+                        CircleLayer(LAYER_DRAWN_ANCHORS, SOURCE_DRAWN_ANCHORS).withProperties(
+                            PropertyFactory.circleRadius(5f),
+                            PropertyFactory.circleColor("#42A5F5"),
+                            PropertyFactory.circleStrokeWidth(2f),
+                            PropertyFactory.circleStrokeColor("#FFFFFF")
+                        )
+                    )
+                }
+
                 // Waypoint markers — properties carry everything needed for a
                 // detail view (spec section 13) so a tap doesn't need a second lookup.
                 // Data-section toggle: when OFF the pins are dropped at the data
@@ -1034,6 +1066,21 @@ fun NyasarMapView(
         mapView.getMapAsync { map ->
             val source = map.style?.getSourceAs<GeoJsonSource>(SOURCE_DRAWN_POINTS) ?: return@getMapAsync
             source.setGeoJson(LineString.fromLngLats(drawnPoints.map { Point.fromLngLat(it.lon, it.lat) }))
+        }
+    }
+
+    // Draw-route anchor dots — fires on every tap. BUG FIX: with only a
+    // LineString layer, the FIRST tapped point was invisible (a one-point
+    // LineString renders nothing), so users tapped "into nothing". Now every
+    // anchor shows as a blue dot immediately.
+    LaunchedEffect(drawnAnchors) {
+        mapView.getMapAsync { map ->
+            val source = map.style?.getSourceAs<GeoJsonSource>(SOURCE_DRAWN_ANCHORS) ?: return@getMapAsync
+            source.setGeoJson(
+                FeatureCollection.fromFeatures(
+                    drawnAnchors.map { Feature.fromGeometry(Point.fromLngLat(it.lon, it.lat)) }
+                )
+            )
         }
     }
 

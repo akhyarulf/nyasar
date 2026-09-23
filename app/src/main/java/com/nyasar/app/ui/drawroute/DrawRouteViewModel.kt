@@ -5,11 +5,25 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.db.RouteEntity
+import com.nyasar.app.data.db.WaypointEntity
 import com.nyasar.app.data.repository.RouteRepository
+import com.nyasar.app.data.repository.WaypointRepository
+import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.gpx.model.TrackPoint
+import com.nyasar.app.map.BasemapEntry
+import com.nyasar.app.map.OfflineCoverageStore
+import com.nyasar.app.map.OverlayLayer
+import com.nyasar.app.map.providers.TileProvider
+import com.nyasar.app.map.providers.TileProviderFactory
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class DrawRouteUiState(
@@ -60,13 +74,139 @@ data class DrawRouteUiState(
  * re-snap). Every failure — offline, unroutable pair, detour guard —
  * degrades that segment to a straight line. Nothing here can block or
  * crash drawing.
+ *
+ * Map controls parity (user request): the screen reads the SAME persisted
+ * basemap/overlay settings as Home/Recording/RoutePreview (one DataStore
+ * row), so the layer picker here shows exactly what the other map screens
+ * show and a pick here follows the user app-wide. Draft waypoints dropped
+ * while drawing live in memory only — the route doesn't exist in the DB
+ * until [finish], so on confirm they are inserted linked to the NEW route
+ * id ("default link this route") and travel with the saved GPX path like
+ * any other route waypoint.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
 
     private val routeRepository = RouteRepository(app)
+    private val waypointRepository = WaypointRepository(app)
+    private val settingsRepository = SettingsRepository(app)
 
     private val _uiState = MutableStateFlow(DrawRouteUiState())
     val uiState: StateFlow<DrawRouteUiState> = _uiState.asStateFlow()
+
+    // ---- Basemap / overlays: same shared DataStore as the other 3 map
+    // screens, so the picker sheet here is fully live (no dead toggles).
+    val selectedBasemap: StateFlow<BasemapEntry> = settingsRepository.settings
+        .map { BasemapEntry.fromId(it.basemapId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BasemapEntry.LIBERTY_TOPO)
+
+    val provider: StateFlow<TileProvider> = settingsRepository.settings
+        .map { TileProviderFactory.byId(it.providerId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TileProviderFactory.default())
+
+    val activeOverlays: StateFlow<Set<OverlayLayer>> = settingsRepository.settings
+        .map { ids ->
+            ids.overlayIds.mapNotNull { id ->
+                OverlayLayer.entries.firstOrNull { it.id == id }
+            }.toSet()
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    val myRoutesOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.myRoutesOverlayEnabled }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val myRouteLines: StateFlow<List<com.nyasar.app.map.MyRouteLine>> =
+        myRoutesOverlayEnabled
+            .flatMapLatest { enabled ->
+                if (enabled) routeRepository.observeOverlayLines(true) else flowOf(emptyList())
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Downloaded-area coverage overlay — same live store Offline Maps writes. */
+    val offlineAreas: StateFlow<List<com.nyasar.app.map.OfflineCoverageArea>> =
+        OfflineCoverageStore.get(app).areas
+
+    fun setBasemap(entry: BasemapEntry) {
+        viewModelScope.launch { settingsRepository.setBasemapId(entry.gpxKey) }
+    }
+
+    fun toggleOverlay(overlay: OverlayLayer) {
+        val current = activeOverlays.value
+        val next = if (overlay in current) current - overlay else current + overlay
+        viewModelScope.launch { settingsRepository.setOverlayIds(next.map { it.id }.toSet()) }
+    }
+
+    fun setMyRoutesOverlayEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setMyRoutesOverlayEnabled(enabled) }
+    }
+
+    /**
+     * Draft waypoints dropped while drawing (memory-only until save).
+     * Rendered on the map via [com.nyasar.app.ui.components.NyasarMapView]
+     * `userWaypoints` — a saved WaypointEntity with a null link renders
+     * exactly like any user pin, so no special draft rendering exists.
+     */
+    private val _draftWaypoints = MutableStateFlow<List<WaypointEntity>>(emptyList())
+    val draftWaypoints: StateFlow<List<WaypointEntity>> = _draftWaypoints.asStateFlow()
+
+    /** Adds a confirmed crosshair waypoint as a draft pin (not persisted). */
+    fun addDraftWaypoint(wp: WaypointEntity) {
+        _draftWaypoints.value = _draftWaypoints.value + wp
+    }
+
+    fun removeDraftWaypoint(wp: WaypointEntity) {
+        _draftWaypoints.value = _draftWaypoints.value - wp
+    }
+
+    /** Edits a draft's name/category/note (coordinates stay fixed — same
+     *  rule as WaypointRepository.update: "where I tapped" is creation-time). */
+    fun updateDraftWaypoint(wp: WaypointEntity, name: String, category: com.nyasar.app.data.db.WaypointCategory, note: String?) {
+        _draftWaypoints.value = _draftWaypoints.value.map {
+            if (it.id == wp.id) it.copy(name = name, category = category.name, note = note?.ifBlank { null }) else it
+        }
+    }
+
+    /**
+     * Persists all draft waypoints linked to the JUST-SAVED route ("default
+     * link this route"): the route row now exists, so each draft is inserted
+     * through the normal repository path with linkedRouteId = the new id.
+     * Inserted BEFORE savedRouteId flips so the pins are in the DB when the
+     * caller navigates to the route's preview. A failure must never block
+     * or undo the route save itself — the pins degrade to dropped.
+     */
+    fun finish(name: String) {
+        val points = _uiState.value.pathPoints.ifEmpty { _uiState.value.points }
+        if (points.size < 2) return // canFinish already gates the button; defensive floor here too
+        _uiState.value = _uiState.value.copy(saving = true, error = null)
+        viewModelScope.launch {
+            try {
+                val route: RouteEntity = routeRepository.importFromDrawnPoints(name, points)
+                // Konsep backup tanpa tombol: rute gambar = data backup.
+                com.nyasar.app.backup.BackupManager.scheduleRouteBackup(getApplication(), route.id)
+                // Draft waypoints → real rows linked to the new route.
+                val drafts = _draftWaypoints.value
+                for (wp in drafts) {
+                    try {
+                        waypointRepository.create(
+                            name = wp.name,
+                            category = com.nyasar.app.data.db.WaypointCategory.fromStorageValue(wp.category),
+                            lat = wp.lat,
+                            lon = wp.lon,
+                            elevationM = wp.elevationM,
+                            note = wp.note,
+                            linkedRouteId = route.id
+                        )
+                    } catch (_: Exception) {
+                        // One bad pin never blocks the route save.
+                    }
+                }
+                _uiState.value = _uiState.value.copy(saving = false, savedRouteId = route.id)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(saving = false, error = getApplication<android.app.Application>().getString(R.string.error_saving_route))
+            }
+        }
+    }
 
     /**
      * Per-segment snap results. segments[i] = geometry of
@@ -184,24 +324,6 @@ class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
             distanceMeters = totalDistance(anchors),
             snapping = inFlightCount > 0
         )
-    }
-
-    /** @param name blank is allowed here — RouteRepository.importFromDrawnPoints
-     *  falls back to "Rute Baru", same as leaving any name field empty. */
-    fun finish(name: String) {
-        val points = _uiState.value.pathPoints.ifEmpty { _uiState.value.points }
-        if (points.size < 2) return // canFinish already gates the button; defensive floor here too
-        _uiState.value = _uiState.value.copy(saving = true, error = null)
-        viewModelScope.launch {
-            try {
-                val route: RouteEntity = routeRepository.importFromDrawnPoints(name, points)
-                // Konsep backup tanpa tombol: rute gambar = data backup.
-                com.nyasar.app.backup.BackupManager.scheduleRouteBackup(getApplication(), route.id)
-                _uiState.value = _uiState.value.copy(saving = false, savedRouteId = route.id)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(saving = false, error = getApplication<android.app.Application>().getString(R.string.error_saving_route))
-            }
-        }
     }
 
     private fun totalDistance(points: List<TrackPoint>): Double =

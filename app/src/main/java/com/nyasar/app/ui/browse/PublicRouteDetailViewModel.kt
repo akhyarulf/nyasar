@@ -9,6 +9,7 @@ import com.nyasar.app.R
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.SharedSocialState
 import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.auth
@@ -186,6 +187,7 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
             when (val outcome = socialRepository.toggleLike(SupabaseClientProvider.client, route.id)) {
                 is SocialRepository.ToggleOutcome.Success -> {
                     _liked.value = outcome.liked
+                    SharedSocialState.onLikedToggled(route.id, outcome.liked)
                     _state.value = (_state.value as? State.Ready)?.let { s ->
                         s.copy(route = s.route.copy(likesCount = outcome.likesCount))
                     } ?: _state.value
@@ -201,13 +203,19 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
         }
     }
 
-    /** Load liked/saved-state + comments once the route row is on screen. */
+    /** Load liked/saved-state + comments once the route row is on screen.
+     *  Reads the PROCESS-WIDE [SharedSocialState] first (a Browse/Saved
+     *  toggle is already reflected), then refines with this route's
+     *  authoritative fetch — cheap and always current. */
     fun loadSocial(routeId: String) {
+        _liked.value = routeId in SharedSocialState.likedIds.value
+        _saved.value = routeId in SharedSocialState.savedIds.value
         if (!SupabaseClientProvider.isConfigured) return
         viewModelScope.launch {
             val client = SupabaseClientProvider.client
-            _liked.value = routeId in socialRepository.fetchLikedRouteIds(client)
-            _saved.value = routeId in socialRepository.fetchSavedRouteIds(client)
+            SharedSocialState.reload(client)
+            _liked.value = routeId in SharedSocialState.likedIds.value
+            _saved.value = routeId in SharedSocialState.savedIds.value
             when (val outcome = socialRepository.fetchComments(client, routeId)) {
                 is SocialRepository.CommentsOutcome.Success ->
                     _comments.value = CommentsState.Ready(outcome.comments)
@@ -258,6 +266,8 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
                 is SocialRepository.SaveOutcome.Failure -> wasSaved // roll back
             }
             _saved.value = nowSaved
+            // Write-through: Saved list & Browse cards update in the same frame.
+            SharedSocialState.onSavedToggled(routeId, nowSaved)
             _savePending.value = false
         }
     }

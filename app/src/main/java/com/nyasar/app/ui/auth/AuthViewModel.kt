@@ -430,6 +430,9 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     fun signOut() {
         viewModelScope.launch {
             repo.signOut()
+            // Social mirror must not carry the previous account's
+            // likes/bookmarks into the next session (realtime shared state).
+            com.nyasar.app.data.supabase.SharedSocialState.clear()
             // sessionStatus collector flips to SignedOut.
         }
     }

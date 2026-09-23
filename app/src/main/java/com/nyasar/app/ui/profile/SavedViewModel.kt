@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.SharedSocialState
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import com.nyasar.app.data.supabase.SocialRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,10 @@ class SavedViewModel : ViewModel() {
     private val repository = BrowseRepository()
     private val socialRepository = SocialRepository()
 
+    init {
+        refresh()
+    }
+
     data class SavedUiError(val messageRes: Int)
 
     sealed class SavedState {
@@ -47,46 +52,66 @@ class SavedViewModel : ViewModel() {
         refresh()
     }
 
+    /** In-flight guard: pane entry + VM init may both call refresh(). */
+    private var refreshInFlight = false
+
+    /**
+     * Re-sync the saved list. Called on VM init AND on every pane entry
+     * (SavedScreen's LaunchedEffect) — the realtime guarantee: a route
+     * saved on Browse while another tab was open joins this list the
+     * moment the tab is opened. Only surface the spinner when there is no
+     * list to keep on screen; a background re-sync never blanks the UI.
+     */
     fun refresh() {
+        if (refreshInFlight) return
+        refreshInFlight = true
         viewModelScope.launch {
-            _state.value = SavedState.Loading
+            if (_state.value !is SavedState.Loaded) _state.value = SavedState.Loading
             if (!SupabaseClientProvider.isConfigured) {
-                _state.value = SavedState.Error(SavedUiError(R.string.browse_error_not_configured))
+                if (_state.value !is SavedState.Loaded) {
+                    _state.value = SavedState.Error(SavedUiError(R.string.browse_error_not_configured))
+                }
+                refreshInFlight = false
                 return@launch
             }
             when (val outcome = repository.savedRoutes(SupabaseClientProvider.client)) {
                 is BrowseRepository.Outcome.Success -> {
                     _state.value = SavedState.Loaded(routes = outcome.routes)
-                    // Bookmark state of the listed routes themselves (the
-                    // filled/unfilled icon on each card) — same as Browse.
-                    _savedIds.value = outcome.routes.map { it.id }.toSet()
+                    // Merge the freshly fetched list INTO the shared state
+                    // (not overwrite — Browse may have just bookmarked a
+                    // route that isn't on this screen's snapshot yet; the
+                    // union keeps both surfaces truthful until the next
+                    // authoritative reload).
+                    SharedSocialState.syncSaved(outcome.routes.map { it.id }.toSet())
                 }
-                is BrowseRepository.Outcome.Failure -> _state.value = SavedState.Error(
-                    SavedUiError(errorResFor(outcome.error))
-                )
+                is BrowseRepository.Outcome.Failure -> {
+                    // A failed re-sync keeps the loaded list (better than
+                    // blanking it); only a first load surfaces the error.
+                    if (_state.value !is SavedState.Loaded) {
+                        _state.value = SavedState.Error(SavedUiError(errorResFor(outcome.error)))
+                    }
+                }
             }
+            refreshInFlight = false
         }
     }
 
-    /** Filled/unfilled bookmark icon state per card (all filled by
-     *  definition on this screen, but toggle rollback keeps it truthful). */
-    private val _savedIds = MutableStateFlow<Set<String>>(emptySet())
-    val savedIds: StateFlow<Set<String>> = _savedIds.asStateFlow()
+    /** Liked/bookmarked ids come from the PROCESS-WIDE [SharedSocialState]
+     *  (realtime: a save on Browse appears here the moment this screen is
+     *  open, and an unsave here clears Browse's filled bookmark instantly). */
+    val savedIds: StateFlow<Set<String>> = SharedSocialState.savedIds
+    val likedIds: StateFlow<Set<String>> = SharedSocialState.likedIds
 
-    /** Like state for the cards — same semantics as BrowseViewModel (the
-     *  card component is shared, so the state contract is shared too). */
-    private val _likedIds = MutableStateFlow<Set<String>>(emptySet())
-    val likedIds: StateFlow<Set<String>> = _likedIds.asStateFlow()
     private val _likePending = MutableStateFlow<Set<String>>(emptySet())
     val likePending: StateFlow<Set<String>> = _likePending.asStateFlow()
 
     fun toggleLike(route: BrowseRepository.PublicRoute) {
         if (!SupabaseClientProvider.isConfigured) return
         if (route.id in _likePending.value) return
-        val wasLiked = route.id in _likedIds.value
+        val wasLiked = route.id in likedIds.value
         val originalCount = route.likesCount
         // Optimistic: flip icon + shift count once (never below zero).
-        _likedIds.value = if (wasLiked) _likedIds.value - route.id else _likedIds.value + route.id
+        SharedSocialState.onLikedToggled(route.id, !wasLiked)
         _state.update { current ->
             if (current is SavedState.Loaded) {
                 current.copy(routes = current.routes.map {
@@ -112,7 +137,7 @@ class SavedViewModel : ViewModel() {
                     wasLiked
                 }
             }
-            _likedIds.value = if (nowLiked) _likedIds.value + route.id else _likedIds.value - route.id
+            SharedSocialState.onLikedToggled(route.id, nowLiked)
             _likePending.value = _likePending.value - route.id
         }
     }
@@ -126,7 +151,8 @@ class SavedViewModel : ViewModel() {
                 is SocialRepository.SaveOutcome.Success -> outcome.saved
                 is SocialRepository.SaveOutcome.Failure -> true // roll back to listed
             }
-            _savedIds.value = if (nowSaved) _savedIds.value + route.id else _savedIds.value - route.id
+            // Write-through so Browse's bookmark icon flips in the same frame.
+            SharedSocialState.onSavedToggled(route.id, nowSaved)
             _savePending.value = _savePending.value - route.id
             // Unsave removes the row from the list (WIkiloc-style: a Saved
             // screen only lists what is still bookmarked); a failed unsave

@@ -56,6 +56,11 @@ fun SavedEmbedded(
     val savePending by viewModel.savePending.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    // Realtime guarantee: re-sync EVERY time this pane becomes visible.
+    // A route saved on Browse while the app was on another tab joins the
+    // list the instant Saved is opened — no restart, no manual refresh.
+    androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.refresh() }
+
     Box(Modifier.fillMaxSize()) {
         when (val s = state) {
             is SavedViewModel.SavedState.Loading -> CircularProgressIndicator(

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.SharedSocialState
 import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import kotlinx.coroutines.FlowPreview
@@ -64,22 +65,18 @@ class BrowseViewModel : ViewModel() {
     val appliedCount = _appliedCount.asStateFlow()
     private var sort: BrowseRepository.SortOrder = BrowseRepository.SortOrder.NEWEST
 
-    /** Route ids the signed-in user has liked — heart-filled state for the
-     *  card action rows. Fetched once per ViewModel (cheap select); toggles
-     *  update it optimistically with the server count applied on response. */
-    private val _likedIds = MutableStateFlow<Set<String>>(emptySet())
-    val likedIds = _likedIds.asStateFlow()
+    /** Liked/bookmarked ids come from the PROCESS-WIDE [SharedSocialState]
+     *  (realtime: a toggle on Saved/Route Detail updates these cards in the
+     *  same frame — no restart, no stale fetch-once copy). Kept as val
+     *  StateFlows so the screen's collectAsState() wiring is unchanged. */
+    val likedIds = SharedSocialState.likedIds
 
     /** Route ids with an in-flight like toggle (prevents double-tap races
      *  and shows the tap registered instantly). */
     private val _likePending = MutableStateFlow<Set<String>>(emptySet())
     val likePending = _likePending.asStateFlow()
 
-    /** Route ids the signed-in user bookmarked (saved_routes — private
-     *  Wikiloc-style to-do list, separate from likes). Fetched once with
-     *  likes; toggles are optimistic with rollback, no counter involved. */
-    private val _savedIds = MutableStateFlow<Set<String>>(emptySet())
-    val savedIds = _savedIds.asStateFlow()
+    val savedIds = SharedSocialState.savedIds
 
     private val _savePending = MutableStateFlow<Set<String>>(emptySet())
     val savePending = _savePending.asStateFlow()
@@ -90,10 +87,12 @@ class BrowseViewModel : ViewModel() {
             _query.debounce(350).collect { q -> browse(q) }
         }
         browse("")
+        // First population of the shared social state — guarded so late
+        // initializations (Saved tab opened first, etc.) don't refetch and
+        // clobber a toggle that raced the fetch.
         viewModelScope.launch {
-            if (SupabaseClientProvider.isConfigured) {
-                _likedIds.value = socialRepository.fetchLikedRouteIds(SupabaseClientProvider.client)
-                _savedIds.value = socialRepository.fetchSavedRouteIds(SupabaseClientProvider.client)
+            if (SupabaseClientProvider.isConfigured && SharedSocialState.savedIds.value.isEmpty()) {
+                SharedSocialState.reload(SupabaseClientProvider.client)
             }
         }
     }
@@ -145,9 +144,9 @@ class BrowseViewModel : ViewModel() {
     fun toggleLike(route: BrowseRepository.PublicRoute) {
         if (!SupabaseClientProvider.isConfigured) return
         if (route.id in _likePending.value) return
-        val wasLiked = route.id in _likedIds.value
-        // Optimistic
-        _likedIds.value = if (wasLiked) _likedIds.value - route.id else _likedIds.value + route.id
+        val wasLiked = route.id in likedIds.value
+        // Optimistic — write through the shared state so Saved/Detail update too.
+        SharedSocialState.onLikedToggled(route.id, !wasLiked)
         _state.update { current ->
             if (current is BrowseState.Loaded) {
                 current.copy(routes = current.routes.map {
@@ -159,7 +158,7 @@ class BrowseViewModel : ViewModel() {
         viewModelScope.launch {
             when (val outcome = socialRepository.toggleLike(SupabaseClientProvider.client, route.id)) {
                 is SocialRepository.ToggleOutcome.Success -> {
-                    _likedIds.value = if (outcome.liked) _likedIds.value + route.id else _likedIds.value - route.id
+                    SharedSocialState.onLikedToggled(route.id, outcome.liked)
                     _state.update { current ->
                         if (current is BrowseState.Loaded) {
                             current.copy(routes = current.routes.map {
@@ -170,7 +169,7 @@ class BrowseViewModel : ViewModel() {
                 }
                 is SocialRepository.ToggleOutcome.Failure -> {
                     // Roll back the optimistic flip.
-                    _likedIds.value = if (wasLiked) _likedIds.value + route.id else _likedIds.value - route.id
+                    SharedSocialState.onLikedToggled(route.id, wasLiked)
                     _state.update { current ->
                         if (current is BrowseState.Loaded) {
                             current.copy(routes = current.routes.map {
@@ -192,15 +191,16 @@ class BrowseViewModel : ViewModel() {
     fun toggleSave(route: BrowseRepository.PublicRoute) {
         if (!SupabaseClientProvider.isConfigured) return
         if (route.id in _savePending.value) return
-        val wasSaved = route.id in _savedIds.value
-        _savedIds.value = if (wasSaved) _savedIds.value - route.id else _savedIds.value + route.id
+        val wasSaved = route.id in savedIds.value
+        // Optimistic — write through the shared state so Saved/Detail update too.
+        SharedSocialState.onSavedToggled(route.id, !wasSaved)
         _savePending.value = _savePending.value + route.id
         viewModelScope.launch {
             val nowSaved = when (val outcome = socialRepository.toggleSave(SupabaseClientProvider.client, route.id)) {
                 is SocialRepository.SaveOutcome.Success -> outcome.saved
                 is SocialRepository.SaveOutcome.Failure -> wasSaved // roll back
             }
-            _savedIds.value = if (nowSaved) _savedIds.value + route.id else _savedIds.value - route.id
+            SharedSocialState.onSavedToggled(route.id, nowSaved)
             _savePending.value = _savePending.value - route.id
         }
     }

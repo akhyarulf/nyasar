@@ -534,9 +534,7 @@
     <string name="location_gate_allow">Allow Location</string>
     <string name="location_denied_banner">⚠ Location permission not granted — GPS will not be recorded during the session.</string>
     <string name="location_services_off_title">Location Services Off</string>
-    <string name="location_services_off_body">Location permission is granted, but your phone's location services are currently OFF. Without them, GPS will never get a signal — recording can run while capturing not a single point.
-
-Turn on Location from Quick Settings or the system location page.</string>
+    <string name="location_services_off_body">Location permission is granted, but your phone\'s location services are currently OFF. Without them, GPS will never get a signal — recording can run while capturing not a single point.\n\nTurn on Location from Quick Settings or the system location page.</string>
     <string name="location_services_off_open">Open Settings</string>
     <string name="location_services_off_banner">⚠ Phone location services are off — GPS will not be recorded even with permission granted.</string>
     <string name="location_denied_grant">Allow</string>

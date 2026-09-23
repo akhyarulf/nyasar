@@ -534,9 +534,7 @@
     <string name="location_gate_allow">Izinkan Lokasi</string>
     <string name="location_denied_banner">⚠ Izin lokasi belum diberikan — GPS tidak akan terekam selama recording.</string>
     <string name="location_services_off_title">Layanan Lokasi Mati</string>
-    <string name="location_services_off_body">Izin lokasi sudah diberikan, tapi layanan lokasi HP-mu sedang MATI. Tanpa ini, GPS tidak akan pernah mendapat sinyal — recording bisa jalan tapi tidak mencatat satu titik pun.
-
-Nyalakan Lokasi di pengaturan cepat HP (Quick Settings) atau halaman lokasi sistem.</string>
+    <string name="location_services_off_body">Izin lokasi sudah diberikan, tapi layanan lokasi HP-mu sedang MATI. Tanpa ini, GPS tidak akan pernah mendapat sinyal — recording bisa jalan tapi tidak mencatat satu titik pun.\n\nNyalakan Lokasi di pengaturan cepat HP (Quick Settings) atau halaman lokasi sistem.</string>
     <string name="location_services_off_open">Buka Pengaturan</string>
     <string name="location_services_off_banner">⚠ Layanan lokasi HP sedang mati — GPS tidak akan terekam meski izin sudah diberikan.</string>
     <string name="location_denied_grant">Izinkan</string>

@@ -356,8 +356,31 @@ footer {
 .footer-inner a:hover { text-decoration: underline; }
 
 /* ---------- Responsive ---------- */
+/* Mobile nav: the links WRAP into a compact second row instead of
+   vanishing. The old rule was display:none on every link — on a phone
+   you then couldn't reach Fitur/Cara Pakai at all, and most visitors
+   ARE on phones. Brand stays on row 1; links flow left-aligned under
+   it and scroll horizontally as a last-resort safety on very narrow
+   screens. Legal pages (pill-only nav) wrap the same way — consistent
+   two-row header everywhere, no hamburger JS needed. */
 @media (max-width: 640px) {
-  .nav-links a:not(.lang-switch) { display: none; }
+  .topbar-inner {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+  }
+  .nav-links {
+    flex: 1 1 100%;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 2px -4px 0;
+  }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-links a {
+    font-size: .84rem;
+    padding: 7px 9px;
+    white-space: nowrap;
+  }
   .hero-inner { padding: 60px 20px 52px; }
   .section { padding: 52px 20px; }
 }

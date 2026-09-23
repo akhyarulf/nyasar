@@ -304,7 +304,11 @@ object MapSnapshotHelper {
         bounds: LatLngBounds,
         canvasLeft: Float, canvasTop: Float,
         canvasRight: Float, canvasBottom: Float,
-        strokeWidth: Float, color: Int
+        strokeWidth: Float, color: Int,
+        /** Optional casing: drawn [strokeWidth]*1.7 wide UNDER [color] — the
+         *  web browse preview's two-layer trick, letting one fill color hold
+         *  contrast on both light tiles and dark scrims (share card). */
+        casingColor: Int? = null
     ) {
         if (trackPoints.size < 2) return
 
@@ -338,6 +342,21 @@ object MapSnapshotHelper {
             val x = canvasLeft + nx * areaW
             val y = canvasTop + ny * areaH
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        // Casing first (wider, dark), then the fill on top — classic
+        // cartographic two-layer line, same as the web preview.
+        if (casingColor != null) {
+            canvas.drawPath(
+                path,
+                Paint().apply {
+                    color = casingColor
+                    style = Paint.Style.STROKE
+                    strokeWidth = strokeWidth * 1.7f
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
+                    isAntiAlias = true
+                }
+            )
         }
         canvas.drawPath(path, paint)
     }

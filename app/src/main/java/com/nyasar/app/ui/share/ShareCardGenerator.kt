@@ -27,16 +27,22 @@ import kotlin.math.roundToInt
  * Generates share card bitmaps for activities.
  * 6 template styles — all free, no subscription/paywall.
  *
- * Visual language (Strava-style redesign):
- *   - map/dark_card: the whole map area carries a top-transparent → dark
- *     scrim (not just behind the text), stat VALUES are ~3x their labels,
- *     the route line is bright orange on dark/photo backgrounds.
- *   - every template: a small "Nyasar" watermark bottom-right and a
- *     circular white chip with the activity's SportType icon (the exact
- *     ImageVector set RecordingScreen/SportFilterSheet render).
+ * Visual language (Strava-style redesign, 2026-09):
+ *   - map: FULL-BLEED map (the snapshot covers the entire card, center-
+ *     cropped) under a top-transparent → near-black scrim; sport glyph +
+ *     NYASAR wordmark + title + two stat rows drawn directly ON the map —
+ *     the exact anatomy of Strava's activity story card. No separate stats
+ *     bar below the map anymore.
+ *   - Route lines are the NYASAR GREEN family — NO orange (user request):
+ *     a bright green fill over a dark casing, the web browse preview's
+ *     trick, so the line holds contrast on light map tiles AND dark scrim.
+ *   - every template: a small "Nyasar" watermark bottom-right (map uses
+ *     the big NYASAR wordmark in its overlay block instead) and a circular
+ *     white chip with the activity's SportType icon (except map, whose
+ *     glyph is bare white — Strava-style).
  *
  * Templates:
- *   "map"         — real map snapshot (or gradient fallback) + route + stats at bottom
+ *   "map"         — full-bleed map + route + overlay stats (Strava-style)
  *   "stats"       — transparent (checkerboard) + large centered stats + small route
  *   "dark_card"   — dark textured bg + inset map card + stats below
  *   "route"       — transparent bg + large centered route + stats at bottom
@@ -52,19 +58,26 @@ object ShareCardGenerator {
     private val DARK = Color.parseColor("#2A3A30")
 
     /**
-     * Route line on dark/photo backgrounds: bright orange (#FF6B35). The old
-     * muted green (#5A7562) melted into the full-map dark scrim and into dark
-     * story backgrounds; orange is the warm accent already used in the app's
-     * wayfinding palette (DANGER waypoint amber/red family) and keeps high
-     * contrast against both the scrim and typical map tiles.
+     * Route line colors — Nyasar GREEN family, no orange (user request).
+     * TRACK_FILL #A5C0AA is the app's dark-theme primary: bright enough to
+     * pop on dark scrims. TRACK_CASE #2A3A30 is drawn ~1.7x wider UNDER the
+     * fill (the web browse preview's casing trick) so the line also holds
+     * contrast against light map tiles. Together they read on any background
+     * while staying 100% inside the Nyasar palette.
      */
-    private val TRACK_COLOR = Color.parseColor("#FF6B35")
+    private val TRACK_FILL = Color.parseColor("#A5C0AA")
+    private val TRACK_CASE = Color.parseColor("#2A3A30")
 
     /** Route line on LIGHT map fallbacks — dark green stays legible there. */
     private val TRACK_COLOR_LIGHT_BG = Color.parseColor("#2A5546")
 
     private val WHITE = Color.WHITE
     private val LIGHT = Color.parseColor("#CCCCCC")
+
+    /** Map-template brand wordmark (Strava puts its logo in the overlay). */
+    private const val WORDMARK_TEXT = "NYASAR"
+    private const val WORDMARK_SIZE = 46f
+    private val WORDMARK_COLOR = 0xE6FFFFFF.toInt()
 
     // Watermark: small "Nyasar" wordmark, bottom-right of EVERY template
     // (same values across all six — Strava-style branding).
@@ -165,8 +178,8 @@ object ShareCardGenerator {
      * renders in its native Material black fill (same monochrome look as an
      * untinted Material icon in the app UI) on the white chip.
      */
-    private fun sportIconBitmap(type: SportType, sizePx: Int): Bitmap {
-        val key = "${type.name}|$sizePx"
+    private fun sportIconBitmap(type: SportType, sizePx: Int, tint: Int = Color.BLACK): Bitmap {
+        val key = "${type.name}|$sizePx|$tint"
         synchronized(_sportIconCache) { _sportIconCache[key] }?.let { return it }
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         SPORT_ICON_PATHS[type]?.let { d ->
@@ -174,7 +187,7 @@ object ShareCardGenerator {
             path.transform(Matrix().apply { setScale(sizePx / 24f, sizePx / 24f) })
             Canvas(bmp).drawPath(
                 path,
-                Paint().apply { color = Color.BLACK; isAntiAlias = true }
+                Paint().apply { color = tint; isAntiAlias = true }
             )
         }
         synchronized(_sportIconCache) { _sportIconCache[key] = bmp }
@@ -194,81 +207,100 @@ object ShareCardGenerator {
         )
     }
 
-    // ── Template 1: Map — real map snapshot + route + stats ──
+    // ── Template 1: Map — Strava anatomy: FULL-BLEED map + overlay stats ──
 
     private fun drawMapTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?, mapBounds: LatLngBounds?) {
-        // snapTop: where the map area starts (0). snapBottom: where the map ends.
-        val snapTop = 0f
-        val snapBottom = CARD_H * 0.70f
-
         if (mapSnapshot != null) {
-            // Draw real map snapshot, scaled to fill the upper 70% of the card
-            val snapRect = RectF(0f, snapTop, CARD_W.toFloat(), snapBottom)
-            c.drawBitmap(mapSnapshot, null, snapRect, null)
-            // Full-map dark scrim: transparent at the very top, already
-            // #66000000 by 40% down, deepening to #DD000000 at the map's
-            // bottom edge — the whole map reads "dimmed" while the darkest
-            // area still sits behind the stats bar (Strava-style).
-            val mapGradient = LinearGradient(
-                0f, snapTop, 0f, snapBottom,
+            // Full-bleed center-crop: the map covers the ENTIRE card. Compute
+            // the crop rect FIRST so the route overlay shares the same
+            // coordinate space as the drawn pixels — the track must sit on
+            // the map, not on the letterbox.
+            val bmpW = mapSnapshot.width.toFloat()
+            val bmpH = mapSnapshot.height.toFloat()
+            val cardAspect = CARD_W.toFloat() / CARD_H
+            val bmpAspect = bmpW / bmpH
+            val srcRect: RectF
+            val dstRect: RectF
+            if (bmpAspect > cardAspect) {
+                // bitmap wider than the card → crop the SIDES
+                val visW = bmpH * cardAspect
+                val left = (bmpW - visW) / 2f
+                srcRect = RectF(left, 0f, left + visW, bmpH)
+            } else {
+                // bitmap taller → crop top/bottom, biased UP (keep the sky
+                // out; maps have no sky, so bias keeps the route's center)
+                val visH = bmpW / cardAspect
+                val top = (bmpH - visH) / 2f
+                srcRect = RectF(0f, top, bmpW, top + visH)
+            }
+            dstRect = RectF(0f, 0f, CARD_W.toFloat(), CARD_H.toFloat())
+            c.drawBitmap(mapSnapshot, srcRect, dstRect, Paint().apply { isFilterBitmap = true })
+
+            // Strava scrim: transparent top → near-black bottom, weighted to
+            // deepen through the LOWER HALF where the overlay block lives.
+            val scrim = LinearGradient(
+                0f, 0f, 0f, CARD_H.toFloat(),
                 intArrayOf(
-                    Color.parseColor("#00000000"),
-                    Color.parseColor("#66000000"),
-                    Color.parseColor("#DD000000")
+                    Color.parseColor("#33000000"),
+                    Color.parseColor("#59000000"),
+                    Color.parseColor("#C4000000"),
+                    Color.parseColor("#F2000000")
                 ),
-                floatArrayOf(0f, 0.40f, 1f),
+                floatArrayOf(0f, 0.32f, 0.66f, 1f),
                 Shader.TileMode.CLAMP
             )
-            c.drawRect(snapRect, Paint().apply { shader = mapGradient })
-        } else {
-            // Fallback: gradient + grid (no network or snapshot failed)
-            fillGradient(c, PRIMARY, DARK)
-            drawMapGrid(c, Color.parseColor("#1AFFFFFF"))
-        }
+            c.drawRect(dstRect, Paint().apply { shader = scrim })
 
-        // Route overlay — use the SAME bounds and SAME canvas area as the map
-        // snapshot so the track aligns with the map tiles exactly.
-        if (track.size >= 2) {
-            if (mapBounds != null && mapSnapshot != null) {
-                // Draw track using the snapshot's geographic bounds, mapped to
-                // the exact same pixel area the bitmap occupies (snapTop..snapBottom)
+            // Route overlay — the srcRect crop maps 1:1 onto the full card,
+            // so drawing the track into the FULL canvas with the snapshot's
+            // geographic bounds keeps it perfectly on the drawn tiles.
+            if (track.size >= 2 && mapBounds != null) {
                 MapSnapshotHelper.drawTrackOnCanvas(
                     canvas = c, trackPoints = track, bounds = mapBounds,
-                    canvasLeft = 0f, canvasTop = snapTop,
-                    canvasRight = CARD_W.toFloat(), canvasBottom = snapBottom,
-                    strokeWidth = 15f, color = TRACK_COLOR
+                    canvasLeft = 0f, canvasTop = 0f,
+                    canvasRight = CARD_W.toFloat(), canvasBottom = CARD_H.toFloat(),
+                    strokeWidth = 14f, color = TRACK_FILL,
+                    casingColor = TRACK_CASE
                 )
-            } else {
-                // Fallback: proportional scaling when no snapshot bounds
-                drawRouteProportional(c, track, 100f, 80f, CARD_W - 100f, snapBottom, 15f, TRACK_COLOR)
+            }
+        } else {
+            // Fallback: brand gradient + faint grid (no network / snapshot failed)
+            fillGradient(c, PRIMARY, DARK)
+            drawMapGrid(c, Color.parseColor("#1AFFFFFF"))
+            if (track.size >= 2) {
+                drawRouteProportional(c, track, 100f, 120f, CARD_W - 100f, CARD_H * 0.55f, 14f, TRACK_FILL)
             }
         }
 
-        // Stats bar at bottom
-        val barTop = CARD_H * 0.70f
-        val barPaint = Paint().apply { color = Color.parseColor("#99000000"); style = Paint.Style.FILL }
-        c.drawRoundRect(RectF(40f, barTop, CARD_W - 40f, CARD_H - 120f), 28f, 28f, barPaint)
+        // ── Overlay block (Strava anatomy): sport glyph + wordmark row,
+        // title, then two rows of label-over-value stats — all drawn on the
+        // map's dark scrim, nothing else between them and the viewer. ──
+        val type = SportType.fromString(a.sportType)
 
-        // Activity title with its sport icon chip to its left (the spot the
-        // reference design puts its shoe icon).
+        // Row 1: bare white sport glyph (left) + NYASAR wordmark (right).
+        // Strava's story card shows exactly this pairing.
+        val glyphSize = 64f
+        val glyph = sportIconBitmap(type, glyphSize.roundToInt(), tint = WHITE)
+        c.drawBitmap(glyph, null, RectF(80f, 1150f, 80f + glyphSize, 1150f + glyphSize), Paint().apply { isFilterBitmap = true })
+        val wordP = textPaint(WORDMARK_SIZE, interBold(ctx), WORDMARK_COLOR)
+        val word = WORDMARK_TEXT
+        c.drawText(word, CARD_W - 80f - wordP.measureText(word), 1150f + glyphSize * 0.78f, wordP)
+
+        // Row 2: activity title (Strava-weight bold, ~64px).
         val nameP = textPaint(64f, interBold(ctx), WHITE)
-        val chipR = 30f
-        val nameBaseline = barTop + 96f
-        drawSportIcon(c, SportType.fromString(a.sportType), 80f + chipR, nameBaseline - 22f, chipR)
-        val nameX = 80f + chipR * 2 + 20f
-        c.drawText(ellipsize(a.name, CARD_W - nameX - 60f, nameP), nameX, nameBaseline, nameP)
+        c.drawText(ellipsize(a.name, CARD_W - 160f, nameP), 80f, 1310f, nameP)
 
-        // Stats: small label over a much larger value, auto-shrinking only
-        // for pathological three-long-column cases.
+        // Rows 3+4: the 2–3 stat columns, labels tiny, values huge —
+        // auto-shrinking only for pathological cases (same helper as before).
         drawStatRow(
             c, ctx,
             columns = statColumns(ctx, a),
             leftX = 80f, rightX = CARD_W - 80f,
-            labelBaselineY = barTop + 178f, valueGap = 76f
+            labelBaselineY = 1400f, valueGap = 78f
         )
 
-        // Watermark bottom-right, inside the stats bar
-        drawWatermark(c, ctx, xRight = CARD_W - 64f, yBaseline = CARD_H - 140f)
+        // No extra watermark in this template — the NYASAR wordmark IS the
+        // branding (drawn in row 1), drawing it twice would clutter the card.
     }
 
     // ── Template 2: Stats — transparent + large centered stats + small route ──
@@ -307,7 +339,7 @@ object ShareCardGenerator {
         }
 
         if (track.size >= 2) {
-            drawRouteProportional(c, track, 200f, CARD_H * 0.79f, CARD_W - 200f, CARD_H * 0.91f, 12f, TRACK_COLOR)
+            drawRouteProportional(c, track, 200f, CARD_H * 0.79f, CARD_W - 200f, CARD_H * 0.91f, 12f, TRACK_FILL)
         }
 
         drawWatermark(c, ctx)
@@ -380,7 +412,8 @@ object ShareCardGenerator {
                     canvas = c, trackPoints = track, bounds = mapBounds,
                     canvasLeft = destRect.left, canvasTop = destRect.top,
                     canvasRight = destRect.right, canvasBottom = destRect.bottom,
-                    strokeWidth = 15f, color = TRACK_COLOR
+                    strokeWidth = 15f, color = TRACK_FILL,
+                    casingColor = TRACK_CASE
                 )
             }
 
@@ -440,7 +473,7 @@ object ShareCardGenerator {
         drawSportIcon(c, SportType.fromString(a.sportType), 110f, 150f, 36f)
 
         if (track.size >= 2) {
-            drawRouteProportional(c, track, 120f, CARD_H * 0.12f, CARD_W - 120f, CARD_H * 0.62f, 14f, TRACK_COLOR)
+            drawRouteProportional(c, track, 120f, CARD_H * 0.12f, CARD_W - 120f, CARD_H * 0.62f, 14f, TRACK_FILL)
         }
 
         val sy = CARD_H * 0.75f

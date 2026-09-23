@@ -96,7 +96,7 @@ object ShareCardGenerator {
         "stats" -> "Stats"
         "dark_card" -> "Dark"
         "route" -> "Route"
-        "grid" -> "Grid"
+        "grid" -> "Poster"
         "minimal" -> "Minimal"
         else -> key
     }
@@ -116,7 +116,7 @@ object ShareCardGenerator {
             "stats" -> drawStatsTemplate(c, context, activity, track)
             "dark_card" -> drawDarkCardTemplate(c, context, activity, track, mapSnapshot, mapBounds)
             "route" -> drawRouteTemplate(c, context, activity, track)
-            "grid" -> drawGridTemplate(c, context, activity)
+            "grid" -> drawGridTemplate(c, context, activity, track)
             "minimal" -> drawMinimalTemplate(c, context, activity)
             else -> drawMapTemplate(c, context, activity, track, mapSnapshot, mapBounds)
         }
@@ -537,65 +537,25 @@ object ShareCardGenerator {
         )
     }
 
-    // ── Template 5: Grid — transparent + stat grid ──
+    // ── Template 5: Poster — Strava anatomy: ONE big centered route +
+    //    wordmark, nothing else ──
 
-    private fun drawGridTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity) {
+    private fun drawGridTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
 
-        // Strava's transparent grid card: no badge, no corner watermark —
-        // the centered wordmark below is the branding.
-        val col1 = CARD_W * 0.17f
-        val col2 = CARD_W * 0.50f
-        val col3 = CARD_W * 0.83f
-        val row1 = CARD_H * 0.30f
-        val row2 = CARD_H * 0.50f
-        val valP = textPaint(70f, interBold(ctx), WHITE)
-        val lblP = textPaint(28f, interRegular(ctx), LIGHT)
-
-        val dist = "%.2f km".format(a.distanceMeters / 1000.0)
-        val dur = formatDuration(a.movingTimeMs)
-        val gain = formatElevGain(a)
-
-        val primaryLabel: String
-        val primaryValue: String
-        if (sportMetric(a) == ShareMetric.PACE) {
-            primaryLabel = ctx.getString(R.string.share_stat_pace)
-            primaryValue = formatPace(a)
-        } else {
-            primaryLabel = ctx.getString(R.string.share_stat_elev_gain)
-            primaryValue = "\u2191 $gain"
+        // Strava's clean route poster (1:1): a single large route fills the
+        // middle of the card and the brand wordmark sits centered beneath
+        // it. No stats, no badge, no watermark — Strava reserves this card
+        // for the SHAPE of the activity itself. (The template key stays
+        // "grid" for backward compatibility; only its drawing changed.)
+        if (track.size >= 2) {
+            drawRouteProportional(c, track, 130f, CARD_H * 0.22f, CARD_W - 130f, CARD_H * 0.62f, 16f, TRACK_FILL, TRACK_CASE)
         }
 
-        // Row 1: Distance | Primary Metric | Duration
-        val lblDistance = ctx.getString(R.string.share_stat_distance)
-        val lblDuration = ctx.getString(R.string.share_stat_duration)
-        val lblElev = ctx.getString(R.string.share_stat_elev_gain)
-        val lblMaxSpeed = ctx.getString(R.string.share_stat_max_speed)
-        val lblPoints = ctx.getString(R.string.share_stat_points)
-        c.drawText(lblDistance, col1 - lblP.measureText(lblDistance) / 2, row1, lblP)
-        c.drawText(dist, col1 - valP.measureText(dist) / 2, row1 + 92f, valP)
-        c.drawText(primaryLabel, col2 - lblP.measureText(primaryLabel) / 2, row1, lblP)
-        c.drawText(primaryValue, col2 - valP.measureText(primaryValue) / 2, row1 + 92f, valP)
-        c.drawText(lblDuration, col3 - lblP.measureText(lblDuration) / 2, row1, lblP)
-        c.drawText(dur, col3 - valP.measureText(dur) / 2, row1 + 92f, valP)
-
-        // Row 2: Elev Gain | Max Speed | Point Count
-        c.drawText(lblElev, col1 - lblP.measureText(lblElev) / 2, row2, lblP)
-        c.drawText("\u2191 $gain", col1 - valP.measureText("\u2191 $gain") / 2, row2 + 92f, valP)
-
-        c.drawText(lblMaxSpeed, col2 - lblP.measureText(lblMaxSpeed) / 2, row2, lblP)
-        // maxSpeedKmh is nullable (null on recordings with no speed sample):
-        // String.format on a null Double? throws NPE — render 0.0 instead.
-        val maxSpeed = "%.1f km/h".format(a.maxSpeedKmh ?: 0.0)
-        c.drawText(maxSpeed, col2 - valP.measureText(maxSpeed) / 2, row2 + 92f, valP)
-
-        c.drawText(lblPoints, col3 - lblP.measureText(lblPoints) / 2, row2, lblP)
-        c.drawText("${pointCount(a)}", col3 - valP.measureText("${pointCount(a)}") / 2, row2 + 92f, valP)
-
-        // Centered brand wordmark (Strava's logo slot), letter-spaced.
-        val wordP = textPaint(48f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
-        val wcx = CARD_W / 2f
-        c.drawText(WORDMARK_TEXT, wcx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.86f, wordP)
+        // Brand wordmark, letter-spaced, centered below the route.
+        val wordP = textPaint(52f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
+        val cx = CARD_W / 2f
+        c.drawText(WORDMARK_TEXT, cx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.685f, wordP)
     }
 
     // ── Template 6: Minimal — solid green + name + big distance ──

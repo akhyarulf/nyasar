@@ -355,6 +355,7 @@
 
     <!-- Share card labels (rendered on bitmap) -->
     <string name="share_stat_distance">Distance</string>
+    <string name="share_check_out">Check out my activity on</string>
     <string name="share_stat_time">Time</string>
     <string name="share_stat_pace">Pace</string>
     <string name="share_stat_elev_gain">Elev Gain</string>

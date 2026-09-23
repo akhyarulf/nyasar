@@ -345,26 +345,44 @@ object ShareCardGenerator {
         c.drawText(WORDMARK_TEXT, cx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.835f, wordP)
     }
 
-    // ── Template 3: Dark Card — dark textured bg + inset map card ──
+    // ── Template 3: Dark Card — Strava anatomy: black grainy bg + green
+    //    diagonal ribbon + inset map card with stats INSIDE its base ──
 
     private fun drawDarkCardTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>, mapSnapshot: Bitmap?, mapBounds: LatLngBounds?) {
-        c.drawColor(DARK)
-
-        // Subtle diagonal stripes for texture
-        val stripePaint = Paint().apply { color = Color.parseColor("#0DFFFFFF"); strokeWidth = 3f }
-        var x = -CARD_H.toFloat()
-        while (x < CARD_W + CARD_H) {
-            c.drawLine(x, 0f, x + CARD_H, CARD_H.toFloat(), stripePaint)
-            x += 80f
+        // Near-black grainy backdrop (Strava's story uses noise grain; two
+        // alpha layers of fine diagonal hatching read as grain at card size).
+        c.drawColor(Color.parseColor("#121412"))
+        val grainPaint = Paint().apply { color = Color.parseColor("#14FFFFFF"); strokeWidth = 2f }
+        var gx = -CARD_H.toFloat()
+        while (gx < CARD_W + CARD_H) {
+            c.drawLine(gx, 0f, gx + CARD_H, CARD_H.toFloat(), grainPaint)
+            gx += 7f
+        }
+        val grainPaint2 = Paint().apply { color = Color.parseColor("#0A000000"); strokeWidth = 2f }
+        gx = -CARD_H.toFloat()
+        while (gx < CARD_W + CARD_H) {
+            c.drawLine(gx + 3f, 0f, gx + 3f + CARD_H, CARD_H.toFloat(), grainPaint2)
+            gx += 11f
         }
 
-        // Inset map card
-        val cardRect = RectF(60f, 140f, CARD_W - 60f, CARD_H * 0.50f)
+        // Strava's signature diagonal ribbon — NYASAR GREEN, not orange
+        // (user request). Two broad 45° bands sweeping behind the map card,
+        // one wider upper-left → lower-right, one thinner lower-left → up.
+        val ribbon = Paint().apply { color = Color.parseColor("#5A7562"); isAntiAlias = true }
+        c.save()
+        c.rotate(-45f, CARD_W / 2f, CARD_H / 2f)
+        c.drawRect(-CARD_H.toFloat(), CARD_H * 0.10f, (CARD_W + CARD_H).toFloat(), CARD_H * 0.28f, ribbon)
+        c.drawRect(-CARD_H.toFloat(), CARD_H * 0.86f, (CARD_W + CARD_H).toFloat(), CARD_H * 0.95f, ribbon)
+        c.restore()
+
+        // Inset map card — bigger and higher than before (Strava's map card
+        // dominates the upper ~55% of the story).
+        val cardRect = RectF(88f, 190f, CARD_W - 88f, CARD_H * 0.55f)
+        val cardRadius = 36f
 
         if (mapSnapshot != null) {
-            // Compute destRect: center-crop the bitmap into the card area
-            // preserving aspect ratio. MUST be computed first so the route
-            // overlay uses the same coordinate space as the bitmap.
+            // Center-crop the bitmap into the card area; MUST be computed
+            // first so the route overlay shares the bitmap's coordinate space.
             val bmpW = mapSnapshot.width.toFloat()
             val bmpH = mapSnapshot.height.toFloat()
             val cardW = cardRect.width()
@@ -381,32 +399,27 @@ object ShareCardGenerator {
                 RectF(cardRect.left, cardRect.top + offsetY, cardRect.right, cardRect.top + offsetY + scaledH)
             }
 
-            // Clip everything to the rounded card shape, then draw bitmap,
-            // gradient, and route all in the SAME destRect coordinate space.
             c.save()
-            val clipPath = Path().apply { addRoundRect(cardRect, 24f, 24f, Path.Direction.CW) }
+            val clipPath = Path().apply { addRoundRect(cardRect, cardRadius, cardRadius, Path.Direction.CW) }
             c.clipPath(clipPath)
 
             c.drawBitmap(mapSnapshot, null, destRect, null)
 
-            // Full-card dark scrim (same profile as the "map" template):
-            // transparent at the card's top, #66000000 by 40% down, #DD000000
-            // at its bottom edge — the map reads dimmed end to end.
+            // Dark scrim deepening toward the card's base — the stats block
+            // sits on this (Strava draws its stats INSIDE the map card's
+            // bottom edge, not below the card).
             val mapGradient = LinearGradient(
                 0f, cardRect.top, 0f, cardRect.bottom,
                 intArrayOf(
                     Color.parseColor("#00000000"),
-                    Color.parseColor("#66000000"),
-                    Color.parseColor("#DD000000")
+                    Color.parseColor("#59000000"),
+                    Color.parseColor("#E0000000")
                 ),
-                floatArrayOf(0f, 0.40f, 1f),
+                floatArrayOf(0f, 0.45f, 1f),
                 Shader.TileMode.CLAMP
             )
             c.drawRect(destRect, Paint().apply { shader = mapGradient })
 
-            // Route overlay — MUST use destRect (same space as bitmap),
-            // NOT cardRect. When destRect differs from cardRect due to
-            // center-crop, using cardRect causes the route to shift.
             if (track.size >= 2 && mapBounds != null) {
                 MapSnapshotHelper.drawTrackOnCanvas(
                     canvas = c, trackPoints = track, bounds = mapBounds,
@@ -419,18 +432,16 @@ object ShareCardGenerator {
 
             c.restore() // release clip
 
-            // Border around the card (not clipped — full stroke visible)
+            // Hairline border (not clipped — full stroke visible)
             val borderPaint = Paint().apply {
-                color = Color.parseColor("#33FFFFFF")
+                color = Color.parseColor("#26FFFFFF")
                 style = Paint.Style.STROKE
                 strokeWidth = 2f
                 isAntiAlias = true
             }
-            c.drawRoundRect(cardRect, 24f, 24f, borderPaint)
+            c.drawRoundRect(cardRect, cardRadius, cardRadius, borderPaint)
         } else {
-            // Fallback: light map-colored card + route when no snapshot.
-            // LIGHT background → keep the dark-green track here, only the
-            // stroke thickens (15f) like the snapshot path.
+            // Fallback: brand gradient card + route when no snapshot.
             val cardBg = Paint().apply { style = Paint.Style.FILL }
             val cardGradient = LinearGradient(
                 cardRect.left, cardRect.top, cardRect.left, cardRect.bottom,
@@ -439,29 +450,34 @@ object ShareCardGenerator {
                 Shader.TileMode.CLAMP
             )
             cardBg.shader = cardGradient
-            c.drawRoundRect(cardRect, 24f, 24f, cardBg)
+            c.drawRoundRect(cardRect, cardRadius, cardRadius, cardBg)
             if (track.size >= 2) {
                 drawRouteProportional(c, track, cardRect.left + 50f, cardRect.top + 50f,
                     cardRect.right - 50f, cardRect.bottom - 50f, 15f, TRACK_COLOR_LIGHT_BG)
             }
         }
 
-        // Title + sport icon chip to its left (same row as before, bigger).
-        val sy = CARD_H * 0.56f
-        val nameP = textPaint(62f, interBold(ctx), WHITE)
-        val chipR = 30f
-        drawSportIcon(c, SportType.fromString(a.sportType), 80f + chipR, sy - 20f, chipR)
-        val nameX = 80f + chipR * 2 + 20f
-        c.drawText(ellipsize(a.name, CARD_W - nameX - 60f, nameP), nameX, sy, nameP)
-
+        // ── Stats INSIDE the map card's base (Strava draws them there) ──
+        // Labels tiny white, values big bold — same auto-fit row helper.
+        val statsBaseY = cardRect.bottom - 170f
         drawStatRow(
             c, ctx,
             columns = statColumns(ctx, a),
-            leftX = 80f, rightX = CARD_W - 80f,
-            labelBaselineY = sy + 64f, valueGap = 76f
+            leftX = cardRect.left + 40f, rightX = cardRect.right - 40f,
+            labelBaselineY = statsBaseY, valueGap = 74f
         )
 
-        drawWatermark(c, ctx)
+        // ── Below the card: centered title (no badge — Strava anatomy) ──
+        val nameP = textPaint(64f, interBold(ctx), WHITE)
+        val name = ellipsize(a.name, CARD_W - 160f, nameP)
+        c.drawText(name, CARD_W / 2f - nameP.measureText(name) / 2, CARD_H * 0.635f, nameP)
+
+        // ── Brand lockup: "Lihat aktivitasku di" + NYASAR wordmark ──
+        val tagP = textPaint(40f, interBold(ctx), 0xF2FFFFFF.toInt())
+        val tag = ctx.getString(R.string.share_check_out)
+        c.drawText(tag, CARD_W / 2f - tagP.measureText(tag) / 2, CARD_H * 0.735f, tagP)
+        val wordP = textPaint(56f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
+        c.drawText(WORDMARK_TEXT, CARD_W / 2f - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.785f, wordP)
     }
 
     // ── Template 4: Route — transparent + large centered route ──
@@ -595,7 +611,7 @@ object ShareCardGenerator {
         leftX: Float, rightX: Float, labelBaselineY: Float, valueGap: Float
     ) {
         val gap = 44f
-        val lblP = textPaint(STAT_LABEL_SIZE, interRegular(ctx), LIGHT)
+        val lblP = textPaint(STAT_LABEL_SIZE, interBold(ctx), 0xF2FFFFFF.toInt())
         var valueSize = STAT_VALUE_SIZE
         var valP = textPaint(valueSize, interBold(ctx), WHITE)
         fun colWidths(): List<Float> =

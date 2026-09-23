@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Chat
@@ -175,7 +176,34 @@ fun PublicRouteDetailScreen(
             )
         }
     ) { padding ->
-        when (val s = state) {
+        // Pull-to-refresh (M3): re-fetch detail tanpa mengosongkan layar —
+        // konten Ready tetap tampil, hanya indicator yang berputar. Juga
+        // re-sync state like/save dari server. Gesture aktif saat konten
+        // Ready (scrollable di posisi atas); Loading/Error tetap pakai
+        // spinner / tombol retry masing-masing.
+        val isRefreshing = (state as? PublicRouteDetailViewModel.State.Ready)?.isRefreshing == true
+        val pullState = rememberPullToRefreshState()
+        // Latch sekali-per-gesture: distanceFraction clamps di 1f pada
+        // 1.2.x, jadi threshold-nya >= 1f. Tanpa latch, "refresh selesai
+        // duluan sebelum animateToHidden turun" (false + 1f) bakal
+        // re-fire tanpa henti — armed hanya reset saat indikator
+        // kembali turun di bawah threshold.
+        var pullArmed by remember { mutableStateOf(true) }
+        LaunchedEffect(pullState.distanceFraction) {
+            if (pullState.distanceFraction >= 1f) {
+                if (pullArmed && !isRefreshing) {
+                    pullArmed = false
+                    viewModel.refresh(routeId)
+                }
+            } else {
+                pullArmed = true
+            }
+        }
+        LaunchedEffect(isRefreshing) {
+            if (!isRefreshing) pullState.animateToHidden()
+        }
+        Box(Modifier.fillMaxSize().nestedScroll(pullState.nestedScrollConnection)) {
+            when (val s = state) {
             PublicRouteDetailViewModel.State.Loading -> {
                 Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -745,6 +773,8 @@ fun PublicRouteDetailScreen(
                 }
             }
         }
+            PullToRefreshContainer(state = pullState, modifier = Modifier.align(Alignment.TopCenter))
+        } // pull-refresh Box
     }
 
     // ==================== FULL-SCREEN INTERACTIVE MAP OVERLAY ====================

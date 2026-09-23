@@ -57,7 +57,10 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
         data object Loading : State()
         data class Ready(
             val route: BrowseRepository.RouteDetail,
-            val track: List<TrackPoint>
+            val track: List<TrackPoint>,
+            /** Pull-to-refresh in flight — content stays visible, the screen
+             *  only shows the M3 refresh indicator while true. */
+            val isRefreshing: Boolean = false
         ) : State()
         data class Error(val messageRes: Int) : State()
     }
@@ -373,6 +376,40 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
                     _state.value = State.Error(errorResFor(outcome.error))
                 }
             }
+        }
+    }
+
+    /**
+     * Pull-to-refresh: re-fetch the route + social state WITHOUT dropping
+     * the current content (no Loading swap — the screen's refresh indicator
+     * is driven by [State.Ready.isRefreshing]). Also re-syncs the process-
+     * wide SharedSocialState so like/save flags settle to server truth in
+     * the same pass. Failure keeps the visible list and just stops the
+     * indicator — a transient network hiccup must never blank a loaded
+     * detail.
+     */
+    fun refresh(routeId: String) {
+        if (!SupabaseClientProvider.isConfigured) return
+        val current = _state.value as? State.Ready ?: return
+        if (current.isRefreshing) return
+        _state.value = current.copy(isRefreshing = true)
+        viewModelScope.launch {
+            val client = SupabaseClientProvider.client
+            when (val outcome = repository.detail(client, routeId)) {
+                is BrowseRepository.DetailOutcome.Success -> _state.value = State.Ready(
+                    route = outcome.route,
+                    track = BrowseRepository.decodeTrack(outcome.route.trackPolyline),
+                    isRefreshing = false
+                )
+                is BrowseRepository.DetailOutcome.Failure -> {
+                    (_state.value as? State.Ready)?.let { s ->
+                        _state.value = s.copy(isRefreshing = false)
+                    }
+                }
+            }
+            SharedSocialState.reload(client)
+            _liked.value = routeId in SharedSocialState.likedIds.value
+            _saved.value = routeId in SharedSocialState.savedIds.value
         }
     }
 

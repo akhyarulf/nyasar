@@ -79,6 +79,13 @@ class MainActivity : AppCompatActivity() {
 
     private var pendingImportUri by mutableStateOf<Uri?>(null)
 
+    /** App Link yang mendarat saat app SUDAH berjalan (singleTask +
+     *  onNewIntent). Non-null = NyasarNavHost harus navigate ke
+     *  "route/{id}" lalu mengosongkannya. Konsumsinya satuan (null setelah
+     *  dipakai) supaya rotasi/recompose tidak menumpuk duplikat di
+     *  back stack — pola yang sama dengan pendingImportUri. */
+    private var pendingDeepLinkRouteId by mutableStateOf<String?>(null)
+
     /** Hasil cek update in-app (rilis GitHub Releases). Non-null hanya
      *  saat ada rilis LEBIH BARU dari build terpasang — null dalam semua
      *  kasus lain (belum ada rilis, offline, rate-limit, downgrade), jadi
@@ -227,7 +234,9 @@ class MainActivity : AppCompatActivity() {
                 NyasarNavHost(
                     navController = navController,
                     pendingImportUri = pendingImportUri,
-                    onImportConsumed = { pendingImportUri = null }
+                    onImportConsumed = { pendingImportUri = null },
+                    pendingDeepLinkRouteId = pendingDeepLinkRouteId,
+                    onDeepLinkConsumed = { pendingDeepLinkRouteId = null }
                 )
             }
         }
@@ -236,12 +245,30 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        extractGpxUriFromIntent(intent)?.let { pendingImportUri = it }
+        // App Link (https://…/route?id=…) saat app kebuka JANGAN dipakai
+        // sebagai GPX import — sebelumnya extractGpxUriFromIntent()
+        // mengambil intent.data apa pun action-nya, sehingga link web
+        // yang di-tap dari WA/Chrome ditelan sebagai "pending import GPX"
+        // dan deep link tidak pernah navigate. App Link di-forward ke
+        // NavHost; hanya non-http yang tetap masuk jalur import GPX.
+        extractDeepLinkRouteId(intent)?.let { pendingDeepLinkRouteId = it }
+            ?: run { extractGpxUriFromIntent(intent)?.let { pendingImportUri = it } }
+    }
+
+    /** Cold start: App Link ditangani navDeepLink composable secara
+     *  native, jadi onCreate sengaja TIDAK mengisi pendingDeepLinkRouteId
+     *  (menghindari navigasi dobel). Hanya dipanggil dari onNewIntent
+     *  (warm start), dan hanya untuk scheme https di host App Links. */
+    private fun extractDeepLinkRouteId(intent: Intent?): String? {
+        val data = intent?.data ?: return null
+        if (intent.action != Intent.ACTION_VIEW) return null
+        if (data.scheme != "https" || data.host != com.nyasar.app.AppLinks.BASE.removePrefix("https://")) return null
+        return data.getQueryParameter("id")?.takeIf { it.isNotBlank() }
     }
 
     private fun extractGpxUriFromIntent(intent: Intent?): Uri? {
         return when (intent?.action) {
-            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_VIEW -> intent.data?.takeIf { it.scheme != "https" }
             Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM)
             else -> null
         }
@@ -286,13 +313,30 @@ private fun rememberShareActivityGpxHandler(): (String) -> Unit {
 private fun NyasarNavHost(
     navController: NavHostController,
     pendingImportUri: Uri?,
-    onImportConsumed: () -> Unit
+    onImportConsumed: () -> Unit,
+    pendingDeepLinkRouteId: String?,
+    onDeepLinkConsumed: () -> Unit
 ) {
     // Bottom bar via Scaffold's bottomBar slot + innerPadding for content.
     // System insets (navigation bar) are handled by Scaffold defaults.
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val activityContext = androidx.compose.ui.platform.LocalContext.current
+
+    // Warm-start App Link (app sudah kebuka, link di-tap dari WA/Chrome):
+    // singleTask mengirim intent baru ke onNewIntent() — tanpa ini link
+    // tidak pernah navigate. Cold start ditangani navDeepLink composable
+    // "route/{routeId}" (jangan dobel di sini). launchSingleTop: tap link
+    // yang sama dua kali tidak menumpuk dua detail; popUpTo memangkas
+    // detail sebelumnya supaya back tetap ke layar sebelum link.
+    LaunchedEffect(pendingDeepLinkRouteId) {
+        val routeId = pendingDeepLinkRouteId ?: return@LaunchedEffect
+        onDeepLinkConsumed()
+        navController.navigate("route/$routeId") {
+            popUpTo("route/{routeId}") { inclusive = true; saveState = false }
+            launchSingleTop = true
+        }
+    }
 
     /** Plain-text system share sheet (browse route links). Local fun must
      *  precede its NavHost call sites — Kotlin resolves locals in order. */

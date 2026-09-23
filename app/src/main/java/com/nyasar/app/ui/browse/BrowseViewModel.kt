@@ -42,7 +42,10 @@ class BrowseViewModel : ViewModel() {
         data class Loaded(
             val routes: List<BrowseRepository.PublicRoute>,
             /** True when this result came from an active search query. */
-            val fromSearch: Boolean
+            val fromSearch: Boolean,
+            /** Pull-to-refresh in flight — the list stays visible, the
+             *  screen only shows the M3 refresh indicator while true. */
+            val isRefreshing: Boolean = false
         ) : BrowseState()
         data class Error(val error: BrowseUiError) : BrowseState()
     }
@@ -128,6 +131,38 @@ class BrowseViewModel : ViewModel() {
     }
 
     fun retry() = browse(_query.value)
+
+    /**
+     * Pull-to-refresh: re-browse WITHOUT the full Loading swap (list stays
+     * visible; the screen's refresh indicator reads [BrowseState.Loaded
+     * .isRefreshing]). Failure keeps the current list — a transient error
+     * never blanks an already-loaded tab.
+     */
+    fun refresh() {
+        if (!SupabaseClientProvider.isConfigured) return
+        val current = _state.value as? BrowseState.Loaded ?: return
+        if (current.isRefreshing) return
+        viewModelScope.launch {
+            _state.value = current.copy(isRefreshing = true)
+            when (val outcome = repository.browse(
+                client = SupabaseClientProvider.client,
+                query = _query.value,
+                filters = appliedFilters,
+                sort = sort
+            )) {
+                is BrowseRepository.Outcome.Success -> _state.value = BrowseState.Loaded(
+                    routes = outcome.routes,
+                    fromSearch = _query.value.isNotBlank(),
+                    isRefreshing = false
+                )
+                is BrowseRepository.Outcome.Failure -> {
+                    (_state.value as? BrowseState.Loaded)?.let { s ->
+                        _state.value = s.copy(isRefreshing = false)
+                    }
+                }
+            }
+        }
+    }
 
     /** Current sort getter for the chip label (read-only UI state). */
     fun currentSort(): BrowseRepository.SortOrder = sort

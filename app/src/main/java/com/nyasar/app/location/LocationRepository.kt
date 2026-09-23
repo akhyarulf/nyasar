@@ -105,4 +105,25 @@ class LocationRepository(private val context: Context) {
         )
         return fine == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
+
+    /**
+     * True when ANY location provider (GPS or network) is enabled at the
+     * SYSTEM level — the device master switch in Quick Settings. Permission
+     * and this are independent: a user can grant ACCESS_FINE_LOCATION and
+     * still have Location Services toggled off, which historically let a
+     * recording start and tick forever with ZERO GPS points (the "bisa
+     * record padahal lokasi mati" bug). Callers gate the START attempt on
+     * this; toggling it off mid-session only degrades the fix stream, so
+     * it is deliberately NOT watched by the engine.
+     */
+    fun isAnyProviderEnabled(): Boolean {
+        val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE)
+            as? android.location.LocationManager ?: return false
+        return try {
+            lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
+                lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
+        } catch (_: SecurityException) {
+            false
+        }
+    }
 }

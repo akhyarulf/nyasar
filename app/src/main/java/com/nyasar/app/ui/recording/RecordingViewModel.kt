@@ -271,6 +271,14 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun hasLocationPermission(): Boolean = locationRepository.hasLocationPermission()
 
+    /**
+     * Device-level location services master switch (Quick Settings).
+     * Independent of the runtime permission: granted permission + master
+     * switch off = FusedLocation never emits a fix = a recording that ticks
+     * forever with zero points. The start gate requires both to be true.
+     */
+    fun hasLocationServicesEnabled(): Boolean = locationRepository.isAnyProviderEnabled()
+
     // --- Map style / layer (same pattern as HomeViewModel) ---
 
     fun setStyleVariant(variant: StyleVariant) {

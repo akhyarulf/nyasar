@@ -193,6 +193,7 @@ fun RecordingScreen(
     var showBatteryOnboarding by remember { mutableStateOf(false) }
     var pendingLocationGateStartRoute by remember { mutableStateOf<String?>(null) }
     var showLocationOnboarding by remember { mutableStateOf(false) }
+    var showLocationServicesOffDialog by remember { mutableStateOf(false) }
     var showLocationDeniedBanner by remember { mutableStateOf(false) }
 
     fun advanceToBatteryGate(startRouteId: String?) {
@@ -216,14 +217,27 @@ fun RecordingScreen(
     // "RECORDING" session with a ticking timer and a foreground notification
     // but ZERO GPS points. No start attempt proceeds past this gate unless
     // the permission is granted right now.
+    //
+    // SECOND gate condition ("izin lokasi granted tapi layanan lokasi HP
+    // mati, kok masih bisa record?"): permission and the DEVICE's location
+    // master switch are independent. With the master switch off, FusedLocation
+    // never emits a single fix — same dead session as the permission gap, but
+    // invisible to a permission-only check. The gate now requires BOTH; the
+    // dialog for the services-off case deep-links to system Settings.
     fun advanceToLocationGate(startRouteId: String?) {
         if (!viewModel.hasLocationPermission()) {
             pendingLocationGateStartRoute = startRouteId
             showLocationOnboarding = true
+        } else if (!locationServicesEnabled()) {
+            pendingLocationGateStartRoute = startRouteId
+            showLocationServicesOffDialog = true
         } else {
             advanceToBatteryGate(startRouteId)
         }
     }
+
+    /** Device-level location services check (re-reads on every gate pass). */
+    fun locationServicesEnabled(): Boolean = viewModel.hasLocationServicesEnabled()
 
     fun gateAutoStart(startRouteId: String?) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && notifGateArmed) {
@@ -664,6 +678,41 @@ fun RecordingScreen(
         )
     }
 
+    // Location SERVICES OFF explainer — the permission was granted but the
+    // device's master location switch (Quick Settings) is off. "Buka
+    // Pengaturan" deep-links to the system Location Settings page; the held
+    // attempt continues from the dialog being dismissed (the user returns to
+    // this screen after toggling — the banner below keeps the state honest
+    // if they return without enabling). "Batal" drops the held attempt.
+    if (showLocationServicesOffDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showLocationServicesOffDialog = false
+                pendingLocationGateStartRoute = null
+            },
+            title = { Text(stringResource(R.string.location_services_off_title)) },
+            text = { Text(stringResource(R.string.location_services_off_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLocationServicesOffDialog = false
+                    gateContext.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                    )
+                }) {
+                    Text(stringResource(R.string.location_services_off_open))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showLocationServicesOffDialog = false
+                    pendingLocationGateStartRoute = null
+                }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     // Battery-optimization explainer (Gate 3 of 3) — same held-attempt
     // contract. "Nanti Saja" skips without opening any system UI; "Izinkan"
     // opens the PowerManager sheet and the start continues from its result.
@@ -849,6 +898,44 @@ fun RecordingScreen(
         // the currently attached route) and a system-settings shortcut for
         // the "don't ask again" case. Persist until permission is granted —
         // same persistence philosophy as storageError above.
+        // Location SERVICES OFF banner — companion of the denied banner
+        // above, for the other half of the failure matrix (permission
+        // granted, device master switch off). Recomputed each entry/return
+        // from Settings so toggling location on and coming back clears it
+        // without any manual dismiss. Same styling/persistence philosophy.
+        if (!showLocationDeniedBanner && !locationServicesEnabled()) {
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    modifier = Modifier.padding(top = 56.dp).padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.location_services_off_banner),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        TextButton(onClick = {
+                            gateContext.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                            )
+                        }) {
+                            Text(stringResource(R.string.location_services_off_open), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+        }
+
         if (showLocationDeniedBanner) {
             com.nyasar.app.ui.components.AnimatedAppear(
                 modifier = Modifier.align(Alignment.TopCenter)

@@ -30,6 +30,8 @@
   --footer-bg: #F3F7F1;
   --preview-a: #EAF1E8;     /* latar preview kartu browse */
   --preview-b: #F6F9F4;
+  --map-line: #9DB4A0;      /* kontur topo di preview kartu browse */
+  --map-road: #C2B49A;      /* jalan seeda di preview kartu browse */
 }
 
 * { box-sizing: border-box; margin: 0; }
@@ -62,10 +64,15 @@ body {
   text-decoration: none; letter-spacing: .2px;
 }
 .brand-mark {
+  /* Real app logo (apple-touch-icon 180px, generated from the same launcher
+     artwork as the Android icon) — replaces the emoji ⛰ so the header
+     reads as the actual brand, identical to the installed app + favicon. */
   width: 34px; height: 34px; border-radius: 10px;
-  background: linear-gradient(135deg, var(--forest) 0%, var(--nyasar) 100%);
-  display: grid; place-items: center; color: #fff; font-size: 18px;
+  object-fit: cover; display: inline-block;
   box-shadow: var(--shadow-sm);
+  /* Degraded fallback (very old browsers without <img> rounding): keep the
+     gradient disk so the mark never renders as an unstyled empty box. */
+  background: linear-gradient(135deg, var(--forest) 0%, var(--nyasar) 100%);
 }
 .topbar .spacer { flex: 1; }
 .nav-links { display: flex; gap: 4px; align-items: center; }
@@ -408,6 +415,8 @@ footer {
     --footer-bg: #212521;
     --preview-a: #2A3029;    /* latar preview kartu browse */
     --preview-b: #232823;
+    --map-line: #46524A;     /* kontur topo gelap — tetap subtle di dark */
+    --map-road: #55492F;     /* jalan seeda gelap — tidak menyala */
   }
   body { background: var(--bg); color: var(--ink); }
   /* Bayangan di tema gelap jauh lebih lembut supaya kartu tidak "mengkilap". */

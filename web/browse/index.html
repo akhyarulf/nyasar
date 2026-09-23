@@ -89,7 +89,7 @@
 
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="../index.html"><span class="brand-mark">⛰</span> Nyasar</a>
+    <a class="brand" href="../index.html"><img class="brand-mark" src="/apple-touch-icon.png" alt="Logo Nyasar" width="34" height="34"> Nyasar</a>
     <span class="spacer"></span>
     <nav class="nav-links">
       <a href="../index.html#features" data-i18n="nav.features">Fitur</a>
@@ -207,12 +207,37 @@
 
   // ── Preview jalur sebagai SVG murni (tanpa tile) — murah, offline-safe,
   //    dan jalan untuk ratusan kartu sekaligus. ViewBox 400x225, rute
-  //    di-fit dengan padding. Casing gelap + trace amber (identitas peta web). ──
+  //    di-fit dengan padding. Casing gelap + trace amber (identitas peta web).
+  //    Background "peta": grid kontur/topografi halus + jalan seeda —
+  //    didefinisikan SEKALI via <defs> (pattern) dan direferensikan tiap
+  //    kartu, jadi biaya render kecil walau grid penuh 60 kartu. Warna
+  //    ambil dari CSS var token (prefers-color-scheme menggantinya otomatis). ──
   function svgPreview(points) {
     var W = 400, H = 225, PAD = 24;
+    var defs =
+      '<defs>' +
+        // Terrain: kontur elevasi halus (lingkaran tak beraturan ala topo)
+        '<pattern id="topo" width="64" height="64" patternUnits="userSpaceOnUse">' +
+          '<circle cx="14" cy="16" r="9" fill="none" stroke="var(--map-line)" stroke-width="1" opacity=".5"/>' +
+          '<circle cx="14" cy="16" r="15" fill="none" stroke="var(--map-line)" stroke-width=".8" opacity=".35"/>' +
+          '<circle cx="47" cy="44" r="12" fill="none" stroke="var(--map-line)" stroke-width="1" opacity=".5"/>' +
+          '<circle cx="47" cy="44" r="19" fill="none" stroke="var(--map-line)" stroke-width=".8" opacity=".3"/>' +
+          '<circle cx="45" cy="9" r="7" fill="none" stroke="var(--map-line)" stroke-width=".9" opacity=".4"/>' +
+          '<circle cx="10" cy="52" r="8" fill="none" stroke="var(--map-line)" stroke-width=".9" opacity=".4"/>' +
+        '</pattern>' +
+        // Jalan setapak seeda: garis tipis menyilang pola
+        '<pattern id="roads" width="128" height="128" patternUnits="userSpaceOnUse">' +
+          '<path d="M0 38 L128 30" stroke="var(--map-road)" stroke-width="2.5" fill="none" opacity=".6"/>' +
+          '<path d="M0 38 L52 128" stroke="var(--map-road)" stroke-width="2" fill="none" opacity=".45"/>' +
+          '<path d="M84 0 L128 128" stroke="var(--map-road)" stroke-width="1.8" fill="none" opacity=".4"/>' +
+        '</pattern>' +
+      '</defs>' +
+      '<rect width="' + W + '" height="' + H + '" fill="var(--preview-b)"/>' +
+      '<rect width="' + W + '" height="' + H + '" fill="url(#topo)"/>' +
+      '<rect width="' + W + '" height="' + H + '" fill="url(#roads)"/>';
     if (!points || points.length < 2) {
-      // Tanpa track: ilustrasi gunung statis (tetap cantik).
-      return '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid slice">' +
+      // Tanpa track: ilustrasi gunung statis di atas latar topo.
+      return '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid slice">' + defs +
         '<path d="M0 ' + H + " L90 70 L150 130 L230 40 L320 120 L400 60 L" + W + " " + H + ' Z" fill="#CBDAC6" opacity=".55"/>' +
         '<path d="M0 ' + H + " L90 70 L150 130 L230 40 L320 120 L400 60 L" + W + " " + H + ' Z" fill="none" stroke="#5A7562" stroke-opacity=".35" stroke-width="2"/></svg>';
     }
@@ -228,7 +253,7 @@
     });
     var d = "M" + pts.join(" L");
     var s = pts[0].split(","), e = pts[pts.length - 1].split(",");
-    return '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet">' +
+    return '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet">' + defs +
       '<path d="' + d + '" fill="none" stroke="#2E5339" stroke-opacity=".45" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>' +
       '<path d="' + d + '" fill="none" stroke="#F2A900" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>' +
       '<circle cx="' + s[0] + '" cy="' + s[1] + '" r="6" fill="#2E5339" stroke="#fff" stroke-width="2"/>' +

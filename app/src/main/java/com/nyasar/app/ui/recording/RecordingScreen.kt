@@ -228,16 +228,13 @@ fun RecordingScreen(
         if (!viewModel.hasLocationPermission()) {
             pendingLocationGateStartRoute = startRouteId
             showLocationOnboarding = true
-        } else if (!locationServicesEnabled()) {
+        } else if (!viewModel.hasLocationServicesEnabled()) {
             pendingLocationGateStartRoute = startRouteId
             showLocationServicesOffDialog = true
         } else {
             advanceToBatteryGate(startRouteId)
         }
     }
-
-    /** Device-level location services check (re-reads on every gate pass). */
-    fun locationServicesEnabled(): Boolean = viewModel.hasLocationServicesEnabled()
 
     fun gateAutoStart(startRouteId: String?) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && notifGateArmed) {
@@ -903,7 +900,7 @@ fun RecordingScreen(
         // granted, device master switch off). Recomputed each entry/return
         // from Settings so toggling location on and coming back clears it
         // without any manual dismiss. Same styling/persistence philosophy.
-        if (!showLocationDeniedBanner && !locationServicesEnabled()) {
+        if (!showLocationDeniedBanner && !viewModel.hasLocationServicesEnabled()) {
             com.nyasar.app.ui.components.AnimatedAppear(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {

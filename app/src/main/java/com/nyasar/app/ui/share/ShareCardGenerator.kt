@@ -480,32 +480,61 @@ object ShareCardGenerator {
         c.drawText(WORDMARK_TEXT, CARD_W / 2f - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.785f, wordP)
     }
 
-    // ── Template 4: Route — transparent + large centered route ──
+    // ── Template 4: Route — transparent + Strava anatomy: big centered
+    //    route, wordmark, THREE centered stat columns, sport glyph ──
 
     private fun drawRouteTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
 
-        // Strava transparent-route card anatomy: big centered route (green
-        // over dark casing), two BOLD-label stat blocks below, brand
-        // wordmark centered at the bottom. No sport badge, no corner
-        // watermark — same consistency rules as the Stats template.
+        // Strava's transparent route card (1:1): the route dominates the
+        // upper half; then the brand wordmark; then Distance | Pace | Time
+        // as a CENTERED group of label-over-value columns; then the sport
+        // glyph centered underneath. Everything axis-centered like Strava.
         if (track.size >= 2) {
-            drawRouteProportional(c, track, 140f, CARD_H * 0.12f, CARD_W - 140f, CARD_H * 0.60f, 14f, TRACK_FILL, TRACK_CASE)
+            drawRouteProportional(c, track, 150f, CARD_H * 0.13f, CARD_W - 150f, CARD_H * 0.52f, 14f, TRACK_FILL, TRACK_CASE)
         }
 
-        val sy = CARD_H * 0.70f
-        val labelP = textPaint(34f, interBold(ctx), 0xF2FFFFFF.toInt())
-        val statP = textPaint(104f, interBold(ctx), WHITE)
-        val dist = "%.2f km".format(a.distanceMeters / 1000.0)
-        val dur = formatDuration(a.movingTimeMs)
-
-        c.drawText(ctx.getString(R.string.share_stat_distance), 80f, sy, labelP); c.drawText(dist, 80f, sy + 92f, statP)
-        c.drawText(ctx.getString(R.string.share_stat_time), 620f, sy, labelP); c.drawText(dur, 620f, sy + 92f, statP)
-
-        // Centered brand wordmark (Strava's logo slot), letter-spaced.
-        val wordP = textPaint(48f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
+        // Brand wordmark, letter-spaced, centered.
+        val wordP = textPaint(52f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
         val cx = CARD_W / 2f
-        c.drawText(WORDMARK_TEXT, cx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.88f, wordP)
+        c.drawText(WORDMARK_TEXT, cx - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.585f, wordP)
+
+        // Three stat columns in Strava order (Distance | Pace | Time),
+        // centered as a GROUP: measure all columns first, then lay out
+        // from the group's centered left edge. Labels bold white over
+        // big values (Strava's label treatment).
+        val lblP = textPaint(STAT_LABEL_SIZE, interBold(ctx), 0xF2FFFFFF.toInt())
+        val valP = textPaint(64f, interBold(ctx), WHITE)
+        val primary: Pair<String, String> = if (sportMetric(a) == ShareMetric.PACE) {
+            ctx.getString(R.string.share_stat_pace) to formatPace(a)
+        } else {
+            ctx.getString(R.string.share_stat_elev_gain) to "\u2191 ${formatElevGain(a)}"
+        }
+        val columns = listOf(
+            ctx.getString(R.string.share_stat_distance) to "%.2f km".format(a.distanceMeters / 1000.0),
+            primary,
+            ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs)
+        )
+        val gap = 72f
+        val widths = columns.map { maxOf(lblP.measureText(it.first), valP.measureText(it.second)) }
+        val groupW = widths.sum() + gap * (columns.size - 1)
+        var x = cx - groupW / 2f
+        val labelY = CARD_H * 0.645f
+        columns.forEachIndexed { i, (label, value) ->
+            val colCx = x + widths[i] / 2f
+            c.drawText(label, colCx - lblP.measureText(label) / 2, labelY, lblP)
+            c.drawText(value, colCx - valP.measureText(value) / 2, labelY + 78f, valP)
+            x += widths[i] + gap
+        }
+
+        // Sport glyph centered below the stats (bare white, Strava-style).
+        val glyphSize = 76f
+        val glyph = sportIconBitmap(SportType.fromString(a.sportType), glyphSize.roundToInt(), tint = WHITE)
+        c.drawBitmap(
+            glyph, null,
+            RectF(cx - glyphSize / 2f, CARD_H * 0.70f, cx + glyphSize / 2f, CARD_H * 0.70f + glyphSize),
+            Paint().apply { isFilterBitmap = true; isAntiAlias = true }
+        )
     }
 
     // ── Template 5: Grid — transparent + stat grid ──

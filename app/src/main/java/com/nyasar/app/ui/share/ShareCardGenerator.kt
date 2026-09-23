@@ -324,6 +324,7 @@ object ShareCardGenerator {
 
     private fun drawStatsTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
+        drawTranslucentScrim(c) // Strava bakes a dark wash into its transparent cards
 
         // Strava anatomy for the transparent card (1:1): NO sport badge and
         // NO corner watermark — three stat blocks stacked HIGH on the card
@@ -501,6 +502,7 @@ object ShareCardGenerator {
 
     private fun drawRouteTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
+        drawTranslucentScrim(c) // Strava's baked-in dark wash (see drawTranslucentScrim)
 
         // Strava's transparent route card (1:1): the route dominates the
         // upper half; then the brand wordmark; then Distance | Pace | Time
@@ -558,6 +560,7 @@ object ShareCardGenerator {
 
     private fun drawGridTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
+        drawTranslucentScrim(c) // Strava's baked-in dark wash (see drawTranslucentScrim)
 
         // Strava's clean route poster (1:1): a single large route fills the
         // middle of the card and the brand wordmark sits centered beneath
@@ -579,6 +582,7 @@ object ShareCardGenerator {
 
     private fun drawMinimalTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity) {
         c.drawColor(Color.TRANSPARENT)
+        drawTranslucentScrim(c) // Strava's baked-in dark wash (see drawTranslucentScrim)
 
         // Strava's minimal stats card (1:1): TRANSPARENT background; a
         // left-aligned row of the sport glyph beside the brand wordmark;
@@ -621,22 +625,24 @@ object ShareCardGenerator {
         )
     }
 
-    // ── Template 7: Sticker — Strava anatomy: transparent bg, glyph +
-    //    wordmark row, TWO ROWS of three left-aligned stat columns ──
+    // ── Template 7: Sticker — Strava anatomy: transparent bg (dark scrim
+    //    baked in), glyph + wordmark row, TWO ROWS of three stat columns
+    //    on a SHARED 3-column grid so columns align between rows ──
 
     private fun drawStickerTemplate(c: Canvas, ctx: android.content.Context, a: ActivityEntity, track: List<TrackPoint>) {
         c.drawColor(Color.TRANSPARENT)
+        drawTranslucentScrim(c) // Strava's baked-in dark wash (see drawTranslucentScrim)
 
         // Strava's subscriber stats card (1:1 anatomy, free here): same
         // glyph + NYASAR lockup row as Minimal, then TWO rows of three
         // left-aligned columns — Row 1: Distance | Pace | Max Elev, Row 2:
         // Time | Elev Gain | Elev Loss. Pace swaps for Elev Gain when the
         // sport's primary metric isn't pace, mirroring statColumns().
-        val leftX = 110f
+        val leftX = 90f
 
         // Row 1: sport glyph + NYASAR wordmark (same lockup as Minimal).
         val glyphSize = 84f
-        val glyphY = CARD_H * 0.30f
+        val glyphY = CARD_H * 0.38f
         val glyph = sportIconBitmap(SportType.fromString(a.sportType), glyphSize.roundToInt(), tint = WHITE)
         c.drawBitmap(
             glyph, null,
@@ -646,13 +652,12 @@ object ShareCardGenerator {
         val wordP = textPaint(54f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.14f }
         c.drawText(WORDMARK_TEXT, leftX + glyphSize + 30f, glyphY + glyphSize * 0.74f, wordP)
 
-        // Six stats — label/value pairs, same typography as the other cards.
-        val lblP = textPaint(STAT_LABEL_SIZE, interBold(ctx), 0xF2FFFFFF.toInt())
-        val valP = textPaint(58f, interBold(ctx), WHITE)
+        // Six stats — label/value pairs, same typography as the other cards
+        // (no arrows — Strava's subscriber card shows bare numbers).
         val primary: Pair<String, String> = if (sportMetric(a) == ShareMetric.PACE) {
             ctx.getString(R.string.share_stat_pace) to formatPace(a)
         } else {
-            ctx.getString(R.string.share_stat_elev_gain) to "\u2191 ${formatElevGain(a)}"
+            ctx.getString(R.string.share_stat_elev_gain) to formatElevGain(a)
         }
         val row1 = listOf(
             ctx.getString(R.string.share_stat_distance) to "%.2f km".format(a.distanceMeters / 1000.0),
@@ -661,38 +666,13 @@ object ShareCardGenerator {
         )
         val row2 = listOf(
             ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs),
-            ctx.getString(R.string.share_stat_elev_gain) to "\u2191 ${formatElevGain(a)}",
-            ctx.getString(R.string.share_stat_elev_loss) to "\u2193 ${formatElevLoss(a)}"
+            ctx.getString(R.string.share_stat_elev_gain) to formatElevGain(a),
+            ctx.getString(R.string.share_stat_elev_loss) to formatElevLoss(a)
         )
 
-        val gap = 44f
-        val rightX = CARD_W - 90f
-        val row1Y = glyphY + glyphSize + 140f
-        val row2Y = row1Y + 220f
-
-        // Each row auto-fits its own value size (the same step-down rule as
-        // drawStatRow) — long paces/loss values shrink before wrapping.
-        fun drawGridRow(columns: List<Pair<String, String>>, labelBaselineY: Float, startSize: Float) {
-            var size = startSize
-            var paint = textPaint(size, interBold(ctx), WHITE)
-            fun widths(): List<Float> =
-                columns.map { maxOf(lblP.measureText(it.first), paint.measureText(it.second)) }
-            var w = widths()
-            while (w.sum() + gap * (columns.size - 1) > rightX - leftX && size > 44f) {
-                size -= 4f
-                paint = textPaint(size, interBold(ctx), WHITE)
-                w = widths()
-            }
-            var x = leftX
-            columns.forEachIndexed { i, (label, value) ->
-                c.drawText(label, x, labelBaselineY, lblP)
-                c.drawText(value, x, labelBaselineY + 74f, paint)
-                x += w[i] + gap
-            }
-        }
-
-        drawGridRow(row1, row1Y, 58f)
-        drawGridRow(row2, row2Y, 58f)
+        drawAlignedStatGrid(c, ctx, rows = listOf(row1, row2), leftX = leftX,
+            rightX = CARD_W - 90f, firstBaselineY = glyphY + glyphSize + 120f,
+            rowPitch = 190f, startValueSize = 58f)
     }
 
     // ── Helpers ──
@@ -726,6 +706,79 @@ object ShareCardGenerator {
             c.drawText(value, x, labelBaselineY + valueGap, valP)
             x += widths[i] + gap
         }
+    }
+
+    /**
+     * Draws MULTIPLE stat rows on a SHARED 3-column grid: one auto-fit pass
+     * sizes the value type and derives each column's x from the WIDEST cell
+     * of that column across ALL rows — so row 2's Time sits exactly under
+     * row 1's Distance, etc. Strava's subscriber card lays its six stats on
+     * a true grid, not as two independent left-flowing rows.
+     */
+    private fun drawAlignedStatGrid(
+        c: Canvas, ctx: android.content.Context,
+        rows: List<List<Pair<String, String>>>,
+        leftX: Float, rightX: Float, firstBaselineY: Float,
+        rowPitch: Float, startValueSize: Float
+    ) {
+        val gap = 48f
+        val lblP = textPaint(STAT_LABEL_SIZE, interBold(ctx), 0xF2FFFFFF.toInt())
+        var valueSize = startValueSize
+        var valP = textPaint(valueSize, interBold(ctx), WHITE)
+        fun colWidths(): FloatArray {
+            val n = rows.firstOrNull()?.size ?: return FloatArray(0)
+            val w = FloatArray(n)
+            rows.forEach { row -> row.forEachIndexed { i, cell ->
+                w[i] = maxOf(w[i], lblP.measureText(cell.first), valP.measureText(cell.second))
+            } }
+            return w
+        }
+        var widths = colWidths()
+        val cols = widths.size.coerceAtLeast(1)
+        while (widths.sum() + gap * (cols - 1) > rightX - leftX && valueSize > 44f) {
+            valueSize -= 4f
+            valP = textPaint(valueSize, interBold(ctx), WHITE)
+            widths = colWidths()
+        }
+        val starts = FloatArray(cols)
+        var x = leftX
+        for (i in 0 until cols) {
+            starts[i] = x
+            x += widths[i] + gap
+        }
+        rows.forEachIndexed { r, row ->
+            val labelBaselineY = firstBaselineY + r * rowPitch
+            row.forEachIndexed { i, (label, value) ->
+                var cellX = starts[i]
+                if (i == cols - 1) {
+                    cellX = minOf(cellX, rightX - maxOf(lblP.measureText(label), valP.measureText(value)))
+                }
+                c.drawText(label, cellX, labelBaselineY, lblP)
+                c.drawText(value, cellX, labelBaselineY + 74f, valP)
+            }
+        }
+    }
+
+    /**
+     * Bakes Strava's "darkened transparency" into the PNG: a semi-opaque
+     * black wash (a touch heavier at the top and bottom edges) so the card
+     * stays legible on bright story backgrounds — white, photos, anything.
+     * The bitmap keeps partial alpha: what's baked is the DARKENING, not an
+     * opaque backdrop — exactly how Strava's subscriber cards behave.
+     */
+    private fun drawTranslucentScrim(c: Canvas) {
+        val scrim = LinearGradient(
+            0f, 0f, 0f, CARD_H.toFloat(),
+            intArrayOf(
+                Color.parseColor("#8C000000"),
+                Color.parseColor("#6B000000"),
+                Color.parseColor("#6B000000"),
+                Color.parseColor("#8C000000")
+            ),
+            floatArrayOf(0f, 0.30f, 0.70f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        c.drawRect(0f, 0f, CARD_W.toFloat(), CARD_H.toFloat(), Paint().apply { shader = scrim })
     }
 
     /** Small "Nyasar" wordmark, right-aligned at (xRight, yBaseline).

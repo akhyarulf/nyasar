@@ -181,7 +181,13 @@ class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.value = _uiState.value.copy(saving = true, error = null)
         viewModelScope.launch {
             try {
-                val route: RouteEntity = routeRepository.importFromDrawnPoints(name, points)
+                // Elevation for the drawn line: filled in from Open-Meteo's
+                // free DEM API (no key) BEFORE the GPX write, so the saved
+                // file carries <ele> and every existing consumer — gain/loss
+                // on the route row, the preview chart — lights up untouched.
+                // Never blocks saving: any failure returns the input as-is.
+                val enriched = ElevationFetcher.withElevations(points)
+                val route: RouteEntity = routeRepository.importFromDrawnPoints(name, enriched)
                 // Konsep backup tanpa tombol: rute gambar = data backup.
                 com.nyasar.app.backup.BackupManager.scheduleRouteBackup(getApplication(), route.id)
                 // Draft waypoints → real rows linked to the new route.
@@ -275,6 +281,24 @@ class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    /**
+     * One-shot consumption of [DrawRouteUiState.savedRouteId] by the screen
+     * right after it navigates away. This VM stays alive on the back stack
+     * while the preview covers this screen — if the id were left set, EVERY
+     * return here (back gesture) re-launched the save-navigation effect and
+     * bounced the user straight back to Route Detail forever (the "stuck,
+     * had to restart the app" bug). Also resets the finished drawing: the
+     * route is saved, so coming back means starting a NEW draft, not
+     * staring at the already-committed one. followPaths survives as the
+     * user's chosen drawing mode.
+     */
+    fun consumeSavedRouteId() {
+        segments.clear()
+        generation++
+        val keepFollowPaths = _uiState.value.followPaths
+        _uiState.value = DrawRouteUiState(followPaths = keepFollowPaths)
     }
 
     /**

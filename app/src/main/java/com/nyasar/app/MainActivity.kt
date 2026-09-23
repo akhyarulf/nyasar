@@ -1035,8 +1035,16 @@ private fun NyasarNavHost(
                         navController.navigate("preview/$routeId")
                     }
                     // Coming from Home or elsewhere: go to preview.
+                    // popUpTo(draw-route, inclusive): the draw screen must
+                    // NOT stay on the back stack under the preview — back
+                    // from Route Detail used to land on the stale draft
+                    // screen (previously: an infinite re-navigate loop that
+                    // needed an app restart). Back now goes Home, which is
+                    // where a just-saved route's user came from.
                     else {
-                        navController.navigate("preview/$routeId")
+                        navController.navigate("preview/$routeId") {
+                            popUpTo("draw-route") { inclusive = true }
+                        }
                     }
                 },
                 onNavigateToStart = { routeId ->
@@ -1047,7 +1055,11 @@ private fun NyasarNavHost(
                     } else if (navController.popBackStack("track-and-maps", false)) {
                         navController.navigate("start-activity/$routeId")
                     } else {
-                        navController.navigate("start-activity/$routeId")
+                        // Same popUpTo rule as onRouteSaved's Home branch:
+                        // never leave the finished draw screen on the stack.
+                        navController.navigate("start-activity/$routeId") {
+                            popUpTo("draw-route") { inclusive = true }
+                        }
                     }
                 }
             )

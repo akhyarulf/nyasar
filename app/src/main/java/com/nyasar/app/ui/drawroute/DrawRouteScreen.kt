@@ -132,9 +132,19 @@ fun DrawRouteScreen(
     // start-activity for it instead. Both only fire once (LaunchedEffect
     // keyed on the id, which only ever transitions null -> a real id
     // once), so neither can double-navigate on recomposition.
+    //
+    // BUG FIX (stuck-back loop): the id MUST be consumed right after
+    // navigating. This screen's VM survives on the back stack underneath
+    // the destination screen — with the id still set, every system-back
+    // return here re-fired this effect and navigated away again, an
+    // infinite loop that only a full app restart could break. consume-
+    // and-clear BEFORE the callback runs closes the loop permanently; the
+    // screen itself becomes unreachable (popped from the stack) so the
+    // reset draft never actually shows.
     var pendingNavigateAfterSave by remember { mutableStateOf(false) }
     LaunchedEffect(state.savedRouteId) {
         val id = state.savedRouteId ?: return@LaunchedEffect
+        viewModel.consumeSavedRouteId()
         if (pendingNavigateAfterSave) onNavigateToStart(id) else onRouteSaved(id)
     }
 

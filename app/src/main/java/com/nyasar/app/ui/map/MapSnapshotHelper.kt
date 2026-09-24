@@ -68,7 +68,7 @@ object MapSnapshotHelper {
     /** Disk-cache version for Offline Maps region card previews
      *  ([generateRegionPreview]) — independent so invalidating these never
      *  touches basemap-picker or activity-track snapshots. */
-    private const val REGION_PREVIEW_CACHE_VERSION = 1
+    private const val REGION_PREVIEW_CACHE_VERSION = 2
     // 25m floor (was 100m) — 100m alone was already 5-10x wider than a
     // typical very-short recording's own span (a few meters to a few tens
     // of meters), so those tracks rendered as a tiny speck regardless of
@@ -537,10 +537,10 @@ object MapSnapshotHelper {
      * [generateBasemapPreview] (inline data:-style handling, error handler,
      * 15s timeout — no hang path), one disk-cached frame per region+size.
      *
-     * [paddingFraction] expands the rendered region on every side so the
-     * coverage rectangle a caller overlays is always fully INSIDE the frame
-     * with breathing room (an exact-fit region put the rectangle flush
-     * against the viewport edge — the “this preview is unclear” complaint).
+     * The returned bounds are the exact, aspect-ratio-matched geographic area
+     * rendered into the bitmap. A caller drawing the original region must use
+     * these bounds; fixed pixel insets become incorrect as soon as MapLibre
+     * expands a portrait region to fit a wide card.
      */
     suspend fun generateRegionPreview(
         context: Context,
@@ -549,24 +549,73 @@ object MapSnapshotHelper {
         styleUrl: String,
         widthPx: Int,
         heightPx: Int,
-        paddingFraction: Double = 0.14
-    ): Bitmap? {
+        paddingFraction: Double = 0.06
+    ): MapSnapshotResult? {
         if (widthPx < 8 || heightPx < 8) return null
+
+        // Build a bounds whose real-world width:height already matches the
+        // bitmap. MapSnapshotter.withRegion preserves the whole region, but if
+        // its aspect differs it expands the other axis internally. Returning
+        // this pre-expanded bounds keeps the coverage overlay geographically
+        // aligned and makes a portrait offline region stay portrait in a wide
+        // card instead of appearing zoomed far out.
+        val renderedBounds = computeRegionPreviewBounds(
+            bounds = bounds,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            paddingFraction = paddingFraction
+        )
+
         val cached = loadFromDisk(context, cacheKey, widthPx, heightPx, REGION_PREVIEW_CACHE_VERSION)
-        if (cached != null) return cached
+        if (cached != null) return MapSnapshotResult(cached, renderedBounds)
 
-        val latSpan = bounds.northEast.latitude - bounds.southWest.latitude
-        val lonSpan = bounds.northEast.longitude - bounds.southWest.longitude
-        val latPad = (latSpan * paddingFraction).coerceAtLeast(0.0015)
-        val lonPad = (lonSpan * paddingFraction).coerceAtLeast(0.0015)
-        val padded = LatLngBounds.Builder()
-            .include(LatLng(bounds.northEast.latitude + latPad, bounds.northEast.longitude + lonPad))
-            .include(LatLng(bounds.southWest.latitude - latPad, bounds.southWest.longitude - lonPad))
-            .build()
-
-        val bitmap = renderSnapshotBitmap(context, padded, styleUrl, widthPx, heightPx)
+        val bitmap = renderSnapshotBitmap(context, renderedBounds, styleUrl, widthPx, heightPx)
         bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it, REGION_PREVIEW_CACHE_VERSION) }
-        return bitmap
+        return bitmap?.let { MapSnapshotResult(it, renderedBounds) }
+    }
+
+    /** Aspect-ratio-aware viewport for a downloaded offline region. */
+    private fun computeRegionPreviewBounds(
+        bounds: LatLngBounds,
+        widthPx: Int,
+        heightPx: Int,
+        paddingFraction: Double
+    ): LatLngBounds {
+        val south = bounds.southWest.latitude
+        val north = bounds.northEast.latitude
+        val west = bounds.southWest.longitude
+        val east = bounds.northEast.longitude
+        val fraction = paddingFraction.coerceIn(0.0, 0.45)
+
+        val midLat = (south + north) / 2.0
+        val cosMid = Math.cos(Math.toRadians(midLat)).coerceAtLeast(0.01)
+        val latPad = ((north - south) * fraction).coerceAtLeast(0.0015)
+        val lonPad = ((east - west) * fraction).coerceAtLeast(0.0015)
+
+        var southRendered = south - latPad
+        var northRendered = north + latPad
+        var westRendered = west - lonPad
+        var eastRendered = east + lonPad
+
+        val targetRatio = widthPx.toDouble() / heightPx.toDouble()
+        val latSpanM = (northRendered - southRendered) * 111_320.0
+        val lonSpanM = (eastRendered - westRendered) * 111_320.0 * cosMid
+        val currentRatio = lonSpanM / latSpanM.coerceAtLeast(0.01)
+
+        if (currentRatio < targetRatio) {
+            val extraLonDeg = (latSpanM * targetRatio - lonSpanM) / 2.0 / (111_320.0 * cosMid)
+            westRendered -= extraLonDeg
+            eastRendered += extraLonDeg
+        } else if (currentRatio > targetRatio) {
+            val extraLatDeg = (lonSpanM / targetRatio - latSpanM) / 2.0 / 111_320.0
+            southRendered -= extraLatDeg
+            northRendered += extraLatDeg
+        }
+
+        return LatLngBounds.Builder()
+            .include(LatLng(northRendered, eastRendered))
+            .include(LatLng(southRendered, westRendered))
+            .build()
     }
 
     /**

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.map.MapSnapshotHelper
+import com.nyasar.app.ui.map.MapSnapshotResult
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.R
 import com.nyasar.app.ui.theme.NyasarRadius
@@ -402,7 +403,7 @@ private fun RegionStaticPreview(
 
     var canvasW by remember { mutableStateOf(0) }
     var canvasH by remember { mutableStateOf(0) }
-    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var snapshot by remember { mutableStateOf<MapSnapshotResult?>(null) }
 
     LaunchedEffect(bounds, canvasW, canvasH, item.styleUrl, basemap.gpxKey) {
         val b = bounds ?: return@LaunchedEffect
@@ -415,7 +416,7 @@ private fun RegionStaticPreview(
             ?: provider.styleUrlFor(basemap, context)
         val styleFingerprint = styleUrl.hashCode().toUInt().toString(16)
         val cacheKey = "offline-region-${basemap.gpxKey}-$styleFingerprint-${b.longitudeWest}-${b.latitudeSouth}-${b.longitudeEast}-${b.latitudeNorth}-$w"
-        bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        snapshot = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
                 MapSnapshotHelper.generateRegionPreview(
                     context = context,
@@ -433,10 +434,10 @@ private fun RegionStaticPreview(
         canvasW = size.width
         canvasH = size.height
     }) {
-        val bmp = bitmap
-        if (bmp != null) {
+        val result = snapshot
+        if (result != null) {
             drawImage(
-                bmp.asImageBitmap(),
+                result.bitmap.asImageBitmap(),
                 dstOffset = IntOffset(0, 0),
                 dstSize = IntSize(size.width.toInt(), size.height.toInt())
             )
@@ -444,13 +445,39 @@ private fun RegionStaticPreview(
             // Loading / offline-fallback surface — never an error state.
             drawRect(fallbackBg)
         }
-        if (bounds != null) {
-            // The snapshot covers bounds padded 14% per side; the coverage
-            // rectangle sits inset accordingly and is always fully visible.
-            val insetX = size.width * 0.12f
-            val insetY = size.height * 0.12f
-            val topLeft = Offset(insetX, insetY)
-            val rectSize = Size(size.width - insetX * 2, size.height - insetY * 2)
+
+        val regionBounds = bounds
+        val renderedBounds = result?.bounds
+        if (regionBounds != null && renderedBounds != null) {
+            // Project the actual downloaded coverage into the rendered
+            // snapshot. Fixed pixel insets are wrong here: a portrait region
+            // in a wide card is expanded horizontally by the camera fit.
+            val renderedLonSpan =
+                (renderedBounds.northEast.longitude - renderedBounds.southWest.longitude)
+                    .takeIf { it > 0.0 } ?: return@Canvas
+            val renderedLatSpan =
+                (renderedBounds.northEast.latitude - renderedBounds.southWest.latitude)
+                    .takeIf { it > 0.0 } ?: return@Canvas
+
+            val left = (
+                (regionBounds.southWest.longitude - renderedBounds.southWest.longitude) /
+                    renderedLonSpan * size.width
+                ).toFloat().coerceIn(0f, size.width)
+            val right = (
+                (regionBounds.northEast.longitude - renderedBounds.southWest.longitude) /
+                    renderedLonSpan * size.width
+                ).toFloat().coerceIn(0f, size.width)
+            val top = (
+                (renderedBounds.northEast.latitude - regionBounds.northEast.latitude) /
+                    renderedLatSpan * size.height
+                ).toFloat().coerceIn(0f, size.height)
+            val bottom = (
+                (renderedBounds.northEast.latitude - regionBounds.southWest.latitude) /
+                    renderedLatSpan * size.height
+                ).toFloat().coerceIn(0f, size.height)
+
+            val topLeft = Offset(left, top)
+            val rectSize = Size((right - left).coerceAtLeast(0f), (bottom - top).coerceAtLeast(0f))
             // Soft fill so the area reads as "selected" even without strokes.
             drawRect(rectColor.copy(alpha = 0.20f), topLeft = topLeft, size = rectSize)
             // Crisp double outline (light casing + brand core), the same

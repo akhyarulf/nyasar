@@ -461,6 +461,7 @@ private fun formatStorageBytes(bytes: Long): String = when {
     else -> "$bytes B"
 }
 
+@Composable
 private fun SettingRow(
     icon: ImageVector,
     title: String,

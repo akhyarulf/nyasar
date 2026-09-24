@@ -31,7 +31,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.map.MapSnapshotHelper
 import com.nyasar.app.ui.map.MapSnapshotResult
-import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.R
 import com.nyasar.app.ui.theme.NyasarRadius
 import androidx.compose.ui.res.stringResource
@@ -39,10 +38,8 @@ import androidx.compose.ui.res.stringResource
 /**
  * "Peta Offline" — spec P3 gap: download existed (Route Preview), management
  * didn't, and coverage was invisible (spec §24, WAJIB). Reachable from
- * Settings > Offline. Shows: coverage map at the top (so "area mana yang
- * sudah saya download?" has an actual answer), list below with size/status/
- * view/delete, and a "+ Download Area" FAB for the route-free entry point
- * (spec §22).
+ * Settings > Offline. Shows the downloaded regions as focused preview cards
+ * with their coverage footprint, status, and management actions.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,13 +47,9 @@ fun OfflineMapsScreen(
     viewModel: OfflineMapsViewModel = viewModel(),
     onBack: () -> Unit,
     onDownloadArea: () -> Unit = {},
-    // "Lihat di Peta" wiring back to Home with the area focused is PART 4
-    // scope (per spec, explicitly not this part). Until that route exists,
-    // this reuses the exact same real, already-working action the old
-    // "eye" icon had — focusing the coverage map already rendered at the
-    // top of this screen — rather than a no-op TODO stub (spec: "JANGAN
-    // bikin behavior asal-asalan").
-    onOpenInMap: (OfflineRegionUi) -> Unit = { viewModel.focus(it) }
+    // "Lihat di Peta" is owned by the NavHost so it can focus the shared map
+    // and preserve the Library entry underneath for Back navigation.
+    onOpenInMap: (OfflineRegionUi) -> Unit
 ) {
     LaunchedEffect(Unit) { viewModel.refresh() }
     val state by viewModel.uiState.collectAsState()
@@ -88,41 +81,6 @@ fun OfflineMapsScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            val boundsWithCoverage = state.regions.mapNotNull { it.bounds }
-            val focusedBounds = state.regions.firstOrNull {
-                System.identityHashCode(it.region) == state.focusedRegionKey
-            }?.bounds
-
-            // Coverage map (spec §24, WAJIB) — always visible when there's
-            // at least one region, regardless of status-check completion,
-            // since bounds come from the region definition, not the status
-            // callback (see OfflineMapsViewModel).
-            if (boundsWithCoverage.isNotEmpty()) {
-                Box(Modifier.height(220.dp).fillMaxWidth()) {
-                    NyasarMapView(
-                        modifier = Modifier.fillMaxSize(),
-                        provider = provider,
-                        basemapEntry = activeBasemap,
-                        track = emptyList(),
-                        offlineCoverage = boundsWithCoverage,
-                        // Camera bounds padded ~18% beyond the coverage
-                        // rectangle: fitting the camera EXACTLY to the bounds
-                        // put the highlight flush against the viewport (stroke
-                        // clipped at the edges) — the #1 reason this preview
-                        // read as "just a map" instead of "map + my area".
-                        focusBounds = padForVisibility(
-                            focusedBounds ?: boundsWithCoverage.reduce { a, b ->
-                                org.maplibre.android.geometry.LatLngBounds.Builder()
-                                    .include(a.northEast).include(a.southWest)
-                                    .include(b.northEast).include(b.southWest)
-                                    .build()
-                            }
-                        )
-                    )
-                }
-                HorizontalDivider()
-            }
-
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -189,34 +147,6 @@ fun OfflineMapsScreen(
 private fun formatSize(bytes: Long): String {
     val mb = bytes / (1024.0 * 1024.0)
     return if (mb >= 1024) "%.2f GB".format(mb / 1024.0) else "%.1f MB".format(mb)
-}
-
-/** Expand bounds by [fraction] on every side so the top coverage map's
- *  camera (newLatLngBounds fits EXACTLY) leaves breathing room around the
- *  highlight rectangle instead of clipping its stroke at the viewport edge —
- *  the #1 reason the preview read as "just a map, where's my area?". */
-private fun padForVisibility(
-    bounds: org.maplibre.android.geometry.LatLngBounds,
-    fraction: Double = 0.18
-): org.maplibre.android.geometry.LatLngBounds {
-    val latSpan = bounds.northEast.latitude - bounds.southWest.latitude
-    val lonSpan = bounds.northEast.longitude - bounds.southWest.longitude
-    val latPad = (latSpan * fraction).coerceAtLeast(0.0015)
-    val lonPad = (lonSpan * fraction).coerceAtLeast(0.0015)
-    return org.maplibre.android.geometry.LatLngBounds.Builder()
-        .include(
-            org.maplibre.android.geometry.LatLng(
-                bounds.northEast.latitude + latPad,
-                bounds.northEast.longitude + lonPad
-            )
-        )
-        .include(
-            org.maplibre.android.geometry.LatLng(
-                bounds.southWest.latitude - latPad,
-                bounds.southWest.longitude - lonPad
-            )
-        )
-        .build()
 }
 
 /**

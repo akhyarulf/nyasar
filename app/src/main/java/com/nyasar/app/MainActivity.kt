@@ -1157,27 +1157,13 @@ private fun NyasarNavHost(
             OfflineMapsScreen(
                 onBack = { navController.popBackStack() },
                 onDownloadArea = { navController.navigate("offline-download-area") },
-                // PART 4 fix: previously defaulted to
-                // `{ viewModel.focus(it) }` inside OfflineMapsScreen itself
-                // (a real, working action — just scoped to that screen's own
-                // coverage preview map, not Home). This override replaces
-                // that with the actual "navigate back to Home, focused on
-                // this area" behavior the button's label promises.
+                // Keep the source screen in the back stack: after opening the
+                // downloaded area on Home, Back returns to the Library (or
+                // Settings when that was the entry point).
                 onOpenInMap = { region ->
-                    // popUpTo("home") (non-inclusive, the default) pops
-                    // everything above Home — settings/offline-maps/etc —
-                    // WITHOUT popping Home itself, so its existing
-                    // NavBackStackEntry (and HomeViewModel) survives.
-                    // launchSingleTop then reuses that same entry instead of
-                    // pushing a duplicate — same "don't stack duplicate
-                    // Home entries" outcome the bottom bar's own navigation
-                    // already guarantees elsewhere, just without that
-                    // handler's saveState/restoreState (which would
-                    // conflict with wanting the *new* focus value applied
-                    // now, not a restored old one).
                     region.bounds?.let { pendingHomeFocusBounds = it }
                     navController.navigate("home") {
-                        popUpTo("home")
+                        popUpTo("offline-maps") { inclusive = true }
                         launchSingleTop = true
                     }
                 }

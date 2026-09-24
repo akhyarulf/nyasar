@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Map
@@ -45,6 +46,9 @@ fun TrackAndMapsScreen(
     val state by viewModel.uiState.collectAsState()
     val importError by viewModel.importError.collectAsState()
     var searchExpanded by remember { mutableStateOf(false) }
+    // Deletion is confirm-first (same pattern as Home's route list): the
+    // trash icon only stages the row here, the dialog below performs it.
+    var pendingDelete by remember { mutableStateOf<TrackRowUi?>(null) }
 
     val pickGpx = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -166,15 +170,37 @@ fun TrackAndMapsScreen(
                         com.nyasar.app.ui.components.AnimatedAppear(
                             delayMs = com.nyasar.app.ui.components.Stagger.forIndex(state.filteredTracks.indexOfFirst { it.route.id == row.route.id })
                         ) {
-                            TrackRow(row, onClick = {
-                                onOpenRoute(row.route.id)
-                            })
+                            TrackRow(
+                                row,
+                                onClick = { onOpenRoute(row.route.id) },
+                                onDeleteClick = { pendingDelete = row }
+                            )
                             HorizontalDivider()
                         }
                     }
                 }
             }
         }
+    }
+
+    // Delete confirmation — mirrors HomeScreen's route-delete dialog and
+    // reuses its existing bilingual strings (delete_route / _message / delete
+    // / cancel), so Library and Home word deletion identically.
+    pendingDelete?.let { row ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(R.string.delete_route)) },
+            text = { Text(stringResource(R.string.delete_route_message, row.route.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteRoute(row.route)
+                    pendingDelete = null
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
     }
 }
 
@@ -236,7 +262,7 @@ private fun OfflineSummaryBanner(count: Int, previewNames: List<String>, onClick
 }
 
 @Composable
-private fun TrackRow(row: TrackRowUi, onClick: () -> Unit) {
+private fun TrackRow(row: TrackRowUi, onClick: () -> Unit, onDeleteClick: () -> Unit) {
     val rowInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val km = row.route.distanceMeters / 1000.0
     val statusText = when (row.hasOfflineCoverage) {
@@ -276,12 +302,24 @@ private fun TrackRow(row: TrackRowUi, onClick: () -> Unit) {
             }
         },
         trailingContent = {
-            Icon(
-                if (row.hasOfflineCoverage == true) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                contentDescription = null,
-                tint = if (row.hasOfflineCoverage == true) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (row.hasOfflineCoverage == true) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                    contentDescription = null,
+                    tint = if (row.hasOfflineCoverage == true) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outline
+                )
+                // Same affordance as Home's route list (spec §15: Delete is a
+                // required Route Library action) — tap opens the confirm
+                // dialog, never deletes directly.
+                IconButton(onClick = onDeleteClick) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete_route_cd),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
         },
         modifier = Modifier
             .fillMaxWidth()

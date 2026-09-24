@@ -282,6 +282,14 @@ class RouteRepository(private val context: Context) {
         } catch (_: Exception) {
             // never block route deletion on waypoint cleanup
         }
+        // Publish-queue hygiene: a queued offline publish for a route that
+        // no longer exists would make the flush worker retry forever against
+        // a GPX file that was just deleted from disk.
+        try {
+            AppDatabase.get(context).pendingPublishDao().removeForSource(route.id)
+        } catch (_: Exception) {
+            // never block route deletion on queue cleanup
+        }
         File(route.localGpxFilePath).delete()
         dao.delete(route)
     }

@@ -134,6 +134,18 @@ class TrackAndMapsViewModel(private val app: Application) : AndroidViewModel(app
         _importError.value = null
     }
 
+    /** Library delete (2026-09-24): the track list was read-only —
+     *  RouteRepository.delete() existed and Home wired it to a trash icon,
+     *  but Library rows had no removal path at all. Same repository call as
+     *  Home's (waypoint cleanup, GPX file, row, publish queue), then reload
+     *  so the list reflects the deletion instantly. */
+    fun deleteRoute(route: RouteEntity) {
+        viewModelScope.launch {
+            routeRepository.delete(route)
+            load()
+        }
+    }
+
     /** Publish badge for one library route — queued-offline wins (it will
      *  self-flush), then the cloud probe, else "not published". All probes
      *  are best-effort: offline/unauthenticated degrade to NONE without

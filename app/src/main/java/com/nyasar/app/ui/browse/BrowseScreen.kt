@@ -50,6 +50,7 @@ import com.nyasar.app.data.supabase.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.auth
 import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.DifficultyChip
+import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.StaticMapPreview
 import com.nyasar.app.ui.components.TrailTypeChip
 import com.nyasar.app.ui.components.pressScale
@@ -208,16 +209,12 @@ fun BrowseScreen(
                 }
                 is BrowseViewModel.BrowseState.Loaded -> {
                     if (s.routes.isEmpty()) {
-                        Text(
-                            stringResource(
+                        EmptyState(
+                            icon = Icons.Default.Explore,
+                            title = stringResource(
                                 if (s.fromSearch) R.string.browse_empty_search else R.string.browse_empty_all
                             ),
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .wrapContentSize(Alignment.Center)
-                                .padding(24.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     } else {
                         LazyColumn(

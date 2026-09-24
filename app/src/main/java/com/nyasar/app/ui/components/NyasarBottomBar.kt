@@ -1,6 +1,10 @@
 package com.nyasar.app.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.FiberManualRecord
@@ -15,6 +19,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -125,12 +130,17 @@ fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modi
                     currentRoute?.startsWith("profile?tab=") == true
                 else -> currentRoute == tab.matchRoute
             }
-            // Animated selection: icon scales up gently when its tab is
-            // selected (the M3 indicator pill animates itself; this adds
-            // the same feel to the icon). Shared press spring keeps it
-            // consistent with every other animated element.
+            // Animated selection: regular tabs scale gently, while Record
+            // gets a slightly stronger, floating treatment because it is the
+            // app's primary action rather than just another destination.
+            val isRecord = tab.route == "recording?autoStart=false"
             val iconScale by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = if (isSelected) 1.12f else 1f,
+                targetValue = when {
+                    isRecord && isSelected -> 1.05f
+                    isRecord -> 0.98f
+                    isSelected -> 1.12f
+                    else -> 1f
+                },
                 animationSpec = NyasarMotion.press(),
                 label = "tabIconScale"
             )
@@ -138,16 +148,39 @@ fun NyasarBottomBar(currentRoute: String?, onTabSelected: (String) -> Unit, modi
                 selected = isSelected,
                 onClick = { if (!isSelected) onTabSelected(tab.route) },
                 icon = {
-                    Icon(
-                        tab.icon,
-                        contentDescription = stringResource(tab.labelRes),
+                    Box(
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(if (isRecord) 44.dp else 24.dp)
                             .graphicsLayer {
                                 scaleX = iconScale
                                 scaleY = iconScale
-                            }
-                    )
+                                translationY = if (isRecord && isSelected) -3f else 0f
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isRecord) {
+                            Icon(
+                                tab.icon,
+                                contentDescription = stringResource(tab.labelRes),
+                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                       else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.primaryContainer,
+                                        shape = CircleShape
+                                    )
+                                    .padding(11.dp)
+                            )
+                        } else {
+                            Icon(
+                                tab.icon,
+                                contentDescription = stringResource(tab.labelRes),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                 },
                 label = { Text(stringResource(tab.labelRes), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) },
                 colors = NavigationBarItemDefaults.colors(

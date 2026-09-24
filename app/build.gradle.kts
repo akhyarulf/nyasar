@@ -210,6 +210,13 @@ dependencies {
     // Storage (Fase 2 Publish): gzip'ed full-fidelity GPX goes to the
     // public route-gpx bucket — same BOM-locked line as the rest of the SDK.
     implementation("io.github.jan-tennert.supabase:storage-kt")
+    // Realtime (auto-refresh 2026-09): websocket push on routes/likes/saves
+    // changes — the Browse/Saved/Detail lists update WITHOUT pull-to-refresh
+    // or an app restart. BOM-locked, same 2.2.2 line.
+    implementation("io.github.jan-tennert.supabase:realtime-kt")
+    // Foreground-refresh hook: ON_START/ON_STOP events for the
+    // "app came back from background → silent re-sync" trigger.
+    implementation("androidx.lifecycle:lifecycle-process:2.8.4")
     implementation("io.ktor:ktor-client-android:2.3.9")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 

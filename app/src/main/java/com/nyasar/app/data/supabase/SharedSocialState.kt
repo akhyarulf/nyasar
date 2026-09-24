@@ -56,16 +56,36 @@ object SharedSocialState {
      * Re-sync from Supabase (sign-in, sign-out, or a screen resuming with
      * unknown state). Never throws: failures keep the current mirror —
      * identical degradation to the per-VM fetches this replaces.
+     *
+     * Stale-fetch guard: the session is snapshotted BEFORE the fetches and
+     * re-checked AFTER — without it a slow fetch from account A could land
+     * after the user signed out/switched to account B (MainActivity's
+     * SignedOut hook has already cleared the mirror) and resurrect A's
+     * likes/bookmarks under B's session. Every concurrent reload writes
+     * through this single generation counter, so only the fetch that ran
+     * for the session that is STILL current at completion time commits.
      */
     suspend fun reload(client: SupabaseClient) {
+        val generation = ++reloadGeneration
         val social = SocialRepository()
-        _likedIds.value = social.fetchLikedRouteIds(client)
-        _savedIds.value = social.fetchSavedRouteIds(client)
+        val liked = social.fetchLikedRouteIds(client)
+        val saved = social.fetchSavedRouteIds(client)
+        if (generation != reloadGeneration) return
+        _likedIds.value = liked
+        _savedIds.value = saved
     }
 
+    /** Bumped on every reload() entry AND by [clear] — see the stale-fetch
+     *  guard on [reload]. Not atomic across threads, but all callers run
+     *  on the main thread's coroutine context, so increments never race. */
+    private var reloadGeneration: Int = 0
+
     /** Sign-out hygiene: bookmarks/likes of a previous account must not
-     *  leak into the next session's icon states. */
+     *  leak into the next session's icon states. Also invalidates any
+     *  in-flight reload for the ended session (generation bump) so its
+     *  result can never commit over the cleared mirror. */
     fun clear() {
+        reloadGeneration++
         _savedIds.value = emptySet()
         _likedIds.value = emptySet()
     }

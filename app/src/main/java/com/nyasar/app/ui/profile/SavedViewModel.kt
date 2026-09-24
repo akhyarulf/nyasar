@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.CloudSyncSignals
 import com.nyasar.app.data.supabase.SharedSocialState
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import com.nyasar.app.data.supabase.SocialRepository
@@ -29,10 +30,6 @@ class SavedViewModel : ViewModel() {
     private val repository = BrowseRepository()
     private val socialRepository = SocialRepository()
 
-    init {
-        refresh()
-    }
-
     data class SavedUiError(val messageRes: Int)
 
     sealed class SavedState {
@@ -50,6 +47,16 @@ class SavedViewModel : ViewModel() {
 
     init {
         refresh()
+        // AUTO-REFRESH (realtime requirement): a save from another device,
+        // an unsave done on Browse (row deleted server-side), a like-count
+        // change by another user, or the app returning from background —
+        // all silently re-sync this list. refresh() is already non-blanking
+        // (keeps the loaded list on failure) and in-flight-guarded.
+        if (SupabaseClientProvider.isConfigured) {
+            viewModelScope.launch {
+                CloudSyncSignals.events.collect { _ -> refresh() }
+            }
+        }
     }
 
     /** In-flight guard: pane entry + VM init may both call refresh(). */

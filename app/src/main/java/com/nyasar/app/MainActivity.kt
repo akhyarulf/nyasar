@@ -134,6 +134,21 @@ class MainActivity : AppCompatActivity() {
         // even if the app never left the foreground.
         com.nyasar.app.backup.NetworkSyncTrigger.register(this)
 
+        // AUTO-REFRESH foreground hook (realtime requirement): every time
+        // the app comes back from background, emit a Foreground signal —
+        // all cloud-backed screens (Browse/Saved/Route Detail) silently
+        // re-sync. Covers Realtime websocket drops while backgrounded: even
+        // if server push missed events during absence, the return-to-fore
+        // refresh reconciles everything (full fallback without any user
+        // action). ProcessLifecycleOwner needs lifecycle-process (gradle).
+        androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(
+            object : androidx.lifecycle.DefaultLifecycleObserver {
+                override fun onStart(owner: androidx.lifecycle.LifecycleOwner) {
+                    com.nyasar.app.data.supabase.CloudSyncSignals.notifyForeground()
+                }
+            }
+        )
+
         // Update in-app untuk distribusi sideload (GitHub Releases):
         // sekali per proses, fire-and-forget, hasilnya di-display via
         // dialog di NyasarNavHost. Semua kegagalan (belum ada rilis =
@@ -529,6 +544,26 @@ private fun NyasarNavHost(
                         launchSingleTop = true
                     }
                 }
+                // Realtime social mirror (realtime requirement 2026):
+                // (re)sync likes/bookmarks on EVERY transition into
+                // SignedIn — covers login mid-process (user opened Browse
+                // signed-out, logged in from Profile, came back: the old
+                // BrowseViewModel kept its mirror stale-empty until an app
+                // restart), restored sessions at cold start, and account
+                // switches. The server stays the single source of truth;
+                // this only refreshes the in-process cache.
+                // launched, not awaited: reload() is two HTTP round-trips —
+                // awaiting it here would serialize BackupManager below
+                // behind the network (login sync starting seconds late on a
+                // slow connection). A stale-fetch race (sign-out mid-fetch)
+                // is guarded inside SharedSocialState.reload itself.
+                if (com.nyasar.app.data.supabase.SupabaseClientProvider.isConfigured) {
+                    launch {
+                        com.nyasar.app.data.supabase.SharedSocialState.reload(
+                            com.nyasar.app.data.supabase.SupabaseClientProvider.client
+                        )
+                    }
+                }
                 // Konsep backup tanpa tombol (PROJECT_CONTEXT): restore =
                 // efek samping login, backup = efek samping punya data.
                 // SignedIn juga tercapai saat session ter-restore di app
@@ -539,6 +574,16 @@ private fun NyasarNavHost(
                     activityContext,
                     userId = s.userId
                 )
+            }
+            is com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedOut -> {
+                // Realtime contract, sign-out side: wipe the previous
+                // account's likes/bookmarks the moment the session ends.
+                // This is the ONLY hook that covers the deleteAccount()
+                // path (it signs out inside AuthRepository, not via
+                // AuthViewModel.signOut's explicit clear) — without it the
+                // dead account's mirror could leak into the next session
+                // on this same process.
+                com.nyasar.app.data.supabase.SharedSocialState.clear()
             }
             else -> Unit
         }

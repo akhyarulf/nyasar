@@ -9,6 +9,7 @@ import com.nyasar.app.R
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.CloudSyncSignals
 import com.nyasar.app.data.supabase.SharedSocialState
 import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
@@ -214,6 +215,38 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
         _liked.value = routeId in SharedSocialState.likedIds.value
         _saved.value = routeId in SharedSocialState.savedIds.value
         if (!SupabaseClientProvider.isConfigured) return
+        // AUTO-REFRESH (realtime requirement): a like/unlike by ANOTHER user
+        // (likes_count arrives via the routes UPDATE event), a new comment
+        // from someone else, or the app returning from background — each
+        // silently re-reads this route's counters + comment thread. collect
+        // is idempotent-guarded: loadSocial can be called repeatedly
+        // (screen re-entry) without stacking duplicate collectors because
+        // each call launches on this VM's scope and the VM dies with the
+        // screen — but re-entry on the SAME VM (back navigation) would
+        // stack, so guard with a flag.
+        if (!socialCollectorActive) {
+            socialCollectorActive = true
+            CloudSyncSignals.start(SupabaseClientProvider.client)
+            viewModelScope.launch {
+                CloudSyncSignals.events.collect { _ ->
+                    if (_state.value is State.Ready) {
+                        // refresh() = route row (likes_count/comments_count)
+                        // + liked/saved mirror; loadSocialInner = comment
+                        // thread. Together they re-render the whole screen.
+                        refresh(routeId)
+                        loadSocialInner(routeId)
+                    }
+                }
+            }
+        }
+        loadSocialInner(routeId)
+    }
+
+    /** True once the signal collector is launched for this VM's lifetime. */
+    private var socialCollectorActive = false
+
+    /** The original fetch-only body of loadSocial (likes/bookmarks + comments). */
+    private fun loadSocialInner(routeId: String) {
         viewModelScope.launch {
             val client = SupabaseClientProvider.client
             SharedSocialState.reload(client)

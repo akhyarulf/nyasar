@@ -6,6 +6,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
 
 /**
@@ -47,6 +48,12 @@ object SupabaseClientProvider {
                 // Fase 2 (Publish): uploads the gzip'ed full GPX file to the
                 // public route-gpx bucket (see supabase/migrations/0003).
                 install(Storage)
+                // Auto-refresh (2026-09): websocket push so cloud-backed
+                // screens (Browse/Saved/Route Detail) re-sync the moment the
+                // underlying data changes — no pull-to-refresh, no restart.
+                // Buffered events (see CloudSyncSignals) keep the app live
+                // while the websocket is down.
+                install(Realtime)
             }.also { instance = it }
         }
 

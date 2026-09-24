@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.CloudSyncSignals
 import com.nyasar.app.data.supabase.SharedSocialState
 import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
@@ -96,6 +97,22 @@ class BrowseViewModel : ViewModel() {
         viewModelScope.launch {
             if (SupabaseClientProvider.isConfigured && SharedSocialState.savedIds.value.isEmpty()) {
                 SharedSocialState.reload(SupabaseClientProvider.client)
+            }
+        }
+        // AUTO-REFRESH (realtime requirement): silent re-browse on any
+        // server change (another user published/liked/saved) or when the
+        // app returns from background. Uses the same non-blanking refresh
+        // path as pull-to-refresh — the list never flashes. Also lights up
+        // the shared Realtime channel (idempotent, process-wide).
+        if (SupabaseClientProvider.isConfigured) {
+            CloudSyncSignals.start(SupabaseClientProvider.client)
+            viewModelScope.launch {
+                CloudSyncSignals.events.collect { event ->
+                    when (event) {
+                        CloudSyncSignals.CloudEvent.Data -> refresh()
+                        CloudSyncSignals.CloudEvent.Foreground -> refresh()
+                    }
+                }
             }
         }
     }

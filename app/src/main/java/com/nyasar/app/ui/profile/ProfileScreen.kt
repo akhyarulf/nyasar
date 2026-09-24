@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -256,6 +257,7 @@ private fun ProfileHeaderCard(
                 text = when {
                     accountLoading -> stringResource(R.string.account_checking_session)
                     signedIn != null -> signedIn.username
+                        ?: stringResource(R.string.account_no_username)
                     else -> stringResource(R.string.profile_sign_in_title)
                 },
                 style = MaterialTheme.typography.titleMedium,

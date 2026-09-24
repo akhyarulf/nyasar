@@ -607,6 +607,7 @@
 
     <!-- Login Google -->
     <string name="auth_google_cta">Continue with Google</string>
+    <string name="auth_signing_in">Loading account…</string>
 
     <!-- Account management: change password / change email / delete account -->
     <string name="account_manage_title">Manage account</string>

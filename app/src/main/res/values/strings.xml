@@ -607,6 +607,7 @@
 
     <!-- Login Google -->
     <string name="auth_google_cta">Lanjut dengan Google</string>
+    <string name="auth_signing_in">Memuat akun…</string>
 
     <!-- Kelola akun: ganti password / ganti email / hapus akun -->
     <string name="account_manage_title">Kelola akun</string>

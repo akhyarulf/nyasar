@@ -102,10 +102,20 @@ fun AccountScreen(
                     authViewModel = authViewModel,
                     onBack = onBack
                 )
-                is AuthViewModel.SessionState.Restoring -> Box(
+                is AuthViewModel.SessionState.Restoring,
+                is AuthViewModel.SessionState.LoadingAccount -> Box(
                     Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
-                ) { CircularProgressIndicator() }
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            stringResource(R.string.account_checking_session),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 // SignedOut (incl. right after logout/delete) + Unconfigured
                 // both land here — one invite card, same as old Settings row.
                 else -> SignInInvite(onOpenSignIn = onOpenSignIn)

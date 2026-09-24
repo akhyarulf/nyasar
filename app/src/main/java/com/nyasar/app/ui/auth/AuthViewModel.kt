@@ -59,6 +59,13 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         /** Restoring a persisted session on app start. */
         data object Restoring : SessionState()
 
+        /** The session is authenticated, but the profile lookup that
+         * supplies username/email/member-since is still in flight. */
+        data class LoadingAccount(
+            val userId: String,
+            val email: String? = null
+        ) : SessionState()
+
         data object SignedOut : SessionState()
 
         /** profiles.username_is_set = false — a real username must be
@@ -176,6 +183,13 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             _sessionState.value = SessionState.SignedOut
             return
         }
+        // The Auth token is ready before the profile row is known. Publish a
+        // loading state while that request runs so screens do not look signed
+        // out between Google sign-in and the account data becoming available.
+        _sessionState.value = SessionState.LoadingAccount(
+            userId = userId,
+            email = session.user?.email
+        )
         // The gate is DATABASE state, not the session source: on email-
         // confirmation projects the first real session is an ordinary sign-IN,
         // so the source can not distinguish a fresh user from a settled one.
@@ -190,6 +204,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             }
             _sessionState.value = SessionState.NeedsUsername(userId)
             _usernameForm.value = UsernameFormState()
+            _loginForm.value = FormState()
             return
         }
         _sessionState.value = SessionState.SignedIn(
@@ -198,6 +213,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             username = status.username,
             memberSince = status.createdAt
         )
+        _loginForm.value = FormState()
     }
 
     // --- login ---
@@ -208,8 +224,9 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             when (val r = repo.signIn(email.trim(), password)) {
                 is AuthRepository.Outcome.Success -> {
-                    // sessionStatus collector flips state to SignedIn.
-                    _loginForm.value = FormState()
+                    // Keep the form busy until sessionStatus authenticates and
+                    // applyAuthenticated finishes the profile lookup. Clearing
+                    // it here creates a silent gap before the account UI opens.
                 }
                 is AuthRepository.Outcome.Failure -> {
                     _loginForm.value = FormState(busy = false, errorRes = r.error.messageRes())
@@ -414,9 +431,10 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             when (val r = repo.signInWithGoogle(idToken)) {
                 is AuthRepository.Outcome.Success -> {
-                    // sessionStatus collector flips state to SignedIn /
-                    // NeedsUsername (fresh Google user → username gate).
-                    _loginForm.value = FormState()
+                    // Keep the form busy until sessionStatus authenticates and
+                    // the profile lookup is complete. The login screen can
+                    // then show one continuous loading state instead of briefly
+                    // looking idle before the account/email data appears.
                 }
                 is AuthRepository.Outcome.Failure -> {
                     _loginForm.value = FormState(busy = false, errorRes = r.error.messageRes())

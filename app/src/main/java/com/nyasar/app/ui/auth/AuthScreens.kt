@@ -185,13 +185,23 @@ fun LoginScreen(
                 enabled = !form.busy,
                 modifier = Modifier.fillMaxWidth().height(52.dp)
             ) {
-                Icon(
-                    Icons.Default.Login,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.auth_google_cta))
+                if (form.busy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.auth_signing_in))
+                } else {
+                    Icon(
+                        Icons.Default.Login,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.auth_google_cta))
+                }
             }
         }
     }

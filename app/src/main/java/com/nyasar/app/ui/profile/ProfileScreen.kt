@@ -135,7 +135,8 @@ fun ProfileScreen(
                 )
             }
         }
-    } else {        // Nested-destination hosting (profile?tab=…): own Scaffold + back
+    } else {
+        // Nested-destination hosting (profile?tab=…): own Scaffold + back
         // arrow, so it reads like settings/preview/etc.
         Scaffold(
             topBar = {
@@ -160,7 +161,9 @@ fun ProfileScreen(
                         IconButton(onClick = onOpenSettings) {
                             Icon(
                                 Icons.Default.Settings,
-                                contentDescription = stringResource(R.string.settings)
+                                contentDescription = stringResource(
+                                    R.string.settings
+                                )
                             )
                         }
                     }
@@ -206,10 +209,15 @@ private fun ProfileHeaderCard(
     val session by authViewModel.sessionState.collectAsState()
 
     val signedIn = session as? com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn
+    val accountLoading = session is com.nyasar.app.ui.auth.AuthViewModel.SessionState.LoadingAccount ||
+        session is com.nyasar.app.ui.auth.AuthViewModel.SessionState.Restoring
+    val isInteractive = !accountLoading
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = if (signedIn != null) onOpenProfile else onOpenSignIn)
+            .clickable(enabled = isInteractive) {
+                if (signedIn != null) onOpenProfile() else onOpenSignIn()
+            }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -220,7 +228,13 @@ private fun ProfileHeaderCard(
                 .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
-            if (signedIn != null) {
+            if (accountLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            } else if (signedIn != null) {
                 Text(
                     text = signedIn.username?.trim()?.take(1)?.uppercase()
                         ?: stringResource(R.string.account_no_username).take(1),
@@ -239,23 +253,32 @@ private fun ProfileHeaderCard(
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = signedIn?.username
-                    ?: stringResource(R.string.profile_sign_in_title),
+                text = when {
+                    accountLoading -> stringResource(R.string.account_checking_session)
+                    signedIn != null -> signedIn.username
+                    else -> stringResource(R.string.profile_sign_in_title)
+                },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = signedIn?.email?.takeIf { it.isNotBlank() }
-                    ?: stringResource(R.string.profile_sign_in_subtitle),
+                text = when {
+                    accountLoading -> stringResource(R.string.loading)
+                    signedIn != null -> signedIn.email?.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.account_checking_session)
+                    else -> stringResource(R.string.profile_sign_in_subtitle)
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Icon(
-            Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (!accountLoading) {
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -277,19 +300,20 @@ private fun ProfileHistoryPane(
 }
 
 /** Saved sub-tab content — the bookmark list (saved_routes), rendered with
- *  the browse card component; opening a card lands on the public route
- *  detail, the same destination Browse uses. */
+ * the browse card component; opening a card lands on the public route
+ * detail, the same destination Browse uses. */
 @Composable
 private fun ProfileSavedPane(
     onOpenRoute: (String) -> Unit,
     onRequireSignIn: () -> Unit
 ) {
-    Box(Modifier.fillMaxSize()) {
-        SavedEmbedded(
-            onOpenRoute = onOpenRoute,
-            onRequireSignIn = onRequireSignIn
-        )
-    }
+    com.nyasar.app.ui.profile.SavedEmbedded(
+        onOpenRoute = onOpenRoute,
+        onRequireSignIn = onRequireSignIn
+    )
 }
 
-enum class ProfileTab { HISTORY, SAVED }
+enum class ProfileTab {
+    HISTORY,
+    SAVED
+}

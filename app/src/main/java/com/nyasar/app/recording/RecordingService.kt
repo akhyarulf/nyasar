@@ -159,6 +159,7 @@ class RecordingService : Service() {
     // lastAcceptedFix would go stale and this watchdog would keep reporting
     // the old (better) accuracy instead of the truth.
     private var lastRawAccuracyMeters: Float? = null
+    private var lastLocationProvider: LocationProvider? = null
     private var gpsWatchdogJob: Job? = null
     /** Wall-clock ticker that re-publishes state every second so the
      *  elapsed-time display counts up smoothly, independent of GPS fix
@@ -735,6 +736,12 @@ class RecordingService : Service() {
             locationRepository.observeLocation().collect { fix ->
                 lastFixReceivedAtMs = System.currentTimeMillis()
                 lastRawAccuracyMeters = fix.accuracyMeters
+                lastLocationProvider = when (locationRepository.getProviderLabel()) {
+                    "GPS" -> LocationProvider.GPS
+                    "NETWORK" -> LocationProvider.NETWORK
+                    "GPS + NETWORK" -> LocationProvider.FUSED
+                    else -> LocationProvider.FUSED
+                }
                 fixListeners.forEach { it(fix) }
 
                 evaluateAutoPause(fix)
@@ -924,6 +931,8 @@ class RecordingService : Service() {
             recordedTrack = if (isStopped) emptyList() else recordedPoints.toList(),
             isAutoPaused = if (isStopped) false else isAutoPaused,
             gpsHealth = if (isStopped) GpsHealth.OK else _state.value.gpsHealth,
+            gpsAccuracyMeters = if (isStopped) null else lastRawAccuracyMeters,
+            gpsProvider = if (isStopped) null else lastLocationProvider,
             storageError = _state.value.storageError,
             showNotMovingPrompt = false
         )
@@ -1022,6 +1031,10 @@ data class RecordingUiState(
      *  Derived from real fix accuracy/freshness in [RecordingService] —
      *  never synthesized. */
     val gpsHealth: GpsHealth = GpsHealth.OK,
+    /** Latest raw accuracy and provider, informational only; health remains
+     *  derived by the watchdog so this cannot turn a fresh fix into a false OK. */
+    val gpsAccuracyMeters: Float? = null,
+    val gpsProvider: LocationProvider? = null,
     /** P3I §20/26: true when the most recent Room write (a GPS point, or
      *  the activity summary on pause/resume/stop) failed — storage full or
      *  a disk I/O error. Recording keeps running in-memory either way
@@ -1036,3 +1049,5 @@ data class RecordingUiState(
 )
 
 enum class GpsHealth { OK, WEAK, LOST }
+
+enum class LocationProvider { GPS, NETWORK, FUSED }

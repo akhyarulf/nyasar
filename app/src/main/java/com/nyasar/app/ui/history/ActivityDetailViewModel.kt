@@ -23,6 +23,35 @@ import kotlinx.coroutines.launch
 
 enum class DetailLoadState { LOADING, LOADED, ERROR, NOT_FOUND }
 
+data class GpsQualityMetrics(
+    val pointCount: Int = 0,
+    val averageAccuracyMeters: Float? = null,
+    val bestAccuracyMeters: Float? = null,
+    val worstAccuracyMeters: Float? = null,
+    val weakPointCount: Int = 0,
+    val poorPointCount: Int = 0,
+    val largestGapMs: Long = 0L
+) {
+    val weakPercent: Int get() = if (pointCount == 0) 0 else (weakPointCount * 100) / pointCount
+    val poorPercent: Int get() = if (pointCount == 0) 0 else (poorPointCount * 100) / pointCount
+}
+
+fun calculateGpsQuality(points: List<ActivityPointEntity>): GpsQualityMetrics {
+    if (points.isEmpty()) return GpsQualityMetrics()
+    val accuracies = points.map { it.accuracyMeters }
+    return GpsQualityMetrics(
+        pointCount = points.size,
+        averageAccuracyMeters = accuracies.average().toFloat(),
+        bestAccuracyMeters = accuracies.minOrNull(),
+        worstAccuracyMeters = accuracies.maxOrNull(),
+        weakPointCount = points.count { it.accuracyMeters > 30f },
+        poorPointCount = points.count { it.accuracyMeters > 100f },
+        largestGapMs = points.zipWithNext().maxOfOrNull { (a, b) ->
+            (b.timestampMs - a.timestampMs).coerceAtLeast(0L)
+        } ?: 0L
+    )
+}
+
 data class ActivityDetailUiState(
     val loadState: DetailLoadState = DetailLoadState.LOADING,
     val activity: ActivityEntity? = null,
@@ -48,6 +77,7 @@ data class ActivityDetailUiState(
     // schema change or extra query is needed.
     val highestElevationM: Double? = null,
     val lowestElevationM: Double? = null,
+    val gpsQuality: GpsQualityMetrics = GpsQualityMetrics(),
     val provider: TileProvider = TileProviderFactory.default(),
     /** Kept alongside actualTrack (which is TrackPoint, lossy) so Export/Share
      *  can write a real GPX without re-querying Room from the UI layer. */
@@ -158,6 +188,7 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
                     elevationProfile = track,
                     highestElevationM = elevationSummary?.highestM,
                     lowestElevationM = elevationSummary?.lowestM,
+                    gpsQuality = calculateGpsQuality(points),
                     provider = TileProviderFactory.byId(settings.providerId),
                     rawPoints = points,
                     waypointsDuringActivity = waypointsDuring

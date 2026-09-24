@@ -14,6 +14,12 @@ interface WaypointDao {
     @Query("SELECT * FROM waypoints ORDER BY createdAtEpochMs DESC")
     fun observeAll(): Flow<List<WaypointEntity>>
 
+    @Query("SELECT * FROM waypoints ORDER BY createdAtEpochMs ASC")
+    suspend fun getAllOnce(): List<WaypointEntity>
+
+    @Query("DELETE FROM waypoints")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM waypoints WHERE id = :id")
     suspend fun getById(id: String): WaypointEntity?
 

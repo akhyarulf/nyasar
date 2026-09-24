@@ -63,6 +63,17 @@ interface ActivityDao {
     @Query("SELECT COUNT(*) FROM activity_points WHERE activityId = :activityId")
     suspend fun getPointCount(activityId: String): Int
 
+    /** Completed and draft summaries, used only by the storage manager. */
+    @Query("SELECT * FROM activities WHERE status IN ('completed', 'draft') ORDER BY startedAtEpochMs ASC")
+    suspend fun getStoredOnce(): List<ActivityEntity>
+
+    /** Deletes point rows for every finished activity before their summaries. */
+    @Query("DELETE FROM activity_points WHERE activityId IN (SELECT id FROM activities WHERE status IN ('completed', 'draft'))")
+    suspend fun deletePointsForStoredActivities()
+
+    @Query("DELETE FROM activities WHERE status IN ('completed', 'draft')")
+    suspend fun deleteStoredActivities()
+
     /** Lat/lon only, not the full row — used for the History-list thumbnail
      *  where hundreds/thousands of rows per activity would otherwise be
      *  pulled into memory just to draw a small preview line. Kept as a

@@ -21,6 +21,9 @@ interface RouteDao {
     @Query("SELECT * FROM routes ORDER BY importedAtEpochMs ASC")
     suspend fun getAllOnce(): List<RouteEntity>
 
+    @Query("DELETE FROM routes")
+    suspend fun deleteAll()
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(route: RouteEntity)
 

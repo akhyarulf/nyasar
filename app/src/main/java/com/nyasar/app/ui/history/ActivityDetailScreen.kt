@@ -272,6 +272,7 @@ fun ActivityDetailScreen(
                         ActivityDetailContent(
                             activity = activity,
                             actualTrack = state.actualTrack,
+                            gpsQuality = state.gpsQuality,
                             plannedTrack = state.plannedTrack,
                             plannedDistanceMeters = state.plannedDistanceMeters,
                             elevationProfile = state.elevationProfile,
@@ -442,6 +443,7 @@ fun ActivityDetailScreen(
 private fun ActivityDetailContent(
     activity: ActivityEntity,
     actualTrack: List<TrackPoint>,
+    gpsQuality: GpsQualityMetrics,
     plannedTrack: List<TrackPoint>,
     plannedDistanceMeters: Double?,
     elevationProfile: List<TrackPoint>,
@@ -547,11 +549,37 @@ private fun ActivityDetailContent(
             InlineStatsGrid(buildList {
                 add(stringResource(R.string.stat_distance) to "%.2f km".format(activity.distanceMeters / 1000.0))
                 add(stringResource(R.string.stat_moving_time) to formatDuration(activity.movingTimeMs))
+                add(stringResource(R.string.pace) to formatPace(activity.distanceMeters, activity.movingTimeMs))
                 activity.elevationGainM?.let { add(stringResource(R.string.elevation_gain) to "+${it.roundToInt()} m") }
                 activity.avgSpeedKmh?.let { add(stringResource(R.string.stat_avg_speed) to com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1)) }
                 activity.maxSpeedKmh?.let { add(stringResource(R.string.stat_max_speed) to com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1)) }
                 activity.elevationLossM?.let { add(stringResource(R.string.stat_elev_loss) to "−${it.roundToInt()} m") }
             })
+
+            if (rawPoints.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text(stringResource(R.string.gps_quality_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(6.dp))
+                val quality = gpsQuality
+                InlineStatsGrid(
+                    listOf(
+                        stringResource(R.string.gps_quality_average) to "±${quality.averageAccuracyMeters?.roundToInt() ?: 0} m",
+                        stringResource(R.string.gps_quality_weak) to "${quality.weakPercent}%",
+                        stringResource(R.string.gps_quality_gap) to formatGap(quality.largestGapMs)
+                    ),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+                Text(
+                    stringResource(
+                        R.string.gps_quality_detail,
+                        quality.pointCount,
+                        quality.bestAccuracyMeters?.roundToInt() ?: 0,
+                        quality.worstAccuracyMeters?.roundToInt() ?: 0
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             if (plannedDistanceMeters != null) {
                 Spacer(Modifier.height(12.dp))
@@ -739,6 +767,17 @@ private fun ActivityWaypointRow(waypoint: com.nyasar.app.data.db.WaypointEntity,
     }
 }
 
+
+private fun formatPace(distanceMeters: Double, movingTimeMs: Long): String {
+    if (distanceMeters <= 0.0 || movingTimeMs <= 0L) return "-"
+    val secondsPerKm = movingTimeMs / 1000.0 / (distanceMeters / 1000.0)
+    return "%d:%02d /km".format((secondsPerKm / 60).toInt(), (secondsPerKm % 60).toInt())
+}
+
+private fun formatGap(millis: Long): String {
+    if (millis <= 0L) return "-"
+    return if (millis < 60_000L) "${millis / 1000}s" else "${millis / 60_000L}m"
+}
 
 private fun formatDuration(ms: Long): String {
     val totalSeconds = ms / 1000

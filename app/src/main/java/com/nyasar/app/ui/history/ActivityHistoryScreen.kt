@@ -292,8 +292,8 @@ private fun ActivityCard(
                     )
                     val metric = SportType.fromString(activity.sportType).primaryMetric
                     if (metric == ShareMetric.PACE) {
-                        val pace = if (activity.distanceMeters > 0) {
-                            val paceMinPerKm = (activity.elapsedTimeMs / 60000.0) / (activity.distanceMeters / 1000.0)
+                        val pace = if (activity.distanceMeters > 0 && activity.movingTimeMs > 0) {
+                            val paceMinPerKm = (activity.movingTimeMs / 60000.0) / (activity.distanceMeters / 1000.0)
                             val pm = paceMinPerKm.toInt()
                             val ps = ((paceMinPerKm - pm) * 60).toInt()
                             "%d:%02d /km".format(pm, ps)

@@ -855,7 +855,7 @@ fun RecordingScreen(
             tonalElevation = 3.dp,
             shadowElevation = 2.dp
         ) {
-            StatusChip(effectiveStatus, state.isAutoPaused, state.gpsHealth)
+            StatusChip(effectiveStatus, state.isAutoPaused, state.gpsHealth, state.gpsAccuracyMeters, state.gpsProvider)
         }
 
         // P3I §20/26: surfaced separately from GPS health — this is about
@@ -1579,12 +1579,22 @@ fun RecoveryDialog(
 }
 
 @Composable
-private fun StatusChip(status: RecordingStatus, isAutoPaused: Boolean = false, gpsHealth: com.nyasar.app.recording.GpsHealth = com.nyasar.app.recording.GpsHealth.OK) {
+private fun StatusChip(
+    status: RecordingStatus,
+    isAutoPaused: Boolean = false,
+    gpsHealth: com.nyasar.app.recording.GpsHealth = com.nyasar.app.recording.GpsHealth.OK,
+    gpsAccuracyMeters: Float? = null,
+    gpsProvider: com.nyasar.app.recording.LocationProvider? = null
+) {
     // GPS health takes priority when it's actually degraded — spec P3C:
     // "RECORDING STATUS harus jelas: ... GPS WEAK, GPS LOST", and a weak/
     // lost signal is the more urgent thing for the user to notice, since
     // it affects whether new points are even being recorded accurately.
-    val (color, label) = when {
+    val gpsDetail = listOfNotNull(
+        gpsAccuracyMeters?.let { "±${it.roundToInt()} m" },
+        gpsProvider?.name
+    ).joinToString(" · ")
+    val (color, baseLabel) = when {
         gpsHealth == com.nyasar.app.recording.GpsHealth.LOST -> MaterialTheme.colorScheme.error to "⚠ GPS HILANG"
         gpsHealth == com.nyasar.app.recording.GpsHealth.WEAK -> Color(0xFFF9A825) to "⚠ GPS LEMAH"
         // Part 5 cosmetic fix: "MEMULAI…" implied recording was already in
@@ -1599,6 +1609,7 @@ private fun StatusChip(status: RecordingStatus, isAutoPaused: Boolean = false, g
         status == RecordingStatus.PAUSED -> Color(0xFFF9A825) to "❚❚ DIJEDA"
         else -> MaterialTheme.colorScheme.outline to "SELESAI"
     }
+    val label = if (gpsDetail.isBlank() || status == RecordingStatus.IDLE) baseLabel else "$baseLabel · $gpsDetail"
     // Status transitions (SIAP -> RECORDING -> DIJEDA -> ...) animate with
     // the shared fast tween instead of hard-swapping text, matching every
     // other animated state change in the app.

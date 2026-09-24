@@ -7,6 +7,7 @@ import org.maplibre.android.offline.OfflineRegion
 import org.maplibre.android.offline.OfflineRegionError
 import org.maplibre.android.offline.OfflineRegionStatus
 import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
+import kotlin.coroutines.resume
 
 /**
  * Downloads a bounding-box region of the CURRENT [TileProvider]'s style
@@ -152,6 +153,32 @@ class OfflineMapManager(context: Context) {
             }
         })
         region.setDownloadState(OfflineRegion.STATE_ACTIVE)
+    }
+
+    /** Sum the currently downloaded tile/resource bytes. MapLibre exposes
+     *  the sizes only asynchronously through each region's status callback. */
+    suspend fun storageBytes(): Long = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+        listRegions { regions ->
+            if (regions.isEmpty()) {
+                continuation.resume(0L)
+                return@listRegions
+            }
+            var remaining = regions.size
+            var total = 0L
+            fun complete() {
+                remaining--
+                if (remaining == 0 && continuation.isActive) continuation.resume(total)
+            }
+            regions.forEach { region ->
+                region.getStatus(object : OfflineRegion.OfflineRegionStatusCallback {
+                    override fun onStatus(status: OfflineRegionStatus?) {
+                        total += (status?.completedTileSize ?: 0L) + (status?.completedResourceSize ?: 0L)
+                        complete()
+                    }
+                    override fun onError(error: String?) = complete()
+                })
+            }
+        }
     }
 
     private fun context_density(): Float = android.content.res.Resources.getSystem().displayMetrics.density

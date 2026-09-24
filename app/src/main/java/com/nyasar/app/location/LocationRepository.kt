@@ -116,6 +116,23 @@ class LocationRepository(private val context: Context) {
      * this; toggling it off mid-session only degrades the fix stream, so
      * it is deliberately NOT watched by the engine.
      */
+    fun getProviderLabel(): String {
+        val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE)
+            as? android.location.LocationManager ?: return "OFF"
+        return try {
+            val gps = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+            val network = lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
+            when {
+                gps && network -> "GPS + NETWORK"
+                gps -> "GPS"
+                network -> "NETWORK"
+                else -> "OFF"
+            }
+        } catch (_: SecurityException) {
+            "OFF"
+        }
+    }
+
     fun isAnyProviderEnabled(): Boolean {
         val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE)
             as? android.location.LocationManager ?: return false

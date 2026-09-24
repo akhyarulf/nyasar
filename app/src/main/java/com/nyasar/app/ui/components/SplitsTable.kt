@@ -32,8 +32,12 @@ import androidx.compose.ui.res.stringResource
 /** Pre-computed data for one km split. */
 data class KmSplit(
     val km: Int,
-    /** Time in milliseconds for this km. */
+    /** Elapsed time in milliseconds for this km, including pauses. */
     val timeMs: Long,
+    /** Moving time in milliseconds; pace is derived from this, not elapsed. */
+    val movingTimeMs: Long,
+    /** Distance in meters covered by this row. */
+    val distanceMeters: Double,
     /** Net elevation change for this km (positive = gain, negative = loss). */
     val elevDeltaM: Double
 )
@@ -46,56 +50,80 @@ fun computeSplits(points: List<ActivityPointEntity>): List<KmSplit> {
     if (points.size < 2) return emptyList()
 
     var cumulativeM = 0.0
-    var lastPoint: ActivityPointEntity = points.first()
-    var kmStartMs = points.first().timestampMs
-    var kmStartElev = points.first().elevationM ?: 0.0
-    var currentKmTarget = 1000.0 // next km boundary in meters
+    var lastPoint = points.first()
+    var splitStartMs = lastPoint.timestampMs
+    var splitStartMovingMs = 0L
+    var splitStartElev = lastPoint.elevationM ?: 0.0
+    var splitStartDistanceM = 0.0
+    var nextBoundaryM = 1000.0
     val splits = mutableListOf<KmSplit>()
 
-    for (i in 1 until points.size) {
-        val p = points[i]
-        val dist = GeoMath.distanceMeters(
-            LatLng(lastPoint.lat, lastPoint.lon),
-            LatLng(p.lat, p.lon)
-        )
-        cumulativeM += dist
-
-        // Check if we crossed a km boundary
-        if (cumulativeM >= currentKmTarget) {
-            val timeDelta = p.timestampMs - kmStartMs
-            val elevDelta = (p.elevationM ?: kmStartElev) - kmStartElev
-            splits.add(KmSplit(
-                km = splits.size + 1,
-                timeMs = timeDelta,
-                elevDeltaM = elevDelta
-            ))
-            kmStartMs = p.timestampMs
-            kmStartElev = p.elevationM ?: 0.0
-            currentKmTarget += 1000.0
-        }
-
-        lastPoint = p
+    fun addSplit(km: Int, elapsedMs: Long, movingMs: Long, distanceM: Double, elevDeltaM: Double) {
+        splits += KmSplit(km, elapsedMs, movingMs, distanceM, elevDeltaM)
     }
 
-    // Partial last km (only if > 100m)
-    if (cumulativeM > (splits.size * 1000.0) + 100.0) {
-        val timeDelta = lastPoint.timestampMs - kmStartMs
-        val elevDelta = (lastPoint.elevationM ?: kmStartElev) - kmStartElev
-        splits.add(KmSplit(
+    for (nextPoint in points.drop(1)) {
+        val segmentDistance = GeoMath.distanceMeters(
+            LatLng(lastPoint.lat, lastPoint.lon),
+            LatLng(nextPoint.lat, nextPoint.lon)
+        )
+        val segmentElapsed = (nextPoint.timestampMs - lastPoint.timestampMs).coerceAtLeast(0L)
+        val segmentStartMs = lastPoint.timestampMs
+        val moving = if (nextPoint.speedMps != null) {
+            nextPoint.speedMps > 0.3f
+        } else {
+            segmentElapsed > 0L && segmentDistance / (segmentElapsed / 1000.0) > 0.3
+        }
+        var consumedMovingMs = 0L
+        var segmentStartElev = lastPoint.elevationM ?: 0.0
+
+        while (cumulativeM + segmentDistance >= nextBoundaryM && segmentDistance > 0.0) {
+            val fraction = (nextBoundaryM - cumulativeM) / segmentDistance
+            val boundaryMs = segmentStartMs + (segmentElapsed * fraction).toLong()
+            val boundaryElev = segmentStartElev +
+                ((nextPoint.elevationM ?: segmentStartElev) - segmentStartElev) * fraction
+            val boundaryMovingMs = if (moving) (segmentElapsed * fraction).toLong() else 0L
+            consumedMovingMs += boundaryMovingMs
+            addSplit(
+                km = splits.size + 1,
+                elapsedMs = boundaryMs - splitStartMs,
+                movingMs = splitStartMovingMs + boundaryMovingMs,
+                distanceM = nextBoundaryM - splitStartDistanceM,
+                elevDeltaM = boundaryElev - splitStartElev
+            )
+            splitStartMs = boundaryMs
+            splitStartMovingMs = 0L
+            splitStartElev = boundaryElev
+            splitStartDistanceM = nextBoundaryM
+            nextBoundaryM += 1000.0
+            segmentStartElev = boundaryElev
+        }
+
+        cumulativeM += segmentDistance
+        if (moving) {
+            splitStartMovingMs += segmentElapsed - consumedMovingMs
+        }
+        lastPoint = nextPoint
+    }
+
+    val partialDistance = cumulativeM - splitStartDistanceM
+    if (partialDistance > 100.0) {
+        addSplit(
             km = splits.size + 1,
-            timeMs = timeDelta,
-            elevDeltaM = elevDelta
-        ))
+            elapsedMs = lastPoint.timestampMs - splitStartMs,
+            movingMs = splitStartMovingMs,
+            distanceM = partialDistance,
+            elevDeltaM = (lastPoint.elevationM ?: splitStartElev) - splitStartElev
+        )
     }
 
     return splits
 }
 
-/** Format milliseconds as m:ss pace per km. */
-fun formatSplitPace(timeMs: Long): String {
-    if (timeMs <= 0) return "-"
-    val totalSeconds = timeMs / 1000.0
-    val paceSecondsPerKm = totalSeconds // already per-km since each split is 1km
+/** Format moving milliseconds as m:ss pace per km. */
+fun formatSplitPace(movingTimeMs: Long, distanceMeters: Double = 1000.0): String {
+    if (movingTimeMs <= 0 || distanceMeters <= 0.0) return "-"
+    val paceSecondsPerKm = movingTimeMs / 1000.0 * (1000.0 / distanceMeters)
     val minutes = (paceSecondsPerKm / 60).toInt()
     val seconds = (paceSecondsPerKm % 60).toInt()
     return "$minutes:%02d".format(seconds)
@@ -113,7 +141,7 @@ fun SplitsTable(
     val splits = remember(points) { computeSplits(points) }
     if (splits.isEmpty()) return
 
-    val maxTimeMs = splits.maxOf { it.timeMs }.coerceAtLeast(1L)
+    val maxTimeMs = splits.maxOf { it.movingTimeMs.coerceAtLeast(1L) }
 
     Column(modifier.padding(horizontal = 16.dp)) {
         // Header
@@ -142,13 +170,13 @@ fun SplitsTable(
                 )
                 // Pace text
                 Text(
-                    formatSplitPace(split.timeMs),
+                    formatSplitPace(split.movingTimeMs, split.distanceMeters),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.width(48.dp)
                 )
                 // Visual bar (proportional to time, inversely = faster = shorter bar)
                 val barColor = MaterialTheme.colorScheme.primary
-                val barFraction = (1.0 - (split.timeMs.toDouble() / maxTimeMs)).coerceIn(0.0, 1.0).toFloat()
+                val barFraction = (1.0 - (split.movingTimeMs.toDouble() / maxTimeMs)).coerceIn(0.0, 1.0).toFloat()
                 Canvas(
                     Modifier
                         .weight(1f)

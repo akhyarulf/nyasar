@@ -98,6 +98,12 @@ internal fun SettingsContent(
     viewModel: SettingsViewModel = viewModel()
 ) {
     val settings by viewModel.settings.collectAsState()
+    val storage by viewModel.storage.collectAsState()
+    val storageBusy by viewModel.storageBusy.collectAsState()
+    val storageMessage by viewModel.storageMessage.collectAsState()
+    var showClearAllDialog by remember { mutableStateOf(false) }
+    var showClearMapsDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { viewModel.refreshStorage() }
     val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
     val sessionState by authViewModel.sessionState.collectAsState()
 
@@ -302,12 +308,11 @@ internal fun SettingsContent(
 
                 SettingsSection(stringResource(R.string.data_section)) {
                     var cacheSize by remember { mutableStateOf<Long?>(null) }
-                    LaunchedEffect(Unit) { cacheSize = viewModel.cacheSizeBytes() }
+                    LaunchedEffect(storage.cacheBytes) { cacheSize = storage.cacheBytes }
                     SettingRow(
                         icon = Icons.Default.CleaningServices,
                         title = stringResource(R.string.cache),
-                        subtitle = cacheSize?.let { stringResource(R.string.cache_size_format, it / (1024.0 * 1024.0)) }
-                            ?: stringResource(R.string.calculating),
+                        subtitle = cacheSize?.let { formatStorageBytes(it) } ?: stringResource(R.string.calculating),
                         trailing = {
                             TextButton(onClick = {
                                 viewModel.clearCache()
@@ -320,6 +325,52 @@ internal fun SettingsContent(
                             stringResource(R.string.cache_permanent),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Text(
+                        stringResource(R.string.storage_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 2.dp)
+                    )
+                    Text(
+                        stringResource(
+                            R.string.storage_summary,
+                            formatStorageBytes(storage.totalBytes),
+                            storage.routeCount,
+                            storage.activityCount
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+                    )
+                    StorageBreakdownRow(Icons.Default.Map, stringResource(R.string.storage_routes), formatStorageBytes(storage.routeBytes), storage.routeCount)
+                    StorageBreakdownRow(Icons.Default.DirectionsWalk, stringResource(R.string.storage_activities), formatStorageBytes(storage.activityBytes), storage.activityCount)
+                    StorageBreakdownRow(Icons.Default.Radio, stringResource(R.string.storage_waypoints), null, storage.waypointCount)
+                    StorageBreakdownRow(Icons.Default.CloudUpload, stringResource(R.string.storage_pending), null, storage.pendingCount)
+                    StorageBreakdownRow(Icons.Default.Map, stringResource(R.string.storage_offline_maps), formatStorageBytes(storage.offlineBytes), null)
+                    StorageBreakdownRow(Icons.Default.Map, stringResource(R.string.storage_database), formatStorageBytes(storage.databaseBytes), null)
+                    StorageBreakdownRow(Icons.Default.CleaningServices, stringResource(R.string.storage_files), formatStorageBytes(storage.filesBytes), null)
+                    SettingRow(
+                        icon = Icons.Default.CleaningServices,
+                        title = stringResource(R.string.storage_clear_maps_desc),
+                        subtitle = formatStorageBytes(storage.offlineBytes),
+                        trailing = { TextButton(onClick = { showClearMapsDialog = true }, enabled = !storageBusy && storage.offlineBytes > 0) { Text(stringResource(R.string.clear_cache)) } }
+                    )
+                    SettingRow(
+                        icon = Icons.Default.Delete,
+                        iconTint = MaterialTheme.colorScheme.error,
+                        title = stringResource(R.string.storage_clear_all),
+                        subtitle = stringResource(R.string.storage_clear_all_desc),
+                        trailing = { TextButton(onClick = { showClearAllDialog = true }, enabled = !storageBusy) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } }
+                    )
+                    storageMessage?.let { message ->
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (message.contains("Gagal") || message.contains("failed", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -335,6 +386,25 @@ internal fun SettingsContent(
                 Spacer(Modifier.height(12.dp))
             }
         }
+    }
+
+    if (showClearAllDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!storageBusy) showClearAllDialog = false },
+            title = { Text(stringResource(R.string.storage_confirm_clear_all)) },
+            text = { Text(stringResource(R.string.storage_clear_all_message)) },
+            confirmButton = { TextButton(onClick = { showClearAllDialog = false; viewModel.clearAllLocalData() }, enabled = !storageBusy) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { showClearAllDialog = false }, enabled = !storageBusy) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+    if (showClearMapsDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!storageBusy) showClearMapsDialog = false },
+            title = { Text(stringResource(R.string.storage_confirm_clear_maps)) },
+            text = { Text(stringResource(R.string.storage_clear_maps_message)) },
+            confirmButton = { TextButton(onClick = { showClearMapsDialog = false; viewModel.clearOfflineMaps() }, enabled = !storageBusy) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { showClearMapsDialog = false }, enabled = !storageBusy) { Text(stringResource(R.string.cancel)) } }
+        )
     }
 }
 
@@ -368,6 +438,29 @@ private fun SettingsSection(
  *  click. Rows without a click still render identically — only the ripple
  *  differs. */
 @Composable
+private fun StorageBreakdownRow(icon: ImageVector, title: String, size: String?, count: Int?) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(12.dp))
+        Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(
+            listOfNotNull(size, count?.let { "$it" }).joinToString(" · "),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private fun formatStorageBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L * 1024L -> "%.2f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
+    bytes >= 1024L * 1024L -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
+    bytes >= 1024L -> "%.1f KB".format(bytes / 1024.0)
+    else -> "$bytes B"
+}
+
 private fun SettingRow(
     icon: ImageVector,
     title: String,

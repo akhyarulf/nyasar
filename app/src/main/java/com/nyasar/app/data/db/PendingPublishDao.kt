@@ -34,6 +34,9 @@ interface PendingPublishDao {
     @Query("SELECT COUNT(*) FROM pending_publishes")
     suspend fun count(): Int
 
+    @Query("DELETE FROM pending_publishes")
+    suspend fun clearAll()
+
     /** Success (or terminal rejection) — the source no longer owes the cloud anything. */
     @Query("DELETE FROM pending_publishes WHERE sourceId = :sourceId")
     suspend fun dequeue(sourceId: String)

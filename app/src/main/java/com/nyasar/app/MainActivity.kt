@@ -646,6 +646,14 @@ private fun NyasarNavHost(
                                     restoreState = true
                                 }
                             }
+                        } else if (route == "track-and-maps" &&
+                            currentRoute == "home" &&
+                            navController.popBackStack("track-and-maps", inclusive = false)
+                        ) {
+                            // When Home was opened from Library's Offline Maps,
+                            // reuse that existing Library entry directly. This
+                            // makes the bottom Library tab behave like Back
+                            // without requiring a second navigation step.
                         } else if (route != currentRoute) {
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) {

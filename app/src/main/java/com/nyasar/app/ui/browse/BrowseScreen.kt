@@ -2,6 +2,7 @@
 
 package com.nyasar.app.ui.browse
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -38,6 +39,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
@@ -86,7 +89,7 @@ fun BrowseScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.browse_title)) }) }
+        topBar = { BrowseHeroHeader() }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             OutlinedTextField(
@@ -250,6 +253,59 @@ fun BrowseScreen(
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
             } // pull-refresh Box
+        }
+    }
+}
+
+@Composable
+private fun BrowseHeroHeader() {
+    Surface(
+        color = MaterialTheme.colorScheme.primary,
+        tonalElevation = 3.dp
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary
+                        )
+                    )
+                )
+                .padding(horizontal = 20.dp, vertical = 18.dp)
+        ) {
+            Canvas(Modifier.matchParentSize()) {
+                val lineColor = Color.White.copy(alpha = 0.10f)
+                for (i in 0..3) {
+                    val y = size.height * (0.30f + i * 0.14f)
+                    val path = Path().apply {
+                        moveTo(-24f, y)
+                        cubicTo(size.width * 0.22f, y - 24f, size.width * 0.52f, y + 24f, size.width + 24f, y)
+                    }
+                    drawPath(path, lineColor, style = Stroke(width = 1.5f))
+                }
+            }
+            Column {
+                Text(
+                    "NYASAR",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f)
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.browse_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    stringResource(R.string.browse_hero_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
+                )
+            }
         }
     }
 }

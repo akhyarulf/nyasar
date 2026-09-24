@@ -43,6 +43,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nyasar.app.ui.theme.LocalNyasarMotionEnabled
 import com.nyasar.app.ui.theme.NyasarContentWidth
 import com.nyasar.app.ui.theme.NyasarMotion
 import com.nyasar.app.ui.theme.NyasarRadius
@@ -75,10 +76,11 @@ fun Modifier.pressScale(
     interactionSource: MutableInteractionSource,
     pressedScale: Float = 0.97f
 ): Modifier = composed {
+    val motionEnabled = LocalNyasarMotionEnabled.current
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1f,
-        animationSpec = NyasarMotion.press(),
+        targetValue = if (motionEnabled && pressed) pressedScale else 1f,
+        animationSpec = if (motionEnabled) NyasarMotion.press() else androidx.compose.animation.core.tween<Float>(0),
         label = "pressScale"
     )
     this.scale(scale)
@@ -100,6 +102,10 @@ fun AnimatedAppear(
     delayMs: Int = 0,
     content: @Composable () -> Unit
 ) {
+    if (!LocalNyasarMotionEnabled.current) {
+        content()
+        return
+    }
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
     AnimatedVisibility(
@@ -138,6 +144,17 @@ fun AnimatedStatText(
     modifier: Modifier = Modifier,
     maxLines: Int = 1
 ) {
+    if (!LocalNyasarMotionEnabled.current) {
+        Text(
+            value,
+            style = style,
+            color = color,
+            modifier = modifier,
+            maxLines = maxLines,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        return
+    }
     AnimatedContent(
         targetState = value,
         transitionSpec = {

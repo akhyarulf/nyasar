@@ -721,6 +721,7 @@
     <string name="profile_sign_in_title">Masuk / Daftar</string>
     <string name="profile_sign_in_subtitle">Amankan rekamanmu selamanya</string>
     <string name="browse_title">Jelajah Rute</string>
+    <string name="browse_hero_subtitle">Temukan jalur berikutnya dari komunitas.</string>
     <string name="publish_visibility_label">Siapa yang bisa lihat</string>
     <string name="publish_visibility_public">Semua orang</string>
     <string name="publish_visibility_private">Hanya saya</string>

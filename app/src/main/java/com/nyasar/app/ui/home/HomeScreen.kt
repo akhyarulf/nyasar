@@ -38,7 +38,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.data.db.RouteEntity
@@ -241,47 +240,31 @@ fun HomeScreen(
             onBearingChanged = { mapBearing = it }
         )
 
-        // --- TOP: Full-width dark bar with logo + search (matches bottom bar) ---
+        // --- TOP: floating map toolbar -------------------------------------
+        // Keep the map dominant while giving the brand and route search a
+        // clear, tactile hierarchy. The outer surface is inset from the map
+        // edges so it reads as a control layer rather than a second app bar.
         Surface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface
+                .fillMaxWidth()
+                .statusBarsPaddingCompat()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            shadowElevation = 6.dp
         ) {
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .statusBarsPaddingCompat()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier = Modifier.padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Nyasar logo badge — the brand pin logo (mipmap PNG
-                // densities) on its original pale-cream backdrop. The
-                // container color is deliberately FIXED across light/dark
-                // mode instead of following colorScheme: the logo artwork
-                // inside (gray mountains, compass, green pin) was designed
-                // against this pale #E6EBE5 background, so a dark-mode-
-                // tinted container would destroy the artwork's contrast
-                // rather than help it. Pale badge on the dark-theme header
-                // surface = strongest separation in dark mode; in light
-                // mode it reads as a subtle tonal step against the near-
-                // white surface. Mirrors the launcher icon decision (pale
-                // background there too, both themes). Same rounded-badge
-                // container shape/position the "Nyasar" text badge used —
-                // nothing else in the header moves.
-                //
-                // Sizing: the launcher foreground PNG is an adaptive-icon
-                // asset — its artwork only fills the center ~65% of the
-                // canvas (the rest is baked-in safe-zone padding). At the
-                // old 28dp the VISIBLE artwork was only ~18dp, far too
-                // small to read next to the search bar. 40dp canvas keeps
-                // the same in-canvas proportions as the launcher icon while
-                // making the visible artwork ~26dp — on par with the
-                // header's text/icon scale.
+                // Keep the launcher artwork on its original pale backdrop so
+                // the brand remains legible in both light and dark themes.
                 Surface(
-                    shape = RoundedCornerShape(NyasarRadius.sm),
-                    color = Color(0xFFE6EBE5)
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFFE6EBE5),
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Image(
                         painter = painterResource(R.mipmap.ic_launcher_foreground),
@@ -291,22 +274,34 @@ fun HomeScreen(
                             .size(40.dp)
                     )
                 }
-                // Search bar
                 Surface(
-                    modifier = Modifier.weight(1f).clickable { showRoutesSheet = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .clickable { showRoutesSheet = true },
                     shape = RoundedCornerShape(NyasarRadius.pill),
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = 2.dp
+                    tonalElevation = 0.dp
                 ) {
                     Row(
-                        Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(21.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
                         Text(
-                            if (routes.isEmpty()) stringResource(R.string.search_route) else stringResource(R.string.search_route_count, routes.size),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            if (routes.isEmpty()) {
+                                stringResource(R.string.search_route)
+                            } else {
+                                stringResource(R.string.search_route_count, routes.size)
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
                     }
                 }
@@ -322,7 +317,7 @@ fun HomeScreen(
             ) {
                 Surface(
                     modifier = Modifier
-                        .padding(top = 80.dp, start = 16.dp, end = 16.dp),
+                        .padding(top = 104.dp, start = 16.dp, end = 16.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm)
                 ) {

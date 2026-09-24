@@ -7,6 +7,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
  * Nyasar Design Tokens — the single source of truth for the app's visual
@@ -30,6 +31,9 @@ import androidx.compose.ui.unit.dp
  * so screens animate with the same personality everywhere (decelerate in,
  * accelerate out, spring for direct-manipulation presses).
  */
+/** False when the Android animator duration scale is set to zero. */
+val LocalNyasarMotionEnabled = staticCompositionLocalOf { true }
+
 object NyasarRadius {
     val xs: Dp = 8.dp
     val sm: Dp = 12.dp

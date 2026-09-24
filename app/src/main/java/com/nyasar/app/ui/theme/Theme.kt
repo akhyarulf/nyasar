@@ -7,8 +7,12 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import android.provider.Settings
 
 // Outdoor-oriented palette based on #5A7562 (forest green) as primary.
 // High-contrast for direct sunlight readability, consistent accent colors.
@@ -114,10 +118,20 @@ fun NyasarTheme(
         else -> isSystemInDarkTheme()
     }
     val colors = if (darkTheme) DarkColors else LightColors
-    MaterialTheme(
-        colorScheme = colors,
-        typography = NyasarTypography,
-        shapes = NyasarShapes,
-        content = content
-    )
+    val context = LocalContext.current
+    val reducedMotion = remember(context) {
+        Settings.Global.getFloat(
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f
+        ) == 0f
+    }
+    CompositionLocalProvider(LocalNyasarMotionEnabled provides !reducedMotion) {
+        MaterialTheme(
+            colorScheme = colors,
+            typography = NyasarTypography,
+            shapes = NyasarShapes,
+            content = content
+        )
+    }
 }

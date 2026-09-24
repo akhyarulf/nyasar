@@ -7,9 +7,12 @@ dengan migration `username_is_set` sebelumnya).
 
 | File | Fungsi | Status |
 |---|---|---|
-| `migrations/0002_delete_own_account.sql` | RPC `delete_own_account()` untuk fitur Hapus Akun dari dalam app (app sengaja TIDAK punya service-role key) | ⏳ **Perlu dijalankan manual oleh user** |
-| `migrations/0003_route_gpx_bucket.sql` | Bucket publik `route-gpx` + kebijakan upload/select untuk GPX hasil publish (Fase 2 "full open") | ⏳ **Perlu dijalankan manual oleh user** |
-| `migrations/0004_drop_mountain_name_and_region.sql` | Hapus kolom `routes.mountain_name` + `routes.region` beserta 2 index-nya (Keputusan baru — data di 2 kolom itu HILANG permanen). **WAJIB setelah app di-update ke build yang sudah tanpa 2 kolom ini** — urutan kode dulu, SQL belakangan | ⏳ **Perlu dijalankan manual oleh user (setelah update app)** |
+| `migrations/0002_delete_own_account.sql` | RPC `delete_own_account()` untuk fitur Hapus Akun dari dalam app (app sengaja TIDAK punya service-role key) | ✅ LIVE (diverifikasi 2026-09-21) |
+| `migrations/0003_route_gpx_bucket.sql` | Bucket publik `route-gpx` + kebijakan upload/select untuk GPX hasil publish (Fase 2 "full open") | ✅ LIVE |
+| `migrations/0004_drop_mountain_name_and_region.sql` | Hapus kolom `routes.mountain_name` + `routes.region` beserta 2 index-nya | ✅ LIVE |
+| `migrations/0005_like_comment_counters.sql` | Trigger counter `likes_count`/`comments_count` di tabel routes (Fase 4) | ✅ LIVE |
+| `migrations/0006_private_gpx_bucket.sql` | Bucket privat `route-gpx-private` untuk rute visibilitas "Hanya saya" | ✅ LIVE |
+| `migrations/0007_realtime_replication.sql` | Masukkan `routes`, `route_likes`, `saved_routes`, `route_comments` ke publication `supabase_realtime` + replica identity FULL — WAJIB untuk auto-refresh realtime (tanpa ini channel connect tapi diam) | ⏳ **Perlu dijalankan manual oleh user** |
 
 ## Cara menjalankan
 
@@ -20,6 +23,19 @@ dengan migration `username_is_set` sebelumnya).
    (`account_delete_rpc_missing`).
 4. Verifikasi cepat: `select proname from pg_proc where proname = 'delete_own_account';`
    harus mengembalikan 1 baris.
+
+### Verifikasi khusus 0007 (realtime)
+
+```sql
+-- Harus mengembalikan 4 baris: routes, route_likes, saved_routes, route_comments
+select tablename from pg_publication_tables
+where pubname = 'supabase_realtime' and schemaname = 'public';
+```
+
+File 0007 idempoten — aman dijalankan ulang (ADD TABLE di-skip untuk tabel
+yang sudah jadi anggota publication). Setelah dijalankan, tanpa perlu update
+app: client subscribe `nyasar-cloud-sync` langsung mulai menerima event dan
+Browse/Saved/Route Detail refresh sendiri secara realtime.
 
 ## Catatan audit trigger `handle_new_user` (Login Google)
 

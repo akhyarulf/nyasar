@@ -23,7 +23,10 @@
 
 begin;
 
--- Publication khusus app (idempoten untuk re-run manual).
+-- Publication khusus app. BENAR-BENAR idempoten: create publication
+-- di-guard, dan ADD TABLE hanya dijalankan untuk tabel yang BELUM jadi
+-- anggota (ALTER PUBLICATION ADD TABLE mentah error "already member"
+-- kalau file ini di-run ulang, komentar lama salah soal ini).
 do $$
 begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
@@ -31,10 +34,20 @@ begin
   end if;
 end $$;
 
-alter publication supabase_realtime add table routes;
-alter publication supabase_realtime add table route_likes;
-alter publication supabase_realtime add table saved_routes;
-alter publication supabase_realtime add table route_comments;
+do $$
+declare t text;
+begin
+  foreach t in array array['routes','route_likes','saved_routes','route_comments'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename  = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
 
 -- previous record untuk UPDATE/DELETE (PostgresAction.oldRecord) —
 -- client saat ini tidak memakai oldRecord, tapi FULL bikin event

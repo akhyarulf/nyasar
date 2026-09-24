@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
+import com.nyasar.app.ui.components.NyasarTabHeader
+import com.nyasar.app.ui.components.TabHeaderAction
 
 /**
  * Profile tab (IA rework 2026, rev3): a Wikiloc-style profile header card
@@ -107,15 +109,15 @@ fun ProfileScreen(
         // Bottom-bar hosting: page title + gear + TabRow, no Scaffold (the
         // NavHost's Scaffold already pads for the bottom bar).
         Column(modifier = Modifier.fillMaxSize()) {
-            TopAppBar(
-                title = { Text(stringResource(R.string.profile_title)) },
+            // Unified tab header (same recipe as Maps/Library/Explore).
+            NyasarTabHeader(
+                title = stringResource(R.string.profile_title),
                 actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = stringResource(R.string.settings)
-                        )
-                    }
+                    TabHeaderAction(
+                        icon = Icons.Default.Settings,
+                        contentDescription = stringResource(R.string.settings),
+                        onClick = onOpenSettings
+                    )
                 }
             )
             ProfileHeaderCard(

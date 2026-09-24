@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
@@ -28,7 +27,6 @@ import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
 import com.nyasar.app.ui.waypoint.WaypointCrosshairScreen
@@ -241,71 +239,54 @@ fun HomeScreen(
             onBearingChanged = { mapBearing = it }
         )
 
-        // --- TOP: floating map toolbar -------------------------------------
-        // Keep the map dominant while giving the brand and route search a
-        // clear, tactile hierarchy. The outer surface is inset from the map
-        // edges so it reads as a control layer rather than a second app bar.
+        // --- TOP: unified tab header over the map --------------------------
+        // Same gradient header recipe as Library/Explore/Profile (user
+        // request: "seragamkan") — no logo, the route search stays as a
+        // floating pill below it. Title opens the routes sheet, same as
+        // the search pill did before.
+        com.nyasar.app.ui.components.NyasarTabHeader(
+            modifier = Modifier.align(Alignment.TopCenter),
+            title = stringResource(R.string.app_name),
+            actions = {
+                com.nyasar.app.ui.components.TabHeaderAction(
+                    icon = Icons.Default.Search,
+                    contentDescription = stringResource(R.string.search_route),
+                    onClick = { showRoutesSheet = true }
+                )
+            }
+        )
         Surface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .fillMaxWidth()
                 .statusBarsPaddingCompat()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
-            shadowElevation = 6.dp
+                .padding(top = 124.dp, start = 16.dp, end = 16.dp),
+            shape = RoundedCornerShape(NyasarRadius.pill),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shadowElevation = 4.dp
         ) {
             Row(
-                modifier = Modifier.padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .height(48.dp)
+                    .clickable { showRoutesSheet = true },
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Keep the launcher artwork on its original pale backdrop so
-                // the brand remains legible in both light and dark themes.
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFE6EBE5),
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Image(
-                        painter = painterResource(R.mipmap.ic_launcher_foreground),
-                        contentDescription = stringResource(R.string.app_name),
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .size(40.dp)
-                    )
-                }
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .clickable { showRoutesSheet = true },
-                    shape = RoundedCornerShape(NyasarRadius.pill),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = 0.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(21.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            if (routes.isEmpty()) {
-                                stringResource(R.string.search_route)
-                            } else {
-                                stringResource(R.string.search_route_count, routes.size)
-                            },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-                }
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(21.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    if (routes.isEmpty()) {
+                        stringResource(R.string.search_route)
+                    } else {
+                        stringResource(R.string.search_route_count, routes.size)
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
             }
         }
 
@@ -318,7 +299,7 @@ fun HomeScreen(
             ) {
                 Surface(
                     modifier = Modifier
-                        .padding(top = 104.dp, start = 16.dp, end = 16.dp),
+                        .padding(top = 168.dp, start = 16.dp, end = 16.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm)
                 ) {

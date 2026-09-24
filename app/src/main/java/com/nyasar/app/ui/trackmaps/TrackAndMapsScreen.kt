@@ -25,6 +25,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.ui.components.EmptyState
+import com.nyasar.app.ui.components.NyasarTabHeader
+import com.nyasar.app.ui.components.TabHeaderAction
 import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarRadius
 
@@ -59,15 +61,16 @@ fun TrackAndMapsScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .statusBarsPadding()
     ) {
-        // Top bar
-        TopAppBar(
-            title = { Text(stringResource(R.string.library)) },
+        // Unified tab header (same recipe as Maps/Explore/Profile).
+        NyasarTabHeader(
+            title = stringResource(R.string.library),
             actions = {
-                IconButton(onClick = { searchExpanded = !searchExpanded }) {
-                    Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search_track_cd))
-                }
+                TabHeaderAction(
+                    icon = Icons.Default.Search,
+                    contentDescription = stringResource(R.string.search_track_cd),
+                    onClick = { searchExpanded = !searchExpanded }
+                )
             }
         )
 

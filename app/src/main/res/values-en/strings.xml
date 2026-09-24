@@ -722,6 +722,7 @@
     <string name="profile_sign_in_subtitle">Keep your recordings safe forever</string>
     <string name="browse_title">Explore Routes</string>
     <string name="browse_hero_subtitle">Find your next trail with the community.</string>
+    <string name="brand_kicker">NYASAR</string>
     <string name="publish_visibility_label">Who can see this</string>
     <string name="publish_visibility_public">Everyone</string>
     <string name="publish_visibility_private">Only you</string>

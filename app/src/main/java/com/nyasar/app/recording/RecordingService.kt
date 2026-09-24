@@ -102,6 +102,9 @@ class RecordingService : Service() {
     private val binder = LocalBinder()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var locationJob: Job? = null
+    /** Polls permission/provider availability so a revoked permission or a
+     * temporarily disabled GPS service can recover without killing the hike. */
+    private var locationRecoveryJob: Job? = null
 
     private lateinit var locationRepository: LocationRepository
     private lateinit var dao: ActivityDao
@@ -219,13 +222,28 @@ class RecordingService : Service() {
         // handleStart/handleResumeExisting still call it again themselves
         // for the normal (non-duplicate) path with the correct notification
         // text — a harmless redundant call, not a second service.
-        if (intent?.action == ACTION_START || intent?.action == ACTION_RESUME_EXISTING) {
+        if (intent == null || intent.action == ACTION_START || intent.action == ACTION_RESUME_EXISTING) {
             if (!foregroundStarted) {
-                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.app_name), getString(R.string.notif_starting)))
+                startForeground(
+                    NOTIFICATION_ID,
+                    buildNotification(
+                        if (intent == null) getString(R.string.notif_restoring)
+                        else getString(R.string.app_name),
+                        if (intent == null) getString(R.string.notif_restoring_body)
+                        else getString(R.string.notif_starting)
+                    )
+                )
                 foregroundStarted = true
             }
         }
-        when (intent?.action) {
+        if (intent == null) {
+            // START_STICKY can recreate the service after process death with
+            // a null Intent. Recover the active Room row automatically.
+            handleAutoResumeAfterRestart()
+            return START_STICKY
+        }
+
+        when (intent.action) {
             ACTION_START -> handleStart(intent.getStringExtra(EXTRA_ROUTE_ID))
             ACTION_RESUME_EXISTING -> handleResumeExisting(
                 intent.getStringExtra(EXTRA_ACTIVITY_ID),
@@ -237,6 +255,25 @@ class RecordingService : Service() {
             ACTION_DISMISS_NOT_MOVING -> handleDismissNotMoving()
         }
         return START_STICKY
+    }
+
+    /** Called when Android recreates a sticky service with no Intent. The
+     * active activity is already persisted in Room, so recovery can safely
+     * restore its route, points, and totals without creating a duplicate. */
+    private fun handleAutoResumeAfterRestart() {
+        val currentStatus = engine.currentState().status
+        if (currentStatus == RecordingStatus.RECORDING || currentStatus == RecordingStatus.PAUSED) return
+
+        serviceScope.launch {
+            val existing = dao.getActiveOrNull() ?: run {
+                // No active hike: this is a normal sticky-service restart,
+                // not a recording. Do not leave a foreground notification behind.
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return@launch
+            }
+            restoreExistingActivity(existing, existing.routeId)
+        }
     }
 
     private fun handleResumeExisting(existingActivityId: String?, routeIdArg: String?) {
@@ -274,42 +311,53 @@ class RecordingService : Service() {
                 stopSelf()
                 return@launch
             }
-
-            activityId = id
-            routeId = routeIdArg ?: existing.routeId
-            startedAtEpochMs = existing.startedAtEpochMs
-            pointSequence = dao.getPointCount(id)
-
-            baselineDistanceMeters = existing.distanceMeters
-            baselineMovingTimeMs = existing.movingTimeMs
-            baselineElapsedTimeMs = existing.elapsedTimeMs
-            baselineMaxSpeedKmh = existing.maxSpeedKmh ?: 0.0
-            baselineElevationGainM = existing.elevationGainM ?: 0.0
-            baselineElevationLossM = existing.elevationLossM ?: 0.0
-
-            recordedPoints.clear()
-            recordedPoints.addAll(dao.getPoints(id).map {
-                TrackPoint(lat = it.lat, lon = it.lon, elevationM = it.elevationM, timestampEpochMs = it.timestampMs)
-            })
-
-            // Part 2 fix (BUG #9, same reasoning as handleStart()): fresh
-            // RecordingEngine() instance, not reusing whatever state this
-            // service's engine field was left in by an unrelated prior
-            // session. engine.start() below requires IDLE — a brand-new
-            // instance always satisfies that regardless of what came before.
-            engine = RecordingEngine()
-            engine.start()
-            updateNotification(getString(R.string.notif_resumed), formatDistance())
-
-            dao.update(existing.copy(status = ActivityStatus.RECORDING))
-
-            resetAutoPauseAndGpsWatchdogState()
-            loadAutoPauseSetting()
-            startLocationCollection()
-            startGpsWatchdog()
-            startElapsedTimeTicker()
-            publishState()
+            restoreExistingActivity(existing, routeIdArg)
         }
+    }
+
+    /** Restores one persisted active activity into this fresh service
+     * instance. PAUSED is preserved; only a row that was RECORDING when the
+     * process died is resumed into the recording state. */
+    private suspend fun restoreExistingActivity(existing: ActivityEntity, routeIdArg: String?) {
+        activityId = existing.id
+        routeId = routeIdArg ?: existing.routeId
+        startedAtEpochMs = existing.startedAtEpochMs
+        pointSequence = dao.getPointCount(existing.id)
+
+        baselineDistanceMeters = existing.distanceMeters
+        baselineMovingTimeMs = existing.movingTimeMs
+        baselineElapsedTimeMs = existing.elapsedTimeMs
+        baselineMaxSpeedKmh = existing.maxSpeedKmh ?: 0.0
+        baselineElevationGainM = existing.elevationGainM ?: 0.0
+        baselineElevationLossM = existing.elevationLossM ?: 0.0
+
+        recordedPoints.clear()
+        recordedPoints.addAll(dao.getPoints(existing.id).map {
+            TrackPoint(lat = it.lat, lon = it.lon, elevationM = it.elevationM, timestampEpochMs = it.timestampMs)
+        })
+
+        // Part 2 fix (BUG #9, same reasoning as handleStart()): fresh
+        // RecordingEngine() instance, not reusing whatever state this
+        // service's engine field was left in by an unrelated prior
+        // session. engine.start() below requires IDLE — a brand-new
+        // instance always satisfies that regardless of what came before.
+        engine = RecordingEngine()
+        engine.start()
+        val wasPaused = existing.status == ActivityStatus.PAUSED
+        if (wasPaused) engine.pause()
+
+        updateNotification(
+            getString(if (wasPaused) R.string.notif_paused else R.string.notif_resumed),
+            formatDistance()
+        )
+
+        resetAutoPauseAndGpsWatchdogState()
+        loadAutoPauseSetting()
+        startLocationCollection()
+        startLocationRecoveryMonitor()
+        startGpsWatchdog()
+        startElapsedTimeTicker()
+        publishState()
     }
 
     private fun handleStart(routeIdArg: String?) {
@@ -393,6 +441,7 @@ class RecordingService : Service() {
 
             if (insertedOk) {
                 startLocationCollection()
+                startLocationRecoveryMonitor()
                 startGpsWatchdog()
                 startElapsedTimeTicker()
             } else {
@@ -471,6 +520,7 @@ class RecordingService : Service() {
     private fun handleStop() {
         val finalState = engine.stop()
         locationJob?.cancel()
+        locationRecoveryJob?.cancel()
         gpsWatchdogJob?.cancel()
         elapsedTimeJob?.cancel()
         // Fase 3 auto-backup: capture the id BEFORE persistSummary's
@@ -643,10 +693,44 @@ class RecordingService : Service() {
         }
     }
 
+    /**
+     * Android can revoke location permission or turn location services off
+     * while a foreground recording is active. Keep the service alive and
+     * retry the FusedLocation subscription when either becomes available
+     * again, instead of leaving a recording that only ticks but never saves
+     * points. The active status stays intact; GPS health exposes the gap to
+     * the UI through the normal watchdog.
+     */
+    private fun startLocationRecoveryMonitor() {
+        locationRecoveryJob?.cancel()
+        locationRecoveryJob = serviceScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(10_000L)
+                val status = engine.currentState().status
+                if (status != RecordingStatus.RECORDING && status != RecordingStatus.PAUSED) continue
+
+                val canUseLocation = locationRepository.hasLocationPermission() &&
+                    locationRepository.isAnyProviderEnabled()
+                if (canUseLocation) {
+                    if (locationJob?.isActive != true) startLocationCollection()
+                } else {
+                    if (locationJob?.isActive == true) {
+                        locationJob?.cancel()
+                        locationJob = null
+                    }
+                    if (_state.value.gpsHealth != GpsHealth.LOST) {
+                        _state.value = _state.value.copy(gpsHealth = GpsHealth.LOST)
+                    }
+                }
+            }
+        }
+    }
+
     private fun startLocationCollection() {
         locationJob?.cancel()
         locationJob = serviceScope.launch {
             if (!locationRepository.hasLocationPermission()) return@launch
+            if (!locationRepository.isAnyProviderEnabled()) return@launch
 
             locationRepository.observeLocation().collect { fix ->
                 lastFixReceivedAtMs = System.currentTimeMillis()
@@ -903,6 +987,7 @@ class RecordingService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         locationJob?.cancel()
+        locationRecoveryJob?.cancel()
         elapsedTimeJob?.cancel()
         serviceScope.cancel()
     }

@@ -67,12 +67,18 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     private val _uiState = MutableStateFlow(RecordingUiState())
     val uiState: StateFlow<RecordingUiState> = _uiState.asStateFlow()
 
-    /** Non-null when Room has an activity row left in RECORDING/PAUSED
-     *  status with no live service attached to it — i.e. the process was
-     *  killed mid-recording (Task 4). Screen shows the recovery prompt
-     *  while this is set; cleared once the user picks resume/stop/discard. */
+    /** Kept for the existing manual recovery dialog API. Normal process-death
+     * recovery now resumes automatically; this is only non-null if a caller
+     * explicitly stages a recovery candidate. */
     private val _recoveryCandidate = MutableStateFlow<ActivityEntity?>(null)
     val recoveryCandidate: StateFlow<ActivityEntity?> = _recoveryCandidate.asStateFlow()
+    /** True after an active Room row was found and the service is being
+     * resumed; blocks the screen's auto-start path from creating a duplicate. */
+    private val _recoveryInProgress = MutableStateFlow(false)
+    val recoveryInProgress: StateFlow<Boolean> = _recoveryInProgress.asStateFlow()
+    /** Prevent duplicate RESUME_EXISTING intents when the recording screen
+     * recomposes while the service is starting after process death. */
+    private var recoveryStartRequested = false
 
     // --- Camera / follow / orientation state (spec P3 §14-16) ---
     // Recording defaults to Follow ON + North Up per spec §15 ("Default
@@ -344,20 +350,20 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Call once when the recording flow is entered. Checks for an orphaned
-     * active activity before anything else starts. Uses ActivityManager
-     * rather than the (async, not-yet-connected-on-first-frame) bound
-     * uiState to decide whether a live service already owns this activity —
-     * if RecordingService is running at all, whatever it's tracking is not
-     * orphaned, so recovery is skipped and the normal service-state flow
-     * takes over once binding completes. Suspends until the check is done
-     * so the caller (RecordingScreen) can gate auto-start on it and avoid
-     * racing a start against an unresolved recovery check.
+     * Called when the recording flow is entered. A persisted active row
+     * means the previous process was killed mid-hike; resume it immediately
+     * instead of waiting for a user-facing recovery dialog. Android may not
+     * restart a force-stopped app by itself, so this is the best-effort
+     * recovery point once the user opens Nyasar again.
      */
     suspend fun checkForRecovery() {
-        if (isRecordingServiceRunning()) return
+        if (recoveryStartRequested || isRecordingServiceRunning()) return
         val active = dao.getActiveOrNull() ?: return
-        _recoveryCandidate.value = active
+        recoveryStartRequested = true
+        _recoveryInProgress.value = true
+        _recoveryCandidate.value = null
+        val intent = RecordingService.resumeExistingIntent(getApplication(), active.id, active.routeId)
+        ContextCompat.startForegroundService(getApplication(), intent)
     }
 
     @Suppress("DEPRECATION") // querying our own process's own service — see

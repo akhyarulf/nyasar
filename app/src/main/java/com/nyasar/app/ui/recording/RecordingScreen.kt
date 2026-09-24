@@ -128,6 +128,7 @@ fun RecordingScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val recoveryCandidate by viewModel.recoveryCandidate.collectAsState()
+    val recoveryInProgress by viewModel.recoveryInProgress.collectAsState()
     var recoveryChecked by remember { mutableStateOf(false) }
     // PART 3.5 QA fix — see the LaunchedEffect below for the bug this
     // guards against. Consumed exactly once per screen visit, same
@@ -546,7 +547,7 @@ fun RecordingScreen(
         viewModel.startLocationUpdatesIfPermitted()
     }
 
-    LaunchedEffect(recoveryChecked, recoveryCandidate, state.status) {
+    LaunchedEffect(recoveryChecked, recoveryCandidate, recoveryInProgress, state.status) {
         // Part 2 fix (BUG #2/#15 "Stop -> Start membuat session baru"): the
         // guard used to require state.status == IDLE specifically, which
         // meant a STOPPED status still lingering in this ViewModel's
@@ -579,7 +580,7 @@ fun RecordingScreen(
         // button (unaffected by this guard, since that's a separate,
         // direct viewModel.startRecording() call, not this effect).
         val readyForNewSession = state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED
-        if (recoveryChecked && recoveryCandidate == null && autoStart && !autoStartConsumed && readyForNewSession) {
+        if (recoveryChecked && recoveryCandidate == null && !recoveryInProgress && autoStart && !autoStartConsumed && readyForNewSession) {
             autoStartConsumed = true
             gateAutoStart(routeId)
         }
@@ -593,8 +594,8 @@ fun RecordingScreen(
     // the IDLE default forever. This gives it a bounded wait, one retry,
     // then a real error state instead of an infinite spinner.
     var startStuck by remember { mutableStateOf(false) }
-    LaunchedEffect(recoveryChecked, recoveryCandidate, autoStart) {
-        if (!recoveryChecked || recoveryCandidate != null || !autoStart) return@LaunchedEffect
+    LaunchedEffect(recoveryChecked, recoveryCandidate, recoveryInProgress, autoStart) {
+        if (!recoveryChecked || recoveryCandidate != null || recoveryInProgress || !autoStart) return@LaunchedEffect
         kotlinx.coroutines.delay(6_000L)
         // While any gate-explainer dialog is up, the user hasn't had a
         // chance to start anything yet — the watchdog must not "retry"

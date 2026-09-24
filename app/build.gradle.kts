@@ -163,6 +163,12 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    // Compose Material (M2) — hanya untuk pullRefresh API yang dipakai
+    // Browse/Route Detail: material3 1.2.1 (BOM ini) belum punya
+    // PullToRefreshContainer (itu M3 1.3+ / compileSdk 35). Modul M2 tetap
+    // versi-locked oleh compose-bom yang sama; R8 membuang sisanya di
+    // build release.
+    implementation("androidx.compose.material:material")
     // Extended icon set — core only ships a small curated subset (Add, Settings,
     // ArrowBack, etc.), Icons like CloudDownload used in the offline-map screen
     // live here.

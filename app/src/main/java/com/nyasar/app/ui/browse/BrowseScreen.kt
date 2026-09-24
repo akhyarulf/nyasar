@@ -10,6 +10,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+// Pull-to-refresh (2026-09 fix): material3 1.2.1 (BOM 2024.06) TIDAK punya
+// rememberPullToRefreshState/PullToRefreshContainer — itu API M3 1.3+. Versi
+// stabil untuk BOM ini ada di compose material M2 (pullRefresh), yang
+// tercakup penuh oleh compose-bom 2024.06.
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.outlined.Chat
@@ -30,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -163,35 +169,18 @@ fun BrowseScreen(
                 )
             }
 
-            // Pull-to-refresh (M3 1.2 API: PullToRefreshContainer — BOM
-            // 2024.06 = material3 1.2.1, PullToRefreshBox-nya 1.3): tarik ke
-            // bawah re-browse tanpa mengosongkan layar — list tetap terlihat,
-            // hanya indicator yang muncul. Gesture hanya aktif saat konten
-            // scrollable (LazyColumn) di posisi paling atas; Loading/Error/
-            // empty tidak scrollable → tidak bisa ditarik (retry tetap via
-            // tombol masing-masing).
+            // Pull-to-refresh (M2 pullRefresh — lihat catatan import):
+            // tarik ke bawah re-browse tanpa mengosongkan layar — list tetap
+            // terlihat, hanya indicator yang muncul. Gesture hanya aktif saat
+            // konten scrollable (LazyColumn) di posisi paling atas; Loading/
+            // Error/empty tidak scrollable → tidak bisa ditarik (retry tetap
+            // via tombol masing-masing).
             val isRefreshing = (state as? BrowseViewModel.BrowseState.Loaded)?.isRefreshing == true
-            val pullState = rememberPullToRefreshState()
-            // Latch sekali-per-gesture: distanceFraction clamps di 1f pada
-            // 1.2.x, jadi threshold-nya >= 1f. Tanpa latch, "refresh selesai
-            // duluan sebelum animateToHidden turun" (false + 1f) bakal
-            // re-fire tanpa henti — armed hanya reset saat indikator
-            // kembali turun di bawah threshold.
-            var pullArmed by remember { mutableStateOf(true) }
-            LaunchedEffect(pullState.distanceFraction) {
-                if (pullState.distanceFraction >= 1f) {
-                    if (pullArmed && !isRefreshing) {
-                        pullArmed = false
-                        viewModel.refresh()
-                    }
-                } else {
-                    pullArmed = true
-                }
-            }
-            LaunchedEffect(isRefreshing) {
-                if (!isRefreshing) pullState.animateToHidden()
-            }
-            Box(Modifier.fillMaxSize().nestedScroll(pullState.nestedScrollConnection)) {
+            val pullState = rememberPullRefreshState(
+                refreshing = isRefreshing,
+                onRefresh = { viewModel.refresh() }
+            )
+            Box(Modifier.fillMaxSize().pullRefresh(pullState)) {
                 when (val s = state) {
                 BrowseViewModel.BrowseState.Idle, BrowseViewModel.BrowseState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -255,7 +244,11 @@ fun BrowseScreen(
                     }
                 }
             }
-                PullToRefreshContainer(state = pullState, modifier = Modifier.align(Alignment.TopCenter))
+                PullRefreshIndicator(
+                    refreshing = isRefreshing,
+                    state = pullState,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
             } // pull-refresh Box
         }
     }

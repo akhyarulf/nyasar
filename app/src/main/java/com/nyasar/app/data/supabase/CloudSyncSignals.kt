@@ -53,6 +53,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 object CloudSyncSignals {
 
+    /** Minimum spacing between server-change-triggered refreshes (event
+     *  bursts coalesce into ONE fetch). Declared first — Kotlin initializes
+     *  object properties in declaration order and the init block below
+     *  launches the pipeline that reads it. Foreground refreshes are exempt
+     *  (one per foregrounding, not a loop). */
+    private const val REFRESH_COALESCE_MS = 3_000L
+
     sealed class CloudEvent {
         /** A relevant public table changed server-side. */
         data object Data : CloudEvent()
@@ -148,11 +155,6 @@ object CloudSyncSignals {
     fun notifyForeground() {
         _events.tryEmit(CloudEvent.Foreground)
     }
-
-    /** Minimum spacing between server-change-triggered refreshes. Foreground
-     *  refreshes are exempt (one per foregrounding, not a loop). Declared
-     *  before use in the init block — const is compile-time anyway. */
-    private const val REFRESH_COALESCE_MS = 3_000L
 
     private const val TAG = "CloudSyncSignals"
 }

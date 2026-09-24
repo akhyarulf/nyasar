@@ -27,9 +27,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.nyasar.app.map.StyleVariant
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.map.MapSnapshotHelper
 import com.nyasar.app.ui.components.NyasarMapView
@@ -61,7 +59,8 @@ fun OfflineMapsScreen(
 ) {
     LaunchedEffect(Unit) { viewModel.refresh() }
     val state by viewModel.uiState.collectAsState()
-    val provider = remember { TileProviderFactory.default() }
+    val provider by viewModel.activeProvider.collectAsState()
+    val activeBasemap by viewModel.activeBasemap.collectAsState()
     // Delete confirmation (spec: "tidak accidental, confirmation bila
     // diperlukan") — previously a single tap deleted a downloaded region
     // immediately, no way back for something that can be tens/hundreds of
@@ -102,6 +101,7 @@ fun OfflineMapsScreen(
                     NyasarMapView(
                         modifier = Modifier.fillMaxSize(),
                         provider = provider,
+                        basemapEntry = activeBasemap,
                         track = emptyList(),
                         offlineCoverage = boundsWithCoverage,
                         // Camera bounds padded ~18% beyond the coverage
@@ -148,6 +148,8 @@ fun OfflineMapsScreen(
                             ) {
                                 OfflineRegionCard(
                                     item = item,
+                                    provider = provider,
+                                    activeBasemap = activeBasemap,
                                     isDeleting = System.identityHashCode(item.region) == state.deletingRegionKey,
                                     isResuming = System.identityHashCode(item.region) == state.resumingRegionKey,
                                     onPrimaryAction = {
@@ -228,13 +230,14 @@ private fun padForVisibility(
 @Composable
 private fun OfflineRegionCard(
     item: OfflineRegionUi,
+    provider: com.nyasar.app.map.TileProvider,
+    activeBasemap: com.nyasar.app.map.BasemapEntry,
     isDeleting: Boolean,
     isResuming: Boolean,
     onPrimaryAction: () -> Unit,
     onDeleteRequest: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val provider = remember { TileProviderFactory.default() }
 
     Surface(shape = RoundedCornerShape(NyasarRadius.md), tonalElevation = 2.dp) {
         Column {
@@ -250,6 +253,7 @@ private fun OfflineRegionCard(
                 RegionStaticPreview(
                     item = item,
                     provider = provider,
+                    basemap = activeBasemap,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -385,6 +389,7 @@ private fun StatusTag(completed: Boolean, statusKnown: Boolean, statusError: Boo
 private fun RegionStaticPreview(
     item: OfflineRegionUi,
     provider: com.nyasar.app.map.TileProvider,
+    basemap: com.nyasar.app.map.BasemapEntry,
     modifier: Modifier = Modifier
 ) {
     val bounds = item.bounds
@@ -399,21 +404,24 @@ private fun RegionStaticPreview(
     var canvasH by remember { mutableStateOf(0) }
     var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
-    LaunchedEffect(bounds, canvasW, canvasH) {
+    LaunchedEffect(bounds, canvasW, canvasH, item.styleUrl, basemap.gpxKey) {
         val b = bounds ?: return@LaunchedEffect
         if (canvasW < 8 || canvasH < 8) return@LaunchedEffect
         val w = (canvasW * pixelRatio).toInt()
         val h = (canvasH * pixelRatio).toInt()
         // Cache identity: region bounds + basemap style + size — stable
         // across restarts (disk-cached by the helper, independent version).
-        val cacheKey = "offline-region-${b.longitudeWest}-${b.latitudeSouth}-${b.longitudeEast}-${b.latitudeNorth}-$w"
+        val styleUrl = item.styleUrl
+            ?: provider.styleUrlFor(basemap, context)
+        val styleFingerprint = styleUrl.hashCode().toUInt().toString(16)
+        val cacheKey = "offline-region-${basemap.gpxKey}-$styleFingerprint-${b.longitudeWest}-${b.latitudeSouth}-${b.longitudeEast}-${b.latitudeNorth}-$w"
         bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
                 MapSnapshotHelper.generateRegionPreview(
                     context = context,
                     cacheKey = cacheKey,
                     bounds = b,
-                    styleUrl = provider.styleUrl(StyleVariant.OUTDOOR),
+                    styleUrl = styleUrl,
                     widthPx = w,
                     heightPx = h
                 )

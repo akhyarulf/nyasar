@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import com.nyasar.app.location.LocationRepository
-import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.ui.components.NyasarMapView
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -55,7 +54,7 @@ fun OfflineDownloadScreen(
     val isFreeArea = routeId == null
     LaunchedEffect(routeId) { routeId?.let { viewModel.load(it) } }
     val state by viewModel.uiState.collectAsState()
-    val provider = remember { TileProviderFactory.default() }
+    val provider by viewModel.activeProvider.collectAsState()
     val context = LocalContext.current
     val locationRepository = remember { LocationRepository(context) }
     val scope = rememberCoroutineScope()

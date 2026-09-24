@@ -10,6 +10,9 @@ import com.nyasar.app.map.OfflineRegionMetadata
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.offline.OfflineRegion
@@ -41,7 +44,11 @@ data class OfflineRegionUi(
      *  a genuinely-incomplete download forever (spec complaint: "gajelas
      *  mana yang sudah/belum kedownload"). */
     val statusKnown: Boolean = false,
-    val statusError: Boolean = false
+    val statusError: Boolean = false,
+    /** Exact style URL stored in MapLibre's region definition. This is the
+     * source of truth for the downloaded tiles; resolving a provider default
+     * here can produce a visually different preview. */
+    val styleUrl: String? = null
 )
 
 data class OfflineMapsUiState(
@@ -68,6 +75,21 @@ data class OfflineMapsUiState(
 class OfflineMapsViewModel(app: Application) : AndroidViewModel(app) {
 
     private val offlineMapManager = OfflineMapManager(app)
+    private val settingsRepository = com.nyasar.app.data.settings.SettingsRepository(app)
+
+    /** The exact basemap currently active on Home/Recording/RoutePreview. */
+    val activeBasemap = settingsRepository.settings
+        .map { BasemapEntry.fromId(it.basemapId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BasemapEntry.LIBERTY_TOPO)
+
+    /** The configured provider, not merely the fallback used by a screen. */
+    val activeProvider = settingsRepository.settings
+        .map { com.nyasar.app.map.providers.TileProviderFactory.byId(it.providerId) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            com.nyasar.app.map.providers.TileProviderFactory.default()
+        )
 
     private val _uiState = MutableStateFlow(OfflineMapsUiState())
     val uiState: StateFlow<OfflineMapsUiState> = _uiState.asStateFlow()
@@ -113,7 +135,8 @@ class OfflineMapsViewModel(app: Application) : AndroidViewModel(app) {
                     completed = false,
                     basemapName = basemapName,
                     createdAtEpochMs = meta.createdAtEpochMs,
-                    bounds = bounds
+                    bounds = bounds,
+                    styleUrl = (region.definition as? OfflineTilePyramidRegionDefinition)?.styleURL
                 )
             }
             _uiState.value = _uiState.value.copy(loading = false, regions = items)

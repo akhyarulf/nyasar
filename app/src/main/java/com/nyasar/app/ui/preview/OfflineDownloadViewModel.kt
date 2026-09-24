@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.maplibre.android.geometry.LatLngBounds
 
@@ -97,6 +100,16 @@ class OfflineDownloadViewModel(app: Application) : AndroidViewModel(app) {
     private val routeRepository = RouteRepository(app)
     private val settingsRepository = SettingsRepository(app)
     private val offlineMapManager = OfflineMapManager(app)
+
+    /** Provider used by the picker preview, kept identical to the provider
+     * used to resolve the style that will actually be downloaded. */
+    val activeProvider = settingsRepository.settings
+        .map { com.nyasar.app.map.providers.TileProviderFactory.byId(it.providerId) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            com.nyasar.app.map.providers.TileProviderFactory.default()
+        )
 
     private val _uiState = MutableStateFlow(OfflineDownloadUiState())
     val uiState: StateFlow<OfflineDownloadUiState> = _uiState.asStateFlow()

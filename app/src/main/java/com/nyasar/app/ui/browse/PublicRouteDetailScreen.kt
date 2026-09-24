@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
+
 package com.nyasar.app.ui.browse
 
 import androidx.compose.foundation.background

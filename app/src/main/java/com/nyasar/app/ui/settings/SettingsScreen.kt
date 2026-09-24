@@ -3,11 +3,14 @@ package com.nyasar.app.ui.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -119,7 +122,7 @@ internal fun SettingsContent(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
                 // NOTE: "Map provider" picker intentionally removed from Settings —
                 // basemap selection now lives in the in-map BasemapPickerSheet
@@ -346,8 +349,9 @@ private fun SettingsSection(
     Text(
         title,
         style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
     )
     Card(
         shape = RoundedCornerShape(NyasarRadius.md),
@@ -356,7 +360,7 @@ private fun SettingsSection(
     ) {
         Column(Modifier.fillMaxWidth(), content = content)
     }
-    Spacer(Modifier.height(18.dp))
+    Spacer(Modifier.height(16.dp))
 }
 
 /** One settings row: 20dp leading icon, compact title + optional
@@ -376,7 +380,7 @@ private fun SettingRow(
         Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -411,23 +415,45 @@ private fun OptionRow(icon: ImageVector, title: String, subtitle: String? = null
     SettingRow(icon = icon, title = title, subtitle = subtitle)
 }
 
-/** One radio choice inside a section card — selectable row with a compact
- *  label, indented to align under the section's icon column. */
+/** One compact radio choice inside a section card. The custom indicator keeps
+ *  the row at a comfortable 48dp while avoiding the oversized Material radio
+ *  control that made these sections feel like a long list of empty space. */
 @Composable
 private fun RadioOption(label: String, selected: Boolean, onSelect: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
             .selectable(selected = selected, onClick = onSelect)
-            .padding(start = 46.dp, end = 14.dp, top = 2.dp, bottom = 2.dp),
+            .padding(start = 46.dp, end = 14.dp, top = 3.dp, bottom = 3.dp)
+            .heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RadioButton(selected = selected, onClick = onSelect)
-        Spacer(Modifier.width(6.dp))
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .border(
+                    width = 2.dp,
+                    color = if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outline,
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (selected) {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface
         )
     }
 }

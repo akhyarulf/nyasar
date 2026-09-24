@@ -1,6 +1,6 @@
 package com.nyasar.app.ui.offline
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,23 +8,30 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.nyasar.app.map.StyleVariant
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.ui.components.EmptyState
+import com.nyasar.app.ui.map.MapSnapshotHelper
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.R
 import com.nyasar.app.ui.theme.NyasarRadius
@@ -97,12 +104,19 @@ fun OfflineMapsScreen(
                         provider = provider,
                         track = emptyList(),
                         offlineCoverage = boundsWithCoverage,
-                        focusBounds = focusedBounds ?: boundsWithCoverage.reduce { a, b ->
-                            org.maplibre.android.geometry.LatLngBounds.Builder()
-                                .include(a.northEast).include(a.southWest)
-                                .include(b.northEast).include(b.southWest)
-                                .build()
-                        }
+                        // Camera bounds padded ~18% beyond the coverage
+                        // rectangle: fitting the camera EXACTLY to the bounds
+                        // put the highlight flush against the viewport (stroke
+                        // clipped at the edges) — the #1 reason this preview
+                        // read as "just a map" instead of "map + my area".
+                        focusBounds = padForVisibility(
+                            focusedBounds ?: boundsWithCoverage.reduce { a, b ->
+                                org.maplibre.android.geometry.LatLngBounds.Builder()
+                                    .include(a.northEast).include(a.southWest)
+                                    .include(b.northEast).include(b.southWest)
+                                    .build()
+                            }
+                        )
                     )
                 }
                 HorizontalDivider()
@@ -174,6 +188,34 @@ private fun formatSize(bytes: Long): String {
     return if (mb >= 1024) "%.2f GB".format(mb / 1024.0) else "%.1f MB".format(mb)
 }
 
+/** Expand bounds by [fraction] on every side so the top coverage map's
+ *  camera (newLatLngBounds fits EXACTLY) leaves breathing room around the
+ *  highlight rectangle instead of clipping its stroke at the viewport edge —
+ *  the #1 reason the preview read as "just a map, where's my area?". */
+private fun padForVisibility(
+    bounds: org.maplibre.android.geometry.LatLngBounds,
+    fraction: Double = 0.18
+): org.maplibre.android.geometry.LatLngBounds {
+    val latSpan = bounds.northEast.latitude - bounds.southWest.latitude
+    val lonSpan = bounds.northEast.longitude - bounds.southWest.longitude
+    val latPad = (latSpan * fraction).coerceAtLeast(0.0015)
+    val lonPad = (lonSpan * fraction).coerceAtLeast(0.0015)
+    return org.maplibre.android.geometry.LatLngBounds.Builder()
+        .include(
+            org.maplibre.android.geometry.LatLng(
+                bounds.northEast.latitude + latPad,
+                bounds.northEast.longitude + lonPad
+            )
+        )
+        .include(
+            org.maplibre.android.geometry.LatLng(
+                bounds.southWest.latitude - latPad,
+                bounds.southWest.longitude - lonPad
+            )
+        )
+        .build()
+}
+
 /**
  * PART 3 redesign: banner card with mini-map preview showing the actual
  * coverage area. Each card now shows:
@@ -196,42 +238,20 @@ private fun OfflineRegionCard(
 
     Surface(shape = RoundedCornerShape(NyasarRadius.md), tonalElevation = 2.dp) {
         Column {
-            // Mini-map preview showing the actual coverage area
+            // Static snapshot preview of the coverage area (lightweight:
+            // one MapSnapshotter render, disk-cached — no live GL map per
+            // card) with the coverage rectangle drawn as a visible inset.
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(120.dp)
                     .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             ) {
-                if (item.bounds != null) {
-                    // Real map preview focused on the downloaded area
-                    NyasarMapView(
-                        modifier = Modifier.fillMaxSize(),
-                        provider = provider,
-                        track = emptyList(),
-                        offlineCoverage = listOf(item.bounds),
-                        focusBounds = item.bounds
-                    )
-                } else {
-                    // Fallback gradient if bounds not available
-                    val gradient = if (item.completed) {
-                        Brush.verticalGradient(listOf(Color(0xFF2E7D32), Color(0xFF1B5E20)))
-                    } else {
-                        Brush.verticalGradient(listOf(Color(0xFF9E9E9E), Color(0xFF757575)))
-                    }
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(gradient)
-                    ) {
-                        Icon(
-                            Icons.Default.Map,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.35f),
-                            modifier = Modifier.align(Alignment.Center).size(40.dp)
-                        )
-                    }
-                }
+                RegionStaticPreview(
+                    item = item,
+                    provider = provider,
+                    modifier = Modifier.fillMaxSize()
+                )
 
                 // Status tag overlay
                 Row(
@@ -281,26 +301,31 @@ private fun OfflineRegionCard(
                     }
                     Spacer(Modifier.height(4.dp))
 
-                    // Size and status info
+                    // Size and status info. "Ready to use" is NOT repeated
+                    // here — the overlay tag on the preview already says it.
                     Text(
                         when {
                             !item.statusKnown -> stringResource(R.string.checking)
                             item.statusError -> stringResource(R.string.checking_status_error)
-                            item.completed -> "${formatSize(item.sizeBytes)} • ${stringResource(R.string.ready_to_use)}"
+                            item.completed -> formatSize(item.sizeBytes)
                             else -> "${formatSize(item.sizeBytes)} ${stringResource(R.string.downloaded_suffix)}"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    
-                    // Coverage bounds info if available
+
+                    // Human-readable footprint instead of raw degree pairs —
+                    // "≈ 2.6 × 1.9 km" answers "seberapa luas unduhannya" at a
+                    // glance and never wraps (the old degree line broke onto a
+                    // second line and ended in a lone "B").
                     item.bounds?.let { bounds ->
+                        val midLat = (bounds.northEast.latitude + bounds.southWest.latitude) / 2.0
+                        val cosMid = kotlin.math.cos(Math.toRadians(midLat)).coerceAtLeast(0.01)
+                        val kmW = (bounds.northEast.longitude - bounds.southWest.longitude) * 111.32 * cosMid
+                        val kmH = (bounds.northEast.latitude - bounds.southWest.latitude) * 111.32
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "%.4f° - %.4f° L, %.4f° - %.4f° B".format(
-                                bounds.latitudeSouth, bounds.latitudeNorth,
-                                bounds.longitudeWest, bounds.longitudeEast
-                            ),
+                            "≈ %.1f × %.1f km".format(kmW, kmH),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -340,5 +365,90 @@ private fun StatusTag(completed: Boolean, statusKnown: Boolean, statusError: Boo
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
+    }
+}
+
+/**
+ * Lightweight card preview for one downloaded region: a single MapLibre
+ * MapSnapshotter render (same engine and disk cache as the basemap picker
+ * thumbnails — MapSnapshotHelper.generateRegionPreview) with the coverage
+ * rectangle drawn on top as a visible inset.
+ *
+ * Why not NyasarMapView (the previous implementation): one live GL map per
+ * card costs a texture surface, continuous rendering, and a full style
+ * load per composition — measurable memory/jank cost in a list, to show a
+ * static rectangle. The snapshot is produced once and disk-cached; the
+ * overlay rect is plain Canvas math (the region is padded by the helper
+ * precisely so this inset is honest about the true footprint).
+ */
+@Composable
+private fun RegionStaticPreview(
+    item: OfflineRegionUi,
+    provider: com.nyasar.app.map.TileProvider,
+    modifier: Modifier = Modifier
+) {
+    val bounds = item.bounds
+    val density = LocalDensity.current
+    val context = LocalContext.current
+    // ~2x render for crisp high-dpi cards, drawn back down 1:1 by the Canvas.
+    val pixelRatio = minOf(2f, density.density.coerceAtLeast(1f))
+    val rectColor = MaterialTheme.colorScheme.primary
+    val fallbackBg = MaterialTheme.colorScheme.surfaceVariant
+
+    var canvasW by remember { mutableStateOf(0) }
+    var canvasH by remember { mutableStateOf(0) }
+    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    LaunchedEffect(bounds, canvasW, canvasH) {
+        val b = bounds ?: return@LaunchedEffect
+        if (canvasW < 8 || canvasH < 8) return@LaunchedEffect
+        val w = (canvasW * pixelRatio).toInt()
+        val h = (canvasH * pixelRatio).toInt()
+        // Cache identity: region bounds + basemap style + size — stable
+        // across restarts (disk-cached by the helper, independent version).
+        val cacheKey = "offline-region-${b.longitudeWest}-${b.latitudeSouth}-${b.longitudeEast}-${b.latitudeNorth}-$w"
+        bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                MapSnapshotHelper.generateRegionPreview(
+                    context = context,
+                    cacheKey = cacheKey,
+                    bounds = b,
+                    styleUrl = provider.styleUrl(StyleVariant.OUTDOOR),
+                    widthPx = w,
+                    heightPx = h
+                )
+            }.getOrNull()
+        }
+    }
+
+    Canvas(modifier.onSizeChanged { size ->
+        canvasW = size.width
+        canvasH = size.height
+    }) {
+        val bmp = bitmap
+        if (bmp != null) {
+            drawImage(
+                bmp.asImageBitmap(),
+                dstOffset = IntOffset(0, 0),
+                dstSize = IntSize(size.width.toInt(), size.height.toInt())
+            )
+        } else {
+            // Loading / offline-fallback surface — never an error state.
+            drawRect(fallbackBg)
+        }
+        if (bounds != null) {
+            // The snapshot covers bounds padded 14% per side; the coverage
+            // rectangle sits inset accordingly and is always fully visible.
+            val insetX = size.width * 0.12f
+            val insetY = size.height * 0.12f
+            val topLeft = Offset(insetX, insetY)
+            val rectSize = Size(size.width - insetX * 2, size.height - insetY * 2)
+            // Soft fill so the area reads as "selected" even without strokes.
+            drawRect(rectColor.copy(alpha = 0.20f), topLeft = topLeft, size = rectSize)
+            // Crisp double outline (light casing + brand core), the same
+            // two-layer trick the track line uses on every other preview.
+            drawRect(Color.White.copy(alpha = 0.9f), topLeft = topLeft, size = rectSize, style = Stroke(2.dp.toPx()))
+            drawRect(rectColor.copy(alpha = 0.95f), topLeft = topLeft, size = rectSize, style = Stroke(1.5.dp.toPx()))
+        }
     }
 }

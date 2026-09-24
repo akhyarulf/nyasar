@@ -64,6 +64,11 @@ object MapSnapshotHelper {
     // every previously-cached basemap thumbnail once, forcing a fresh
     // MapSnapshotter fetch per entry using each entry's own real style.
     private const val BASEMAP_PREVIEW_CACHE_VERSION = 10
+
+    /** Disk-cache version for Offline Maps region card previews
+     *  ([generateRegionPreview]) — independent so invalidating these never
+     *  touches basemap-picker or activity-track snapshots. */
+    private const val REGION_PREVIEW_CACHE_VERSION = 1
     // 25m floor (was 100m) — 100m alone was already 5-10x wider than a
     // typical very-short recording's own span (a few meters to a few tens
     // of meters), so those tracks rendered as a tiny speck regardless of
@@ -515,26 +520,72 @@ object MapSnapshotHelper {
             .include(LatLng(-7.58, 111.22))
             .build()
 
-        val bitmap = withContext(Dispatchers.Main) {
+        // Engine dedup (2026-09): this used to inline the whole
+        // MapSnapshotter.Options + start/error/timeout block — every P3K fix
+        // comment below moved with it into [renderSnapshotBitmap], which
+        // this now shares with generateRegionPreview so a fix lands in both
+        // paths at once.
+        val bitmap = renderSnapshotBitmap(context, bounds, styleUrl, widthPx, heightPx)
+
+        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it, BASEMAP_PREVIEW_CACHE_VERSION) }
+        return bitmap
+    }
+
+    /**
+     * Static map preview for an arbitrary region (Offline Maps card):
+     * renders [bounds] with the map engine itself via the SAME machinery as
+     * [generateBasemapPreview] (inline data:-style handling, error handler,
+     * 15s timeout — no hang path), one disk-cached frame per region+size.
+     *
+     * [paddingFraction] expands the rendered region on every side so the
+     * coverage rectangle a caller overlays is always fully INSIDE the frame
+     * with breathing room (an exact-fit region put the rectangle flush
+     * against the viewport edge — the “this preview is unclear” complaint).
+     */
+    suspend fun generateRegionPreview(
+        context: Context,
+        cacheKey: String,
+        bounds: LatLngBounds,
+        styleUrl: String,
+        widthPx: Int,
+        heightPx: Int,
+        paddingFraction: Double = 0.14
+    ): Bitmap? {
+        if (widthPx < 8 || heightPx < 8) return null
+        val cached = loadFromDisk(context, cacheKey, widthPx, heightPx, REGION_PREVIEW_CACHE_VERSION)
+        if (cached != null) return cached
+
+        val latSpan = bounds.northEast.latitude - bounds.southWest.latitude
+        val lonSpan = bounds.northEast.longitude - bounds.southWest.longitude
+        val latPad = (latSpan * paddingFraction).coerceAtLeast(0.0015)
+        val lonPad = (lonSpan * paddingFraction).coerceAtLeast(0.0015)
+        val padded = LatLngBounds.Builder()
+            .include(LatLng(bounds.northEast.latitude + latPad, bounds.northEast.longitude + lonPad))
+            .include(LatLng(bounds.southWest.latitude - latPad, bounds.southWest.longitude - lonPad))
+            .build()
+
+        val bitmap = renderSnapshotBitmap(context, padded, styleUrl, widthPx, heightPx)
+        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it, REGION_PREVIEW_CACHE_VERSION) }
+        return bitmap
+    }
+
+    /**
+     * Shared MapSnapshotter invocation behind [generateBasemapPreview] and
+     * [generateRegionPreview] — extracted verbatim from the basemap path so
+     * every caller gets the same P3K fixes (withStyleJson for inline
+     * data:-styles, onSnapshotError resume, withTimeoutOrNull backstop).
+     * Must be called from the UI thread (MapSnapshotter is @UiThread).
+     */
+    private suspend fun renderSnapshotBitmap(
+        context: Context,
+        bounds: LatLngBounds,
+        styleUrl: String,
+        widthPx: Int,
+        heightPx: Int
+    ): Bitmap? {
+        return withContext(Dispatchers.Main) {
             try {
                 val options = MapSnapshotter.Options(widthPx, heightPx).apply {
-                    // P3K audit fix (the actual root cause of every inline-
-                    // style basemap thumbnail — OpenStreetMap, OpenTopoMap,
-                    // OpenHikingMap, CyclOSM, Liberty Satellite — staying
-                    // stuck on the generic placeholder): withStyle(String)
-                    // on MapSnapshotter.Options is deprecated and, per
-                    // MapLibre's own docs/examples, local/inline styles for
-                    // the snapshotter must go through withStyleBuilder(
-                    // Style.Builder().fromJson(...)) — a data: base64 URI
-                    // through withStyle() is accepted by the LIVE map's
-                    // MapLibreMap.setStyle() (a different loader) but was
-                    // silently failing here, hitting onSnapshotError for
-                    // every one of these entries and NEVER for entries
-                    // using a real remote styleUrl (Liberty Topo,
-                    // OpenMapTiles OSM Topo, UtagawaMTB —
-                    // which is exactly the split Sea observed). Remote
-                    // http(s) styleUrls keep using withStyle() below
-                    // unchanged since that path was never broken for them.
                     val dataUriPrefix = "data:application/json;base64,"
                     if (styleUrl.startsWith(dataUriPrefix)) {
                         val json = String(
@@ -549,32 +600,6 @@ object MapSnapshotHelper {
                     withAttribution(false)
                 }
                 val snapshotter = MapSnapshotter(context, options)
-                // P3K audit fix: THIS was why OpenStreetMap/OpenTopoMap/
-                // OpenHikingMap/CyclOSM thumbnails spun forever even with
-                // network on and airplane mode off. MapSnapshotter.start()
-                // has two callbacks — onSnapshotReady AND onSnapshotError
-                // (MapSnapshotter.ErrorHandler) — but only onSnapshotReady
-                // was wired up. When an inline raster style fails to
-                // resolve/load for any reason (slow/unreachable upstream,
-                // a style the native renderer rejects, etc.), MapLibre
-                // calls onSnapshotError, never onSnapshotReady — so the
-                // suspendCancellableCoroutine below was never resumed and
-                // just hung indefinitely, with nothing logged, which is
-                // exactly "spinner spins forever, no error, no timeout."
-                // OpenMapTiles OSM Topo / UtagawaMTB never hit this because
-                // they use a long-proven remote styleUrl, not one of these
-                // brand-new inline RasterStyleJson.build() styles.
-                //
-                // Fix has two independent layers so a hang can't happen
-                // again even if a future MapLibre version's error callback
-                // is itself unreliable for some failure mode:
-                //  1. onSnapshotError now resumes the coroutine with null
-                //     instead of leaving it hanging.
-                //  2. withTimeoutOrNull wraps the whole thing as a hard
-                //     backstop — if neither callback ever fires (e.g. a
-                //     completely stalled network call inside MapLibre's
-                //     native layer), this still returns null instead of
-                //     blocking the picker sheet forever.
                 withTimeoutOrNull(15_000) {
                     suspendCancellableCoroutine<Bitmap?> { cont ->
                         cont.invokeOnCancellation { snapshotter.cancel() }
@@ -585,20 +610,17 @@ object MapSnapshotHelper {
                                 }
                             },
                             MapSnapshotter.ErrorHandler { error ->
-                                android.util.Log.w("MapSnapshotHelper", "Snapshot error for $cacheKey: $error")
+                                android.util.Log.w("MapSnapshotHelper", "Snapshot error: $error")
                                 if (cont.isActive) cont.resume(null)
                             }
                         )
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.w("MapSnapshotHelper", "Basemap preview failed for $cacheKey: ${e.message}")
+                android.util.Log.w("MapSnapshotHelper", "Snapshot failed: ${e.message}")
                 null
             }
         }
-
-        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it, BASEMAP_PREVIEW_CACHE_VERSION) }
-        return bitmap
     }
 
     /**

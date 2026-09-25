@@ -97,7 +97,24 @@
       "browse.error": "Koneksi bermasalah — muat ulang halaman untuk mencoba lagi.",
       "browse.noconfig": "Daftar rute belum tersedia di halaman ini — buka aplikasi Nyasar untuk menjelajah rute publik.",
 
-      "legal.back": "Kembali ke beranda"
+      "legal.back": "Kembali ke beranda",
+
+      "reset.title": "Atur Ulang Kata Sandi",
+      "reset.sub": "Buat kata sandi baru untuk akun Nyasar-mu.",
+      "reset.new_pw": "Kata sandi baru",
+      "reset.confirm_pw": "Ulangi kata sandi baru",
+      "reset.btn": "Simpan kata sandi",
+      "reset.working": "Menyimpan…",
+      "reset.err_match": "Kedua kata sandi belum sama.",
+      "reset.err_len": "Kata sandi minimal 6 karakter.",
+      "reset.err_noconfig": "Pengaturan ulang kata sandi tidak tersedia di halaman ini — buka aplikasi Nyasar untuk bantuan.",
+      "reset.err_session": "Tautan tidak valid atau sudah kedaluwarsa. Minta tautan baru dari aplikasi (Lupa kata sandi di layar masuk).",
+      "reset.err_weak": "Kata sandi terlalu lemah — minimal 6 karakter.",
+      "reset.err_generic": "Gagal menyimpan kata sandi. Coba lagi atau buka tautan dari awal.",
+      "reset.ok_title": "Kata sandi diperbarui 🎉",
+      "reset.ok_d": "Kata sandi akun Nyasar-mu sudah berganti. Sekarang masuk ke aplikasi dengan kata sandi barumu.",
+      "reset.ok_openapp": "Buka aplikasi Nyasar",
+      "reset.checking": "Memeriksa tautan pemulihan…"
     },
 
     en: {
@@ -191,7 +208,24 @@
       "browse.error": "Connection problem — reload the page to try again.",
       "browse.noconfig": "The route list is not available on this page — open the Nyasar app to explore public routes.",
 
-      "legal.back": "Back to home"
+      "legal.back": "Back to home",
+
+      "reset.title": "Reset Your Password",
+      "reset.sub": "Set a new password for your Nyasar account.",
+      "reset.new_pw": "New password",
+      "reset.confirm_pw": "Repeat new password",
+      "reset.btn": "Save password",
+      "reset.working": "Saving…",
+      "reset.err_match": "The two passwords don't match.",
+      "reset.err_len": "Password must be at least 6 characters.",
+      "reset.err_noconfig": "Password reset is not available on this page — open the Nyasar app for help.",
+      "reset.err_session": "This link is invalid or has expired. Request a new one from the app (Forgot password on the sign-in screen).",
+      "reset.err_weak": "Password is too weak — at least 6 characters.",
+      "reset.err_generic": "Couldn't save the password. Try again, or open the link from the beginning.",
+      "reset.ok_title": "Password updated 🎉",
+      "reset.ok_d": "Your Nyasar account password has been changed. Sign in to the app with your new password.",
+      "reset.ok_openapp": "Open the Nyasar app",
+      "reset.checking": "Validating the recovery link…"
     }
   };
 

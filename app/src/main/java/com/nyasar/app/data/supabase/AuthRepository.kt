@@ -134,6 +134,29 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Send the password-recovery email. The link opens the site's bilingual
+     * reset page (app.nyasarnyaman.my.id/auth/reset/) which consumes the
+     * token and sets the new password — the app itself never handles the
+     * token, so this works identically for every installed version.
+     * Always reports Success for a well-formed request (Supabase does not
+     * reveal whether the address is registered — same anti-enumeration
+     * stance as signIn); the UI shows the "check your inbox" state.
+     */
+    suspend fun sendPasswordReset(email: String): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        return try {
+            SupabaseClientProvider.client.auth.resetPasswordForEmail(email)
+            Outcome.Success
+        } catch (e: RestException) {
+            Log.e(TAG, "sendPasswordReset failed: ${e.message}")
+            Outcome.Failure(AuthError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "sendPasswordReset failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
     /** Logout (local session clear + server revoke). Never throws. */
     suspend fun signOut() {
         try {

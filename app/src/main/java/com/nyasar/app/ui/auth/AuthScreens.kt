@@ -101,10 +101,11 @@ fun LoginScreen(
     ) {
         var email by rememberSaveable { mutableStateOf("") }
         var password by rememberSaveable { mutableStateOf("") }
+        val resetState by viewModel.passwordReset.collectAsState()
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it; viewModel.clearFormError() },
+            onValueChange = { email = it; viewModel.clearFormError(); viewModel.clearPasswordResetSent() },
             label = { Text(stringResource(R.string.auth_email)) },
             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -123,6 +124,16 @@ fun LoginScreen(
         form.errorRes?.let { res ->
             Spacer(Modifier.height(12.dp))
             ErrorBanner(stringResource(res))
+        }
+
+        // "Email terkirim" — one-shot banner under the email field; cleared
+        // when the user edits the address (clearPasswordResetSent above).
+        if (resetState.sent) {
+            Spacer(Modifier.height(12.dp))
+            SuccessBanner(stringResource(R.string.auth_reset_email_sent))
+        } else if (resetState.errorRes != null) {
+            Spacer(Modifier.height(12.dp))
+            ErrorBanner(stringResource(resetState.errorRes))
         }
 
         Spacer(Modifier.height(20.dp))
@@ -146,6 +157,19 @@ fun LoginScreen(
         }
 
         Spacer(Modifier.height(8.dp))
+        // Forgot password — sends the recovery email for the address typed
+        // above (Supabase never confirms whether it exists, so no feedback
+        // leaks account presence). The emailed link opens the site's
+        // bilingual reset page, which works for every installed version.
+        TextButton(
+            onClick = { viewModel.sendPasswordReset(email) },
+            enabled = !resetState.busy && email.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(R.string.auth_forgot_password))
+        }
+
+        Spacer(Modifier.height(4.dp))
         TextButton(
             onClick = onGoToRegister,
             modifier = Modifier.fillMaxWidth()

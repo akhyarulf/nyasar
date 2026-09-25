@@ -3,6 +3,7 @@ package com.nyasar.app.ui.auth
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nyasar.app.R
 import com.nyasar.app.data.supabase.AuthRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.SessionSource
@@ -134,6 +135,44 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _loginForm = MutableStateFlow(FormState())
     val loginForm: StateFlow<FormState> = _loginForm.asStateFlow()
+
+    /**
+     * Forgot-password flow state, kept separate from [loginForm] so the
+     * login button stays honest while the reset request is in flight.
+     * sent = "email terkirim, cek inbox" banner (one-shot; consumed by
+     * [clearPasswordResetSent] when the login form is next edited).
+     */
+    data class PasswordResetState(
+        val busy: Boolean = false,
+        val sent: Boolean = false,
+        val errorRes: Int? = null
+    )
+
+    private val _passwordReset = MutableStateFlow(PasswordResetState())
+    val passwordReset: StateFlow<PasswordResetState> = _passwordReset.asStateFlow()
+
+    /** Request a recovery email for [email] — see AuthRepository. */
+    fun sendPasswordReset(email: String) {
+        if (_passwordReset.value.busy) return
+        if (email.isBlank() || !email.contains("@")) {
+            _passwordReset.value = PasswordResetState(errorRes = R.string.auth_error_invalid_credentials)
+            return
+        }
+        _passwordReset.value = PasswordResetState(busy = true)
+        viewModelScope.launch {
+            when (val r = repo.sendPasswordReset(email.trim())) {
+                is AuthRepository.Outcome.Success ->
+                    _passwordReset.value = PasswordResetState(sent = true)
+                is AuthRepository.Outcome.Failure ->
+                    _passwordReset.value = PasswordResetState(errorRes = r.error.messageRes())
+            }
+        }
+    }
+
+    /** Clear the "email sent" banner (login form edited / navigated away). */
+    fun clearPasswordResetSent() {
+        if (_passwordReset.value.sent) _passwordReset.value = PasswordResetState()
+    }
 
     private val _registerForm = MutableStateFlow(FormState())
     val registerForm: StateFlow<FormState> = _registerForm.asStateFlow()

@@ -274,6 +274,20 @@ class RouteRepository(private val context: Context) {
     }
 
     suspend fun delete(route: RouteEntity) = withContext(Dispatchers.IO) {
+        // Storage-quota hygiene BEFORE the local row goes: if this route was
+        // ever published, its {uid}/{routeId}.gpx.gz lives in BOTH the
+        // public and private buckets' path space, and nothing else deletes
+        // those files (no FK reaches storage.objects; a SQL row delete would
+        // not remove the physical file either). Best-effort: offline or
+        // never-published routes just no-op, and cleanup failure must never
+        // block the deletion the user asked for.
+        try {
+            com.nyasar.app.data.supabase.GpxStorageCleanup.deleteForLocalSource(
+                localRouteId = route.id
+            )
+        } catch (_: Exception) {
+            // never block route deletion on cloud cleanup
+        }
         // v7: waypoints tied to this route are cleaned up BEFORE the route
         // row goes — GPX-imported ones are route data (deleted), user pins
         // merely linked to it survive as independent waypoints.

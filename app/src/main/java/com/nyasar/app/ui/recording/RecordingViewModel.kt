@@ -474,6 +474,17 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     fun discardRecording(activityId: String?) {
         if (activityId == null) return
         viewModelScope.launch {
+            // Storage-quota hygiene: if this activity was published, its
+            // server-side route row (and the {uid}/{routeId}.gpx.gz in both
+            // buckets) must not outlive the local source. Best-effort —
+            // offline / never-published just no-ops.
+            try {
+                com.nyasar.app.data.supabase.GpxStorageCleanup.deleteForLocalSource(
+                    localActivityId = activityId
+                )
+            } catch (_: Exception) {
+                // never block discard on cloud cleanup
+            }
             // v7: unlink waypoints linked to the discarded activity (kept as
             // independent) before the row goes.
             try {

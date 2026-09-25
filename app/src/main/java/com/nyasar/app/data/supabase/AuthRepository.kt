@@ -271,6 +271,25 @@ class AuthRepository {
      */
     suspend fun deleteAccount(): Outcome {
         if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        // Storage-quota hygiene BEFORE the account row goes: the DB cascade
+        // never touches Storage, so every published route's gpx.gz would be
+        // orphaned forever (free-tier quota counts files, and a deleted row
+        // no longer tells us the paths). Fetch this user's cloud route ids
+        // and delete each file via the Storage API (SQL delete on
+        // storage.objects would NOT remove the physical file). Best-effort:
+        // any failure here must not block the deletion the user asked for.
+        try {
+            val client = SupabaseClientProvider.client
+            val userId = client.auth.currentUserOrNull()?.id
+            val myRoutes = userId?.let {
+                client.postgrest["routes"].select(columns = io.github.jan.supabase.postgrest.query.Columns.list("id")) {
+                    filter { eq("user_id", it) }
+                }.decodeList<RouteIdRow>()
+            } ?: emptyList()
+            myRoutes.forEach { GpxStorageCleanup.deleteRouteGpx(userId!!, it.id) }
+        } catch (e: Exception) {
+            Log.e(TAG, "pre-delete gpx cleanup failed (non-fatal)", e)
+        }
         return try {
             SupabaseClientProvider.client.postgrest.rpc("delete_own_account")
             // Local sign-out never throws (see signOut) and LOCAL scope does
@@ -443,5 +462,11 @@ class AuthRepository {
 
     private companion object {
         const val TAG = "AuthRepository"
+
+        /** Minimal projection for the pre-delete Storage cleanup — see
+         *  deleteAccount. decodeList returns [] when the user never
+         *  published, so the cleanup loop simply no-ops. */
+        @kotlinx.serialization.Serializable
+        private data class RouteIdRow(val id: String)
     }
 }

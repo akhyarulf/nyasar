@@ -3,10 +3,9 @@
 --
 -- WHAT THIS DOES (IRREVERSIBLE — read before running)
 --   Wipes EVERYTHING in the cloud project:
---     1. All GPX files in both Storage buckets (route-gpx, route-gpx-private)
---     2. All app data: routes (cascades likes, comments, saved_routes,
+--     1. All app data: routes (cascades likes, comments, saved_routes,
 --        reports, linked waypoints), waypoints, activity_backups
---     3. ALL ACCOUNTS (auth.users) — everyone must register again
+--     2. ALL ACCOUNTS (auth.users) — everyone must register again
 --
 --   Data on users' PHONES is NOT touched (local-first architecture: Room DB
 --   lives on-device). activity_backups from a still-signed-in device will
@@ -14,8 +13,25 @@
 --   (backup is idempotent). To keep the cloud truly empty, users must also
 --   sign out / clear app data.
 --
+-- ⚠️ STORAGE FILES: DO NOT delete GPX files via SQL.
+--   Per Supabase's own docs ("Delete Objects" guide + the 2026 storage
+--   reliability post), deleting storage.objects rows via SQL removes only
+--   the METADATA row — the physical .gpx.gz file stays in S3 and keeps
+--   counting against your free-tier quota, now invisible and unfindable.
+--   SQL-level cleanup is the #1 cause of orphaned objects.
+--   THE CORRECT WAYS to empty both buckets (route-gpx, route-gpx-private):
+--     a) Dashboard → Storage → select all → Delete (per bucket), or
+--     b) Supabase CLI:  supabase storage rm --recursive  (per bucket), or
+--     c) run this SQL FIRST, then note: files become orphaned-but-charged —
+--        support can purge them, but (a)/(b) are faster. Prefer (a).
+--   App versions that include GpxStorageCleanup already delete each file
+--   via the Storage API when a route or account is deleted on-device, so
+--   future leaks stop at the source; this script is for the historical ones.
+--
 -- HOW TO RUN
---   Supabase Dashboard -> SQL Editor -> paste this whole file -> Run.
+--   1. Dashboard → Storage → delete all objects in route-gpx (public)
+--   2. Dashboard → Storage → delete all objects in route-gpx-private
+--   3. Supabase Dashboard → SQL Editor → paste this file → Run
 --   This cannot be undone. There is no auth.users backup unless you made one.
 --
 -- PRE-FLIGHT (optional sanity check — run these first, note the numbers):
@@ -35,22 +51,18 @@
 --     where bucket_id in ('route-gpx','route-gpx-private') group by bucket_id;
 --
 -- WHY THIS ORDER
---   Storage objects are deleted FIRST, explicitly, because no FK/trigger
---   connects storage.objects to auth.users or routes — deleting rows alone
---   would orphan every .gpx.gz file and keep eating free-tier quota. Then
---   auth.users: every public table cascades from it (schema_v1.sql +
---   migration 0002), so one delete clears profiles, routes, waypoints,
---   route_likes, route_comments, saved_routes, reports, activity_backups.
+--   Storage files via Dashboard FIRST (they are only reachable while the
+--   rows that name them still exist — after step 3 you no longer know which
+--   {uid}/{routeId}.gpx.gz belonged to whom). Then auth.users: every public
+--   table cascades from it (schema_v1.sql + migration 0002), so one delete
+--   clears profiles, routes, waypoints, route_likes, route_comments,
+--   saved_routes, reports, activity_backups.
 -- ============================================================================
 
 begin;
 
--- 1) Storage: GPX files (public + private buckets) — cascade does NOT reach these
-delete from storage.objects
-  where bucket_id in ('route-gpx', 'route-gpx-private');
-
--- 2) Accounts: cascades to profiles, routes, waypoints, route_likes,
---    route_comments, saved_routes, reports, activity_backups
+-- Accounts: cascades to profiles, routes, waypoints, route_likes,
+-- route_comments, saved_routes, reports, activity_backups
 delete from auth.users;
 
 commit;

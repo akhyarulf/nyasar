@@ -131,9 +131,12 @@ fun LoginScreen(
         if (resetState.sent) {
             Spacer(Modifier.height(12.dp))
             SuccessBanner(stringResource(R.string.auth_reset_email_sent))
-        } else if (resetState.errorRes != null) {
-            Spacer(Modifier.height(12.dp))
-            ErrorBanner(stringResource(resetState.errorRes))
+        } else {
+            val resetErr = resetState.errorRes
+            if (resetErr != null) {
+                Spacer(Modifier.height(12.dp))
+                ErrorBanner(stringResource(resetErr))
+            }
         }
 
         Spacer(Modifier.height(20.dp))

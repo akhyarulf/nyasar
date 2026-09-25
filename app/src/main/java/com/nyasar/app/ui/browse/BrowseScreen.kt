@@ -91,8 +91,9 @@ fun BrowseScreen(
     Scaffold(
         topBar = {
             NyasarTabHeader(
-                title = stringResource(R.string.browse_title),
-                subtitle = stringResource(R.string.browse_hero_subtitle)
+                title = stringResource(R.string.browse_title)
+                // Subtitle dihapus (feedback user 2026-09): tagline tidak
+                // menambah informasi, header cukup judul + aksi saja.
             )
         }
     ) { padding ->

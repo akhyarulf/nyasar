@@ -316,7 +316,6 @@
     <!-- Already defined above: stop_confirm_title, stop_confirm_message, cancel_btn -->
 
     <!-- Home Screen additional -->
-    <string name="search_route_count">Cari route (%d)</string>
     <string name="no_matching_route">Tidak ada route yang cocok.</string>
     <string name="gps_permission_banner">Izin lokasi belum diberikan. Nyasar butuh ini untuk menampilkan posisi Anda di peta.</string>
     <string name="tap_to_open_settings">Ketuk untuk buka Pengaturan</string>
@@ -731,7 +730,6 @@
     <string name="profile_sign_in_title">Masuk / Daftar</string>
     <string name="profile_sign_in_subtitle">Amankan rekamanmu selamanya</string>
     <string name="browse_title">Jelajah Rute</string>
-    <string name="browse_hero_subtitle">Temukan jalur berikutnya dari komunitas.</string>
     <string name="brand_kicker">NYASAR</string>
     <string name="publish_visibility_label">Siapa yang bisa lihat</string>
     <string name="publish_visibility_public">Semua orang</string>

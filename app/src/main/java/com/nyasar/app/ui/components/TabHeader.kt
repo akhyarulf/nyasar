@@ -31,13 +31,12 @@ import com.nyasar.app.R
  * One header recipe for all four bottom-bar tabs (Browse, Map, Library,
  * Profile — Record keeps its own full-screen recording UI on purpose).
  *
- * Design (2026-09 rework v2, user feedback: header "nyempil", terlalu
- * kosong, tidak estetik): a compact brand-anchored bar instead of a tall
- * title block. One row — the launcher-style logo mark in a rounded brand
- * chip, the tab title beside it (no kicker line, no subtitle line), then
- * trailing actions. Height shrinks from 112dp+statusbar to a tight
- * bar (~64dp incl. status-bar inset) so the content below gets the space,
- * and switching tabs reads as one continuous app frame.
+ * Design (2026-09 rework v3, user feedback): a compact brand-anchored bar —
+ * one row, the launcher-style logo mark in a rounded brand chip, the tab
+ * title beside it, then trailing actions. Title-only: the subtitle slot was
+ * removed so the header height is structurally IDENTICAL on all four tabs —
+ * no caller can silently grow one tab's bar by passing an extra line.
+ * Height: status-bar inset + 40dp content + 10/10 padding + 1dp hairline.
  *
  * The topographic contour motif stays as the map-brand personality but is
  * clipped to the shorter bar. Colors still come from the M3 scheme so
@@ -46,10 +45,6 @@ import com.nyasar.app.R
 @Composable
 fun NyasarTabHeader(
     title: String,
-    /** Optional one-liner shown under the title — kept for callers that
-     *  genuinely explain the screen (Explore). Renders inline in the same
-     *  row block; the bar grows slightly only when present. */
-    subtitle: String? = null,
     actions: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -109,23 +104,14 @@ fun NyasarTabHeader(
                         }
                     }
                     Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
-                        )
-                        if (subtitle != null) {
-                            Text(
-                                subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
-                    }
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
                     actions()
                 }
             }

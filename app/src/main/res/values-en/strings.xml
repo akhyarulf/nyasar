@@ -316,7 +316,6 @@
     <string name="cancel_btn">CANCEL</string>
 
     <!-- Home Screen additional -->
-    <string name="search_route_count">Search route (%d)</string>
     <string name="no_matching_route">No matching route found.</string>
     <string name="gps_permission_banner">Location permission not granted. Nyasar needs this to show your position on the map.</string>
     <string name="tap_to_open_settings">Tap to open Settings</string>
@@ -731,7 +730,6 @@
     <string name="profile_sign_in_title">Sign in / Register</string>
     <string name="profile_sign_in_subtitle">Keep your recordings safe forever</string>
     <string name="browse_title">Explore Routes</string>
-    <string name="browse_hero_subtitle">Find your next trail with the community.</string>
     <string name="brand_kicker">NYASAR</string>
     <string name="publish_visibility_label">Who can see this</string>
     <string name="publish_visibility_public">Everyone</string>

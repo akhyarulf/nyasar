@@ -240,15 +240,13 @@ fun HomeScreen(
         )
 
         // --- TOP: unified tab header over the map --------------------------
-        // Same compact header recipe as Library/Explore/Profile. The route
-        // search floats right below it as a pill; the pill overlaps the
-        // header's bottom edge slightly (negative-look via small top offset
-        // against the fixed bar height: status-bar inset + 40dp content +
-        // 10+10 padding + 1dp hairline), which reads as one attached cluster
-        // instead of two stacked strips.
+        // Same compact header recipe as Library/Explore/Profile. Title is the
+        // screen name ("Maps"/"Peta") — not the app name, which already lives
+        // in the launcher/splash (user feedback 2026-09). The header search
+        // action still opens the route sheet; no separate floating pill.
         com.nyasar.app.ui.components.NyasarTabHeader(
             modifier = Modifier.align(Alignment.TopCenter),
-            title = stringResource(R.string.app_name),
+            title = stringResource(R.string.nav_map),
             actions = {
                 com.nyasar.app.ui.components.TabHeaderAction(
                     icon = Icons.Default.Search,
@@ -257,40 +255,6 @@ fun HomeScreen(
                 )
             }
         )
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPaddingCompat()
-                .padding(top = 52.dp, start = 16.dp, end = 16.dp),
-            shape = RoundedCornerShape(NyasarRadius.pill),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shadowElevation = 4.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp)
-                    .clickable { showRoutesSheet = true },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(21.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    if (routes.isEmpty()) {
-                        stringResource(R.string.search_route)
-                    } else {
-                        stringResource(R.string.search_route_count, routes.size)
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-            }
-        }
 
         importError?.let {
             // Toast-style banners share one recipe now: shared radius token
@@ -300,9 +264,11 @@ fun HomeScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
-                    // Below the search pill — same lane as the GPS banners.
+                    // Below the header bar — same lane as the GPS banners
+                    // (header = status-bar inset + 40dp chip + 10+10 padding
+                    // + 1dp hairline; +8dp breathing gap).
                     modifier = Modifier
-                        .padding(top = 112.dp, start = 16.dp, end = 16.dp),
+                        .padding(top = 72.dp, start = 16.dp, end = 16.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm)
                 ) {
@@ -330,10 +296,10 @@ fun HomeScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
-                    // Below the search pill (top 52 + pill ~48 + gap): no
-                    // more overlap with either the header or the pill.
+                    // Below the header bar (header ~64dp + gap): no overlap
+                    // with the header, and nothing else floats here anymore.
                     modifier = Modifier
-                        .padding(top = 112.dp, start = 16.dp, end = 16.dp)
+                        .padding(top = 72.dp, start = 16.dp, end = 16.dp)
                         .pressScale(bannerInteraction)
                         .clickable(
                             interactionSource = bannerInteraction,
@@ -367,7 +333,7 @@ fun HomeScreen(
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 112.dp, start = 16.dp, end = 16.dp),
+                    .padding(top = 72.dp, start = 16.dp, end = 16.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(NyasarRadius.sm)
             ) {
@@ -384,7 +350,7 @@ fun HomeScreen(
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 112.dp),
+                    .padding(top = 72.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(NyasarRadius.sm)
             ) {
@@ -433,16 +399,16 @@ fun HomeScreen(
             )
         }
 
-        // Compass — top-end, pushed down below the search bar (was
-        // overlapping it before) using the same real status-bar inset as
-        // the search row itself, not a guessed flat offset.
+        // Compass — top-end, just below the header bar (status-bar inset +
+        // the bar's own height) so it sits beside the GPS banner lane without
+        // overlapping the header's search action.
         com.nyasar.app.ui.components.CompassButton(
             bearingDeg = mapBearing,
             onClick = { mapInstance?.let { it.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.bearingTo(0.0)) } },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPaddingCompat()
-                .padding(end = 12.dp, top = 58.dp)
+                .padding(end = 12.dp, top = 62.dp)
                 .size(48.dp)
         )
 

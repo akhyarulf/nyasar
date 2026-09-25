@@ -140,6 +140,20 @@
       if (window.nyasarApplyLang) window.nyasarApplyLang(b.getAttribute("data-lang"));
     });
   });
+
+  // Penerus tautan recovery (email Supabase default mendarat di Site URL =
+  // halaman ini dengan token di fragment / code di query). Teruskan apa
+  // adanya ke /auth/reset/ — halaman yang memang dirancang menanganinya.
+  // Tanpa ini, beranda mengabaikan token dan user melihat landing biasa.
+  (function () {
+    var h = location.hash || "", q = location.search || "";
+    var isRecovery = h.indexOf("access_token=") !== -1 ||
+      h.indexOf("type=recovery") !== -1 || q.indexOf("type=recovery") !== -1 ||
+      q.indexOf("code=") !== -1;
+    if (isRecovery) {
+      location.replace("/auth/reset/" + q + h);
+    }
+  })();
 </script>
 </body>
 </html>

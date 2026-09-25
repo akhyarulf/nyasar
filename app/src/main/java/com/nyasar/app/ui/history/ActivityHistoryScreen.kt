@@ -356,13 +356,18 @@ private fun ActivityCard(
                         // the bitmap's native resolution diverged from the
                         // on-screen size.
                         val routeLineColor = MaterialTheme.colorScheme.primary
+                        // Fallback grid color (derived from onSurface, not hardcoded
+                        // black): 0x18000000 vanished against the dark theme's
+                        // near-black card background. Hoisted out of the Canvas:
+                        // MaterialTheme.colorScheme is a composable read and may
+                        // not be called inside the DrawScope lambda.
+                        val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
                         Canvas(Modifier.fillMaxSize()) {
                             val canvasWidth = size.width
                             val canvasHeight = size.height
 
                             // Fallback grid if no snapshot
                             if (snapshotResult == null) {
-                                val gridColor = Color(0x18000000)
                                 val gridSpacing = 40.dp.toPx()
                                 var gx = 0f
                                 while (gx <= canvasWidth) {

@@ -855,7 +855,8 @@ fun RecordingScreen(
             tonalElevation = 3.dp,
             shadowElevation = 2.dp
         ) {
-            StatusChip(effectiveStatus, state.isAutoPaused, state.gpsHealth, state.gpsAccuracyMeters, state.gpsProvider)
+            // RecordingStatusText: theme-aware StatusChip (dark-mode contrast fix).
+            RecordingStatusText(effectiveStatus, state.isAutoPaused, state.gpsHealth, state.gpsAccuracyMeters, state.gpsProvider)
         }
 
         // P3I §20/26: surfaced separately from GPS health — this is about

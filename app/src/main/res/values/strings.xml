@@ -509,6 +509,8 @@
     <string name="recording_stat_moving_time">Waktu bergerak</string>
     <string name="recording_stat_speed">Kecepatan</string>
     <string name="recording_stat_avg_speed">Rata-rata</string>
+    <string name="recording_stat_max_speed">Maks</string>
+    <string name="recording_stat_gps_points">Titik GPS</string>
     <string name="stat_duration">Durasi</string>
     <string name="stat_walking_time">Waktu Bergerak</string>
     <string name="stat_elev_gain_up">Elevasi Naik</string>

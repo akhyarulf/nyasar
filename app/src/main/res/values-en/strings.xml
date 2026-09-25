@@ -509,6 +509,8 @@
     <string name="recording_stat_moving_time">Moving time</string>
     <string name="recording_stat_speed">Speed</string>
     <string name="recording_stat_avg_speed">Avg speed</string>
+    <string name="recording_stat_max_speed">Max</string>
+    <string name="recording_stat_gps_points">GPS points</string>
     <string name="stat_duration">Duration</string>
     <string name="stat_walking_time">Moving Time</string>
     <string name="stat_elev_gain_up">Elevation Gain</string>

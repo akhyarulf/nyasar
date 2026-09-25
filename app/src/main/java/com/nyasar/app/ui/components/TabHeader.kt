@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.R
 
@@ -123,6 +124,11 @@ fun NyasarTabHeader(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
+                        // Narrow-width hardening (sw320dp audit): default is
+                        // Clip — a title squeezed by a small screen + large
+                        // system font scale would cut mid-letter instead of
+                        // degrading gracefully.
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     actions()

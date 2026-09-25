@@ -15,6 +15,11 @@
              with the brand's pale backdrop in light mode. -->
     <style name="Theme.Nyasar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:statusBarColor">#00000000</item>
+        <!-- Dark status-bar icons over the app's pale surfaces (light theme):
+             headers are surfaceContainer now (matching the bottom bar), not
+             the old mid-green gradient, so the OS-default light icons would
+             vanish. DayNight flips this automatically in dark mode. -->
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowBackground">@color/nyasar_window_background</item>
     </style>
 
@@ -37,5 +42,8 @@
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
         <item name="windowSplashScreenAnimationDuration">400</item>
         <item name="postSplashScreenTheme">@style/Theme.Nyasar</item>
+        <!-- Dark icons over the pale light-theme splash background; the
+             values-night override flips this for dark mode. -->
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

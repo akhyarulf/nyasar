@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark-mode override of Theme.Nyasar: only flips the status-bar icon
+         color back to light (white) — the transparent statusBarColor and the
+         windowBackground are re-declared to keep the style self-contained.
+         values/themes.xml sets windowLightStatusBar=true for dark icons over
+         the light theme's pale surfaceContainer headers. -->
+    <style name="Theme.Nyasar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#00000000</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/nyasar_window_background</item>
+    </style>
+
+    <!-- Same flip for the splash: dark mode keeps its dark splash background
+         (values-night colors) and needs light status-bar icons over it. -->
+    <style name="Theme.Nyasar.Splash" parent="Theme.SplashScreen">
+        <item name="android:windowSplashScreenBackground">@color/splash_window_background</item>
+        <item name="windowSplashScreenBackground">@color/splash_window_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenAnimationDuration">400</item>
+        <item name="postSplashScreenTheme">@style/Theme.Nyasar</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

@@ -5,6 +5,7 @@ import com.nyasar.app.AppLinks
 import io.github.jan.supabase.exceptions.BadRequestRestException
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.exceptions.UnauthorizedRestException
+import io.github.jan.supabase.gotrue.OtpType
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.Email
@@ -116,6 +117,30 @@ class AuthRepository {
         } catch (e: Exception) {
             Log.e(TAG, "signUp failed", e)
             Outcome.Failure(AuthError.NETWORK) to null
+        }
+    }
+
+    /**
+     * Resend the signup confirmation email (auth/v1/resend with type=signup,
+     * gotrue-kt 2.2.2 resendEmail(OtpType.Email.SIGNUP, …)). Used by the
+     * "check your email" step after registering on an email-confirmation
+     * project. Like sendPasswordReset, it reports Success for a well-formed
+     * request — the server does not reveal whether the address is registered.
+     */
+    suspend fun resendConfirmationEmail(email: String): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        return try {
+            SupabaseClientProvider.client.auth.resendEmail(
+                type = OtpType.Email.SIGNUP,
+                email = email.trim()
+            )
+            Outcome.Success
+        } catch (e: RestException) {
+            Log.e(TAG, "resendConfirmationEmail failed: ${e.message}")
+            Outcome.Failure(AuthError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "resendConfirmationEmail failed", e)
+            Outcome.Failure(AuthError.NETWORK)
         }
     }
 

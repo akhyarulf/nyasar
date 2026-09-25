@@ -633,6 +633,11 @@
     <string name="auth_error_not_configured">Account feature is not configured in this build</string>
     <string name="auth_error_generic">Something went wrong — please try again</string>
     <string name="auth_check_email">Registration successful — check your email to verify before signing in</string>
+    <string name="auth_await_email_title">Check your email</string>
+    <string name="auth_await_email_body">We sent a confirmation link to %1$s. Open that email on your phone and tap the link — Nyasar opens straight away and continues to username setup.</string>
+    <string name="auth_await_email_hint">No email yet? Check your spam/promotions folder, or resend below.</string>
+    <string name="auth_await_email_resend">Resend confirmation email</string>
+    <string name="auth_await_email_resent">Confirmation email resent — check your inbox again</string>
     <string name="username_title">Choose a Username</string>
     <string name="username_intro">One more step: pick a unique username for your identity. It will appear on routes &amp; activities you publish.</string>
     <string name="username_label">Username</string>

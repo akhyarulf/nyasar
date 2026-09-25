@@ -303,6 +303,7 @@ fun RegisterScreen(
     viewModel: AuthViewModel = viewModel()
 ) {
     val form by viewModel.registerForm.collectAsState()
+    val resend by viewModel.resendState.collectAsState()
     val session by viewModel.sessionState.collectAsState()
 
     // Two success paths, both gated through the username flow:
@@ -331,69 +332,139 @@ fun RegisterScreen(
             else -> null
         }
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it; viewModel.clearFormError() },
-            label = { Text(stringResource(R.string.auth_email)) },
-            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            singleLine = true,
-            enabled = !form.busy,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(12.dp))
-        PasswordField(
-            value = password,
-            onValueChange = { password = it; viewModel.clearFormError() },
-            label = stringResource(R.string.auth_password),
-            enabled = !form.busy
-        )
-        Spacer(Modifier.height(12.dp))
-        PasswordField(
-            value = confirm,
-            onValueChange = { confirm = it; viewModel.clearFormError() },
-            label = stringResource(R.string.auth_confirm_password),
-            enabled = !form.busy
-        )
-
-        val errorText = form.errorRes?.let { stringResource(it) } ?: localError
-        if (errorText != null) {
-            Spacer(Modifier.height(12.dp))
-            ErrorBanner(errorText)
-        }
-
         if (form.awaitingEmailConfirmation) {
-            Spacer(Modifier.height(12.dp))
-            SuccessBanner(stringResource(R.string.auth_check_email))
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Button(
-            onClick = { viewModel.signUp(email, password) },
-            enabled = !form.busy && email.isNotBlank() &&
-                password.length >= 6 && password == confirm,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
-        ) {
-            if (form.busy) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
+            // Dedicated "check your email" step (2026-09 user report: the
+            // old inline banner was easy to miss — users tapped Create
+            // account and sat on a silent form). The form is replaced so
+            // the next action is unambiguous: open the inbox, or resend.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Spacer(Modifier.height(12.dp))
+                Icon(
+                    Icons.Default.MarkEmailRead,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(56.dp)
                 )
-            } else {
-                Text(stringResource(R.string.auth_register_cta), fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.auth_await_email_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.auth_await_email_body, email),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    stringResource(R.string.auth_await_email_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(20.dp))
+                if (resend.resent) {
+                    SuccessBanner(stringResource(R.string.auth_await_email_resent))
+                    Spacer(Modifier.height(12.dp))
+                }
+                resend.errorRes?.let {
+                    ErrorBanner(stringResource(it))
+                    Spacer(Modifier.height(12.dp))
+                }
+                OutlinedButton(
+                    onClick = { viewModel.resendConfirmationEmail() },
+                    enabled = !resend.busy,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    if (resend.busy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(stringResource(R.string.auth_await_email_resend))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    onClick = {
+                        viewModel.clearResendState()
+                        onBackToLogin()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.auth_have_account))
+                }
             }
-        }
+        } else {
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it; viewModel.clearFormError() },
+                label = { Text(stringResource(R.string.auth_email)) },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                singleLine = true,
+                enabled = !form.busy,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+            PasswordField(
+                value = password,
+                onValueChange = { password = it; viewModel.clearFormError() },
+                label = stringResource(R.string.auth_password),
+                enabled = !form.busy
+            )
+            Spacer(Modifier.height(12.dp))
+            PasswordField(
+                value = confirm,
+                onValueChange = { confirm = it; viewModel.clearFormError() },
+                label = stringResource(R.string.auth_confirm_password),
+                enabled = !form.busy
+            )
 
-        Spacer(Modifier.height(8.dp))
-        TextButton(
-            onClick = onBackToLogin,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.auth_have_account))
+            val errorText = form.errorRes?.let { stringResource(it) } ?: localError
+            if (errorText != null) {
+                Spacer(Modifier.height(12.dp))
+                ErrorBanner(errorText)
+            }
+
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = { viewModel.signUp(email, password) },
+                enabled = !form.busy && email.isNotBlank() &&
+                    password.length >= 6 && password == confirm,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                if (form.busy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text(stringResource(R.string.auth_register_cta), fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            TextButton(
+                onClick = onBackToLogin,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.auth_have_account))
+            }
         }
     }
 }

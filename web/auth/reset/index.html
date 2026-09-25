@@ -38,6 +38,13 @@
     background: var(--btn-primary-bg, linear-gradient(135deg, #2E5339, #4F7A5C));
     color: #fff; text-decoration: none; font-weight: 700;
   }
+  /* Footer halaman sub-path ini sebelumnya <p> telanjang tanpa class
+     footer-inner — link dirender gaya default browser (ungu + underline,
+     laporan screenshot user). Pakai wrapper bersetyle yang sama dengan
+     halaman lain. */
+  .footer-inner { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; max-width: 1080px; margin: 0 auto; padding: 30px 20px; color: var(--ink-mute, #6F7971); font-size: .88rem; }
+  .footer-inner a { color: var(--accent, #2E5339); text-decoration: none; font-weight: 600; }
+  .footer-inner a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -87,11 +94,13 @@
 </main>
 
 <footer>
-  <p>
-    <a href="/privacy-policy.html" data-i18n="footer.privacy">Privacy Policy</a> &nbsp;·&nbsp;
-    <a href="/terms-of-service.html" data-i18n="footer.terms">Terms of Service</a>
-  </p>
-  <p data-i18n="footer.made">Dibuat dengan teliti untuk pendaki Indonesia.</p>
+  <div class="footer-inner">
+    <span>© 2026 Nyasar</span>
+    <span>
+      <a href="/privacy-policy.html" data-i18n="footer.privacy">Privacy Policy</a> &nbsp;·&nbsp;
+      <a href="/terms-of-service.html" data-i18n="footer.terms">Terms of Service</a>
+    </span>
+  </div>
 </footer>
 
 <!-- config.js di-generate workflow Pages saat deploy (Supabase endpoints);

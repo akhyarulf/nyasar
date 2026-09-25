@@ -121,7 +121,8 @@
       "cb.open_btn": "Buka aplikasi secara manual",
       "cb.web_title": "Email terkonfirmasi!",
       "cb.web_sub": "Akun Nyasar-mu aktif. Pasang aplikasinya untuk mulai mendaki:",
-      "cb.web_btn": "Unduh aplikasi Nyasar"
+      "cb.web_btn": "Unduh aplikasi Nyasar",
+      "cb.web_note": "Sudah terpasang? Buka app-nya dan masuk langsung — akunmu sudah aktif."
     },
 
     en: {
@@ -239,7 +240,8 @@
       "cb.open_btn": "Open the app manually",
       "cb.web_title": "Email confirmed!",
       "cb.web_sub": "Your Nyasar account is active. Install the app to start hiking:",
-      "cb.web_btn": "Download the Nyasar app"
+      "cb.web_btn": "Download the Nyasar app",
+      "cb.web_note": "Already installed? Just open the app and sign in — your account is active."
     }
   };
 

@@ -10,6 +10,7 @@ import io.github.jan.supabase.gotrue.SessionSource
 import io.github.jan.supabase.gotrue.SessionStatus
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.user.UserSession
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -177,6 +178,49 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     private val _registerForm = MutableStateFlow(FormState())
     val registerForm: StateFlow<FormState> = _registerForm.asStateFlow()
 
+    /**
+     * "Resend confirmation email" action from the check-email step.
+     * Separate from [registerForm] so the form's busy state (button
+     * spinner) is untouched while the resend request runs; [resent]
+     * mirrors the one-shot "email sent" banner pattern of
+     * [PasswordResetState].
+     */
+    data class ResendState(
+        val busy: Boolean = false,
+        val resent: Boolean = false,
+        val errorRes: Int? = null
+    )
+
+    private val _resendState = MutableStateFlow(ResendState())
+    val resendState: StateFlow<ResendState> = _resendState.asStateFlow()
+
+    /** Email that just registered — captured at the awaiting-confirmation
+     *  transition so the resend button and screen copy can use it even
+     *  after the form fields are cleared. */
+    private var lastRegisteredEmail: String? = null
+
+    /** Resend the signup confirmation email — see AuthRepository. */
+    fun resendConfirmationEmail() {
+        if (_resendState.value.busy) return
+        val email = lastRegisteredEmail ?: return
+        _resendState.value = ResendState(busy = true)
+        viewModelScope.launch {
+            when (val r = repo.resendConfirmationEmail(email)) {
+                is AuthRepository.Outcome.Success ->
+                    _resendState.value = ResendState(resent = true)
+                is AuthRepository.Outcome.Failure ->
+                    _resendState.value = ResendState(errorRes = r.error.messageRes())
+            }
+        }
+    }
+
+    /** Clear the "resent" banner (one-shot, like the password-reset one). */
+    fun clearResendState() {
+        if (_resendState.value.resent || _resendState.value.errorRes != null) {
+            _resendState.value = ResendState()
+        }
+    }
+
     private val _usernameForm = MutableStateFlow(UsernameFormState())
     val usernameForm: StateFlow<UsernameFormState> = _usernameForm.asStateFlow()
 
@@ -283,21 +327,31 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
             // signUp returns (outcome, newUserId?) — destructure it here;
             // newUserId is what distinguishes "session created" from the
             // email-confirmation-required path below.
-            val (outcome, newUserId) = repo.signUp(email.trim(), password)
+            val (outcome, _) = repo.signUp(email.trim(), password)
             when (outcome) {
                 is AuthRepository.Outcome.Success -> {
-                    _registerForm.value = FormState()
-                    if (newUserId == null &&
-                        SupabaseClientProvider.client.auth.currentSessionOrNull() == null
-                    ) {
+                    // Give sessionStatus a beat to emit if a session WAS
+                    // created (auto-confirm projects): signUpWith resolves
+                    // before the SDK's StateFlow round-trips, so without
+                    // this settle delay the (correct) "no session" verdict
+                    // below would race ahead of the Authenticated emission
+                    // and wrongly show the email-confirmation banner.
+                    delay(1500)
+                    if (SupabaseClientProvider.client.auth.currentSessionOrNull() == null) {
                         // Project requires email confirmation: no session was
                         // created, so sessionStatus will NOT flip to
                         // Authenticated. Tell the user to check their inbox
-                        // rather than sitting on a silent screen.
+                        // rather than sitting on a silent screen. The user
+                        // object itself IS returned even without a session,
+                        // so the old `newUserId == null` condition never
+                        // fired on this project — that silent screen was the
+                        // reported bug. The session is the only honest signal.
+                        lastRegisteredEmail = email.trim()
                         _registerForm.value = FormState(awaitingEmailConfirmation = true)
                     }
                     // If a session IS created (auto-confirm on), the collector
-                    // routes to NeedsUsername automatically.
+                    // routes to NeedsUsername automatically and the banner
+                    // below never matters.
                 }
                 is AuthRepository.Outcome.Failure -> {
                     _registerForm.value = FormState(busy = false, errorRes = outcome.error.messageRes())

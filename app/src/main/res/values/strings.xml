@@ -633,6 +633,11 @@
     <string name="auth_error_not_configured">Fitur akun belum dikonfigurasi di build ini</string>
     <string name="auth_error_generic">Terjadi kesalahan — coba lagi</string>
     <string name="auth_check_email">Registrasi berhasil — cek email untuk verifikasi sebelum masuk</string>
+    <string name="auth_await_email_title">Cek email kamu</string>
+    <string name="auth_await_email_body">Kami mengirim tautan konfirmasi ke %1$s. Buka email itu di HP-mu dan ketuk tautannya — Nyasar akan langsung terbuka dan lanjut memilih username.</string>
+    <string name="auth_await_email_hint">Email tidak sampai? Cek folder spam/promosi, atau kirim ulang di bawah.</string>
+    <string name="auth_await_email_resend">Kirim ulang email konfirmasi</string>
+    <string name="auth_await_email_resent">Email konfirmasi dikirim ulang — cek inbox lagi ya</string>
     <string name="username_title">Pilih Username</string>
     <string name="username_intro">Satu langkah lagi: pilih username unik untuk identitasmu. Username ini akan tampil di rute &amp; aktivitas yang kamu publish.</string>
     <string name="username_label">Username</string>

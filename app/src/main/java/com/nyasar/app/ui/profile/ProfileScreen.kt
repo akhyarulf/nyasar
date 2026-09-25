@@ -25,6 +25,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -91,16 +93,32 @@ fun ProfileScreen(
     LaunchedEffect(initialTab) { selectedTab = initialTab.ordinal }
 
     val tabRow = @Composable {
-        TabRow(selectedTabIndex = selectedTab) {
+        // Secondary-style tab row: full-width underline + labelMedium caps
+        // feels lighter than the primary indicator bar, and the hairline
+        // divider under the whole row keeps it attached to the header card
+        // instead of floating in blank space.
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    height = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
+            divider = {}
+        ) {
             Tab(
                 selected = selectedTab == ProfileTab.HISTORY.ordinal,
                 onClick = { selectedTab = ProfileTab.HISTORY.ordinal },
-                text = { Text(stringResource(R.string.profile_tab_history)) }
+                text = { Text(stringResource(R.string.profile_tab_history), style = MaterialTheme.typography.labelLarge) }
             )
             Tab(
                 selected = selectedTab == ProfileTab.SAVED.ordinal,
                 onClick = { selectedTab = ProfileTab.SAVED.ordinal },
-                text = { Text(stringResource(R.string.saved_title)) }
+                text = { Text(stringResource(R.string.saved_title), style = MaterialTheme.typography.labelLarge) }
             )
         }
     }
@@ -221,7 +239,10 @@ private fun ProfileHeaderCard(
             .clickable(enabled = isInteractive) {
                 if (signedIn != null) onOpenProfile() else onOpenSignIn()
             }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            // A touch more vertical air than a plain list row: this card is
+            // the page's identity block, sandwiched between the tab header
+            // and the History/Saved tabs — tighter felt cramped.
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

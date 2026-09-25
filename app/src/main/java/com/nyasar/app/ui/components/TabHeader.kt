@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
@@ -23,31 +24,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.R
 
 /**
- * One header recipe for all four bottom-bar tabs (Maps, Library, Explore,
+ * One header recipe for all four bottom-bar tabs (Browse, Map, Library,
  * Profile — Record keeps its own full-screen recording UI on purpose).
  *
- * Design (2026-09 rework): a CALM header that mirrors the bottom
- * navigation bar instead of fighting it — the same surfaceContainer
- * color the M3 NavigationBar uses, so the top and bottom of every tab
- * read as one frame in BOTH light and dark mode (the old primary→
- * secondary gradient rendered as a big pale-green block over the dark
- * theme and the user asked for it to go). Personality stays through a
- * barely-there topographic contour motif and the "NYASAR" kicker in
- * brand primary; text/icons read from onSurface/onSurfaceVariant so
- * contrast is correct in either theme automatically.
+ * Design (2026-09 rework v2, user feedback: header "nyempil", terlalu
+ * kosong, tidak estetik): a compact brand-anchored bar instead of a tall
+ * title block. One row — the launcher-style logo mark in a rounded brand
+ * chip, the tab title beside it (no kicker line, no subtitle line), then
+ * trailing actions. Height shrinks from 112dp+statusbar to a tight
+ * bar (~64dp incl. status-bar inset) so the content below gets the space,
+ * and switching tabs reads as one continuous app frame.
  *
- * Height is fixed for all tabs so switching tabs never makes the content
- * below jump.
+ * The topographic contour motif stays as the map-brand personality but is
+ * clipped to the shorter bar. Colors still come from the M3 scheme so
+ * light/dark both read correctly with zero hardcoding.
  */
 @Composable
 fun NyasarTabHeader(
     title: String,
+    /** Optional one-liner shown under the title — kept for callers that
+     *  genuinely explain the screen (Explore). Renders inline in the same
+     *  row block; the bar grows slightly only when present. */
     subtitle: String? = null,
     actions: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
@@ -57,43 +61,50 @@ fun NyasarTabHeader(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(112.dp)
+                    .statusBarsPadding()
             ) {
-                // Topographic contour motif — the map-brand personality, now
-                // in onSurface at very low alpha so it whispers instead of
-                // shouting and stays correct in both themes. Color is read
-                // OUTSIDE the Canvas: DrawScope is not a composable context.
+                // Topographic contour motif — clipped to the bar itself.
                 val contourColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                 Canvas(Modifier.fillMaxSize()) {
-                    val lineColor = contourColor
-                    for (i in 0..3) {
-                        val y = size.height * (0.30f + i * 0.16f)
+                    for (i in 0..2) {
+                        val y = size.height * (0.35f + i * 0.28f)
                         val path = Path().apply {
                             moveTo(-24f, y)
                             cubicTo(
-                                size.width * 0.22f, y - 24f,
-                                size.width * 0.52f, y + 24f,
+                                size.width * 0.22f, y - 18f,
+                                size.width * 0.52f, y + 18f,
                                 size.width + 24f, y
                             )
                         }
-                        drawPath(path, lineColor, style = Stroke(width = 1.5f))
+                        drawPath(path, contourColor, style = Stroke(width = 1.5f))
                     }
                 }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                        .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Brand mark: the actual launcher foreground artwork on a
+                    // rounded brand chip — the app icon in miniature, same
+                    // artwork the splash + web favicon use. Anchors the
+                    // header visually instead of a floating text kicker.
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                brandMarkPainter(),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(
-                            stringResource(R.string.brand_kicker),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(Modifier.height(2.dp))
                         Text(
                             title,
                             style = MaterialTheme.typography.titleLarge,
@@ -102,7 +113,6 @@ fun NyasarTabHeader(
                             maxLines = 1
                         )
                         if (subtitle != null) {
-                            Spacer(Modifier.height(3.dp))
                             Text(
                                 subtitle,
                                 style = MaterialTheme.typography.bodySmall,
@@ -120,6 +130,14 @@ fun NyasarTabHeader(
         }
     }
 }
+
+/**
+ * The launcher foreground artwork as a painter: the splash logo PNG —
+ * the same artwork as the launcher icon, hi-res — so header, splash, and
+ * app icon share one visual source of truth.
+ */
+@Composable
+private fun brandMarkPainter() = painterResource(com.nyasar.app.R.drawable.splash_logo)
 
 /** Trailing action inside [NyasarTabHeader] — onSurface-tinted icon button. */
 @Composable

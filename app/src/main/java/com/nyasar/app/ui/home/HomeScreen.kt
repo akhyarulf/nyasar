@@ -240,10 +240,12 @@ fun HomeScreen(
         )
 
         // --- TOP: unified tab header over the map --------------------------
-        // Same gradient header recipe as Library/Explore/Profile (user
-        // request: "seragamkan") — no logo, the route search stays as a
-        // floating pill below it. Title opens the routes sheet, same as
-        // the search pill did before.
+        // Same compact header recipe as Library/Explore/Profile. The route
+        // search floats right below it as a pill; the pill overlaps the
+        // header's bottom edge slightly (negative-look via small top offset
+        // against the fixed bar height: status-bar inset + 40dp content +
+        // 10+10 padding + 1dp hairline), which reads as one attached cluster
+        // instead of two stacked strips.
         com.nyasar.app.ui.components.NyasarTabHeader(
             modifier = Modifier.align(Alignment.TopCenter),
             title = stringResource(R.string.app_name),
@@ -259,9 +261,9 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPaddingCompat()
-                .padding(top = 124.dp, start = 16.dp, end = 16.dp),
+                .padding(top = 52.dp, start = 16.dp, end = 16.dp),
             shape = RoundedCornerShape(NyasarRadius.pill),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             shadowElevation = 4.dp
         ) {
             Row(
@@ -298,8 +300,9 @@ fun HomeScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
+                    // Below the search pill — same lane as the GPS banners.
                     modifier = Modifier
-                        .padding(top = 168.dp, start = 16.dp, end = 16.dp),
+                        .padding(top = 112.dp, start = 16.dp, end = 16.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm)
                 ) {
@@ -327,8 +330,10 @@ fun HomeScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
+                    // Below the search pill (top 52 + pill ~48 + gap): no
+                    // more overlap with either the header or the pill.
                     modifier = Modifier
-                        .padding(top = 80.dp, start = 16.dp, end = 16.dp)
+                        .padding(top = 112.dp, start = 16.dp, end = 16.dp)
                         .pressScale(bannerInteraction)
                         .clickable(
                             interactionSource = bannerInteraction,
@@ -362,8 +367,8 @@ fun HomeScreen(
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 80.dp, start = 16.dp, end = 16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                    .padding(top = 112.dp, start = 16.dp, end = 16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(NyasarRadius.sm)
             ) {
                 Text(
@@ -379,8 +384,8 @@ fun HomeScreen(
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 80.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                    .padding(top = 112.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(NyasarRadius.sm)
             ) {
                 Text(
@@ -437,7 +442,7 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPaddingCompat()
-                .padding(end = 12.dp, top = 84.dp)
+                .padding(end = 12.dp, top = 58.dp)
                 .size(48.dp)
         )
 

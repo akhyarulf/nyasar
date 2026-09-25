@@ -97,6 +97,10 @@ fun BrowseScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            // Search + filter/sort share ONE inset block (16dp sides, 12dp
+            // top, 8dp between) so the controls read as a single attached
+            // cluster under the header — not two separately-floated rows
+            // with air between them.
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::onQueryChanged,
@@ -114,9 +118,13 @@ fun BrowseScreen(
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(NyasarRadius.md),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp)
             )
 
             // Filter/sort row (Wikiloc concept): a search-weighted Filters
@@ -130,7 +138,7 @@ fun BrowseScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
@@ -344,7 +352,11 @@ internal fun PublicRouteCard(
                     route.trailType?.let { t -> BrowseRepository.TrailTypeFilter.fromWire(t) }?.let { chip ->
                         TrailTypeChip(label = stringResource(chip.labelRes))
                     }
-                    SportType.fromString(route.sportType).let { sport ->
+                    // Sport icon only when the publisher actually picked a
+                    // sport — the old render drew HelpOutline ("?") for the
+                    // UNSPECIFIED default, which read as a broken/unexplained
+                    // glyph on every fresh card (user report).
+                    SportType.fromString(route.sportType).takeIf { it != SportType.UNSPECIFIED }?.let { sport ->
                         Icon(
                             imageVector = sport.icon,
                             contentDescription = null,

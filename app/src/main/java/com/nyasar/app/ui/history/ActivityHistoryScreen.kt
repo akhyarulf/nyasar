@@ -237,8 +237,12 @@ private fun ActivityCard(
                         modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
+                            // Hike icon fallback for UNSPECIFIED — the raw
+                            // HelpOutline "?" glyph read as a broken card
+                            // (same report as the Browse card).
                             Icon(
-                                SportType.fromString(activity.sportType).icon,
+                                (SportType.fromString(activity.sportType).takeIf { it != SportType.UNSPECIFIED }
+                                    ?: SportType.HIKE).icon,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(20.dp)

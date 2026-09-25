@@ -74,9 +74,11 @@ fun TrackAndMapsScreen(
             }
         )
 
-        // Import GPX + Gambar Rute
+        // Import GPX + Gambar Rute — one attached cluster under the header
+        // (12dp top, 8dp gap to the filter row below), mirroring Browse's
+        // search cluster so both tab screens breathe the same way.
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FilledTonalButton(
@@ -118,7 +120,7 @@ fun TrackAndMapsScreen(
 
         // Filter pill row
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FilterPill("Semua", state.filter == TrackAndMapsFilter.ALL) { viewModel.setFilter(TrackAndMapsFilter.ALL) }

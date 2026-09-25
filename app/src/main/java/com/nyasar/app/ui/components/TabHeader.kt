@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -36,7 +37,11 @@ import com.nyasar.app.R
  * title beside it, then trailing actions. Title-only: the subtitle slot was
  * removed so the header height is structurally IDENTICAL on all four tabs —
  * no caller can silently grow one tab's bar by passing an extra line.
- * Height: status-bar inset + 40dp content + 10/10 padding + 1dp hairline.
+ * Height: status-bar inset + 48dp content + 10/10 padding + 1dp hairline.
+ * The row enforces heightIn(min = 48.dp) — TabHeaderAction's IconButton
+ * size — so headers WITHOUT trailing actions still reach the same 68dp
+ * band; otherwise the 40dp brand chip alone left them 8dp shorter
+ * (the 2026-09 "Explore header looks smaller" report).
  *
  * The topographic contour motif stays as the map-brand personality but is
  * clipped to the shorter bar. Colors still come from the M3 scheme so
@@ -82,7 +87,15 @@ fun NyasarTabHeader(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+                        .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)
+                        // Reserve the action button's height INSIDE the
+                        // padding — after it, not before: pre-padding min
+                        // 48dp would be a no-op (the padded row is already
+                        // 60dp). Applied here, the content lane is always
+                        // 48dp tall, so action-less tabs (Browse) end up at
+                        // the same 68dp band as tabs with an IconButton,
+                        // with the brand chip centered in the extra 8dp.
+                        .heightIn(min = 48.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Brand mark: the actual launcher foreground artwork on a

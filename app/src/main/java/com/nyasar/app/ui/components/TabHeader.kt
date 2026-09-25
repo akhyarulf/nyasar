@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -25,7 +23,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.R
@@ -63,9 +60,17 @@ fun NyasarTabHeader(
                     .fillMaxWidth()
                     .statusBarsPadding()
             ) {
-                // Topographic contour motif — clipped to the bar itself.
+                // Topographic contour motif — matchParentSize, NOT
+                // fillMaxSize: the Box wraps the Row below (no fixed height
+                // anymore), and a fillMaxSize child would size the Box to
+                // the FULL incoming constraint (Scaffold's topBar slot is
+                // screen-tall) — the header then swallowed the entire
+                // screen and covered every tab's content (2026-09 report).
+                // matchParentSize sizes the Canvas to the Box AFTER the Row
+                // has determined its compact height, without influencing
+                // the Box's own size.
                 val contourColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
-                Canvas(Modifier.fillMaxSize()) {
+                Canvas(Modifier.matchParentSize()) {
                     for (i in 0..2) {
                         val y = size.height * (0.35f + i * 0.28f)
                         val path = Path().apply {

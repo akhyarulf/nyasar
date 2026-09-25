@@ -85,6 +85,7 @@ import kotlinx.coroutines.launch
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onGoToRegister: () -> Unit,
+    onGoToForgotPassword: () -> Unit = {},
     onLoginBack: () -> Unit = {},
     viewModel: AuthViewModel = viewModel()
 ) {
@@ -101,11 +102,10 @@ fun LoginScreen(
     ) {
         var email by rememberSaveable { mutableStateOf("") }
         var password by rememberSaveable { mutableStateOf("") }
-        val resetState by viewModel.passwordReset.collectAsState()
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it; viewModel.clearFormError(); viewModel.clearPasswordResetSent() },
+            onValueChange = { email = it; viewModel.clearFormError() },
             label = { Text(stringResource(R.string.auth_email)) },
             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -124,19 +124,6 @@ fun LoginScreen(
         form.errorRes?.let { res ->
             Spacer(Modifier.height(12.dp))
             ErrorBanner(stringResource(res))
-        }
-
-        // "Email terkirim" — one-shot banner under the email field; cleared
-        // when the user edits the address (clearPasswordResetSent above).
-        if (resetState.sent) {
-            Spacer(Modifier.height(12.dp))
-            SuccessBanner(stringResource(R.string.auth_reset_email_sent))
-        } else {
-            val resetErr = resetState.errorRes
-            if (resetErr != null) {
-                Spacer(Modifier.height(12.dp))
-                ErrorBanner(stringResource(resetErr))
-            }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -160,13 +147,11 @@ fun LoginScreen(
         }
 
         Spacer(Modifier.height(8.dp))
-        // Forgot password — sends the recovery email for the address typed
-        // above (Supabase never confirms whether it exists, so no feedback
-        // leaks account presence). The emailed link opens the site's
-        // bilingual reset page, which works for every installed version.
+        // Forgot password — dedicated screen (2026-09, user request): the
+        // email is typed THERE and the "email sent" banner lives there too,
+        // so this screen stays purely about signing in.
         TextButton(
-            onClick = { viewModel.sendPasswordReset(email) },
-            enabled = !resetState.busy && email.isNotBlank(),
+            onClick = onGoToForgotPassword,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(stringResource(R.string.auth_forgot_password))
@@ -229,6 +214,82 @@ fun LoginScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.auth_google_cta))
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Layar "Lupa kata sandi" terpisah (2026-09, permintaan user): satu kolom
+ * email + tombol kirim tautan pemulihan — dipisah dari Login supaya alamat
+ * tidak harus diketik dulu di sana, dan banner "email terkirim" tampil di
+ * sini. Supabase tidak pernah memberitahu apakah email terdaftar
+ * (anti-enumeration), jadi banner sukses selalu tampil untuk request yang
+ * valid; tautan membuka halaman reset bilingual di web
+ * (app.nyasarnyaman.my.id/auth/reset/) yang bekerja untuk semua versi app.
+ */
+@Composable
+fun ForgotPasswordScreen(
+    onBack: () -> Unit = {},
+    viewModel: AuthViewModel = viewModel()
+) {
+    AuthScaffold(
+        title = stringResource(R.string.auth_forgot_title),
+        onBackAction = onBack
+    ) {
+        var email by rememberSaveable { mutableStateOf("") }
+        val resetState by viewModel.passwordReset.collectAsState()
+
+        Text(
+            stringResource(R.string.auth_forgot_sub),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = email,
+            // Editing the address clears both the "sent" banner and any
+            // error — the next request must reflect the new address.
+            onValueChange = { email = it; viewModel.clearPasswordResetSent() },
+            label = { Text(stringResource(R.string.auth_email)) },
+            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            singleLine = true,
+            enabled = !resetState.busy,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        if (resetState.sent) {
+            Spacer(Modifier.height(12.dp))
+            SuccessBanner(stringResource(R.string.auth_reset_email_sent))
+        } else {
+            val resetErr = resetState.errorRes
+            if (resetErr != null) {
+                Spacer(Modifier.height(12.dp))
+                ErrorBanner(stringResource(resetErr))
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = { viewModel.sendPasswordReset(email) },
+            enabled = !resetState.busy && email.isNotBlank(),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            if (resetState.busy) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Text(stringResource(R.string.auth_forgot_cta), fontWeight = FontWeight.SemiBold)
             }
         }
     }

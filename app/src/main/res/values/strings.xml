@@ -617,6 +617,9 @@
     <string name="auth_register_cta">Buat akun</string>
     <string name="auth_no_account_yet">Belum punya akun? Daftar</string>
     <string name="auth_forgot_password">Lupa kata sandi?</string>
+    <string name="auth_forgot_title">Lupa Kata Sandi</string>
+    <string name="auth_forgot_sub">Masukkan email akunmu — kami kirim tautan untuk membuat kata sandi baru.</string>
+    <string name="auth_forgot_cta">Kirim Tautan Pemulihan</string>
     <string name="auth_reset_email_sent">Email pemulihan terkirim — cek inbox (atau folder spam) untuk mengatur ulang kata sandi.</string>
     <string name="auth_have_account">Sudah punya akun? Masuk</string>
     <string name="auth_show_password">Tampilkan kata sandi</string>

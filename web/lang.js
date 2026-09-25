@@ -114,7 +114,14 @@
       "reset.ok_title": "Kata sandi diperbarui 🎉",
       "reset.ok_d": "Kata sandi akun Nyasar-mu sudah berganti. Sekarang masuk ke aplikasi dengan kata sandi barumu.",
       "reset.ok_openapp": "Buka aplikasi Nyasar",
-      "reset.checking": "Memeriksa tautan pemulihan…"
+      "reset.checking": "Memeriksa tautan pemulihan…",
+
+      "cb.open_title": "Membuka aplikasi Nyasar…",
+      "cb.open_sub": "Email kamu sudah dikonfirmasi — sesi sedang disiapkan di aplikasi.",
+      "cb.open_btn": "Buka aplikasi secara manual",
+      "cb.web_title": "Email terkonfirmasi!",
+      "cb.web_sub": "Akun Nyasar-mu aktif. Pasang aplikasinya untuk mulai mendaki:",
+      "cb.web_btn": "Unduh aplikasi Nyasar"
     },
 
     en: {
@@ -225,7 +232,14 @@
       "reset.ok_title": "Password updated 🎉",
       "reset.ok_d": "Your Nyasar account password has been changed. Sign in to the app with your new password.",
       "reset.ok_openapp": "Open the Nyasar app",
-      "reset.checking": "Validating the recovery link…"
+      "reset.checking": "Validating the recovery link…",
+
+      "cb.open_title": "Opening the Nyasar app…",
+      "cb.open_sub": "Your email is confirmed — your session is being set up in the app.",
+      "cb.open_btn": "Open the app manually",
+      "cb.web_title": "Email confirmed!",
+      "cb.web_sub": "Your Nyasar account is active. Install the app to start hiking:",
+      "cb.web_btn": "Download the Nyasar app"
     }
   };
 

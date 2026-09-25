@@ -52,6 +52,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+// Extension gotrue-kt untuk App Link auth (auto-login konfirmasi email):
+// WAJIB import eksplisit — extension gotrue tidak pernah ikut otomatis.
+import io.github.jan.supabase.gotrue.handleDeeplinks
 import com.nyasar.app.ui.components.BOTTOM_BAR_ROUTES
 import com.nyasar.app.ui.components.NyasarBottomBar
 import com.nyasar.app.ui.browse.BrowseScreen
@@ -127,7 +130,15 @@ class MainActivity : AppCompatActivity() {
             splashSettingsReady = true
         }
         super.onCreate(savedInstanceState)
-        pendingImportUri = extractGpxUriFromIntent(intent)
+        // Auth App Link cold start: tautan konfirmasi email membuka app
+        // langsung lewat intent-filter /auth/callback — impor sesinya SEKARANG
+        // sebelum UIapa pun digambar, agar splash → login-langsung (session
+        // ter-restore oleh gotrue-kt) tanpa lewat layar login. Intent ini
+        // sengaja TIDAK diteruskan ke jalur deep-link route/GPX (return
+        // di bawah). Warm start ditangani onNewIntent (pola yang sama).
+        if (!handleAuthDeepLink(intent)) {
+            pendingImportUri = extractGpxUriFromIntent(intent)
+        }
         // Network-regain sync (konsep "tanpa tombol"): registers the OS
         // default-network callback once per process — pending publishes and
         // backup backlog drain automatically the moment signal returns,
@@ -260,6 +271,12 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // Auth App Link (auto-login setelah konfirmasi email): selalu
+        // diteruskan ke gotrue-kt lebih dulu — handleDeeplinks mengabaikan
+        // intent yang bukan miliknya (host/scheme tidak cocok), jadi tidak
+        // mengganggu jalur lain. HANYA jika bukan auth link, intent https
+        // pergi ke jalur deep link route/GPX yang lama.
+        if (handleAuthDeepLink(intent)) return
         // App Link (https://…/route?id=…) saat app kebuka JANGAN dipakai
         // sebagai GPX import — sebelumnya extractGpxUriFromIntent()
         // mengambil intent.data apa pun action-nya, sehingga link web
@@ -268,6 +285,32 @@ class MainActivity : AppCompatActivity() {
         // NavHost; hanya non-http yang tetap masuk jalur import GPX.
         extractDeepLinkRouteId(intent)?.let { pendingDeepLinkRouteId = it }
             ?: run { extractGpxUriFromIntent(intent)?.let { pendingImportUri = it } }
+    }
+
+    /** Auth App Link (auto-login setelah konfirmasi email): forward intent
+     *  https://app.nyasarnyaman.my.id/auth/callback#access_token=… ke
+     *  gotrue-kt. SDK mem-validasi scheme+host terhadap config Auth
+     *  (SupabaseClientProvider), meng-import sesi dari fragment URL
+     *  (FlowType.IMPLICIT), dan menyimpannya — sessionStatus collector di
+     *  AuthViewModel lalu menjalankan applyAuthenticated → gate username
+     *  (profiles.username_is_set) atau SignedIn, persis seperti login
+     *  biasa. Return true berarti intent ini adalah auth link (pemanggil
+     *  boleh berhenti); false = bukan, biarkan jalur lain memproses.
+     *  Dipanggil dari onCreate (cold start) dan onNewIntent (warm). */
+    private fun handleAuthDeepLink(intent: Intent?): Boolean {
+        if (!com.nyasar.app.data.supabase.SupabaseClientProvider.isConfigured) return false
+        val data = intent?.data ?: return false
+        if (intent.action != Intent.ACTION_VIEW) return false
+        if (data.scheme != "https") return false
+        if (data.host != com.nyasar.app.AppLinks.BASE.removePrefix("https://")) return false
+        if (!data.path.orEmpty().startsWith("/auth/callback")) return false
+        runCatching {
+            com.nyasar.app.data.supabase.SupabaseClientProvider.client
+                .handleDeeplinks(intent)
+        }.onFailure {
+            android.util.Log.e("AuthDeepLink", "handleDeeplinks failed", it)
+        }
+        return true
     }
 
     /** Cold start: App Link ditangani navDeepLink composable secara
@@ -1040,7 +1083,13 @@ private fun NyasarNavHost(
             com.nyasar.app.ui.auth.LoginScreen(
                 onLoginSuccess = { navController.popBackStack() },
                 onGoToRegister = { navController.navigate("auth/register") },
+                onGoToForgotPassword = { navController.navigate("auth/forgot") },
                 onLoginBack = { navController.popBackStack() }
+            )
+        }
+        composable("auth/forgot") {
+            com.nyasar.app.ui.auth.ForgotPasswordScreen(
+                onBack = { navController.popBackStack() }
             )
         }
         composable("auth/register") {

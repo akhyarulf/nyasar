@@ -1,6 +1,7 @@
 package com.nyasar.app.data.supabase
 
 import android.content.Context
+import com.nyasar.app.AppLinks
 import com.nyasar.app.BuildConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
@@ -43,7 +44,19 @@ object SupabaseClientProvider {
                 supabaseUrl = BuildConfig.SUPABASE_URL,
                 supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
             ) {
-                install(Auth)
+                install(Auth) {
+                    // App Links auth (auto-login setelah konfirmasi email,
+                    // 2026-09): handleDeeplinks(intent) di MainActivity hanya
+                    // memproses intent yang scheme+host-nya cocok dengan
+                    // config ini — keduanya wajib diset. TIDAK mengubah flow
+                    // reset password: resetPasswordForEmail dipanggil tanpa
+                    // redirectUrl, jadi server tetap memakai Site URL
+                    // (halaman web /auth/reset/) persis seperti sebelumnya.
+                    // Google sign-in juga tak tersentuh (IDToken, tanpa
+                    // browser redirect).
+                    scheme = "https"
+                    host = AppLinks.BASE.removePrefix("https://")
+                }
                 install(Postgrest)
                 // Fase 2 (Publish): uploads the gzip'ed full GPX file to the
                 // public route-gpx bucket (see supabase/migrations/0003).

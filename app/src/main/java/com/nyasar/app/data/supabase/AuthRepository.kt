@@ -1,6 +1,7 @@
 package com.nyasar.app.data.supabase
 
 import android.util.Log
+import com.nyasar.app.AppLinks
 import io.github.jan.supabase.exceptions.BadRequestRestException
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.exceptions.UnauthorizedRestException
@@ -91,7 +92,15 @@ class AuthRepository {
     suspend fun signUp(email: String, password: String): Pair<Outcome, String?> {
         if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED) to null
         return try {
-            val result = SupabaseClientProvider.client.auth.signUpWith(Email) {
+            val result = SupabaseClientProvider.client.auth.signUpWith(
+                Email,
+                // App Link callback (AppLinks.AUTH_CALLBACK): tautan konfirmasi
+                // di inbox mendarat di https://…/auth/callback → app terbuka
+                // otomatis dan gotrue-kt meng-import sesinya (auto-login; gate
+                // username jalan seperti biasa). HP tanpa app mendarat di
+                // halaman fallback web/auth/callback.
+                redirectUrl = AppLinks.AUTH_CALLBACK
+            ) {
                 this.email = email
                 this.password = password
             }

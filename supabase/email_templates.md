@@ -10,10 +10,27 @@
   CARA PAKAI: Authentication → Emails → Templates → pilih event →
   paste sisi <body> template terkait → Save. Style inline disengaja
   (klien email seperti Gmail men-strip <style> global).
+
+  ⚠️ REDIRECT LINK KONFIRMASI SIGN-UP (2026-09, auto-login):
+  app memanggil signUpWith(Email, redirectUrl =
+  "https://app.nyasarnyaman.my.id/auth/callback") — jadi {{ .ConfirmationURL }}
+  pada template CONFIRM SIGNUP otomatis mendarat ke /auth/callback:
+    - HP dengan app Nyasar terpasang → App Link membuka app langsung,
+      gotrue-kt meng-import sesi dari fragment URL → user LANGSUNG
+      ter-login (gate username jalan seperti biasa).
+    - HP tanpa app → halaman fallback web/auth/callback (pesan sukses
+      bilingual + tombol "unduh aplikasi").
+  TIDAK perlu mengubah template di Dashboard — {{ .ConfirmationURL }}
+  tetap dipakai apa adanya. Template RESET PASSWORD TIDAK berubah:
+  resetPasswordForEmail dipanggil TANPA redirectUrl sehingga server tetap
+  memakai Redirect URL yang di-set di Dashboard (/auth/reset/).
 -->
 
 <!-- ══════════════════════════════════════════════════════════════
      1) CONFIRM SIGNUP  (Authentication → Templates → Confirm signup)
+     Catatan 2026-09: link-nya kini otomatis mengarah ke
+     /auth/callback (App Link → buka app → auto-login) — lihat
+     catatan REDIRECT di atas. Template tidak perlu diubah.
      ══════════════════════════════════════════════════════════════ -->
 <!-- Subject ID:  Konfirmasi email Nyasar-mu -->
 <!-- Subject EN:  Confirm your Nyasar email -->

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Email Dikonfirmasi — Nyasar</title>
+<meta name="description" content="Email akun Nyasar berhasil dikonfirmasi. Kembali ke aplikasi untuk melanjutkan. Your Nyasar email is confirmed — return to the app.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/style.css">
+<style>
+  /* Kartu status ala kartu halaman reset — berdiri sendiri di tengah. */
+  .cb-card { max-width: 460px; margin: 48px auto; padding: 28px; text-align: center; }
+  .cb-card h1 { margin: 0 0 6px; font-size: 1.5rem; }
+  .cb-card .sub { margin: 0 0 8px; color: var(--muted, #5A6560); }
+  .cb-card .step { margin: 0 0 20px; font-size: .86rem; color: var(--muted, #5A6560); }
+  .cb-openapp {
+    display: inline-block; margin-top: 4px; padding: 11px 18px; border-radius: 10px;
+    background: var(--btn-primary-bg, linear-gradient(135deg, #2E5339, #4F7A5C));
+    color: #fff; text-decoration: none; font-weight: 700;
+  }
+  .cb-note { margin-top: 16px; font-size: .8rem; color: var(--muted, #5A6560); }
+  .cb-spin { font-size: 1.6rem; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/"><img class="brand-mark" src="/apple-touch-icon.png" alt="Logo Nyasar" width="34" height="34"> Nyasar</a>
+    <span class="spacer"></span>
+    <nav class="nav-links">
+      <a href="/" data-i18n="nav.download">Unduh</a>
+      <span class="lang-switch" role="group" aria-label="Bahasa / Language">
+        <button type="button" data-lang="id">ID</button>
+        <button type="button" data-lang="en">EN</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- Keadaan 1 (default): app TERPASANG — link ini adalah App Link, jadi
+       Android menangkapnya dan membuka Nyasar sebelum halaman ini selesai
+       dirender. Teksnya sengaja di-framing "mengalihkan…". Tombolnya
+       menunjuk kembali URL App Link https yang sama = percobaan buka-app
+       ulang yang sah (App Link baru di-resolve Android saat link di-tap
+       dari browser, bukan dari WebView email). -->
+  <div class="card cb-card" id="cb-open">
+    <div class="cb-spin">⏳</div>
+    <h1 data-i18n="cb.open_title">Membuka aplikasi Nyasar…</h1>
+    <p class="sub" data-i18n="cb.open_sub">Email kamu sudah dikonfirmasi — sesi sedang disiapkan di aplikasi.</p>
+    <a class="cb-openapp" href="https://app.nyasarnyaman.my.id/auth/callback" data-i18n="cb.open_btn">Buka aplikasi secara manual</a>
+  </div>
+
+  <!-- Keadaan 2: app TIDAK terpasang / browser menolak membuka app.
+       Diklik manual dari keadaan 1, atau otomatis bila Android tidak
+       menganggap link ini App Link (mis. WebView email yang memaksa
+       membuka browser). -->
+  <div class="card cb-card" id="cb-web" hidden>
+    <div class="big">✅</div>
+    <h1 data-i18n="cb.web_title">Email terkonfirmasi!</h1>
+    <p class="sub" data-i18n="cb.web_sub">Akun Nyasar-mu aktif. Pasang aplikasinya untuk mulai mendaki:</p>
+    <a class="cb-openapp" href="/index.html#download" data-i18n="cb.web_btn">Unduh aplikasi Nyasar</a>
+  </div>
+</main>
+
+<footer>
+  <p>
+    <a href="/privacy-policy.html" data-i18n="footer.privacy">Privacy Policy</a> &nbsp;·&nbsp;
+    <a href="/terms-of-service.html" data-i18n="footer.terms">Terms of Service</a>
+  </p>
+  <p data-i18n="footer.made">Dibuat dengan teliti untuk pendaki Indonesia.</p>
+</footer>
+
+<script src="/lang.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var T = function (key, fallback) {
+    var lang = window.NYASAR_LANG || "id";
+    var d = (window.nyasarI18n && window.nyasarI18n[lang]) || {};
+    return (typeof d[key] === "string") ? d[key] : fallback;
+  };
+
+  // Logika sederhana: kalau setelah 2,5 detik app tidak pernah menangkap
+  // link (halaman masih terlihat = Android memilih browser), tampilkan
+  // kartu fallback "pasang aplikasi". Kalau app menangkap link, halaman
+  // ini benar-benar ditinggalkan (activity di-pause) dan tak pernah
+  // sampai ke setTimeout.
+  setTimeout(function () {
+    var open = $("cb-open");
+    if (open && !open.hidden) {
+      open.hidden = true;
+      $("cb-web").hidden = false;
+    }
+  }, 2500);
+})();
+</script>
+</body>
+</html>

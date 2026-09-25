@@ -67,6 +67,23 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="app.nyasarnyaman.my.id" android:pathPrefix="/route" />
             </intent-filter>
+
+            <!-- Auth App Link (auto-login setelah konfirmasi email, 2026-09):
+                 tautan konfirmasi sign-up di-redirect Supabase ke
+                 https://app.nyasarnyaman.my.id/auth/callback#access_token=…
+                 (redirectUrl di AuthRepository.signUpWith). PathPrefix
+                 /auth/callback SPESIFIK — sengaja tidak mencakup /auth/reset/
+                 agar tautan pemulihan kata sandi tetap terbuka di browser
+                 (form resetnya di halaman web). MainActivity meneruskan
+                 intent ini ke gotrue-kt via handleDeeplinks → sesi aktif
+                 tanpa login manual. Tanpa app, link dibuka browser →
+                 halaman fallback web/auth/callback. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.nyasarnyaman.my.id" android:pathPrefix="/auth/callback" />
+            </intent-filter>
         </activity>
 
         <service

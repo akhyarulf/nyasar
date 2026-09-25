@@ -61,9 +61,11 @@ fun NyasarTabHeader(
             ) {
                 // Topographic contour motif — the map-brand personality, now
                 // in onSurface at very low alpha so it whispers instead of
-                // shouting and stays correct in both themes.
+                // shouting and stays correct in both themes. Color is read
+                // OUTSIDE the Canvas: DrawScope is not a composable context.
+                val contourColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                 Canvas(Modifier.fillMaxSize()) {
-                    val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+                    val lineColor = contourColor
                     for (i in 0..3) {
                         val y = size.height * (0.30f + i * 0.16f)
                         val path = Path().apply {

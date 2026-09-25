@@ -29,7 +29,9 @@ import kotlin.math.roundToInt
  *
  * Visual language (Strava-style redesign, 2026-09):
  *   - map: FULL-BLEED map (the snapshot covers the entire card, center-
- *     cropped) under a top-transparent → near-black scrim; sport glyph +
+ *     cropped) under a scrim that stays nearly clear through the upper
+ *     half (the map is the hero) and deepens only under the overlay text
+ *     block; sport glyph +
  *     NYASAR wordmark + title + two stat rows drawn directly ON the map —
  *     the exact anatomy of Strava's activity story card. No separate stats
  *     bar below the map anymore.
@@ -253,17 +255,20 @@ object ShareCardGenerator {
             dstRect = RectF(0f, 0f, CARD_W.toFloat(), CARD_H.toFloat())
             c.drawBitmap(mapSnapshot, srcRect, dstRect, Paint().apply { isFilterBitmap = true; isAntiAlias = true })
 
-            // Strava scrim: transparent top → near-black bottom, weighted to
-            // deepen through the LOWER HALF where the overlay block lives.
+            // Strava scrim: nearly CLEAR through the upper half — the map
+            // stays the hero (user feedback 2026-09: the old 35%→77% ramp
+            // made the map "almost disappear") — then deepens only under
+            // the overlay text block (~60% down) to keep it legible.
             val scrim = LinearGradient(
                 0f, 0f, 0f, CARD_H.toFloat(),
                 intArrayOf(
-                    Color.parseColor("#33000000"),
-                    Color.parseColor("#59000000"),
-                    Color.parseColor("#C4000000"),
-                    Color.parseColor("#F2000000")
+                    Color.parseColor("#00000000"),
+                    Color.parseColor("#0F000000"),
+                    Color.parseColor("#73000000"),
+                    Color.parseColor("#B3000000"),
+                    Color.parseColor("#E6000000")
                 ),
-                floatArrayOf(0f, 0.32f, 0.66f, 1f),
+                floatArrayOf(0f, 0.35f, 0.60f, 0.80f, 1f),
                 Shader.TileMode.CLAMP
             )
             c.drawRect(dstRect, Paint().apply { shader = scrim })
@@ -392,9 +397,21 @@ object ShareCardGenerator {
         c.drawRect(-CARD_H.toFloat(), CARD_H * 0.86f, (CARD_W + CARD_H).toFloat(), CARD_H * 0.95f, ribbon)
         c.restore()
 
-        // Inset map card — bigger and higher than before (Strava's map card
-        // dominates the upper ~55% of the story).
-        val cardRect = RectF(88f, 190f, CARD_W - 88f, CARD_H * 0.55f)
+        // Inset map card — Strava's story proportions. Its aspect FOLLOWS
+        // the snapshot bitmap (portrait 1080x1344) instead of the old
+        // landscape rect: cover-cropping a portrait snapshot into a
+        // landscape card shaved ~12% off the map's top AND bottom, and
+        // computeBounds' capped padding puts the route's ends inside
+        // exactly that shaved band — the route ran past both card edges
+        // ("rute bablas", 2026-09 report). Card = bitmap aspect → drawn
+        // 1:1 with no crop, so the full route always stays visible.
+        val cardRect = if (mapSnapshot != null) {
+            val w = CARD_W - 176f
+            RectF(88f, 190f, CARD_W - 88f,
+                190f + w * mapSnapshot.height.toFloat() / mapSnapshot.width.toFloat())
+        } else {
+            RectF(88f, 190f, CARD_W - 88f, CARD_H * 0.55f)
+        }
         val cardRadius = 36f
 
         if (mapSnapshot != null) {
@@ -485,16 +502,20 @@ object ShareCardGenerator {
         )
 
         // ── Below the card: centered title (no badge — Strava anatomy) ──
+        // The taller portrait card pushes these down with it; maxOf keeps
+        // the old layout when the shorter fallback (no-snapshot) card is
+        // used.
         val nameP = textPaint(64f, interBold(ctx), WHITE)
         val name = ellipsize(a.name, CARD_W - 160f, nameP)
-        c.drawText(name, CARD_W / 2f - nameP.measureText(name) / 2, CARD_H * 0.635f, nameP)
+        c.drawText(name, CARD_W / 2f - nameP.measureText(name) / 2,
+            maxOf(cardRect.bottom + 110f, CARD_H * 0.635f), nameP)
 
         // ── Brand lockup: "Lihat aktivitasku di" + NYASAR wordmark ──
         val tagP = textPaint(40f, interBold(ctx), 0xF2FFFFFF.toInt())
         val tag = ctx.getString(R.string.share_check_out)
-        c.drawText(tag, CARD_W / 2f - tagP.measureText(tag) / 2, CARD_H * 0.735f, tagP)
+        c.drawText(tag, CARD_W / 2f - tagP.measureText(tag) / 2, CARD_H * 0.815f, tagP)
         val wordP = textPaint(56f, interBold(ctx), WORDMARK_COLOR).apply { letterSpacing = 0.18f }
-        c.drawText(WORDMARK_TEXT, CARD_W / 2f - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.785f, wordP)
+        c.drawText(WORDMARK_TEXT, CARD_W / 2f - wordP.measureText(WORDMARK_TEXT) / 2, CARD_H * 0.87f, wordP)
     }
 
     // ── Template 4: Route — transparent + Strava anatomy: big centered

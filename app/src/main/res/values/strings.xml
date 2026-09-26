@@ -120,6 +120,8 @@
     <string name="speed_unit">Satuan Kecepatan</string>
     <string name="speed_unit_desc">Digunakan di recording, activity, navigation, statistik, dan route info.</string>
     <string name="appearance">TAMPILAN</string>
+    <string name="appearance_desc">Tema tampilan aplikasi — terang, gelap, atau ikuti pengaturan sistem.</string>
+    <string name="language_desc">Bahasa teks di seluruh aplikasi.</string>
     <string name="follow_system">Ikuti sistem</string>
     <string name="light">Terang</string>
     <string name="dark">Gelap</string>

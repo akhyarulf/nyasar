@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Visibility
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -282,6 +284,14 @@ internal fun SettingsContent(
                 }
 
                 SettingsSection(stringResource(R.string.appearance)) {
+                    // Header + description anchors the otherwise bare radio
+                    // list (same anatomy as Speed Unit) — user feedback that
+                    // the card read as a tall, unexplained stack.
+                    OptionRow(
+                        icon = Icons.Default.Palette,
+                        title = stringResource(R.string.appearance),
+                        subtitle = stringResource(R.string.appearance_desc)
+                    )
                     listOf(
                         "system" to stringResource(R.string.follow_system),
                         "light" to stringResource(R.string.light),
@@ -296,6 +306,11 @@ internal fun SettingsContent(
                 }
 
                 SettingsSection(stringResource(R.string.language)) {
+                    OptionRow(
+                        icon = Icons.Default.Translate,
+                        title = stringResource(R.string.language),
+                        subtitle = stringResource(R.string.language_desc)
+                    )
                     listOf(
                         "system" to stringResource(R.string.follow_system),
                         "id" to stringResource(R.string.indonesian),

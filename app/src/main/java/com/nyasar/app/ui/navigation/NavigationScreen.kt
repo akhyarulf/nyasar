@@ -256,9 +256,15 @@ fun NavigationScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     StatBlock(formatDuration(state.movingTimeMs), stringResource(R.string.moving_time))
+                    // Numeric value + short localized unit in the label —
+                    // same narrow-column fix as the recording stats overlay.
                     StatBlock(
-                        com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
-                        stringResource(R.string.speed)
+                        com.nyasar.app.util.SpeedUtils.speedValue(state.currentSpeedKmh, speedUnit, 1),
+                        stringResource(R.string.speed) + " (" +
+                            stringResource(
+                                if (speedUnit == "mph") R.string.speed_unit_mph
+                                else R.string.speed_unit_kmh
+                            ) + ")"
                     )
                     // Null (route has no elevation data for what's left) is
                     // shown as "-", never a fabricated 0 m.

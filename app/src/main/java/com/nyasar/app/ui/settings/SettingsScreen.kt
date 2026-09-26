@@ -269,7 +269,10 @@ internal fun SettingsContent(
                         title = stringResource(R.string.speed_unit),
                         subtitle = stringResource(R.string.speed_unit_desc)
                     )
-                    listOf("kmh" to "km/h", "mph" to "mph").forEach { (unit, label) ->
+                    // Localized option labels: km/j (ID) / kph (EN).
+                    val kmhLabel = stringResource(R.string.speed_unit_kmh)
+                    val mphLabel = stringResource(R.string.speed_unit_mph)
+                    listOf("kmh" to kmhLabel, "mph" to mphLabel).forEach { (unit, label) ->
                         RadioOption(
                             label = label,
                             selected = current.speedUnit == unit,

@@ -27,10 +27,24 @@ object SpeedUtils {
      */
     fun formatSpeed(speedKmh: Double?, targetUnit: String, decimals: Int = 1): String {
         if (speedKmh == null) return "-"
-        val converted = convertSpeed(speedKmh, targetUnit)
-        val unitLabel = if (targetUnit == "mph") "mph" else "km/h"
-        return "%.${decimals}f $unitLabel".format(converted)
+        return "%.${decimals}f".format(convertSpeed(speedKmh, targetUnit)) + " " + unitLabel(targetUnit)
     }
+
+    /**
+     * Numeric-only speed value (no unit). Narrow stat grids append a
+     * localized SHORT unit themselves — the full "km/h" inside a large
+     * value ellipsized to "0.0 k…" in a third-width column (2026-09
+     * narrow-screen report). Units as string resources: km/j (ID, PUEBI)
+     * / kph (EN) via speed_unit_kmh, mph via speed_unit_mph.
+     */
+    fun speedValue(speedKmh: Double?, targetUnit: String, decimals: Int = 1): String {
+        if (speedKmh == null) return "-"
+        return "%.${decimals}f".format(convertSpeed(speedKmh, targetUnit))
+    }
+
+    /** Localized-aware unit label hook: plain "km/h"/"mph" — UI that needs
+     *  the short per-locale form uses the speed_unit_* string resources. */
+    fun unitLabel(targetUnit: String): String = if (targetUnit == "mph") "mph" else "km/h"
 
     /**
      * Convert distance from meters to the appropriate unit for display.

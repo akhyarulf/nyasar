@@ -516,6 +516,11 @@
     <string name="stat_elev_gain_up">Elevasi Naik</string>
     <string name="stat_elev_gain_down">Elevasi Turun</string>
     <string name="stat_max_elevation">Ketinggian Maks</string>
+    <!-- Satuan kecepatan pendek: baris grid angka besar pakai
+       bentuk singkat per-bahasa biar tidak terpotong di kolom
+       sempit (km/j = singkatan resmi PUEBI; kph = EN umum). -->
+    <string name="speed_unit_kmh">km/j</string>
+    <string name="speed_unit_mph">mph</string>
     <string name="stat_min_elevation">Ketinggian Min</string>
 
     <!-- Zoom -->

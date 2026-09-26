@@ -1959,6 +1959,11 @@ private fun RecordingStatsOverlay(
     onShowSportFilter: () -> Unit
 ) {
     val elevations = remember(state.recordedTrack) { state.recordedTrack.mapNotNull { it.elevationM } }
+    // Localized SHORT unit for the speed grid ("km/j" ID / "kph" EN,
+    // "mph" either way) — see SpeedUtils.speedValue.
+    val speedUnitLabel = stringResource(
+        if (speedUnit == "mph") R.string.speed_unit_mph else R.string.speed_unit_kmh
+    )
     Surface(
         Modifier
             .fillMaxSize()
@@ -2060,21 +2065,29 @@ private fun RecordingStatsOverlay(
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Spacer(Modifier.height(20.dp))
                         Row(Modifier.fillMaxWidth()) {
+                            // Numeric value only; the unit lives in the
+                            // label as the localized SHORT form — the full
+                            // "km/h" inside a titleLarge value ellipsized
+                            // to "0.0 k…" in a third-width column (2026-09
+                            // narrow-screen report). Labels: Speed (km/j).
                             BigStatBlock(
-                                com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
-                                stringResource(R.string.recording_stat_speed),
+                                com.nyasar.app.util.SpeedUtils.speedValue(state.currentSpeedKmh, speedUnit, 1),
+                                stringResource(R.string.recording_stat_speed) +
+                                    " (" + speedUnitLabel + ")",
                                 compact = true,
                                 modifier = Modifier.weight(1f)
                             )
                             BigStatBlock(
-                                com.nyasar.app.util.SpeedUtils.formatSpeed(state.avgSpeedKmh, speedUnit, 1),
-                                stringResource(R.string.recording_stat_avg_speed),
+                                com.nyasar.app.util.SpeedUtils.speedValue(state.avgSpeedKmh, speedUnit, 1),
+                                stringResource(R.string.recording_stat_avg_speed) +
+                                    " (" + speedUnitLabel + ")",
                                 compact = true,
                                 modifier = Modifier.weight(1f)
                             )
                             BigStatBlock(
-                                com.nyasar.app.util.SpeedUtils.formatSpeed(state.maxSpeedKmh, speedUnit, 1),
-                                stringResource(R.string.recording_stat_max_speed),
+                                com.nyasar.app.util.SpeedUtils.speedValue(state.maxSpeedKmh, speedUnit, 1),
+                                stringResource(R.string.recording_stat_max_speed) +
+                                    " (" + speedUnitLabel + ")",
                                 compact = true,
                                 modifier = Modifier.weight(1f)
                             )

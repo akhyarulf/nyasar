@@ -170,12 +170,23 @@ fun LoginScreen(
         // services) returns a Google ID token; gotrue-kt exchanges it for a
         // session via signInWith(IDToken). Outcome surfaces in the same
         // login form state / sessionStatus flow as email sign-in.
+        //
+        // Loading feedback (2026-09 user report): the ~5s GAP between the
+        // tap and the account-chooser sheet happens INSIDE
+        // CredentialManager.getCredential() — i.e. BEFORE signInWithGoogle
+        // ever flips form.busy, so the old spinner-when-busy never showed
+        // during the delay the user actually feels. googleSigningIn covers
+        // the whole trip: set on tap, handed over to form.busy once the
+        // token reaches the ViewModel, cleared on cancel/failure so the
+        // button re-enables for a retry.
         if (BuildConfig.GOOGLE_OAUTH_WEB_CLIENT_ID.isNotBlank()) {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
+            var googleSigningIn by remember { mutableStateOf(false) }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(
                 onClick = {
+                    googleSigningIn = true
                     scope.launch {
                         try {
                             val option = GetGoogleIdOption.Builder()
@@ -187,17 +198,26 @@ fun LoginScreen(
                                 .build()
                             val credential = CredentialManager.create(context)
                                 .getCredential(context, request).credential
-                            googleIdTokenOf(credential)?.let(viewModel::signInWithGoogle)
+                            // Handover point: from here the ViewModel's
+                            // form.busy carries the loading state, so the
+                            // tap-phase flag must be released on EVERY path
+                            // below (token taken or not) — otherwise a login
+                            // failure later would leave a spinner that no
+                            // code ever clears.
+                            val token = googleIdTokenOf(credential)
+                            googleSigningIn = false
+                            token?.let(viewModel::signInWithGoogle)
                         } catch (e: GetCredentialException) {
                             // user cancelled / no Google account on device —
                             // silently ignore, standard Credential-Manager UX
+                            googleSigningIn = false
                         }
                     }
                 },
-                enabled = !form.busy,
+                enabled = !form.busy && !googleSigningIn,
                 modifier = Modifier.fillMaxWidth().height(52.dp)
             ) {
-                if (form.busy) {
+                if (form.busy || googleSigningIn) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,

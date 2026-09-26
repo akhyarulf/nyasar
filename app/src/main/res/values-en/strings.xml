@@ -800,7 +800,7 @@
     <string name="browse_saved">Saved</string>
     <string name="route_detail_comments_section">Comments (%1$d)</string>
     <string name="route_detail_title">Route Detail</string>
-    <string name="route_detail_elev_max">Summit</string>
+    <string name="route_detail_elev_max">Highest</string>
     <string name="route_detail_elev_min">Lowest</string>
     <string name="route_detail_elev_loss">Descent</string>
     <string name="route_detail_description">Description</string>

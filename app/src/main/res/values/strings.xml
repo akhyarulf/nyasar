@@ -473,7 +473,7 @@
     <string name="gps_quality_weak">Fix lemah</string>
     <string name="gps_quality_gap">Jarak fix terbesar</string>
     <string name="gps_quality_detail">%1$d fix · terbaik ±%2$d m · terburuk ±%3$d m</string>
-    <string name="stat_highest_point">Puncak</string>
+    <string name="stat_highest_point">Tertinggi</string>
     <string name="stat_lowest_point">Titik terendah</string>
     <string name="stat_gps_points">Titik GPS</string>
 
@@ -800,7 +800,7 @@
     <string name="browse_saved">Disimpan</string>
     <string name="route_detail_comments_section">Komentar (%1$d)</string>
     <string name="route_detail_title">Detail Rute</string>
-    <string name="route_detail_elev_max">Puncak</string>
+    <string name="route_detail_elev_max">Tertinggi</string>
     <string name="route_detail_elev_min">Terendah</string>
     <string name="route_detail_elev_loss">Turun</string>
     <string name="route_detail_description">Deskripsi</string>

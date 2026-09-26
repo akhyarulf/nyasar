@@ -72,7 +72,7 @@
       "route.dist": "Jarak",
       "route.gain": "Naik",
       "route.loss": "Turun",
-      "route.max": "Puncak",
+      "route.max": "Tertinggi",
       "route.min": "Terendah",
       "route.time": "Waktu",
       "route.diff": "Kesulitan",

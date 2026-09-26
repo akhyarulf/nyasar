@@ -180,7 +180,7 @@
 
       // Statistik lengkap — label diterjemahkan langsung saat render.
       function statLabel(key) {
-        var id = { dist: "Jarak", gain: "Naik", loss: "Turun", max: "Puncak", min: "Terendah", time: "Waktu" };
+        var id = { dist: "Jarak", gain: "Naik", loss: "Turun", max: "Tertinggi", min: "Terendah", time: "Waktu" };
         var en = { dist: "Distance", gain: "Ascent", loss: "Descent", max: "Max alt", min: "Min alt", time: "Time" };
         return ((window.NYASAR_LANG || "id") === "en" ? en : id)[key] || key;
       }

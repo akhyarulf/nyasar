@@ -179,8 +179,9 @@ fun ActivityDetailScreen(
     // Layer-picker state for the fullscreen map (2026-09 user request):
     // basemap/overlay toggles live in the same app-wide DataStore the other
     // map screens use, so the chosen layers follow the user everywhere.
+    // Tile provider stays the UiState snapshot (state.provider) — this VM
+    // has no provider flow; basemapEntry below supersedes it anyway.
     val currentBasemap by viewModel.selectedBasemap.collectAsState()
-    val currentProvider by viewModel.provider.collectAsState()
     val activeOverlays by viewModel.activeOverlays.collectAsState()
     val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
     val myRouteLines by viewModel.myRouteLines.collectAsState()
@@ -322,7 +323,7 @@ fun ActivityDetailScreen(
                                 NyasarMapView(
                                     modifier = Modifier.fillMaxSize(),
                                     fitBoundsPaddingPx = activityFitPaddingPx,
-                                    provider = currentProvider,
+                                    provider = state.provider,
                                     basemapEntry = currentBasemap,
                                     activeOverlays = activeOverlays,
                                     myRoutes = myRouteLines,

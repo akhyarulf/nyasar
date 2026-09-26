@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -817,8 +818,7 @@ fun PublicRouteDetailScreen(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .statusBarsPadding()
-                    .padding(start = 12.dp, top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(start = 12.dp, top = 8.dp)
             ) {
                 Surface(
                     shape = CircleShape,
@@ -834,8 +834,21 @@ fun PublicRouteDetailScreen(
                         )
                     }
                 }
-                // Layer picker — same button + sheet as RoutePreview's
-                // fullscreen map; selection persists app-wide.
+            }
+            // Layer picker — bottom-right like EVERY other map screen (Home,
+            // RoutePreview, DrawRoute all stack their controls at BottomEnd;
+            // the top-left slot was this screen's one-off, fixed 2026-09).
+            // Same button + sheet as RoutePreview's fullscreen map; selection
+            // persists app-wide. navigationBarsPadding keeps the button clear
+            // of the gesture bar (this overlay has no bottom bar of its own).
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,

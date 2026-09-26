@@ -866,16 +866,20 @@ fun RecordingScreen(
         if (state.storageError) {
             // Appears with the shared fade-and-rise (AnimatedAppear starts
             // invisible and animates in — same family as Home banners)
-            // instead of popping in mid-recording. statusBarsPadding keeps
-            // its lane aligned with the status chip above (both measured
-            // from the same inset) — the flat top=56 used to sit at the
-            // same screen-y as the back button and overlap it on real
-            // inset devices (the reported bug).
+            // instead of popping in mid-recording. Its lane sits BELOW the
+            // top control row (back button + status chip, +12→+56dp) — an
+            // earlier flat top=56 overlapped the button on inset devices.
             com.nyasar.app.ui.components.AnimatedAppear(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
-                    modifier = Modifier.statusBarsPadding().padding(top = 56.dp, start = 16.dp, end = 16.dp),
+                    // Top-overlay lane: status bar + 72dp — a clear 16dp
+                    // gap below the back button/status-chip row (which spans
+                    // status bar +12→+56dp). The old +56 lane sat flush at
+                    // the button's bottom edge, so the banner's rounded
+                    // corner + shadow visually covered it (2026-09 report).
+                    // Banner text grows downward, so the lane never moves.
+                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,
@@ -910,10 +914,11 @@ fun RecordingScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
-                    // Same inset lane as the status chip and the
-                    // storage-error banner: status bar + 56dp — previously
-                    // flat top=56 overrode the chip and the back button.
-                    modifier = Modifier.statusBarsPadding().padding(top = 56.dp, start = 16.dp, end = 16.dp),
+                    // Same top-overlay lane as the other banners: status
+                    // bar + 72dp — see the storage-error banner above for
+                    // the lane history (the old +56 flush lane visually
+                    // covered the back button's bottom edge).
+                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,
@@ -946,9 +951,9 @@ fun RecordingScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
-                    // Same inset lane as the status chip and the other
-                    // banners (see the storage-error banner above).
-                    modifier = Modifier.statusBarsPadding().padding(top = 56.dp, start = 16.dp, end = 16.dp),
+                    // Same top-overlay lane as the other banners: status
+                    // bar + 72dp — see the storage-error banner above.
+                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,

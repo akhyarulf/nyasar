@@ -185,9 +185,11 @@
     });
   });
 
-  // QR "scan untuk unduh" (roadmap kandidat #1): menunjuk ke landing ini —
-  // visitor desktop menunjuk kamera HP ke QR-nya dan mendarat di halaman
-  // unduhan. URL pendek => modul QR besar => gampang discan.
+  // QR "scan untuk unduh" (roadmap kandidat #1): LANGSUNG ke APK rilis
+  // terbaru (tautan permanen releases/latest dari runbook) — yang scan
+  // pakai HP-nya langsung dapat file-nya, tanpa mendarat di landing lagi
+  // (feedback user 2026-09). URL lebih panjang dari beranda => QR lebih
+  // padat, jadi cellSize dinaikkan 3 -> 4 supaya tetap gampang discan.
   (function () {
     var box = document.getElementById("qr-box");
     var wrap = box && box.closest(".hero-qr");
@@ -195,9 +197,9 @@
     if (typeof qrcode !== "function") { wrap.style.display = "none"; return; }
     try {
       var qr = qrcode(0, "M");
-      qr.addData("https://app.nyasarnyaman.my.id/");
+      qr.addData("https://github.com/akhyarulf/nyasar/releases/latest/download/Nyasar.apk");
       qr.make();
-      box.innerHTML = qr.createSvgTag({ cellSize: 3, margin: 1 });
+      box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 1 });
     } catch (e) { wrap.style.display = "none"; }
   })();
 

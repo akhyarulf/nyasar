@@ -1216,18 +1216,18 @@ fun RecordingScreen(
                 ) {
                     BigStatBlock(
                         formatDuration(state.elapsedTimeMs),
-                        "Time",
+                        stringResource(R.string.stat_duration),
                         modifier = Modifier.weight(1f)
                     )
                     BigStatBlock(
                         "%.2f".format(state.distanceMeters / 1000.0),
-                        "Distance (km)",
+                        stringResource(R.string.stat_distance) + " (km)",
                         modifier = Modifier.weight(1.2f),
                         isHero = true
                     )
                     BigStatBlock(
                         state.elevationGainM.roundToInt().toString(),
-                        "Naik (m)",
+                        stringResource(R.string.stat_elev_gain_up) + " (m)",
                         modifier = Modifier.weight(1f)
                     )
                 }

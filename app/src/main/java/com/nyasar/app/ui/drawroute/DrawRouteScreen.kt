@@ -281,7 +281,12 @@ fun DrawRouteScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                // weight(1f): the status texts (esp. the long
+                // "Following real paths…" line) must never squeeze the
+                // Done button — without it the button shrank to a sliver
+                // and wrapped its label vertically into a tall gray pill
+                // (2026-09 narrow-screen report).
+                Column(Modifier.weight(1f, fill = false).padding(end = 8.dp)) {
                     Text(
                         stringResource(R.string.point_count, state.points.size),
                         style = MaterialTheme.typography.bodyMedium

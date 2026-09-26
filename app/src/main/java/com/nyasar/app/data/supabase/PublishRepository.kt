@@ -354,6 +354,7 @@ class PublishRepository {
     suspend fun updatePublishedMeta(
         cloudRouteId: String,
         name: String,
+        sportType: String? = null,
         difficulty: String?,
         difficultyDescription: String?,
         trailType: String?,
@@ -366,6 +367,9 @@ class PublishRepository {
             client.postgrest["routes"].update(
                 update = {
                     set("name", name)
+                    // Activity-source edits can also change the sport type;
+                    // route-source edits pass null and leave the column alone.
+                    if (sportType != null) set("sport_type", sportType)
                     set("difficulty", difficulty)
                     set("difficulty_description", difficultyDescription?.trim()?.takeIf { it.isNotEmpty() })
                     set("trail_type", trailType)

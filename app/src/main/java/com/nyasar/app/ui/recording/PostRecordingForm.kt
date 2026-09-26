@@ -49,6 +49,7 @@ fun PostRecordingForm(
     onSave: (
         title: String,
         publishEnabled: Boolean,
+        sportType: com.nyasar.app.recording.SportType,
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
@@ -60,6 +61,7 @@ fun PostRecordingForm(
      *  user opens the draft later from History. */
     onSaveDraft: (
         title: String,
+        sportType: com.nyasar.app.recording.SportType,
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
@@ -77,6 +79,12 @@ fun PostRecordingForm(
     // unspecified trail, no description, public. Folding it INTO the save
     // form removes the second round-trip the old activity-publish sheet
     // required.
+    // Activity type starts from what was chosen on the record screen
+    // (summary.sportType) and is editable here — a forgotten switch no
+    // longer sentences the activity to "Unspecified" forever.
+    var sportType by remember {
+        mutableStateOf(com.nyasar.app.recording.SportType.fromString(summary.sportType))
+    }
     var difficulty by remember { mutableStateOf(PublishDifficulty.NONE) }
     var difficultyDescription by remember { mutableStateOf("") }
     var trailType by remember { mutableStateOf(PublishTrailType.NONE) }
@@ -186,6 +194,33 @@ fun PostRecordingForm(
             // ── Publish fields (formerly the PublishRouteSheet) — the same
             //    difficulty/trail/description/visibility contract, inline.
             Text(stringResource(R.string.publish_section_title), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+
+            // Activity type — editable chips (same FilterChip anatomy as
+            // the difficulty row below; SportFilterSheet's set).
+            Text(stringResource(R.string.activity_type_label), style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.nyasar.app.recording.SportType.entries.forEach { st ->
+                    FilterChip(
+                        selected = sportType == st,
+                        onClick = { sportType = st },
+                        leadingIcon = {
+                            Icon(st.icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                        },
+                        label = { Text(stringResource(st.labelRes)) }
+                    )
+                }
+            }
+            Text(
+                stringResource(R.string.activity_type_note),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+            )
             Spacer(Modifier.height(12.dp))
 
             Text(
@@ -324,6 +359,7 @@ fun PostRecordingForm(
                             context.getString(R.string.activity_title_format, formatTimeForTitle(summary.elapsedTimeMs))
                         },
                         true,
+                        sportType,
                         difficulty,
                         difficultyDescription.trim().takeIf { it.isNotEmpty() },
                         trailType,
@@ -371,6 +407,7 @@ fun PostRecordingForm(
                         title.ifBlank {
                             context.getString(R.string.activity_title_format, formatTimeForTitle(summary.elapsedTimeMs))
                         },
+                        sportType,
                         difficulty,
                         difficultyDescription.trim().takeIf { it.isNotEmpty() },
                         trailType,

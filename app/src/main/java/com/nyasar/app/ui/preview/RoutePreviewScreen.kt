@@ -765,7 +765,7 @@ fun RoutePreviewScreen(
                 description = meta?.description
             ),
             onDismiss = { showEditSheet = false },
-            onSave = { title, difficulty, diffDesc, trailType, desc, isPublic ->
+            onSave = { title, _, difficulty, diffDesc, trailType, desc, isPublic ->
                 showEditSheet = false
                 editScope.launch {
                     publishEditViewModel.editPublished(
@@ -803,7 +803,7 @@ fun RoutePreviewScreen(
                 description = state.publishedMeta?.description
             ),
             onDismiss = { showEditRouteDialog = false },
-            onSave = { title, difficulty, diffDesc, trailType, desc, isPublic ->
+            onSave = { title, _, difficulty, diffDesc, trailType, desc, isPublic ->
                 showEditRouteDialog = false
                 editScope.launch {
                     publishEditViewModel.editPublished(

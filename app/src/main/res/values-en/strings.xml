@@ -238,7 +238,7 @@
     <string name="edit_route">Edit route</string>
     <string name="edit_published">Edit publication</string>
     <string name="edit_publish_title">Edit publication</string>
-    <string name="edit_publish_subtitle">Update the name, difficulty, description, and who can see this.</string>
+    <string name="edit_publish_subtitle">Update the name, activity type, difficulty, description, and who can see this.</string>
     <string name="edit_publish_name_label">Name</string>
     <string name="edit_publish_save">Save changes</string>
     <string name="status_published_public">Public</string>
@@ -705,6 +705,8 @@
     <string name="publish_draft_now">Publish now</string>
     <string name="publish_name_label">Route name</string>
     <string name="publish_difficulty_label">Difficulty</string>
+    <string name="activity_type_label">Activity type</string>
+    <string name="activity_type_note">Chosen when recording — editable here.</string>
     <string name="publish_trail_label">Trail type</string>
     <string name="publish_difficulty_desc_label">Difficulty note (optional)</string>
     <string name="publish_privacy_note">Raw GPS points are never uploaded — they stay on your phone.</string>

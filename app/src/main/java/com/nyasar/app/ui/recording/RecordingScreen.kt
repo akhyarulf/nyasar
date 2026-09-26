@@ -1294,7 +1294,7 @@ fun RecordingScreen(
             PostRecordingForm(
                 summary = summary,
                 canPublish = canPublishNow,
-                onSave = { title, _, difficulty, diffDesc, trailType, description, isPublic ->
+                onSave = { title, _, sportType, difficulty, diffDesc, trailType, description, isPublic ->
                     // "Save = publish" (konsep 2026-09): ONE call — local save
                     // first, auto-backup, then publish (or offline-queue).
                     // The screen pops right after the local save commits
@@ -1304,6 +1304,7 @@ fun RecordingScreen(
                     publishViewModel.saveAndPublish(
                         activityId = savedActivityId,
                         title = title,
+                        sportType = sportType,
                         difficulty = difficulty,
                         difficultyDescription = diffDesc,
                         trailType = trailType,
@@ -1320,7 +1321,7 @@ fun RecordingScreen(
                         previewRouteId = null
                     }
                 },
-                onSaveDraft = { title, difficulty, diffDesc, trailType, description, isPublic ->
+                onSaveDraft = { title, sportType, difficulty, diffDesc, trailType, description, isPublic ->
                     val savedActivityId = summary.activityId
                     if (savedActivityId != null) {
                         // Wikiloc-style draft: save + backup, publish DEFERRED
@@ -1328,6 +1329,7 @@ fun RecordingScreen(
                         publishViewModel.saveAsDraft(
                             activityId = savedActivityId,
                             title = title,
+                            sportType = sportType,
                             difficulty = difficulty,
                             difficultyDescription = diffDesc,
                             trailType = trailType,

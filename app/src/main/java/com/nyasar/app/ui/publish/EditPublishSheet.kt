@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
 import com.nyasar.app.R
 
 /** Cloud metadata snapshot handed to [EditPublishSheet] (loose copy so the
@@ -62,9 +63,13 @@ data class PublishRepositoryMeta(
 fun EditPublishSheet(
     initialName: String,
     meta: PublishRepositoryMeta,
+    /** Activity-source sheets get an editable sport type (routes have no
+     *  sport column — callers pass null and the section hides itself). */
+    initialSportType: com.nyasar.app.recording.SportType? = null,
     onDismiss: () -> Unit,
     onSave: (
         title: String,
+        sportType: com.nyasar.app.recording.SportType?,
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
@@ -73,6 +78,7 @@ fun EditPublishSheet(
     ) -> Unit
 ) {
     var name by rememberSaveable { mutableStateOf(initialName) }
+    var sportType by rememberSaveable { mutableStateOf(initialSportType) }
     var difficultyDescription by rememberSaveable { mutableStateOf(meta.difficultyDescription.orEmpty()) }
     var description by rememberSaveable { mutableStateOf(meta.description.orEmpty()) }
     var difficulty by rememberSaveable {
@@ -124,6 +130,30 @@ fun EditPublishSheet(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
+            if (initialSportType != null) {
+                Text(stringResource(R.string.activity_type_label), style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    com.nyasar.app.recording.SportType.entries.forEach { st ->
+                        FilterChip(
+                            selected = sportType == st,
+                            onClick = { sportType = st },
+                            leadingIcon = {
+                                androidx.compose.material3.Icon(
+                                    st.icon, contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            label = { Text(stringResource(st.labelRes)) }
+                        )
+                    }
+                }
+            }
             Text(stringResource(R.string.publish_difficulty_label), style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(6.dp))
             Row(
@@ -220,6 +250,7 @@ fun EditPublishSheet(
                 onClick = {
                     onSave(
                         name.trim(),
+                        sportType,
                         difficulty,
                         difficultyDescription.trim().takeIf { it.isNotEmpty() },
                         trailType,

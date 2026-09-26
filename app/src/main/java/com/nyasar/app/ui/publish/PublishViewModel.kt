@@ -113,6 +113,7 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
     fun saveAsDraft(
         activityId: String,
         title: String,
+        sportType: com.nyasar.app.recording.SportType,
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
@@ -124,6 +125,7 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
             activityDao.update(
                 activity.copy(
                     name = title.trim().ifBlank { activity.name },
+                    sportType = sportType.name,
                     status = com.nyasar.app.data.db.ActivityStatus.DRAFT
                 )
             )
@@ -187,6 +189,7 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
     fun saveAndPublish(
         activityId: String,
         title: String,
+        sportType: com.nyasar.app.recording.SportType,
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
@@ -202,8 +205,16 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
                 onSaved(false)
                 return@launch
             }
-            if (title.isNotBlank() && title != activity.name) {
-                activityDao.update(activity.copy(name = title.trim()))
+            // Local field updates — title AND activity type (editable on
+            // the review form; the cloud row gets it via PublishInput which
+            // reads activity.sportType from this updated row).
+            if (title.isNotBlank() && title != activity.name || sportType.name != activity.sportType) {
+                activityDao.update(
+                    activity.copy(
+                        name = title.trim().ifBlank { activity.name },
+                        sportType = sportType.name
+                    )
+                )
             }
 
             // 2 AUTO-BACKUP — silent, same contract as scheduleActivityBackup.
@@ -519,6 +530,7 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         sourceId: String,
         isActivity: Boolean,
         title: String,
+        sportType: com.nyasar.app.recording.SportType? = null,
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
@@ -529,7 +541,9 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             // 1 LOCAL — rename the source row (never network-dependent).
             if (isActivity) {
-                activityDao.getById(sourceId)?.let { activityDao.update(it.copy(name = title)) }
+                activityDao.getById(sourceId)?.let { activityDao.update(
+                    it.copy(name = title, sportType = (sportType?.name ?: it.sportType))
+                ) }
             } else {
                 routeDao.getById(sourceId)?.let { routeDao.update(it.copy(name = title)) }
             }
@@ -570,6 +584,7 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
                     cloudOk = repository.updatePublishedMeta(
                         cloudRouteId = meta.cloudRouteId,
                         name = title,
+                        sportType = if (isActivity) sportType?.name else null,
                         difficulty = difficulty.toApi(),
                         difficultyDescription = difficultyDescription,
                         trailType = trailType.toApi(),

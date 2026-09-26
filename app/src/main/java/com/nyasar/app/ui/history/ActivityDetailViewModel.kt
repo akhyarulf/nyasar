@@ -220,6 +220,7 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
     fun editActivity(
         activityId: String,
         title: String,
+        sportType: com.nyasar.app.recording.SportType,
         difficulty: com.nyasar.app.ui.publish.PublishDifficulty,
         difficultyDescription: String?,
         trailType: com.nyasar.app.ui.publish.PublishTrailType,
@@ -232,6 +233,7 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
                 sourceId = activityId,
                 isActivity = true,
                 title = title,
+                sportType = sportType,
                 difficulty = difficulty,
                 difficultyDescription = difficultyDescription,
                 trailType = trailType,

@@ -240,7 +240,7 @@
     <string name="edit_route">Edit rute</string>
     <string name="edit_published">Edit publikasi</string>
     <string name="edit_publish_title">Edit publikasi</string>
-    <string name="edit_publish_subtitle">Perbarui nama, kesulitan, deskripsi, dan siapa yang bisa melihat.</string>
+    <string name="edit_publish_subtitle">Perbarui nama, jenis aktivitas, kesulitan, deskripsi, dan siapa yang bisa melihat.</string>
     <string name="edit_publish_name_label">Nama</string>
     <string name="edit_publish_save">Simpan perubahan</string>
     <string name="status_published_public">Publik</string>
@@ -705,6 +705,8 @@
     <string name="publish_draft_now">Publikasikan sekarang</string>
     <string name="publish_name_label">Nama rute</string>
     <string name="publish_difficulty_label">Tingkat kesulitan</string>
+    <string name="activity_type_label">Jenis aktivitas</string>
+    <string name="activity_type_note">Diambil saat merekam — bisa diubah di sini.</string>
     <string name="publish_trail_label">Jenis jalur</string>
     <string name="publish_difficulty_desc_label">Catatan kesulitan (opsional)</string>
     <string name="publish_privacy_note">Titik GPS mentah tidak pernah dikirim — hanya di HP kamu.</string>

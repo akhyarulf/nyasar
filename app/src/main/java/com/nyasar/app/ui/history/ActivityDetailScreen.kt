@@ -352,10 +352,10 @@ fun ActivityDetailScreen(
                 activityId = activity.id,
                 initialTitle = activity.name,
                 onDismiss = { showRenameDialog = false },
-                onSave = { title, difficulty, diffDesc, trailType, desc, isPublic ->
+                onSave = { title, sportType, difficulty, diffDesc, trailType, desc, isPublic ->
                     showRenameDialog = false
                     scope.launch {
-                        viewModel.editActivity(activity.id, title, difficulty, diffDesc, trailType, desc, isPublic)
+                        viewModel.editActivity(activity.id, title, sportType, difficulty, diffDesc, trailType, desc, isPublic)
                     }
                 }
             )

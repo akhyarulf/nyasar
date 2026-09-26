@@ -39,6 +39,7 @@ fun EditActivityDialog(
     onDismiss: () -> Unit,
     onSave: (
         title: String,
+        sportType: com.nyasar.app.recording.SportType,
         difficulty: PublishDifficulty,
         difficultyDescription: String?,
         trailType: PublishTrailType,
@@ -48,9 +49,19 @@ fun EditActivityDialog(
 ) {
     val context = LocalContext.current
     var meta by remember { mutableStateOf<PublishRepositoryMeta?>(null) }
+    // Current sport from the LOCAL activity row — the source of truth for
+    // the activity itself (cloud meta carries publish fields only).
+    var currentSport by remember {
+        mutableStateOf(com.nyasar.app.recording.SportType.UNSPECIFIED)
+    }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(activityId) {
+        currentSport = runCatching {
+            com.nyasar.app.recording.SportType.fromString(
+                AppDatabase.get(context).activityDao().getById(activityId)?.sportType
+            )
+        }.getOrDefault(com.nyasar.app.recording.SportType.UNSPECIFIED)
         // Prefill source priority: cloud (published truth) → pending queue
         // (draft/queued form data) → defaults. Both probes are cheap and
         // null-safe offline.
@@ -89,6 +100,7 @@ fun EditActivityDialog(
         EditPublishSheet(
             initialName = initialTitle,
             meta = meta ?: PublishRepositoryMeta(true, null, null, null, null),
+            initialSportType = currentSport,
             onDismiss = onDismiss,
             onSave = onSave
         )

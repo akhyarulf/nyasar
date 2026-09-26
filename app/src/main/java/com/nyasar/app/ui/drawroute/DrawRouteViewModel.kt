@@ -114,7 +114,7 @@ class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
 
     val myRoutesOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
         .map { it.myRoutesOverlayEnabled }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     val myRouteLines: StateFlow<List<com.nyasar.app.map.MyRouteLine>> =
         myRoutesOverlayEnabled

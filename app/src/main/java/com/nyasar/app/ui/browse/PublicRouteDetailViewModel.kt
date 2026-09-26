@@ -86,7 +86,7 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
 
     val myRoutesOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
         .map { it.myRoutesOverlayEnabled }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     fun setMyRoutesOverlayEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setMyRoutesOverlayEnabled(enabled) }

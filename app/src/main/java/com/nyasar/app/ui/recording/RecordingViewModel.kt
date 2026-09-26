@@ -118,7 +118,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
      *  Home/RoutePreview so all map screens render the same picture. */
     val offlineOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
         .map { it.offlineOverlayEnabled }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     /** Live coverage snapshot from the process-wide store. */
     val offlineAreas: StateFlow<List<com.nyasar.app.map.OfflineCoverageArea>> =
@@ -161,7 +161,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     // would decide visibility for everyone. Default false (user opt-in).
     val myRoutesOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
         .map { it.myRoutesOverlayEnabled }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     fun setMyRoutesOverlayEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setMyRoutesOverlayEnabled(enabled) }
@@ -172,7 +172,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
      *  would let the last-mounted screen decide visibility for everyone. */
     val waypointsVisible: StateFlow<Boolean> = settingsRepository.settings
         .map { it.waypointsVisible }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     fun setWaypointsVisible(visible: Boolean) {
         viewModelScope.launch { settingsRepository.setWaypointsVisible(visible) }

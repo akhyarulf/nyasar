@@ -109,7 +109,7 @@ fun NavigationScreen(
     // adding one for a single UI gate is more churn than this.
     val waypointsVisible by settingsRepository.settings
         .map { it.waypointsVisible }
-        .collectAsState(initial = false)
+        .collectAsState(initial = true)
     val bottomClearance = statBarHeight + 12.dp
 
     Box(Modifier.fillMaxSize()) {

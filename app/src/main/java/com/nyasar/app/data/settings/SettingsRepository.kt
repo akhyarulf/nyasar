@@ -42,22 +42,25 @@ data class AppSettings(
      *  as lines on the map (see MyRoutesOverlay). Same cross-screen rule as
      *  [overlayIds]: with ONE shared MapView, a per-screen flag would let
      *  the last-mounted screen decide whether everyone's routes are
-     *  visible. Default false (off) — it's a user opt-in layer. */
-    val myRoutesOverlayEnabled: Boolean = false,
+     *  visible. Default true since 2026-09 (user request: every Data layer
+     *  ships ON; it stays a user toggle in the layer picker). */
+    val myRoutesOverlayEnabled: Boolean = true,
     /** Show downloaded-areas overlay on the main maps: green = complete,
      *  gray = incomplete, only for the active basemap's style. User opt-in
-     *  (off by default) since it draws on every map screen. */
-    val offlineOverlayEnabled: Boolean = false,
+     *  true since 2026-09 (user request: layers on by default) — it draws
+     *  on every map screen only when offline areas exist. */
+    val offlineOverlayEnabled: Boolean = true,
     /** Map waypoint pins (GPX route waypoints + user-created waypoints) —
      *  when false the pins are hidden on EVERY map screen (Home, Recording,
      *  RoutePreview, Navigation, ActivityDetail). One of the three "Data"
      *  picker-sheet toggles, all persisted app-wide with the same rule: with
      *  ONE shared MapView a per-screen flag would let the last-mounted
-     *  screen decide visibility for everyone. Default false (user opt-in,
-     *  consistent with the other Data toggles). NOTE: this hides the PINS
+     *  screen decide visibility for everyone. Default true since 2026-09
+     *  (user request: pins ship ON; toggle off in the layer picker).
+     *  NOTE: this hides the PINS
      *  only — Navigation's next-waypoint guidance logic is functional, not
      *  an overlay, and deliberately keeps working while pins are hidden. */
-    val waypointsVisible: Boolean = false,
+    val waypointsVisible: Boolean = true,
     /** First-launch location onboarding ("why we need GPS" explainer before
      *  the system permission popup) has been shown+actioned. Once true it
      *  never shows again — the request itself lives in MainActivity. */
@@ -109,9 +112,9 @@ class SettingsRepository(private val context: Context) {
             speedUnit = prefs[Keys.SPEED_UNIT] ?: "kmh",
             basemapId = prefs[Keys.BASEMAP_ID] ?: "libertyTopo",
             overlayIds = prefs[Keys.OVERLAY_IDS] ?: emptySet(),
-            myRoutesOverlayEnabled = prefs[Keys.MY_ROUTES_OVERLAY] ?: false,
-            offlineOverlayEnabled = prefs[Keys.OFFLINE_OVERLAY] ?: false,
-            waypointsVisible = prefs[Keys.WAYPOINTS_VISIBLE] ?: false,
+            myRoutesOverlayEnabled = prefs[Keys.MY_ROUTES_OVERLAY] ?: true,
+            offlineOverlayEnabled = prefs[Keys.OFFLINE_OVERLAY] ?: true,
+            waypointsVisible = prefs[Keys.WAYPOINTS_VISIBLE] ?: true,
             locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false,
             notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false,
             batteryOptimizationOnboardingShown = prefs[Keys.BATTERY_ONBOARDING] ?: false

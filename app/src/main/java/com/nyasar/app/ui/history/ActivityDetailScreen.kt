@@ -174,7 +174,7 @@ fun ActivityDetailScreen(
     // are part of the activity record being reviewed.
     val waypointsVisible by settingsRepository.settings
         .map { it.waypointsVisible }
-        .collectAsState(initial = false)
+        .collectAsState(initial = true)
 
     // Layer-picker state for the fullscreen map (2026-09 user request):
     // basemap/overlay toggles live in the same app-wide DataStore the other

@@ -102,7 +102,15 @@ fun EditActivityDialog(
             meta = meta ?: PublishRepositoryMeta(true, null, null, null, null),
             initialSportType = currentSport,
             onDismiss = onDismiss,
-            onSave = onSave
+            // The sheet's sport slot is nullable (routes hide the section);
+            // this dialog always has a concrete activity sport — coalesce.
+            onSave = { title, sportType, difficulty, diffDesc, trailType, desc, isPublic ->
+                onSave(
+                    title,
+                    sportType ?: com.nyasar.app.recording.SportType.UNSPECIFIED,
+                    difficulty, diffDesc, trailType, desc, isPublic
+                )
+            }
         )
     }
 }

@@ -154,24 +154,42 @@ fun ShareCardScreen(
                 .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Card carousel
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
+            // Card carousel — the 9:16 card must FIT the pager's real
+            // viewport, not size itself from the screen width: the space
+            // left under the "Share Activity" bar is often shorter than
+            // width×16/9, so the card's top slid underneath the bar
+            // (2026-09 bug report). Fit is height-driven with a width cap —
+            // the ratio stays exactly 9:16, only the preview scales.
+            // Preview only: exported/saved PNGs are untouched (1080×1920).
+            BoxWithConstraints(
+                Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 24.dp)
+            ) {
+            // 8dp top/bottom breathing room; the card still never exceeds
+            // what's visible between the header and the dot indicators.
+            val availableHeight = (maxHeight - 16.dp).coerceAtLeast(1.dp)
+            val cardWidth = minOf(maxWidth, availableHeight * 9f / 16f).coerceAtLeast(1.dp)
+            val cardHeight = cardWidth * 16f / 9f
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 0.dp),
                 pageSpacing = 16.dp
             ) { page ->
                 val tpl = templates[page]
                 val bmp = bitmaps[tpl]
                 val cardInteraction = remember { MutableInteractionSource() }
+                // Center the fitted card inside the page slot. required*
+                // because pager pages arrive with fixed-size constraints
+                // that would coerce plain width/height back to full view.
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 AnimatedAppear(delayMs = Stagger.forIndex(page)) {
                 Card(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(9f / 16f)
+                        .requiredWidth(cardWidth)
+                        .requiredHeight(cardHeight)
                         .pressScale(cardInteraction, pressedScale = 0.97f),
                     shape = RoundedCornerShape(NyasarRadius.md)
                 ) {
@@ -235,6 +253,8 @@ fun ShareCardScreen(
                     }
                 }
                 }
+                }
+            }
             }
 
             // Dot indicators — active dot animates its size/color, so the

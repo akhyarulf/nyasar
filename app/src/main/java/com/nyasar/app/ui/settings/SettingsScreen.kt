@@ -528,16 +528,23 @@ private fun OptionRow(icon: ImageVector, title: String, subtitle: String? = null
 }
 
 /** One compact radio choice inside a section card. The custom indicator keeps
- *  the row at a comfortable 48dp while avoiding the oversized Material radio
- *  control that made these sections feel like a long list of empty space. */
+ *  the row compact while avoiding the oversized Material radio control that
+ *  made these sections feel like a long list of empty space.
+ *
+ *  Row density (user feedback 2026-09): option rows inside these grouped
+ *  cards sit at 44dp — the dense end of the M3 list spec (40-48dp) — so
+ *  three-option cards don't read as tall stacks of empty air. 48dp remains
+ *  the standard for STANDALONE rows elsewhere in this screen; embedded
+ *  grouped options are a denser pattern, the 20dp indicator and label still
+ *  clear it comfortably, and the ripple makes the target obvious. */
 @Composable
 private fun RadioOption(label: String, selected: Boolean, onSelect: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
             .selectable(selected = selected, onClick = onSelect)
-            .padding(start = 46.dp, end = 14.dp, top = 3.dp, bottom = 3.dp)
-            .heightIn(min = 48.dp),
+            .padding(start = 46.dp, end = 14.dp, top = 2.dp, bottom = 2.dp)
+            .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

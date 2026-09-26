@@ -16,8 +16,13 @@ import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.R
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -107,6 +112,48 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
     private val waypointRepository = WaypointRepository(app)
     private val routeRepository = RouteRepository(app)
     private val settingsRepository = SettingsRepository(app)
+
+    // Layer-picker state for the fullscreen map (2026-09 user request: last
+    // map screen without the BasemapPickerSheet). Same app-wide DataStore
+    // keys as Home/RoutePreview/browse detail — the map picture is identical
+    // everywhere and follows the user across screens.
+    val selectedBasemap: StateFlow<com.nyasar.app.map.BasemapEntry> = settingsRepository.settings
+        .map { com.nyasar.app.map.BasemapEntry.fromId(it.basemapId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, com.nyasar.app.map.BasemapEntry.LIBERTY_TOPO)
+
+    fun setBasemap(entry: com.nyasar.app.map.BasemapEntry) {
+        viewModelScope.launch { settingsRepository.setBasemapId(entry.gpxKey) }
+    }
+
+    val activeOverlays: StateFlow<Set<com.nyasar.app.map.OverlayLayer>> = settingsRepository.settings
+        .map { prefs ->
+            prefs.overlayIds.mapNotNull { id ->
+                com.nyasar.app.map.OverlayLayer.entries.firstOrNull { it.id == id }
+            }.toSet()
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    fun toggleOverlay(overlay: com.nyasar.app.map.OverlayLayer) {
+        val next = if (overlay in activeOverlays.value) activeOverlays.value - overlay
+        else activeOverlays.value + overlay
+        viewModelScope.launch { settingsRepository.setOverlayIds(next.map { it.id }.toSet()) }
+    }
+
+    val myRoutesOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.myRoutesOverlayEnabled }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setMyRoutesOverlayEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setMyRoutesOverlayEnabled(enabled) }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val myRouteLines: StateFlow<List<com.nyasar.app.map.MyRouteLine>> =
+        myRoutesOverlayEnabled
+            .flatMapLatest { enabled ->
+                if (enabled) routeRepository.observeOverlayLines(true) else flowOf(emptyList())
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _uiState = MutableStateFlow(ActivityDetailUiState())
     val uiState: StateFlow<ActivityDetailUiState> = _uiState.asStateFlow()

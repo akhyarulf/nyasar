@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Public
@@ -175,6 +176,16 @@ fun ActivityDetailScreen(
         .map { it.waypointsVisible }
         .collectAsState(initial = false)
 
+    // Layer-picker state for the fullscreen map (2026-09 user request):
+    // basemap/overlay toggles live in the same app-wide DataStore the other
+    // map screens use, so the chosen layers follow the user everywhere.
+    val currentBasemap by viewModel.selectedBasemap.collectAsState()
+    val currentProvider by viewModel.provider.collectAsState()
+    val activeOverlays by viewModel.activeOverlays.collectAsState()
+    val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    val myRouteLines by viewModel.myRouteLines.collectAsState()
+    var showLayerSheet by remember { mutableStateOf(false) }
+
     // P3H Activity Photos were removed entirely from the app — no camera
     // or photo-picker launchers remain here.
 
@@ -311,7 +322,10 @@ fun ActivityDetailScreen(
                                 NyasarMapView(
                                     modifier = Modifier.fillMaxSize(),
                                     fitBoundsPaddingPx = activityFitPaddingPx,
-                                    provider = state.provider,
+                                    provider = currentProvider,
+                                    basemapEntry = currentBasemap,
+                                    activeOverlays = activeOverlays,
+                                    myRoutes = myRouteLines,
                                     track = if (state.plannedTrack.isNotEmpty()) state.plannedTrack else state.actualTrack,
                                     actualTrack = if (state.plannedTrack.isNotEmpty()) state.actualTrack else emptyList(),
                                     userWaypoints = state.waypointsDuringActivity,
@@ -335,12 +349,66 @@ fun ActivityDetailScreen(
                                         )
                                     }
                                 }
+                                // Layer picker — bottom-right like every other
+                                // map screen (Home/RoutePreview/DrawRoute/browse
+                                // detail); same button + sheet, same persisted
+                                // app-wide toggles.
+                                Column(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .navigationBarsPadding()
+                                        .padding(end = 16.dp, bottom = 16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Surface(
+                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        tonalElevation = 3.dp,
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        IconButton(onClick = { showLayerSheet = true }) {
+                                            Icon(
+                                                Icons.Default.Layers,
+                                                contentDescription = stringResource(R.string.map_layer_cd),
+                                                tint = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Layer picker sheet (2026-09 user request) — same component and same
+    // persisted toggles as every other map screen. Waypoint pins here show
+    // THIS activity's own pins (waypointsDuringActivity), so the Data
+    // "Waypoints" toggle applies; downloaded-areas coverage stays hidden
+    // (no per-style coverage data wired on this screen).
+    if (showLayerSheet) {
+        com.nyasar.app.ui.components.BasemapPickerSheet(
+            selected = currentBasemap,
+            onSelect = { entry ->
+                viewModel.setBasemap(entry)
+                showLayerSheet = false
+            },
+            activeOverlays = activeOverlays,
+            onToggleOverlay = { overlay -> viewModel.toggleOverlay(overlay) },
+            myRoutesEnabled = myRoutesEnabled,
+            onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
+            waypointsVisible = waypointsVisible,
+            onToggleWaypoints = {
+                scope.launch {
+                    settingsRepository.setWaypointsVisible(!waypointsVisible)
+                }
+            },
+            showOfflineAreasToggle = false,
+            onDismiss = { showLayerSheet = false }
+        )
     }
 
     // Edit Activity dialog (formerly just "Rename"): title + difficulty /

@@ -145,9 +145,13 @@ object ShareCardGenerator {
     private fun sportMetric(a: ActivityEntity): ShareMetric =
         SportType.fromString(a.sportType).primaryMetric
 
+    /** Pace is MOVING-time based, matching every other surface (History
+     *  card, Activity Detail, live recording) — was elapsed-based, which
+     *  contradicted this same card's own Time value and the History card
+     *  (2026-09 user report "kok beda-beda?"). */
     private fun formatPace(a: ActivityEntity): String {
-        if (a.distanceMeters <= 0) return "0:00 /km"
-        val paceMinPerKm = (a.elapsedTimeMs / 60000.0) / (a.distanceMeters / 1000.0)
+        if (a.distanceMeters <= 0 || a.movingTimeMs <= 0) return "- /km"
+        val paceMinPerKm = (a.movingTimeMs / 60000.0) / (a.distanceMeters / 1000.0)
         val pm = paceMinPerKm.toInt()
         val ps = ((paceMinPerKm - pm) * 60).toInt()
         return "%d:%02d /km".format(pm, ps)
@@ -170,7 +174,7 @@ object ShareCardGenerator {
     /** The 2–3 label/value columns every stats bar shows, per sport metric. */
     private fun statColumns(ctx: android.content.Context, a: ActivityEntity): List<Pair<String, String>> = buildList {
         add(ctx.getString(R.string.share_stat_distance) to "%.2f km".format(a.distanceMeters / 1000.0))
-        add(ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs))
+        add(ctx.getString(R.string.share_stat_time) to formatDuration(a.elapsedTimeMs))
         if (sportMetric(a) == ShareMetric.PACE) {
             add(ctx.getString(R.string.share_stat_pace) to formatPace(a))
         } else {
@@ -356,7 +360,7 @@ object ShareCardGenerator {
         }
 
         val dist = "%.2f km".format(a.distanceMeters / 1000.0)
-        val dur = formatDuration(a.movingTimeMs)
+        val dur = formatDuration(a.elapsedTimeMs)
 
         block(ctx.getString(R.string.share_stat_distance), dist, CARD_H * 0.235f, CARD_H * 0.295f)
         if (sportMetric(a) == ShareMetric.PACE) {
@@ -562,7 +566,7 @@ object ShareCardGenerator {
         val columns = listOf(
             ctx.getString(R.string.share_stat_distance) to "%.2f km".format(a.distanceMeters / 1000.0),
             primary,
-            ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs)
+            ctx.getString(R.string.share_stat_time) to formatDuration(a.elapsedTimeMs)
         )
         val gap = 72f
         val widths = columns.map { maxOf(lblP.measureText(it.first), valP.measureText(it.second)) }
@@ -649,7 +653,7 @@ object ShareCardGenerator {
             columns = listOf(
                 ctx.getString(R.string.share_stat_distance) to "%.2f km".format(a.distanceMeters / 1000.0),
                 primary,
-                ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs)
+                ctx.getString(R.string.share_stat_time) to formatDuration(a.elapsedTimeMs)
             ),
             leftX = leftX, rightX = CARD_W - 90f,
             labelBaselineY = glyphY + glyphSize + 140f, valueGap = 74f
@@ -696,7 +700,7 @@ object ShareCardGenerator {
             ctx.getString(R.string.share_stat_max_elev) to formatMaxElev(track)
         )
         val row2 = listOf(
-            ctx.getString(R.string.share_stat_time) to formatDuration(a.movingTimeMs),
+            ctx.getString(R.string.share_stat_time) to formatDuration(a.elapsedTimeMs),
             ctx.getString(R.string.share_stat_elev_gain) to formatElevGain(a),
             ctx.getString(R.string.share_stat_elev_loss) to formatElevLoss(a)
         )

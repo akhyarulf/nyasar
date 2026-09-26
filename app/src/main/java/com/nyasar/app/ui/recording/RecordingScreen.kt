@@ -1961,8 +1961,8 @@ private fun RecordingStatsOverlay(
     onShowSportFilter: () -> Unit
 ) {
     val elevations = remember(state.recordedTrack) { state.recordedTrack.mapNotNull { it.elevationM } }
-    // Localized SHORT unit for the speed grid ("km/j" ID / "kph" EN,
-    // "mph" either way) — see SpeedUtils.speedValue.
+    // Short unit label for the speed grid ("km/h" or "mph") — see
+    // SpeedUtils.speedValue.
     val speedUnitLabel = stringResource(
         if (speedUnit == "mph") R.string.speed_unit_mph else R.string.speed_unit_kmh
     )
@@ -2071,7 +2071,7 @@ private fun RecordingStatsOverlay(
                             // label as the localized SHORT form — the full
                             // "km/h" inside a titleLarge value ellipsized
                             // to "0.0 k…" in a third-width column (2026-09
-                            // narrow-screen report). Labels: Speed (km/j).
+                            // narrow-screen report). Labels: Speed (km/h).
                             BigStatBlock(
                                 com.nyasar.app.util.SpeedUtils.speedValue(state.currentSpeedKmh, speedUnit, 1),
                                 stringResource(R.string.recording_stat_speed) +

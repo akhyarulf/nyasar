@@ -522,9 +522,9 @@
     <string name="stat_elev_gain_down">Elevation Loss</string>
     <string name="stat_max_elevation">Max Elevation</string>
     <!-- Satuan kecepatan pendek: baris grid angka besar pakai
-       bentuk singkat per-bahasa biar tidak terpotong di kolom
-       sempit (km/j = singkatan resmi PUEBI; kph = EN umum). -->
-    <string name="speed_unit_kmh">km/j</string>
+       bentuk pendek biar tidak terpotong di kolom sempit
+       (km/h + mph, konsisten di semua layar). -->
+    <string name="speed_unit_kmh">km/h</string>
     <string name="speed_unit_mph">mph</string>
     <string name="stat_min_elevation">Min Elevation</string>
 

@@ -1967,144 +1967,180 @@ private fun RecordingStatsOverlay(
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         Column(Modifier.fillMaxSize()) {
-            Column(
+            // Fill-the-screen stats (user request 2026-09): the stats area
+            // owns ALL the space above the controls. The content column gets
+            // the viewport height as a MIN height and spreads its sections
+            // with Arrangement.SpaceBetween — tall screens fill edge to
+            // edge (no dead band under the controls), while on small screens
+            // the natural content height exceeds the minimum and the column
+            // scrolls exactly as before. The viewport height comes from the
+            // Box's own onSizeChanged and is determined by weight(1f) alone,
+            // so this never feeds back into the measurement.
+            var statsViewportPx by remember { mutableStateOf(0) }
+            val statsDensity = LocalDensity.current
+            Box(
                 Modifier
-                    .weight(1f, fill = false)
+                    .weight(1f)
                     .fillMaxWidth()
-                    .verticalScrollCompat()
-                    .statusBarsPadding()
-                    .padding(horizontal = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .onSizeChanged { statsViewportPx = it.height }
             ) {
-                // Collapse affordance — the mirror of the card's expand
-                // button, top-start like Strava's minimize arrow.
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScrollCompat()
                 ) {
-                    val collapseInteraction = remember { MutableInteractionSource() }
-                    IconButton(
-                        onClick = onCollapse,
-                        modifier = Modifier.size(36.dp).pressScale(collapseInteraction),
-                        interactionSource = collapseInteraction
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = with(statsDensity) { statsViewportPx.toDp() })
+                            .statusBarsPadding()
+                            .padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            Icons.Default.CloseFullscreen,
-                            contentDescription = stringResource(R.string.collapse_stats_cd),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                    // Collapse affordance — the mirror of the card's expand
+                    // button, top-start like Strava's minimize arrow.
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        val collapseInteraction = remember { MutableInteractionSource() }
+                        IconButton(
+                            onClick = onCollapse,
+                            modifier = Modifier.size(36.dp).pressScale(collapseInteraction),
+                            interactionSource = collapseInteraction
+                        ) {
+                            Icon(
+                                Icons.Default.CloseFullscreen,
+                                contentDescription = stringResource(R.string.collapse_stats_cd),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    // Floor gap: SpaceBetween spreads the sections across the
+                    // viewport on tall screens; fixed spacers keep minimum
+                    // breathing room when a small screen scrolls instead.
+                    Spacer(Modifier.height(12.dp))
+
+                    // Duration hero — grouped so spreading never separates a
+                    // number from its label.
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        AnimatedStatText(
+                            value = formatDuration(state.elapsedTimeMs),
+                            style = MaterialTheme.typography.displayLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            stringResource(R.string.stat_duration),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-                Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(12.dp))
 
-                // Hero: elapsed time, oversized — the one number a runner/
-                // hiker reads mid-effort (Strava's record screen hierarchy).
-                AnimatedStatText(
-                    value = formatDuration(state.elapsedTimeMs),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    stringResource(R.string.stat_duration),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(28.dp))
+                    // Distance — the second hero metric, on its own row.
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        AnimatedStatText(
+                            value = "%.2f".format(state.distanceMeters / 1000.0),
+                            style = MaterialTheme.typography.displayMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            stringResource(R.string.stat_distance) + " (km)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
 
-                // Distance — the second hero metric, on its own row.
-                AnimatedStatText(
-                    value = "%.2f".format(state.distanceMeters / 1000.0),
-                    style = MaterialTheme.typography.displayMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    stringResource(R.string.stat_distance) + " (km)",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(28.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(Modifier.height(20.dp))
+                    // Speed group — divider + both rows move as ONE section
+                    // so SpaceBetween spreads whole groups, not rows.
+                    Column(Modifier.fillMaxWidth()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Spacer(Modifier.height(20.dp))
+                        Row(Modifier.fillMaxWidth()) {
+                            BigStatBlock(
+                                com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
+                                stringResource(R.string.recording_stat_speed),
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BigStatBlock(
+                                com.nyasar.app.util.SpeedUtils.formatSpeed(state.avgSpeedKmh, speedUnit, 1),
+                                stringResource(R.string.recording_stat_avg_speed),
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BigStatBlock(
+                                com.nyasar.app.util.SpeedUtils.formatSpeed(state.maxSpeedKmh, speedUnit, 1),
+                                stringResource(R.string.recording_stat_max_speed),
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Row(Modifier.fillMaxWidth()) {
+                            BigStatBlock(
+                                com.nyasar.app.util.SpeedUtils.formatPace(state.avgSpeedKmh, speedUnit),
+                                stringResource(R.string.pace),
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BigStatBlock(
+                                formatDuration(state.movingTimeMs),
+                                stringResource(R.string.recording_stat_moving_time),
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BigStatBlock(
+                                state.pointCount.toString(),
+                                stringResource(R.string.recording_stat_gps_points),
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
 
-                // Speed group — current / average / max / pace.
-                Row(Modifier.fillMaxWidth()) {
-                    BigStatBlock(
-                        com.nyasar.app.util.SpeedUtils.formatSpeed(state.currentSpeedKmh, speedUnit, 1),
-                        stringResource(R.string.recording_stat_speed),
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    BigStatBlock(
-                        com.nyasar.app.util.SpeedUtils.formatSpeed(state.avgSpeedKmh, speedUnit, 1),
-                        stringResource(R.string.recording_stat_avg_speed),
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    BigStatBlock(
-                        com.nyasar.app.util.SpeedUtils.formatSpeed(state.maxSpeedKmh, speedUnit, 1),
-                        stringResource(R.string.recording_stat_max_speed),
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
+                    // Elevation group — gain / loss / max / min (max & min
+                    // derived from the same recordedTrack points the map
+                    // draws), also one section: divider + both rows.
+                    Column(Modifier.fillMaxWidth()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Spacer(Modifier.height(20.dp))
+                        Row(Modifier.fillMaxWidth()) {
+                            BigStatBlock(
+                                state.elevationGainM.roundToInt().toString(),
+                                stringResource(R.string.stat_elev_gain_up) + " (m)",
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BigStatBlock(
+                                state.elevationLossM.roundToInt().toString(),
+                                stringResource(R.string.stat_elev_gain_down) + " (m)",
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Row(Modifier.fillMaxWidth()) {
+                            BigStatBlock(
+                                elevations.maxOrNull()?.roundToInt()?.toString() ?: "-",
+                                stringResource(R.string.stat_max_elevation) + " (m)",
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BigStatBlock(
+                                elevations.minOrNull()?.roundToInt()?.toString() ?: "-",
+                                stringResource(R.string.stat_min_elevation) + " (m)",
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth()) {
-                    BigStatBlock(
-                        com.nyasar.app.util.SpeedUtils.formatPace(state.avgSpeedKmh, speedUnit),
-                        stringResource(R.string.pace),
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    BigStatBlock(
-                        formatDuration(state.movingTimeMs),
-                        stringResource(R.string.recording_stat_moving_time),
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    BigStatBlock(
-                        state.pointCount.toString(),
-                        stringResource(R.string.recording_stat_gps_points),
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(20.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(Modifier.height(20.dp))
-
-                // Elevation group — gain / loss / max / min (max & min
-                // derived from the same recordedTrack points the map draws).
-                Row(Modifier.fillMaxWidth()) {
-                    BigStatBlock(
-                        state.elevationGainM.roundToInt().toString(),
-                        stringResource(R.string.stat_elev_gain_up) + " (m)",
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    BigStatBlock(
-                        state.elevationLossM.roundToInt().toString(),
-                        stringResource(R.string.stat_elev_gain_down) + " (m)",
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth()) {
-                    BigStatBlock(
-                        elevations.maxOrNull()?.roundToInt()?.toString() ?: "-",
-                        stringResource(R.string.stat_max_elevation) + " (m)",
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    BigStatBlock(
-                        elevations.minOrNull()?.roundToInt()?.toString() ?: "-",
-                        stringResource(R.string.stat_min_elevation) + " (m)",
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(24.dp))
+            }
             }
 
             // Live controls pinned to the bottom — expanding stats never

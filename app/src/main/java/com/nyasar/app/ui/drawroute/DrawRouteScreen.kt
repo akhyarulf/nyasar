@@ -330,10 +330,20 @@ fun DrawRouteScreen(
         if (showCrosshair) {
             WaypointCrosshairScreen(
                 cameraTarget = crosshairTarget,
-                initialLinkedRouteId = null,
-                onSave = { lat, lon, name, category, _, _ ->
-                    // Draft: memory-only WaypointEntity (id = UUID, link null
-                    // until finish() persists it against the saved route).
+                // Attachment picker (2026-09 user report): drawing a route
+                // now offers "link to this route" vs "Independent" like
+                // every other waypoint surface. The route row does not
+                // exist until finish(), so the pre-selected route option
+                // carries the PENDING_ROUTE_LINK sentinel — resolved to the
+                // real route id when drafts are persisted.
+                attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                    routeId = DrawRouteViewModel.PENDING_ROUTE_LINK
+                ),
+                initialLinkedRouteId = DrawRouteViewModel.PENDING_ROUTE_LINK,
+                onSave = { lat, lon, name, category, linkedRouteId, _ ->
+                    // Draft: memory-only WaypointEntity (id = UUID; the
+                    // link stays PENDING_ROUTE_LINK/null — the user's
+                    // attachment choice — until finish() persists it).
                     viewModel.addDraftWaypoint(
                         WaypointEntity(
                             id = java.util.UUID.randomUUID().toString(),
@@ -344,6 +354,7 @@ fun DrawRouteScreen(
                             elevationM = null,
                             note = null,
                             createdAtEpochMs = System.currentTimeMillis(),
+                            linkedRouteId = linkedRouteId,
                             source = WaypointEntity.SOURCE_USER
                         )
                     )
@@ -409,9 +420,16 @@ fun DrawRouteScreen(
             lat = wp.lat,
             lon = wp.lon,
             elevationM = wp.elevationM,
+            // Same attachment choice as the drop-time picker: editing a
+            // draft can still switch between "link to this route" and
+            // "Independent" before the route itself is saved.
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = DrawRouteViewModel.PENDING_ROUTE_LINK
+            ),
+            initialLinkedRouteId = wp.linkedRouteId,
             onDismiss = { waypointViewModel.dismissEditing() },
-            onSave = { name, cat, note, _, _ ->
-                viewModel.updateDraftWaypoint(wp, name, cat, note)
+            onSave = { name, cat, note, linkedRouteId, _ ->
+                viewModel.updateDraftWaypoint(wp, name, cat, note, linkedRouteId)
                 waypointViewModel.dismissEditing()
             },
             onDelete = {

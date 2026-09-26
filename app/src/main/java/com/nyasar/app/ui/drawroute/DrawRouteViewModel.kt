@@ -160,17 +160,27 @@ class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Edits a draft's name/category/note (coordinates stay fixed — same
-     *  rule as WaypointRepository.update: "where I tapped" is creation-time). */
-    fun updateDraftWaypoint(wp: WaypointEntity, name: String, category: com.nyasar.app.data.db.WaypointCategory, note: String?) {
+     *  rule as WaypointRepository.update: "where I tapped" is creation-time)
+     *  plus its attachment choice ([PENDING_ROUTE_LINK] = attach to the route
+     *  being drawn, null = independent). */
+    fun updateDraftWaypoint(wp: WaypointEntity, name: String, category: com.nyasar.app.data.db.WaypointCategory, note: String?, linkedRouteId: String?) {
         _draftWaypoints.value = _draftWaypoints.value.map {
-            if (it.id == wp.id) it.copy(name = name, category = category.name, note = note?.ifBlank { null }) else it
+            if (it.id == wp.id) it.copy(name = name, category = category.name, note = note?.ifBlank { null }, linkedRouteId = linkedRouteId) else it
         }
     }
 
+    companion object {
+        /** Sentinel route link for DRAFT waypoints while drawing: the real
+         *  route row does not exist until finish(), so "attach to this
+         *  route" is carried as this marker (null = independent) and is
+         *  replaced by the actual route id when drafts are persisted. The
+         *  sentinel itself is never written to the database. */
+        const val PENDING_ROUTE_LINK = "__pending_route__"
+    }
+
     /**
-     * Persists all draft waypoints linked to the JUST-SAVED route ("default
-     * link this route"): the route row now exists, so each draft is inserted
-     * through the normal repository path with linkedRouteId = the new id.
+     * Persists all draft waypoints, honoring each draft's attachment choice
+     * (route-link sentinel → the just-saved route's id; null → independent).
      * Inserted BEFORE savedRouteId flips so the pins are in the DB when the
      * caller navigates to the route's preview. A failure must never block
      * or undo the route save itself — the pins degrade to dropped.
@@ -190,7 +200,10 @@ class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
                 val route: RouteEntity = routeRepository.importFromDrawnPoints(name, enriched)
                 // Konsep backup tanpa tombol: rute gambar = data backup.
                 com.nyasar.app.backup.BackupManager.scheduleRouteBackup(getApplication(), route.id)
-                // Draft waypoints → real rows linked to the new route.
+                // Draft waypoints → real rows. Non-null linkedRouteId (the
+                // PENDING_ROUTE_LINK sentinel from the attachment picker)
+                // means "attach to this route" and resolves to the real id;
+                // null = the user chose Independent — saved without links.
                 val drafts = _draftWaypoints.value
                 for (wp in drafts) {
                     try {
@@ -201,7 +214,7 @@ class DrawRouteViewModel(app: Application) : AndroidViewModel(app) {
                             lon = wp.lon,
                             elevationM = wp.elevationM,
                             note = wp.note,
-                            linkedRouteId = route.id
+                            linkedRouteId = if (wp.linkedRouteId != null) route.id else null
                         )
                     } catch (_: Exception) {
                         // One bad pin never blocks the route save.

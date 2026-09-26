@@ -123,9 +123,9 @@ fun TrackAndMapsScreen(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            FilterPill("Semua", state.filter == TrackAndMapsFilter.ALL) { viewModel.setFilter(TrackAndMapsFilter.ALL) }
-            FilterPill("Track", state.filter == TrackAndMapsFilter.TRACK) { viewModel.setFilter(TrackAndMapsFilter.TRACK) }
-            FilterPill("Peta Offline", state.filter == TrackAndMapsFilter.OFFLINE) { viewModel.setFilter(TrackAndMapsFilter.OFFLINE) }
+            FilterPill(stringResource(R.string.filter_all), state.filter == TrackAndMapsFilter.ALL) { viewModel.setFilter(TrackAndMapsFilter.ALL) }
+            FilterPill(stringResource(R.string.filter_track), state.filter == TrackAndMapsFilter.TRACK) { viewModel.setFilter(TrackAndMapsFilter.TRACK) }
+            FilterPill(stringResource(R.string.offline_maps), state.filter == TrackAndMapsFilter.OFFLINE) { viewModel.setFilter(TrackAndMapsFilter.OFFLINE) }
         }
 
         if (state.loading) {
@@ -137,7 +137,7 @@ fun TrackAndMapsScreen(
 
         LazyColumn(Modifier.fillMaxSize()) {
             if (state.filter != TrackAndMapsFilter.TRACK) {
-                item { SectionHeader("Peta Offline", onSeeAll = onOpenOfflineMaps) }
+                item { SectionHeader(stringResource(R.string.offline_maps), onSeeAll = onOpenOfflineMaps) }
                 item {
                     OfflineSummaryBanner(
                         count = state.offlineRegionCount,
@@ -148,7 +148,7 @@ fun TrackAndMapsScreen(
             }
 
             if (state.filter != TrackAndMapsFilter.OFFLINE) {
-                item { SectionHeader("Track (GPX)", onSeeAll = null) }
+                item { SectionHeader(stringResource(R.string.section_track_gpx), onSeeAll = null) }
                 val tracks = state.filteredTracks
                 if (tracks.isEmpty()) {
                     item {
@@ -219,7 +219,7 @@ private fun SectionHeader(title: String, onSeeAll: (() -> Unit)?) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         onSeeAll?.let {
             Text(
-                "Lihat >",
+                stringResource(R.string.see_all),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable(onClick = it)

@@ -272,6 +272,9 @@
 
     <!-- Track & Maps -->
     <string name="library">Library</string>
+    <string name="filter_all">Semua</string>
+    <string name="filter_track">Track</string>
+    <string name="section_track_gpx">Track (GPX)</string>
 
     <!-- Share -->
     <string name="save_to_gallery">Simpan ke Galeri</string>

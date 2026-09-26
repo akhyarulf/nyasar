@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -53,6 +55,53 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
     val provider: StateFlow<TileProvider> = settingsRepository.settings
         .map { TileProviderFactory.byId(it.providerId) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, TileProviderFactory.default())
+
+    // Basemap + overlay state for the fullscreen map's layer picker (2026-09
+    // user request: every other map screen has the BasemapPickerSheet, browse
+    // Route Detail's fullscreen map was the last one without it). All flags
+    // share the SAME app-wide DataStore keys as RoutePreview/Home — the
+    // map picture stays identical across screens, exactly the "one shared
+    // DataStore" rule the other screens' comments describe.
+    val selectedBasemap: StateFlow<com.nyasar.app.map.BasemapEntry> = settingsRepository.settings
+        .map { com.nyasar.app.map.BasemapEntry.fromId(it.basemapId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, com.nyasar.app.map.BasemapEntry.LIBERTY_TOPO)
+
+    fun setBasemap(entry: com.nyasar.app.map.BasemapEntry) {
+        viewModelScope.launch { settingsRepository.setBasemapId(entry.gpxKey) }
+    }
+
+    val activeOverlays: StateFlow<Set<com.nyasar.app.map.OverlayLayer>> = settingsRepository.settings
+        .map { prefs ->
+            prefs.overlayIds.mapNotNull { id ->
+                com.nyasar.app.map.OverlayLayer.entries.firstOrNull { it.id == id }
+            }.toSet()
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    fun toggleOverlay(overlay: com.nyasar.app.map.OverlayLayer) {
+        val next = if (overlay in activeOverlays.value) activeOverlays.value - overlay
+        else activeOverlays.value + overlay
+        viewModelScope.launch { settingsRepository.setOverlayIds(next.map { it.id }.toSet()) }
+    }
+
+    val myRoutesOverlayEnabled: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.myRoutesOverlayEnabled }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setMyRoutesOverlayEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setMyRoutesOverlayEnabled(enabled) }
+    }
+
+    /** Route ids accenting in the Jalur-Saya overlay: this fullscreen map's
+     *  track belongs to a CLOUD route that has no local id yet, so no line
+     *  is accented here (null activeRouteId) — unlike RoutePreview. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val myRouteLines: StateFlow<List<com.nyasar.app.map.MyRouteLine>> =
+        myRoutesOverlayEnabled
+            .flatMapLatest { enabled ->
+                if (enabled) routeRepository.observeOverlayLines(true) else flowOf(emptyList())
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     sealed class State {
         data object Loading : State()

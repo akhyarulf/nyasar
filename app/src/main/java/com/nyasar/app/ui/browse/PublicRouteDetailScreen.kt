@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
@@ -122,6 +123,16 @@ fun PublicRouteDetailScreen(
     // surface (pan/zoom/bearing), not the static snapshot.
     var mapExpanded by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = mapExpanded) { mapExpanded = false }
+
+    // Layer-picker state for the fullscreen map (2026-09 user request):
+    // basemap/overlay toggles live in the same app-wide DataStore the other
+    // map screens use, so the chosen layers follow the user everywhere.
+    val currentBasemap by viewModel.selectedBasemap.collectAsState()
+    val currentProvider by viewModel.provider.collectAsState()
+    val activeOverlays by viewModel.activeOverlays.collectAsState()
+    val myRoutesEnabled by viewModel.myRoutesOverlayEnabled.collectAsState()
+    val myRouteLines by viewModel.myRouteLines.collectAsState()
+    var showLayerSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(routeId) { viewModel.load(routeId) }
 
@@ -783,7 +794,6 @@ fun PublicRouteDetailScreen(
     if (mapExpanded) {
         val ready = state as? PublicRouteDetailViewModel.State.Ready
         if (ready != null) {
-        val provider by viewModel.provider.collectAsState()
         // Zoom-out ekstra merata (72dp, pola RoutePreview) supaya ujung atas
         // track tidak tersembunyi di bawah pill nama rute + tombol back.
         val fitPaddingPx = with(LocalDensity.current) { 72.dp.toPx() }.toInt()
@@ -795,8 +805,11 @@ fun PublicRouteDetailScreen(
             NyasarMapView(
                 modifier = Modifier.fillMaxSize(),
                 fitBoundsPaddingPx = fitPaddingPx,
-                provider = provider,
+                provider = currentProvider,
+                basemapEntry = currentBasemap,
                 shared = false,
+                activeOverlays = activeOverlays,
+                myRoutes = myRouteLines,
                 track = ready.track,
                 trackColorOverride = "#42A5F5"
             )
@@ -804,7 +817,8 @@ fun PublicRouteDetailScreen(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .statusBarsPadding()
-                    .padding(start = 12.dp, top = 8.dp)
+                    .padding(start = 12.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
                     shape = CircleShape,
@@ -816,6 +830,22 @@ fun PublicRouteDetailScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                // Layer picker — same button + sheet as RoutePreview's
+                // fullscreen map; selection persists app-wide.
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 3.dp,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    IconButton(onClick = { showLayerSheet = true }) {
+                        Icon(
+                            Icons.Default.Layers,
+                            contentDescription = stringResource(R.string.map_layer_cd),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -843,6 +873,31 @@ fun PublicRouteDetailScreen(
             }
         }
         }
+    }
+
+    // Layer picker sheet (2026-09 user request) — same component and same
+    // persisted toggles as every other map screen. Waymarked overlay + Data
+    // toggles all apply; "Jalur Saya" renders the saved Library routes with
+    // none accented (the cloud route has no local id — see the VM).
+    if (showLayerSheet) {
+        com.nyasar.app.ui.components.BasemapPickerSheet(
+            selected = currentBasemap,
+            onSelect = { entry ->
+                viewModel.setBasemap(entry)
+                showLayerSheet = false
+            },
+            activeOverlays = activeOverlays,
+            onToggleOverlay = { overlay -> viewModel.toggleOverlay(overlay) },
+            myRoutesEnabled = myRoutesEnabled,
+            onToggleMyRoutes = { viewModel.setMyRoutesOverlayEnabled(!myRoutesEnabled) },
+            // Waypoint pins + downloaded-areas coverage need the local GPX /
+            // per-style coverage data this screen doesn't carry — keep both
+            // tiles hidden instead of dead toggles (same reasoning DrawRoute
+            // documents for hiding them).
+            showWaypointsToggle = false,
+            showOfflineAreasToggle = false,
+            onDismiss = { showLayerSheet = false }
+        )
     }
 
     // Report dialog (Fase 4) — route target from the top-bar flag, comment

@@ -18,6 +18,7 @@
       "hero.cta.download": "Unduh APK (gratis)",
       "hero.cta.browse": "Jelajahi Rute Publik",
       "hero.note": "Gratis · Tanpa Play Store · Data GPX-mu tetap di HP-mu",
+      "hero.qr.hint": "Scan untuk unduh di HP-mu",
 
       "stat.offline": "Peta & rute offline",
       "stat.gpx": "Import / export GPX",
@@ -137,6 +138,7 @@
       "hero.cta.download": "Download APK (free)",
       "hero.cta.browse": "Explore public routes",
       "hero.note": "Free · No Play Store needed · Your raw GPS data stays on your phone",
+      "hero.qr.hint": "Scan to download on your phone",
 
       "stat.offline": "Offline maps & routes",
       "stat.gpx": "Import / export GPX",

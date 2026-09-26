@@ -104,6 +104,9 @@
       <p>Data ini <strong>tidak mencakup data pribadi</strong> seperti lokasi GPS, rute perjalanan, atau isi akun Anda — Crashlytics hanya mengumpulkan informasi teknis yang diperlukan untuk mendiagnosis dan memperbaiki bug. Data ini digunakan semata-mata untuk meningkatkan stabilitas aplikasi.</p>
       <p>Informasi lebih lanjut tersedia di <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Kebijakan Privasi Firebase</a>.</p>
 
+      <h2>Pembaruan Aplikasi (Update Check)</h2>
+      <p>Karena Nyasar didistribusikan di luar Play Store, aplikasi memeriksa versi terbaru <strong>sekali per pembukaan aplikasi</strong> dengan menghubungi GitHub (api.github.com) untuk membaca rilis terbaru. Yang dikirim hanyalah permintaan HTTPS biasa tanpa identitas apa pun — GitHub dapat melihat alamat IP perangkat Anda sebagaimana terjadi pada setiap koneksi web, tetapi Nyasar <strong>tidak mengirim data pribadi, lokasi, atau identifier apa pun</strong> dalam pemeriksaan ini. Jika pemeriksaan gagal (offline, sibuk, atau diblokir), aplikasi langsung melanjutkan tanpa pesan apa pun. Pembaruan tidak pernah dipasang otomatis — Anda selalu yang memutuskan mengunduh dan memasang APK baru.</p>
+
       <h2>Penyimpanan Data — Ringkasan</h2>
       <table>
         <tr><th>Jenis Data</th><th>Lokasi Penyimpanan</th></tr>
@@ -200,6 +203,9 @@
       </ul>
       <p>This data <strong>does not include personal data</strong> such as your GPS location, routes, or account contents — Crashlytics collects only the technical information needed to diagnose and fix bugs, used solely to improve app stability.</p>
       <p>See the <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase Privacy Policy</a> for details.</p>
+
+      <h2>App Updates (Update Check)</h2>
+      <p>Because Nyasar is distributed outside the Play Store, the app checks for a newer version <strong>once per app launch</strong> by contacting GitHub (api.github.com) to read the latest release. What is sent is just an ordinary HTTPS request carrying no identity whatsoever — GitHub can see your device's IP address as with any web connection, but Nyasar <strong>sends no personal data, location, or identifiers of any kind</strong> in this check. If the check fails (offline, busy, or blocked), the app silently moves on without any message. Updates are never installed automatically — you always decide whether to download and install a new APK.</p>
 
       <h2>Data Storage — Summary</h2>
       <table>

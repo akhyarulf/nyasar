@@ -45,16 +45,56 @@
 <main>
   <!-- ============ HERO ============ -->
   <section class="hero">
-    <div class="hero-inner">
-      <span class="hero-kicker"><span class="dot"></span><span data-i18n="hero.kicker">Offline-first · GPS · Untuk pendaki Indonesia</span></span>
-      <h1 data-i18n-html="hero.title">Sesat itu biasa. <em>Nyasar</em> itu pilihan.</h1>
-      <!-- fallback ID sudah inline; lang.js mengganti via data-i18n-html -->
-      <p class="lead" data-i18n="hero.lead">Nyasar adalah aplikasi navigasi hiking offline-first untuk Android. Rekam rute GPS di tengah hutan tanpa sinyal, ikuti jalur yang sudah dibagikan pendaki lain, dan pulang dengan selamat — tanpa paket data.</p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="https://github.com/akhyarulf/nyasar/releases/latest/download/Nyasar.apk" target="_blank" rel="noopener"><span>⬇</span> <span data-i18n="hero.cta.download">Unduh APK (gratis)</span></a>
-        <a class="btn btn-ghost" href="browse/index.html"><span>🧭</span> <span data-i18n="hero.cta.browse">Jelajahi Rute Publik</span></a>
+    <div class="hero-inner hero-grid">
+      <div class="hero-copy">
+        <span class="hero-kicker"><span class="dot"></span><span data-i18n="hero.kicker">Offline-first · GPS · Untuk pendaki Indonesia</span></span>
+        <h1 data-i18n-html="hero.title">Sesat itu biasa. <em>Nyasar</em> itu pilihan.</h1>
+        <!-- fallback ID sudah inline; lang.js mengganti via data-i18n-html -->
+        <p class="lead" data-i18n="hero.lead">Nyasar adalah aplikasi navigasi hiking offline-first untuk Android. Rekam rute GPS di tengah hutan tanpa sinyal, ikuti jalur yang sudah dibagikan pendaki lain, dan pulang dengan selamat — tanpa paket data.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/akhyarulf/nyasar/releases/latest/download/Nyasar.apk" target="_blank" rel="noopener"><span>⬇</span> <span data-i18n="hero.cta.download">Unduh APK (gratis)</span></a>
+          <a class="btn btn-ghost" href="browse/index.html"><span>🧭</span> <span data-i18n="hero.cta.browse">Jelajahi Rute Publik</span></a>
+        </div>
+        <p class="hero-note" data-i18n="hero.note">Gratis · Data GPX-mu tetap di HP-mu</p>
       </div>
-      <p class="hero-note" data-i18n="hero.note">Gratis · Data GPX-mu tetap di HP-mu</p>
+
+      <!-- Hero visual (roadmap: "screenshot app di hero" — dilakukan
+           sebagai mockup HP CSS murni bergaya dark theme app: tanpa aset
+           baru, tetap tajam di semua density, dan ikut i18n otomatis karena
+           isinya angka+ikon yang netral bahasa). aria-hidden: murni dekoratif.
+           QR di bawahnya = roadmap kandidat #1 "scan untuk unduh". -->
+      <div class="hero-visual" aria-hidden="true">
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="ph-top">
+              <span class="ph-brand"><img src="/apple-touch-icon.png" alt="">Nyasar</span>
+              <span class="ph-gps">● GPS</span>
+            </div>
+            <div class="ph-map">
+              <svg viewBox="0 0 220 170" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M-5,130 C40,120 55,95 95,92 S150,70 175,40 S205,15 225,10" fill="none" stroke="rgba(165,192,170,.14)" stroke-width="16" stroke-linecap="round"/>
+                <path d="M-5,130 C40,120 55,95 95,92 S150,70 175,40 S205,15 225,10" fill="none" stroke="#A5C0AA" stroke-width="5" stroke-linecap="round"/>
+                <circle cx="95" cy="92" r="7" fill="#A5C0AA" opacity=".25"/>
+                <circle cx="95" cy="92" r="3.2" fill="#E2E3DE"/>
+              </svg>
+            </div>
+            <div class="ph-stats">
+              <div class="ph-stat"><b>6.45</b><span>km</span></div>
+              <div class="ph-stat"><b>11:56</b><span>⏱</span></div>
+              <div class="ph-stat"><b>2:22</b><span>⚡</span></div>
+            </div>
+            <div class="ph-controls">
+              <span class="ph-btn ph-btn-ghost">?</span>
+              <span class="ph-btn ph-btn-play">▶</span>
+              <span class="ph-btn ph-btn-ghost">↝</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-qr">
+          <div id="qr-box" class="qr-box"></div>
+          <p data-i18n="hero.qr.hint">Scan untuk unduh di HP-mu</p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -132,6 +172,10 @@
   </div>
 </footer>
 
+<!-- qrcode-generator (~4KB gzip, jsdelivr) untuk chip "scan untuk
+     unduh" di hero; dibuat lokal di browser, tanpa request ke serv
+     QR pihak ketiga. Gagal load => chip disembunyikan, CTA tetap. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script src="lang.js"></script>
 <script>
   // Toggle bahasa — semua halaman memakai pola ini.
@@ -140,6 +184,22 @@
       if (window.nyasarApplyLang) window.nyasarApplyLang(b.getAttribute("data-lang"));
     });
   });
+
+  // QR "scan untuk unduh" (roadmap kandidat #1): menunjuk ke landing ini —
+  // visitor desktop menunjuk kamera HP ke QR-nya dan mendarat di halaman
+  // unduhan. URL pendek => modul QR besar => gampang discan.
+  (function () {
+    var box = document.getElementById("qr-box");
+    var wrap = box && box.closest(".hero-qr");
+    if (!wrap) return;
+    if (typeof qrcode !== "function") { wrap.style.display = "none"; return; }
+    try {
+      var qr = qrcode(0, "M");
+      qr.addData("https://app.nyasarnyaman.my.id/");
+      qr.make();
+      box.innerHTML = qr.createSvgTag({ cellSize: 3, margin: 1 });
+    } catch (e) { wrap.style.display = "none"; }
+  })();
 
   // Penerus tautan recovery (email Supabase default mendarat di Site URL =
   // halaman ini dengan token di fragment / code di query). Teruskan apa

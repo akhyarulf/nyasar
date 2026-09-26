@@ -72,35 +72,47 @@ fun ShareCardScreen(
     // Pre-generate map snapshot + all bitmaps on first composition
     var bitmaps by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     LaunchedEffect(activity.id, trackPoints.size) {
-        // Generate map snapshot first (cached to disk)
-        val provider = TileProviderFactory.default()
-        val snapshotResult = withContext(Dispatchers.IO) {
+        // TWO map snapshots (both disk-cached), one per map-bearing frame:
+        //   - full-bleed "map" template → the CARD's own 1080x1920 aspect.
+        //     Its bitmap is drawn edge-to-edge with zero cropping, so the
+        //     route overlay (full bounds → full canvas) is pixel-exact —
+        //     the same 1:1 math as the History thumbnail. The previous
+        //     single 1080x1344 snapshot was cover-cropped to 9:16 here,
+        //     cutting 15% off each side and shifting the GPS line off its
+        //     tiles ("garis GPS tidak sesuai map", 2026-09 report).
+        //   - dark card's inset frame → 1080x1344 portrait, matching
+        //     CARD_INSET_ASPECT in ShareCardGenerator for the same
+        //     zero-crop guarantee inside the rounded inset card.
+        val trackPairs = trackPoints.map { it.lat to it.lon }
+        val styleUrl = TileProviderFactory.default().styleUrl()
+        val fullSnapshot = withContext(Dispatchers.IO) {
             MapSnapshotHelper.generateSync(
                 context = context,
                 activityId = activity.id,
-                trackPoints = trackPoints.map { it.lat to it.lon },
+                trackPoints = trackPairs,
                 widthPx = 1080,
-                heightPx = 1344, // 70% of 1920
-                styleUrl = provider.styleUrl()
-                // NOTE: verticalOffsetFraction removed — it was shifting the
-                // visible camera area upward by 15%, which pushed the
-                // bottom end of longer routes toward/under the map's edge
-                // and made the route look "cropped" compared to List
-                // History's snapshot (which uses no offset at all, at a
-                // different 1080x640 aspect ratio). The dark gradient at
-                // the bottom of this template is for text legibility only
-                // and doesn't need the whole route composition sacrificed
-                // to avoid it — computeBounds() already fits the full
-                // route with padding for this card's own aspect ratio,
-                // same as it does for List History.
+                heightPx = 1920,
+                styleUrl = styleUrl
+            )
+        }
+        val insetSnapshot = withContext(Dispatchers.IO) {
+            MapSnapshotHelper.generateSync(
+                context = context,
+                activityId = activity.id,
+                trackPoints = trackPairs,
+                widthPx = 1080,
+                heightPx = 1344,
+                styleUrl = styleUrl
             )
         }
         bitmaps = withContext(Dispatchers.Default) {
             templates.associateWith { tpl ->
                 ShareCardGenerator.generate(
                     context, activity, trackPoints, tpl,
-                    mapSnapshot = snapshotResult?.bitmap,
-                    mapBounds = snapshotResult?.bounds
+                    mapSnapshot = fullSnapshot?.bitmap,
+                    mapBounds = fullSnapshot?.bounds,
+                    insetSnapshot = insetSnapshot?.bitmap,
+                    insetBounds = insetSnapshot?.bounds
                 )
             }
         }

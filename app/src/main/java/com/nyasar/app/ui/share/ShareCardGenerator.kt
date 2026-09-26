@@ -107,20 +107,30 @@ object ShareCardGenerator {
         else -> key
     }
 
+    /**
+     * Map-bearing templates need one snapshot per FRAME, not one for all:
+     * "map" is full-bleed 9:16 (the card's own aspect → zero crop → the
+     * route overlay is pixel-exact), "dark_card" is a portrait inset card.
+     * Sharing one bitmap across both forced a cover-crop somewhere, and
+     * the cropped region silently broke the bounds→canvas mapping used by
+     * the GPS line (the 2026-09 "route doesn't match the map" report).
+     */
     fun generate(
         context: android.content.Context,
         activity: ActivityEntity,
         track: List<TrackPoint>,
         template: String,
         mapSnapshot: Bitmap? = null,
-        mapBounds: LatLngBounds? = null
+        mapBounds: LatLngBounds? = null,
+        insetSnapshot: Bitmap? = mapSnapshot,
+        insetBounds: LatLngBounds? = mapBounds
     ): Bitmap {
         val bmp = Bitmap.createBitmap(CARD_W, CARD_H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         when (template) {
             "map" -> drawMapTemplate(c, context, activity, track, mapSnapshot, mapBounds)
             "stats" -> drawStatsTemplate(c, context, activity, track)
-            "dark_card" -> drawDarkCardTemplate(c, context, activity, track, mapSnapshot, mapBounds)
+            "dark_card" -> drawDarkCardTemplate(c, context, activity, track, insetSnapshot, insetBounds)
             "route" -> drawRouteTemplate(c, context, activity, track)
             "grid" -> drawGridTemplate(c, context, activity, track)
             "minimal" -> drawMinimalTemplate(c, context, activity)

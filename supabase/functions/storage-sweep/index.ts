@@ -10,6 +10,13 @@
 //                  older than INACTIVITY_DAYS (default 365; the signal is
 //                  maintained by the migration 0008 trigger on
 //                  auth.refresh_tokens, so it works for ANY app version).
+//                  *** OPT-IN: runs ONLY when the SWEEP_INACTIVITY env var
+//                  is "true". Disabled by default (solo-dev decision,
+//                  2026-09): seasonal hikers routinely return after 12–14
+//                  months, so silently deleting their public GPX while the
+//                  route row stays live would break the "full open" download
+//                  promise and recreate orphans. Flip it on later by simply
+//                  setting the secret — no redeploy needed beyond a push.
 //
 // Files only: the account and all its rows stay. A returning user just
 // re-publishes; nothing user-generated (routes, likes, comments, backups)
@@ -28,6 +35,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GPX_BUCKETS = ["route-gpx", "route-gpx-private"];
 const INACTIVITY_DAYS = 365;
+// Inactivity sweep is OPT-IN (2026-09 decision): set SWEEP_INACTIVITY="true"
+// as a function secret to enable it. Default OFF — only the orphan sweep runs.
+const INACTIVITY_ENABLED =
+  (Deno.env.get("SWEEP_INACTIVITY") ?? "").trim().toLowerCase() === "true";
 // Storage API caps per-request object lists; batches keep us under it.
 const BATCH_SIZE = 100;
 
@@ -51,6 +62,7 @@ Deno.serve(async (req: Request) => {
 
   const report = {
     orphansDeleted: 0,
+    inactivitySweep: INACTIVITY_ENABLED ? "on" : "off (set SWEEP_INACTIVITY=true to enable)",
     abandonedUsers: 0,
     abandonedFilesDeleted: 0,
     errors: [] as string[],
@@ -68,34 +80,36 @@ Deno.serve(async (req: Request) => {
       report.errors
     );
 
-    // ── 2) Inactivity sweep ────────────────────────────────────────────
-    const { data: inactive, error: inactiveErr } = await supabase.rpc(
-      "list_inactive_user_ids",
-      { days: INACTIVITY_DAYS }
-    );
-    if (inactiveErr) throw new Error(`list_inactive_user_ids: ${inactiveErr.message}`);
-    for (const row of inactive ?? []) {
-      report.abandonedUsers++;
-      const perBucket: Record<string, string[]> = {};
-      for (const bucket of GPX_BUCKETS) perBucket[bucket] = [`${row.id}/`];
-      // list() is per-folder: the user's top-level folder IS the path prefix.
-      for (const bucket of GPX_BUCKETS) {
-        const { data: objs, error: listErr } = await supabase.storage
-          .from(bucket)
-          .list(row.id, { limit: 1000, search: "" });
-        if (listErr) {
-          report.errors.push(`list ${bucket}/${row.id}: ${listErr.message}`);
-          continue;
-        }
-        perBucket[bucket] = (objs ?? [])
-          .filter((o) => o.name.endsWith(".gpx.gz"))
-          .map((o) => `${row.id}/${o.name}`);
-      }
-      report.abandonedFilesDeleted += await deleteFiles(
-        supabase,
-        perBucket,
-        report.errors
+    // ── 2) Inactivity sweep (opt-in via SWEEP_INACTIVITY=true) ────────
+    if (INACTIVITY_ENABLED) {
+      const { data: inactive, error: inactiveErr } = await supabase.rpc(
+        "list_inactive_user_ids",
+        { days: INACTIVITY_DAYS }
       );
+      if (inactiveErr) throw new Error(`list_inactive_user_ids: ${inactiveErr.message}`);
+      for (const row of inactive ?? []) {
+        report.abandonedUsers++;
+        const perBucket: Record<string, string[]> = {};
+        for (const bucket of GPX_BUCKETS) perBucket[bucket] = [`${row.id}/`];
+        // list() is per-folder: the user's top-level folder IS the path prefix.
+        for (const bucket of GPX_BUCKETS) {
+          const { data: objs, error: listErr } = await supabase.storage
+            .from(bucket)
+            .list(row.id, { limit: 1000, search: "" });
+          if (listErr) {
+            report.errors.push(`list ${bucket}/${row.id}: ${listErr.message}`);
+            continue;
+          }
+          perBucket[bucket] = (objs ?? [])
+            .filter((o) => o.name.endsWith(".gpx.gz"))
+            .map((o) => `${row.id}/${o.name}`);
+        }
+        report.abandonedFilesDeleted += await deleteFiles(
+          supabase,
+          perBucket,
+          report.errors
+        );
+      }
     }
   } catch (e) {
     report.errors.push(`fatal: ${e instanceof Error ? e.message : String(e)}`);

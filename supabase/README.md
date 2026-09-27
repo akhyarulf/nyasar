@@ -26,12 +26,18 @@ Fix sisi app sudah ada (`GpxStorageCleanup`, 2026-09): file ikut terhapus
 saat user delete route / discard activity / hapus akun. Yang tersisa:
 
 1. **Orphan lama** (dibuat sebelum fix) — di-sweep otomatis.
-2. **Akun ditinggal tanpa delete** — di-sweep setelah 1 tahun inaktif
-   (`INACTIVITY_DAYS` di function). Sinyal inaktif = `profiles.last_seen_at`
-   yang dirawat trigger `auth.refresh_tokens` → bekerja untuk SEMUA versi
-   app, tanpa heartbeat. File SAJA yang dihapus — akun, routes row, likes,
-   komentar, dan activity_backups tetap utuh (konservatif/reversibel;
-   user yang kembali tinggal publish ulang).
+2. **Akun ditinggal tanpa delete** — sweep-nya **OPT-IN, MATI secara
+   default** (keputusan solo-dev 2026-09: pendaki musiman bisa balik
+   setelah 12–14 bulan; menghapus GPX publik mereka sementara row routes
+   tetap tampil melanggar janji "full open" dan malah membuat orphan baru).
+   Untuk mengaktifkan: `supabase secrets set SWEEP_INACTIVITY=true`, lalu
+   atur jendela lewat `INACTIVITY_DAYS` di function (saat ini 365 hari;
+   disarankan 730+ untuk pola pakai hiking musiman). Sinyal inaktif =
+   `profiles.last_seen_at` yang dirawat trigger `auth.refresh_tokens` →
+   bekerja untuk SEMUA versi app, tanpa heartbeat. File SAJA yang
+   dihapus — akun, routes row, likes, komentar, dan activity_backups
+   tetap utuh (konservatif/reversibel; user yang kembali tinggal publish
+   ulang).
 
 ### Setup sekali (dashboard + CLI, semua free tier)
 
@@ -71,7 +77,9 @@ saat user delete route / discard activity / hapus akun. Yang tersisa:
 
 4. Pantau hasil harian: `select * from cron.job_run_details order by
    start_time desc limit 7;` — body respons berisi laporan
-   `orphansDeleted / abandonedUsers / abandonedFilesDeleted / errors`.
+   `orphansDeleted / inactivitySweep / abandonedUsers /
+   abandonedFilesDeleted / errors` (`inactivitySweep` berisi `"on"` atau
+   `"off (set SWEEP_INACTIVITY=true to enable)"`).
 
 Tes manual kapan pun (tanpa menunggu cron): ulangi langkah 3 dengan
 `select net.http_post(...)` langsung, atau invoke dari Dashboard →

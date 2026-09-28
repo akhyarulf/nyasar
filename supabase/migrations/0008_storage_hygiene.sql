@@ -43,9 +43,13 @@
 alter table profiles add column if not exists last_seen_at timestamptz default now();
 
 -- Backfill: anyone with a live device session right now counts as seen today.
+-- NOTE: auth.refresh_tokens.user_id is VARCHAR in the Supabase auth schema
+-- (GoTrue quirk), while profiles.id is uuid — so compare via uuid::text.
+-- Cast the uuid side, never the varchar side: text comparison cannot throw,
+-- whereas user_id::uuid would 500 on any malformed value.
 update profiles p
 set last_seen_at = coalesce(
-  (select max(t.updated_at) from auth.refresh_tokens t where t.user_id = p.id),
+  (select max(t.updated_at) from auth.refresh_tokens t where t.user_id = p.id::text),
   now()
 );
 
@@ -57,7 +61,9 @@ security definer
 set search_path = public
 as $$
 begin
-  update profiles set last_seen_at = now() where id = new.user_id;
+  -- refresh_tokens.user_id is varchar (GoTrue) vs profiles.id uuid →
+  -- compare as text. Never throws; a malformed user_id simply no-ops.
+  update profiles set last_seen_at = now() where id::text = new.user_id;
   return null;
 end;
 $$;

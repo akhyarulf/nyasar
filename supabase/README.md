@@ -74,7 +74,11 @@ saat user delete route / discard activity / hapus akun. Yang tersisa:
    );
    ```
 
-   (`pg_net` ikut ter-enable bersama `pg_cron` untuk `net.http_post`.)
+   (`pg_net` untuk `net.http_post` kadang TIDAK ikut ter-enable saat
+   `pg_cron` dinyalakan — kalau `net.http_post` error 42883, jalankan
+   `create extension if not exists pg_net;` di SQL Editor. Verifikasi
+   versi: `select extversion from pg_extension where extname='pg_net';`.
+   Nama parameter timeout-nya `timeout_milliseconds`, bukan `msecs`.)
 
 4. Pantau hasil harian: `select * from cron.job_run_details order by
    start_time desc limit 7;` — body respons berisi laporan

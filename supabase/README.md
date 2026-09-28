@@ -13,7 +13,8 @@ dengan migration `username_is_set` sebelumnya).
 | `migrations/0005_like_comment_counters.sql` | Trigger counter `likes_count`/`comments_count` di tabel routes (Fase 4) | ✅ LIVE |
 | `migrations/0006_private_gpx_bucket.sql` | Bucket privat `route-gpx-private` untuk rute visibilitas "Hanya saya" | ✅ LIVE |
 | `migrations/0007_realtime_replication.sql` | Masukkan `routes`, `route_likes`, `saved_routes`, `route_comments` ke publication `supabase_realtime` + replica identity FULL — WAJIB untuk auto-refresh realtime (tanpa ini channel connect tapi diam) | ⏳ **Perlu dijalankan manual oleh user** |
-| `migrations/0008_storage_hygiene.sql` | Sinyal `profiles.last_seen_at` (trigger dari `auth.refresh_tokens` — app-version-proof) + RPC helper `list_orphan_gpx_objects()` / `list_inactive_user_ids()` untuk sweep kuota Storage | ⏳ **Perlu dijalankan manual oleh user** |
+
+| `migrations/0008_storage_hygiene.sql` | Sinyal `profiles.last_seen_at` (trigger dari `auth.refresh_tokens` — app-version-proof) + RPC helper `list_orphan_gpx_objects()` / `list_inactive_user_ids()` untuk sweep kuota Storage | ✅ **LIVE (diverifikasi 2026-09-28, dari HP: backfill 0 null + 12 orphan tersapu 200 OK)** |
 
 ## Storage sweep (0008 + Edge Function) — pembersihan kuota otomatis
 

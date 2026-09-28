@@ -67,7 +67,7 @@ saat user delete route / discard activity / hapus akun. Yang tersisa:
      select net.http_post(
        url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/storage-sweep',
        headers := jsonb_build_object('x-sweep-key', '<ISI_SWEEP_SHARED_KEY>'),
-       timeout_msecs := 60000
+       timeout_milliseconds := 60000
      );
      $$
    );

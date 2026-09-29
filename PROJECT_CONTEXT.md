@@ -92,13 +92,15 @@ isinya bukan rahasia untuk app Android).
 
 ## Operational Runbook
 
-- **Rilis:** `git tag v0.9.0-beta && git push origin v0.9.0-beta`
+- **Rilis:** `git tag vX.Y.Z && git push origin vX.Y.Z`
   (atau Actions → "Release APK (GitHub Releases)" → Run workflow; tanpa
   tag, workflow bikin tag tanggal sendiri). Hasil: APK signed di GitHub
   Release sebagai `Nyasar.apk`; link permanen
   `github.com/akhyarulf/nyasar/releases/latest/download/Nyasar.apk`.
   versionName = tag tanpa `v`; versionCode = jumlah commit (env
   `VERSION_NAME`/`VERSION_CODE`, ada fallback di build.gradle.kts).
+  RILIS PERTAMA LIVE: **v0.9.0** (2026-09-29, CI hijau 5m42s, APK 54.5 MB,
+  bukan prerelease — jadi UpdateChecker langsung mengenalinya).
 - **Secrets repo (sekali set):** KEYSTORE_BASE64, KEYSTORE_PASSWORD,
   KEY_ALIAS, KEY_PASSWORD, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
   MAPTILER_API_KEY, GOOGLE_OAUTH_WEB_CLIENT_ID.
@@ -111,9 +113,10 @@ isinya bukan rahasia untuk app Android).
 - **App Links:** `web/.well-known/assetlinks.json` berisi 2 SHA-256 —
   debug (dari keystore committed `keystore/debug.keystore`) dan release
   (copy dari log step "Print release cert SHA-256" di release-apk.yaml).
-- **VERIFIKASI YANG MENUNGGU RILIS PERTAMA:** (1) dialog update —
-  install beta → tag v0.9.1 → dialog harus muncul; (2) App Links dengan
-  APK release — klik link `/route?id=…` harus langsung buka app.
+- **VERIFIKASI PASCA-RILIS v0.9.0:** (1) dialog update — masih menunggu
+  tag berikutnya (v0.9.1): install v0.9.0 → dialog harus muncul;
+  (2) App Links — install v0.9.0, klik link `/route?id=…` harus langsung
+  buka app (assetlinks.json sudah berisi SHA-256 release).
 - **Backup keystore release di luar GitHub Secrets** (password
   manager / 2 tempat) — kalau hilang, user yang terinstall tidak bisa
   upgrade dan App Links mati. Belum ada konfirmasi user sudah melakukan.

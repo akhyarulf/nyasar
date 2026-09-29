@@ -927,8 +927,15 @@ fun PublicRouteDetailScreen(
                 reportPending = true
                 viewModel.submitReport(routeId, commentId, reason, note) { ok ->
                     reportPending = false
-                    reportTarget = null
-                    showToast(if (ok) R.string.report_submitted else R.string.report_failed)
+                    // Keep the dialog open on failure so the user's reason
+                    // + note survive a flaky network — they can retry or
+                    // cancel themselves. Only success closes + toasts.
+                    if (ok) {
+                        reportTarget = null
+                        showToast(R.string.report_submitted)
+                    } else {
+                        showToast(R.string.report_failed)
+                    }
                 }
             },
             onDismiss = { if (!reportPending) reportTarget = null }
@@ -941,6 +948,7 @@ fun PublicRouteDetailScreen(
  * five schema reasons + optional note. Insert-only server-side; the user
  * never sees report status again (fire-and-forget with a toast).
  */
+private const val REPORT_NOTE_MAX = 500
 @Composable
 private fun ReportDialog(
     titleRes: Int,
@@ -982,8 +990,11 @@ private fun ReportDialog(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = note,
-                    onValueChange = { note = it },
+                    onValueChange = { if (it.length <= REPORT_NOTE_MAX) note = it },
                     placeholder = { Text(stringResource(R.string.report_note_hint)) },
+                    supportingText = {
+                        Text("${note.length}/$REPORT_NOTE_MAX", style = MaterialTheme.typography.bodySmall)
+                    },
                     enabled = !pending,
                     minLines = 2,
                     modifier = Modifier.fillMaxWidth()

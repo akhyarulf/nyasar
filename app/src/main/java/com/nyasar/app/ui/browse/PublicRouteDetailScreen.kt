@@ -171,6 +171,12 @@ fun PublicRouteDetailScreen(
     // reported comment. Toast feedback via the VM callback.
     var reportTarget by remember { mutableStateOf<ReportTarget?>(null) }
     var reportPending by remember { mutableStateOf(false) }
+    // One sign-in check shared by the top-bar route flag, the per-comment
+    // flag, and the like/save/comment guards — reports (like the rest) are
+    // insert-only per RLS (auth.uid() = reporter_id), so anonymous taps must
+    // route to sign-in instead of a dialog that can only fail.
+    val signedInNow = com.nyasar.app.data.supabase.SupabaseClientProvider
+        .client.auth.currentSessionOrNull() != null
     val showToast: (Int) -> Unit = { res ->
         android.widget.Toast.makeText(context, context.getString(res), android.widget.Toast.LENGTH_SHORT).show()
     }
@@ -186,9 +192,19 @@ fun PublicRouteDetailScreen(
                 },
                 actions = {
                     // Report route — only when a route is actually loaded.
+                    // Same guard as like/save/comment: anonymous users go to
+                    // sign-in instead of a guaranteed-to-fail dialog.
                     val readyForReport = state as? PublicRouteDetailViewModel.State.Ready
                     if (readyForReport != null) {
-                        IconButton(onClick = { reportTarget = ReportTarget.Route(readyForReport.route.id) }) {
+                        IconButton(
+                            onClick = {
+                                if (signedInNow) {
+                                    reportTarget = ReportTarget.Route(readyForReport.route.id)
+                                } else {
+                                    onRequireSignIn()
+                                }
+                            }
+                        ) {
                             Icon(Icons.Default.Flag, contentDescription = stringResource(R.string.report_action))
                         }
                     }
@@ -668,7 +684,18 @@ fun PublicRouteDetailScreen(
                                                         )
                                                     }
                                                 } else {
-                                                    IconButton(onClick = { reportTarget = ReportTarget.Comment(c.id) }) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            // Same sign-in gate as the route flag:
+                                                            // anonymous report = guaranteed RLS
+                                                            // rejection, so send to sign-in.
+                                                            if (signedInNow) {
+                                                                reportTarget = ReportTarget.Comment(c.id)
+                                                            } else {
+                                                                onRequireSignIn()
+                                                            }
+                                                        }
+                                                    ) {
                                                         Icon(
                                                             Icons.Default.Flag,
                                                             contentDescription = stringResource(R.string.comment_report_cd),

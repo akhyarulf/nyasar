@@ -101,6 +101,8 @@ isinya bukan rahasia untuk app Android).
   `VERSION_NAME`/`VERSION_CODE`, ada fallback di build.gradle.kts).
   RILIS PERTAMA LIVE: **v0.9.0** (2026-09-29, CI hijau 5m42s, APK 54.5 MB,
   bukan prerelease — jadi UpdateChecker langsung mengenalinya).
+  v0.9.1 (2026-09-30, CI hijau 5m27s): rilis pertama dengan
+  applicationId baru `com.nyasarnyaman.nyasar`.
 - **GANTI APPLICATION ID (2026-09-30):** applicationId sekarang
   `com.nyasarnyaman.nyasar` (mengikuti domain nyasarnyaman.my.id);
   **namespace sengaja tetap** `com.nyasar.app` supaya folder/import Kotlin
@@ -110,6 +112,12 @@ isinya bukan rahasia untuk app Android).
   (app lama `com.nyasar.app` dihapus dari konsol belakangan, setelah
   install lama dibersihkan). assetlinks.json di-update ke package baru;
   SHA-256 tetap karena keystore tidak berubah.
+  OAuth Google: Android client didaftarkan di Google Cloud Console
+  (package `com.nyasarnyaman.nyasar` + SHA-1 cert release
+  25:C3:D4:84:C9:42:E6:CD:AE:4E:24:28:EC:BC:9D:96:63:19:D6:2C) — WEB
+  client yang dipakai app (GOOGLE_OAUTH_WEB_CLIENT_ID) tidak berubah.
+  VERIFIED: login Google jalan di v0.9.1 (2026-09-30). SHA-1 diekstrak
+  dari APK Signing Block v0.9.1 (parse manual — sandbox tanpa keytool).
 - **Secrets repo (sekali set):** KEYSTORE_BASE64, KEYSTORE_PASSWORD,
   KEY_ALIAS, KEY_PASSWORD, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
   MAPTILER_API_KEY, GOOGLE_OAUTH_WEB_CLIENT_ID.
@@ -120,12 +128,14 @@ isinya bukan rahasia untuk app Android).
   (semantik, prerelease kalah, downgrade bukan update). SEMUA gagal =
   tanpa dialog — iner sebelum rilis pertama.
 - **App Links:** `web/.well-known/assetlinks.json` berisi 2 SHA-256 —
-  debug (dari keystore committed `keystore/debug.keystore`) dan release
-  (copy dari log step "Print release cert SHA-256" di release-apk.yaml).
-- **VERIFIKASI PASCA-RILIS v0.9.0:** (1) dialog update — masih menunggu
-  tag berikutnya (v0.9.1): install v0.9.0 → dialog harus muncul;
-  (2) App Links — install v0.9.0, klik link `/route?id=…` harus langsung
-  buka app (assetlinks.json sudah berisi SHA-256 release).
+  release (cert KEYSTORE_BASE64, `AC:19:A2:06:…:2B:93` — dulu salah
+  label "debug", dikoreksi 2026-09-30 via parse APK v0.9.1) dan debug
+  (keystore committed `keystore/debug.keystore`, `63:70:C3:80:…:06:21`).
+  Package_name di file = `com.nyasarnyaman.nyasar`.
+- **VERIFIKASI PASCA-RILIS v0.9.1 — LUNAS (2026-09-30):**
+  (1) dialog update di app lama v0.9.0 → offer v0.9.1 ✅ (user);
+  (2) login Google app baru ✅ (setelah registrasi Android client GCP);
+  (3) App Links — link `/route?id=…` buka app baru ✅ (user).
 - **Backup keystore release di luar GitHub Secrets** (password
   manager / 2 tempat) — kalau hilang, user yang terinstall tidak bisa
   upgrade dan App Links mati. Belum ada konfirmasi user sudah melakukan.

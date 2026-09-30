@@ -22,7 +22,11 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.nyasar.app"
+        // applicationId = identitas app di Android (beda dari namespace di atas
+        // yang sengaja dibiarkan com.nyasar.app supaya folder/import Kotlin
+        // tidak perlu direstruktur). Ganti applicationId = app baru: install lama
+        // tidak bisa upgrade in-place.
+        applicationId = "com.nyasarnyaman.nyasar"
         minSdk = 26
         targetSdk = 34
         // Versi dari CI, bukan hardcoded: workflow release-apk.yaml

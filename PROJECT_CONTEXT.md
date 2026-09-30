@@ -101,6 +101,15 @@ isinya bukan rahasia untuk app Android).
   `VERSION_NAME`/`VERSION_CODE`, ada fallback di build.gradle.kts).
   RILIS PERTAMA LIVE: **v0.9.0** (2026-09-29, CI hijau 5m42s, APK 54.5 MB,
   bukan prerelease — jadi UpdateChecker langsung mengenalinya).
+- **GANTI APPLICATION ID (2026-09-30):** applicationId sekarang
+  `com.nyasarnyaman.nyasar` (mengikuti domain nyasarnyaman.my.id);
+  **namespace sengaja tetap** `com.nyasar.app` supaya folder/import Kotlin
+  tidak direstruktur. Konsekuensi: v0.9.0 ke bawah = app lama terpisah
+  (tidak bisa upgrade in-place, data Room lama tidak ikut). Firebase:
+  app baru diregistrasi dobel, google-services.json berisi 2 entry
+  (app lama `com.nyasar.app` dihapus dari konsol belakangan, setelah
+  install lama dibersihkan). assetlinks.json di-update ke package baru;
+  SHA-256 tetap karena keystore tidak berubah.
 - **Secrets repo (sekali set):** KEYSTORE_BASE64, KEYSTORE_PASSWORD,
   KEY_ALIAS, KEY_PASSWORD, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
   MAPTILER_API_KEY, GOOGLE_OAUTH_WEB_CLIENT_ID.

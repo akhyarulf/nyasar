@@ -152,9 +152,11 @@ isinya bukan rahasia untuk app Android).
 
 ## Roadmap
 
-### Langsung setelah rilis pertama (v0.9.0-beta)
-1. Distribusikan ke 3–5 teman (grup WA), pantau Crashlytics.
-2. Verifikasi lapangan dua butir di Runbook di atas.
+### Langsung setelah rilis pertama — v0.9.0 ✅ + v0.9.1 ✅ LIVE
+1. **Distribusikan ke 3–5 teman (grup WA), pantau Crashlytics** ←
+   LANGKAH BERIKUTNYA yang belum jalan (2026-09-30).
+2. ~~Verifikasi lapangan dua butir di Runbook~~ ✅ (dialog update,
+   App Links — lunas via v0.9.1).
 3. Catat feedback ke GitHub Issues sebelum menambah fitur apa pun.
 
 ### Web — BARU SELESAI (2026-09-21, permintaan user)
@@ -174,10 +176,13 @@ isinya bukan rahasia untuk app Android).
   `scripts/gen_og_image.py` + meta og/twitter dinamis di route page +
   robots.txt + sitemap.xml.
 
-### Web — kandidat berikutnya (belum dikerjakan)
-- QR code "scan untuk unduh" di hero landing (CDN lib kecil).
-- Privacy policy: tambah 1 kalimat soal update-check ke GitHub.
-- Screenshot app asli di hero landing (saat ini murni teks).
+### Web — kandidat berikutnya (dicek ulang 2026-09-30)
+- ~~QR code "scan untuk unduh" di hero landing~~ ✅ SUDAH ADA
+  (hero-qr + qrcode-generator CDN — lupa dicoret di sini).
+- ~~Privacy policy: kalimat update-check ke GitHub~~ ✅ SUDAH ADA
+  (privacy-policy.html paragraf api.github.com, ID+EN).
+- **Screenshot app asli di hero landing** — SATU-SATUNYA yang tersisa;
+  butuh screenshot beneran dari device user (hero sekarang murni teks).
 
 ### Fitur app — kandidat (menunggu feedback user, jangan gas duluan)
 - **Backtrack** — navigasi mengikuti jejak rekaman sendiri (input =

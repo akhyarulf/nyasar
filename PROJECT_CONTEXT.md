@@ -138,7 +138,9 @@ isinya bukan rahasia untuk app Android).
   (3) App Links — link `/route?id=…` buka app baru ✅ (user).
 - **Backup keystore release di luar GitHub Secrets** (password
   manager / 2 tempat) — kalau hilang, user yang terinstall tidak bisa
-  upgrade dan App Links mati. Belum ada konfirmasi user sudah melakukan.
+  upgrade, App Links mati, dan SHA-1 OAuth ganti. ✅ USER KONFIRMASI
+  SUDAH BACKUP (2026-09-30). File+password kini menempel ke: update
+  chain v0.9.x, App Links, registrasi Android OAuth client di GCP.
 - **Pengingat:** domain .my.id perpanjang tahunan. Supabase free tier
   bisa auto-pause kalau "user database activity" terlalu rendah selama
   7 hari — PENTING: API call dari app terhitung sebagai aktivitas

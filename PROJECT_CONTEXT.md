@@ -84,9 +84,9 @@ isinya bukan rahasia untuk app Android).
 - **MapSnapshotter fit kamera:** `mercY(maxLat) − mercY(minLat)` selalu
   negatif (mercY north-anchored) — wajib `abs()`. Posisi overlay trace
   dibaca langsung dari `MapSnapshot.pixelForLatLng`, jangan hitung ulang.
-- **Placeholder `local.properties.example`** untuk
-  `GOOGLE_OAUTH_WEB_CLIENT_ID` pernah salah arah (format URL) — Client ID
-  Google bukan URL. TODO kecil: rapikan file itu.
+- **Placeholder `local.properties.example`** — ✅ sudah benar (format
+  Client ID + peringatan "BUKAN URL" + catatan registrasi Android
+  client untuk login Google, dipelajari dari insiden v0.9.1).
 
 ---
 

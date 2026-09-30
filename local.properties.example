@@ -12,5 +12,13 @@ MAPTILER_API_KEY=your_maptiler_key_here
 # Client ID web OAuth Google — BUKAN URL! Format asli:
 # 1234567890-abcdefg.apps.googleusercontent.com
 # (dari Google Cloud Console → Credentials → OAuth 2.0 Client ID tipe Web)
+#
+# PENTING (biar login Google beneran jalan): selain WEB client di atas,
+# Google Cloud Console → Credentials harus punya OAuth 2.0 Client ID tipe
+# ANDROID dengan package name applicationId (com.nyasarnyaman.nyasar) +
+# SHA-1 cert signing build kamu (debug & release beda SHA-1). Tanpa ini,
+# Credential Manager menolak diam-diam: tombol Google tap → tidak terjadi
+# apa-apa. Release SHA-1: lihat log CI step "Print release cert SHA-256"
+# atau PROJECT_CONTEXT.md (runtime OAuth sudah terverifikasi v0.9.1).
 GOOGLE_OAUTH_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key_here

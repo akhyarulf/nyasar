@@ -139,8 +139,14 @@ isinya bukan rahasia untuk app Android).
 - **Backup keystore release di luar GitHub Secrets** (password
   manager / 2 tempat) — kalau hilang, user yang terinstall tidak bisa
   upgrade dan App Links mati. Belum ada konfirmasi user sudah melakukan.
-- **Pengingat:** domain .my.id perpanjang tahunan; Supabase free tier
-  auto-pause setelah ~1 minggu idle (buka dashboard sesekali).
+- **Pengingat:** domain .my.id perpanjang tahunan. Supabase free tier
+  bisa auto-pause kalau "user database activity" terlalu rendah selama
+  7 hari — PENTING: API call dari app terhitung sebagai aktivitas
+  (few requests/day cukup), dashboard visit cuma salah satu cara.
+  Jaring pengaman: email warning ~1 minggu sebelum pause → cukup buka
+  dashboard/app saat warning datang. Kalau terlanjur pause: data aman,
+  resume via dashboard (window restore 1 tahun).
+  (docs: supabase.com/docs/guides/platform/free-project-pausing)
 
 ---
 

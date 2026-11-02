@@ -147,7 +147,7 @@
     <string name="storage_busy_recording">A recording is still running — finish or stop it first before deletion.</string>
     <string name="storage_clear_maps_message">All offline map areas on this device will be deleted. This cannot be undone.</string>
     <string name="storage_data_deleted">Local data cleared — cloud data unchanged.</string>
-    <string name="storage_data_delete_failed">Couldn't clear local data — try again.</string>
+    <string name="storage_data_delete_failed">Couldn\'t clear local data — try again.</string>
     <string name="storage_maps_delete_failed">Some offline maps failed to be deleted — try again.</string>
     <string name="storage_maps_none">No offline maps saved.</string>
     <string name="storage_maps_deleted">Offline maps cleared.</string>
@@ -499,7 +499,7 @@
     <!-- Offline Maps additional -->
     <string name="no_offline_maps_desc">No offline maps yet.\nDownload for use without signal on the trail.</string>
     <string name="options_cd">Options</string>
-    <string name="checking_status_error">Couldn't check this offline map — check connection</string>
+    <string name="checking_status_error">Couldn\'t check this offline map — check connection</string>
     <string name="ready_to_use">Ready to use</string>
     <string name="downloaded_suffix">downloaded</string>
     <string name="checking">Checking…</string>

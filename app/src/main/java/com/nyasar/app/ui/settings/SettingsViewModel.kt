@@ -3,6 +3,7 @@ package com.nyasar.app.ui.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nyasar.app.R
 import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.data.settings.AppSettings
 import com.nyasar.app.data.settings.SettingsRepository
@@ -38,6 +39,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     private val appContext = app.applicationContext
     private val database = AppDatabase.get(appContext)
     private val offlineMapManager = OfflineMapManager(appContext)
+
+    /** Localized UI message — keeps EN users from seeing hardcoded ID strings. */
+    private fun message(resId: Int): String = appContext.getString(resId)
 
     private val _storage = MutableStateFlow(StorageSummary())
     val storage: StateFlow<StorageSummary> = _storage.asStateFlow()
@@ -101,7 +105,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         offlineMapManager.listRegions { regions ->
             if (regions.isEmpty()) {
                 _storageBusy.value = false
-                _storageMessage.value = "Tidak ada peta offline tersimpan."
+                _storageMessage.value = message(R.string.storage_maps_none)
                 onComplete(true)
                 return@listRegions
             }
@@ -114,7 +118,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                     _storageBusy.value = false
                     com.nyasar.app.map.OfflineCoverageStore.get(appContext).notifyChanged()
                     refreshStorage()
-                    _storageMessage.value = if (failed) "Sebagian peta offline gagal dihapus." else "Semua peta offline dihapus."
+                    _storageMessage.value = if (failed) message(R.string.storage_maps_delete_failed) else message(R.string.storage_maps_deleted)
                     onComplete(!failed)
                 }
             }
@@ -131,7 +135,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 // Preserve an in-progress recording: the service may be writing
                 // to it, and silently deleting it would be data loss.
                 if (database.activityDao().getActiveOrNull() != null) {
-                    error("Selesaikan atau hentikan recording yang sedang berjalan terlebih dahulu.")
+                    error(message(R.string.storage_busy_recording))
                 }
                 val routeIds = database.routeDao().getAllOnce().map { it.id }
                 val activityIds = database.activityDao().getStoredOnce().map { it.id }
@@ -151,10 +155,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 java.io.File(appContext.filesDir, "routes").deleteRecursively()
                 appContext.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
             }.onSuccess {
-                _storageMessage.value = "Data lokal dihapus. Data cloud tidak berubah."
+                _storageMessage.value = message(R.string.storage_data_deleted)
                 onComplete(true)
             }.onFailure { error ->
-                _storageMessage.value = error.message ?: "Gagal menghapus data lokal."
+                _storageMessage.value = error.message ?: message(R.string.storage_data_delete_failed)
                 onComplete(false)
             }
             _storageBusy.value = false

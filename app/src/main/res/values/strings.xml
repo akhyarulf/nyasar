@@ -34,7 +34,7 @@
     <string name="gps_weak">⚠ GPS LEMAH</string>
     <string name="gps_lost">⚠ GPS HILANG</string>
     <string name="storage_error">⚠ Gagal menyimpan data — storage penuh?</string>
-    <string name="recording_not_started">Recording belum bisa dimulai</string>
+    <string name="recording_not_started">Gagal memulai recording</string>
     <string name="check_gps">Periksa izin lokasi dan pastikan GPS aktif, lalu coba lagi.</string>
 
     <!-- Post Recording -->
@@ -125,8 +125,8 @@
     <string name="follow_system">Ikuti sistem</string>
     <string name="light">Terang</string>
     <string name="dark">Gelap</string>
-    <string name="cache">Cache</string>
-    <string name="cache_desc">file GPX hasil export sementara</string>
+    <string name="cache">Cache GPX</string>
+    <string name="cache_desc">File GPX hasil export sementara — aman dihapus</string>
     <string name="clear_cache">Hapus</string>
     <string name="cache_permanent">Routes dan activity tersimpan permanen di penyimpanan aplikasi.</string>
     <string name="storage_title">Manajemen penyimpanan</string>
@@ -144,9 +144,12 @@
     <string name="storage_confirm_clear_all">Hapus semua data lokal?</string>
     <string name="storage_clear_all_message">Seluruh rute, GPX, aktivitas, titik GPS, waypoint, dan antrean publish lokal akan dihapus. Data di cloud tidak ikut terhapus. Tindakan ini tidak bisa dibatalkan.</string>
     <string name="storage_confirm_clear_maps">Hapus semua peta offline?</string>
+    <string name="storage_busy_recording">Masih ada recording yang berjalan — selesaikan atau hentikan dulu sebelum penghapusan.</string>
     <string name="storage_clear_maps_message">Semua area peta offline di perangkat akan dihapus. Tindakan ini tidak bisa dibatalkan.</string>
-    <string name="storage_data_deleted">Data lokal berhasil dihapus.</string>
-    <string name="storage_data_delete_failed">Gagal menghapus data lokal.</string>
+    <string name="storage_data_deleted">Data lokal dihapus — data cloud tidak berubah.</string>
+    <string name="storage_data_delete_failed">Gagal menghapus data lokal — coba lagi.</string>
+    <string name="storage_maps_delete_failed">Sebagian peta offline gagal dihapus — coba lagi.</string>
+    <string name="storage_maps_none">Tidak ada peta offline yang tersimpan.</string>
     <string name="storage_maps_deleted">Peta offline berhasil dihapus.</string>
     <string name="gps_accuracy">Akurasi GPS</string>
     <string name="gps_provider">Provider lokasi</string>
@@ -224,6 +227,10 @@
     <string name="recording_finished">REKAMAN SELESAI</string>
     <string name="back_to_recording">KEMBALI</string>
     <string name="exit_recording">KELUAR</string>
+    <string name="exit_confirm_title">Rekaman masih berjalan</string>
+    <string name="exit_confirm_message">Rekaman tetap jalan di background walau kamu keluar dari layar ini. Yakin mau keluar?</string>
+    <string name="exit_confirm_exit">Keluar</string>
+    <string name="exit_confirm_stay">Lanjut rekam</string>
     <string name="try_again">COBA LAGI</string>
     <string name="previous_recording_active">Recording sebelumnya masih aktif</string>
     <string name="unsaved_recording_message">&quot;%s&quot; belum selesai disimpan. Lanjutkan, simpan sekarang, atau buang?</string>
@@ -492,11 +499,11 @@
     <!-- Offline Maps additional -->
     <string name="no_offline_maps_desc">Belum ada peta offline.\nDownload untuk dipakai tanpa sinyal di jalur.</string>
     <string name="options_cd">Opsi</string>
-    <string name="checking_status_error">Gagal memeriksa status</string>
+    <string name="checking_status_error">Gagal memeriksa peta offline — cek koneksi</string>
     <string name="ready_to_use">Siap digunakan</string>
     <string name="downloaded_suffix">terunduh</string>
     <string name="checking">Memeriksa…</string>
-    <string name="status_check_failed">Gagal memeriksa</string>
+    <string name="status_check_failed">Gagal cek peta offline</string>
 
     <!-- Start Activity additional -->
     <string name="no_route">Tanpa route</string>

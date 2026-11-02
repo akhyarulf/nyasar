@@ -1,5 +1,6 @@
 package com.nyasar.app.ui.recording
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -373,6 +374,18 @@ fun RecordingScreen(
     // P3J §6: guards the Stop button — see the AlertDialog near the bottom
     // of this function for why.
     var showStopConfirm by remember { mutableStateOf(false) }
+
+    // v0.9.2 gentle exit reminder: the floating back button and the system
+    // back gesture used to leave silently while the service was actually
+    // recording — the user could land mid-session on a screen with no live
+    // distance. Recording itself keeps running in the background either way
+    // (RecordingService owns the session); this dialog is only a reminder,
+    // matching the "guard the press, not the action" style of showStopConfirm.
+    // IDLE/STOPPED show the same two-button screen exit as before.
+    val recordingInProgress = state.status == RecordingStatus.RECORDING ||
+        state.status == RecordingStatus.PAUSED
+    var showExitConfirm by remember { mutableStateOf(false) }
+    BackHandler(enabled = recordingInProgress) { showExitConfirm = true }
     var showNotMovingFromStop by remember { mutableStateOf(false) }
     var showBasemapSheet by remember { mutableStateOf(false) }
     val styleVariant by viewModel.styleVariant.collectAsState()
@@ -832,7 +845,9 @@ fun RecordingScreen(
         // circular background and proper status bar inset. Sits over live
         // map tiles either way, so its dark scrim stays theme-independent.
         Surface(
-            onClick = onExit,
+            onClick = {
+                if (recordingInProgress) showExitConfirm = true else onExit()
+            },
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
@@ -1356,6 +1371,25 @@ fun RecordingScreen(
                 }
             )
         }
+    }
+
+    if (showExitConfirm) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirm = false },
+            title = { Text(stringResource(R.string.exit_confirm_title)) },
+            text = { Text(stringResource(R.string.exit_confirm_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExitConfirm = false
+                    onExit()
+                }) { Text(stringResource(R.string.exit_confirm_exit)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitConfirm = false }) {
+                    Text(stringResource(R.string.exit_confirm_stay))
+                }
+            }
+        )
     }
 
     if (showSportFilterSheet) {

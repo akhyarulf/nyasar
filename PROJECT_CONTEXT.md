@@ -155,8 +155,23 @@ isinya bukan rahasia untuk app Android).
 ## Roadmap
 
 ### Langsung setelah rilis pertama — v0.9.0 ✅ + v0.9.1 ✅ LIVE
+
+- **v0.9.2 (siap rilis, belum ber-tag):** boot auto-resume sudah masuk
+  (`BOOT_COMPLETED` receiver + guard usia 24 jam — me-resume recording
+  ACTIVE, PAUSED tetap PAUSED). Catatan perilaku: **Force-Stop tetap
+  memblokir** jika app dibuat Force-Stop dari Settings sampai app
+  dibuka sekali lagi — implementasi (perilaku Android), bukan bug — dan HP mati
+  tetap tidak bisa merekam saat mati. Kecil lainnya: konfirmasi keluar
+  dari layar rekam saat recording berjalan (tanpa menghentikan
+  recording), pesan sukses/gagal storage di SettingsViewModel kini
+  lewat resources (sebelumnya hardcoded ID), dan perbaikan strings
+  ID/EN. Checklist QA: `docs/QA-CHECKLIST-v0.9.2.md`; body release:
+  `docs/RELEASE-NOTES-v0.9.2.txt`. Prosedur rilis (sama README):
+  `git tag v0.9.2 && git push origin main v0.9.2` → workflow build +
+  release APK otomatis. Jangan ber-tag 0.9.2 sampai CI stabil di main.
 1. **Distribusikan ke 3–5 teman (grup WA), pantau Crashlytics** ←
-   LANGKAH BERIKUTNYA yang belum jalan (2026-09-30).
+   LANGKAH BERIKUTNYA yang belum jalan (2026-09-30). Cross-off hanya
+   setelah v0.9.2 (atau andalannya) terinstall di 3–5 HP teman.
 2. ~~Verifikasi lapangan dua butir di Runbook~~ ✅ (dialog update,
    App Links — lunas via v0.9.1).
 3. Catat feedback ke GitHub Issues sebelum menambah fitur apa pun.

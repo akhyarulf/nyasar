@@ -1,0 +1,15 @@
+## Nyasar v0.9.2
+
+Rekomendasi hidup: recording yang masih AKTIF dilanjutkan otomatis
+setelah HP di-reboot (mohon tunggu 1–2 menit setelah boot sampai kartu
+notifikasi "Recording aktif" muncul lagi). Sesi yang sudah kamu PAUSE
+tetap pause — tidak dipaksa jalan sendiri.
+
+Catatan penting:
+- Guard usia 24 jam: sesi lebih tua dari 24 jam tidak di-resume otomatis.
+- Force-Stop dari Pengaturan sistem tetap memblokir auto-resume sampai
+  app dibuka sekali lagi (perilaku Android, bukan bug).
+- HP mati tetap tidak bisa merekam — GPS hanya jalan saat daya aktif.
+- Perbaikan kecil: dialog konfirmasi ramah sebelum keluar dari layar
+  rekam selagi recording jalan, pesan error/sukses storage selaras ID/EN,
+  dan teks status peta offline yang lebih jelas.

@@ -43,6 +43,11 @@ import androidx.compose.ui.res.stringResource
 @Composable
 fun PostRecordingForm(
     summary: RecordingUiState,
+    /** Active speed unit ("kmh" | "mph") — the review stats must honor
+     *  the Settings choice instead of hardcoding km/h. v0.9.3 consistency
+     *  fix: the Navigation screen, stat grids, and activity detail all
+     *  already follow [com.nyasar.app.util.SpeedUtils]. */
+    speedUnit: String = "kmh",
     /** True when the account can publish right now — decides whether the
      *  publish fields render active or with a "queued" hint. */
     canPublish: Boolean,
@@ -182,7 +187,9 @@ fun PostRecordingForm(
                             label = stringResource(R.string.stat_elev_gain_down)
                         )
                         StatItem(
-                            value = summary.currentSpeedKmh?.let { "%.1f km/h".format(it) } ?: "-",
+                            value = summary.currentSpeedKmh
+                                ?.let { com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1) }
+                                ?: "-",
                             label = stringResource(R.string.speed)
                         )
                     }

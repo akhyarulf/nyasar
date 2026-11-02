@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.AlternateEmail
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.ScreenLockPortrait
@@ -393,11 +395,66 @@ internal fun SettingsContent(
                     }
                 }
 
+                // v0.9.3: one-tap debug info for WL/WhatsApp bug reports (the
+                // distributor group lives in chats, not GitHub — every report
+                // previously cost a round-trip of "versi berapa? merek HP
+                // apa? bahasa apa?"). Pure user-readable buildfacts, no
+                // identifiers beyond the device model.
+                val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                val debugContext = LocalContext.current
+                val debugInfo = buildString {
+                    append("Nyasar ${com.nyasar.app.BuildConfig.VERSION_NAME}")
+                    append(" · Android ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})")
+                    append(" · ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+                    append(" · ${java.util.Locale.getDefault().toLanguageTag()}")
+                }
+                // v0.9.3: semi-permanent update badge (B21). Non-null only
+                // while a genuinely newer tag exists (writer: the cold-start
+                // check). Persists exactly "until updated" — after installing
+                // the new APK, the next check returns null and this row
+                // disappears without any dismiss-bookkeeping. Tap = same
+                // Nyasar.apk asset the update dialog points at.
+                val updateBadge = com.nyasar.app.update.UpdateBadge.available
                 SettingsSection(stringResource(R.string.about_section)) {
+                    if (updateBadge != null) {
+                        SettingRow(
+                            icon = Icons.Default.SystemUpdate,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            title = stringResource(R.string.update_badge_title, updateBadge.latestVersion),
+                            subtitle = stringResource(
+                                R.string.update_badge_subtitle,
+                                updateBadge.currentVersion,
+                                updateBadge.latestVersion
+                            ),
+                            onClick = {
+                                debugContext.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(updateBadge.downloadUrl)
+                                    )
+                                )
+                            }
+                        )
+                    }
                     SettingRow(
                         icon = Icons.Default.Info,
                         title = stringResource(R.string.about),
                         subtitle = stringResource(R.string.version, com.nyasar.app.BuildConfig.VERSION_NAME)
+                    )
+                    SettingRow(
+                        icon = Icons.Default.ContentCopy,
+                        title = stringResource(R.string.copy_debug_info),
+                        subtitle = stringResource(R.string.copy_debug_info_desc),
+                        onClick = {
+                            clipboardManager.setText(
+                                androidx.compose.ui.text.AnnotatedString(debugInfo)
+                            )
+                            android.widget.Toast.makeText(
+                                debugContext,
+                                debugContext.getString(R.string.debug_info_copied),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     )
                 }
 

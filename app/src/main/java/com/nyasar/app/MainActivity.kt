@@ -165,9 +165,15 @@ class MainActivity : AppCompatActivity() {
         // dialog di NyasarNavHost. Semua kegagalan (belum ada rilis =
         // 404, offline, rate-limit) berakhir null = tidak ada dialog.
         lifecycleScope.launch {
-            pendingUpdate = com.nyasar.app.update.UpdateChecker.check(
+            com.nyasar.app.update.UpdateChecker.check(
                 com.nyasar.app.BuildConfig.VERSION_NAME
-            )
+            )?.also { info ->
+                // Same result feeds both surfaces: the one-shot dialog (via
+                // pendingUpdate below) and the persistent Settings badge
+                // (v0.9.3) — one call, no second network request.
+                com.nyasar.app.update.UpdateBadge.set(info)
+                pendingUpdate = info
+            }
         }
 
         setContent {
@@ -567,6 +573,42 @@ private fun NyasarNavHost(
                 TextButton(onClick = { showUpdateDialog = false }) {
                     Text(stringResource(R.string.update_later_cta))
                 }
+            }
+        )
+    }
+    // ── Ringkasan auto-restore (poin 4) ──
+    // Backup tanpa tombol berarti hasilnya juga harus terlihat: dialog
+    // ringkas muncul sekali per proses setelah restore login mengirim data
+    // cloud ke perangkat ini. Tidak ada yang dipulihkan (login ulang di
+    // perangkat yang datanya sudah ada) = holder tetap null = tidak ada
+    // dialog. Tutup = null, jadi tidak muncul lagi di proses yang sama.
+    var restoreReportShown by remember { mutableStateOf(false) }
+    val restoreReport = com.nyasar.app.backup.RestoreReport.pending
+    LaunchedEffect(restoreReport) {
+        if (restoreReport != null) restoreReportShown = true
+    }
+    if (restoreReportShown && restoreReport != null) {
+        AlertDialog(
+            onDismissRequest = {
+                restoreReportShown = false
+                com.nyasar.app.backup.RestoreReport.set(null)
+            },
+            title = { Text(stringResource(R.string.restore_report_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.restore_report_message,
+                        restoreReport.restoredRoutes,
+                        restoreReport.restoredActivities,
+                        restoreReport.skipped
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    restoreReportShown = false
+                    com.nyasar.app.backup.RestoreReport.set(null)
+                }) { Text(stringResource(R.string.ok)) }
             }
         )
     }
@@ -990,7 +1032,8 @@ private fun NyasarNavHost(
                 onAddRoute = { navController.navigate("route-picker") },
                 pendingSelectedRouteId = pendingSelectedRouteId,
                 onSelectedRouteConsumed = { pendingSelectedRouteId = null },
-                onRecordingActiveChanged = { recordingActive = it }
+                onRecordingActiveChanged = { recordingActive = it },
+                onOpenOfflineMaps = { navController.navigate("offline-maps") }
             )
         }
         composable("preview/{routeId}") { backStackEntry ->

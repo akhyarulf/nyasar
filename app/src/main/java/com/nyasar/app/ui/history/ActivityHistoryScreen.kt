@@ -5,7 +5,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -146,21 +148,54 @@ private fun ActivityHistoryContent(
                     )
                 }
                 HistoryLoadState.LOADED -> {
-                    if (state.activities.isEmpty()) {
-                        EmptyState(
-                            icon = Icons.Default.Hiking,
-                            title = stringResource(R.string.empty_history_title),
-                            description = stringResource(R.string.empty_history_desc),
-                            ctaText = stringResource(R.string.start_recording),
-                            onCtaClick = emptyCta,
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    } else {
-                        LazyColumn(
-                            Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
+                    // v0.9.3: filter bar (sport + bulan chips, AND-combined)
+                    // always sits between the header and the list — it renders
+                    // as nothing (no rows to advertise) until the data has
+                    // several sport types/months, so a fresh history looks
+                    // exactly like it did before this feature.
+                    Column(Modifier.fillMaxSize()) {
+                        HistoryFilterBar(viewModel)
+                        if (state.activities.isEmpty()) {
+                            if (state.filtersActive) {
+                                // Filtered to zero — a plain no-matches state,
+                                // NOT the get-started EmptyState: its CTA
+                                // ("Kamu belum punya apa-apa, mulai rekam")
+                                // is a lie while a filter is on.
+                                Column(
+                                    Modifier.fillMaxWidth().weight(1f),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        stringResource(R.string.history_filter_no_matches),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(24.dp)
+                                    )
+                                    TextButton(onClick = {
+                                        viewModel.setSportFilter(null)
+                                        viewModel.setMonthFilter(null)
+                                    }) {
+                                        Text(stringResource(R.string.history_filter_reset))
+                                    }
+                                }
+                            } else {
+                                EmptyState(
+                                    icon = Icons.Default.Hiking,
+                                    title = stringResource(R.string.empty_history_title),
+                                    description = stringResource(R.string.empty_history_desc),
+                                    ctaText = stringResource(R.string.start_recording),
+                                    onCtaClick = emptyCta,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                Modifier.weight(1f),
+                                contentPadding = PaddingValues(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
                             items(state.activities, key = { it.id }) { activity ->
                                 // Staggered entrance — each card fades+rises
                                 // slightly after the previous one (capped so
@@ -179,12 +214,95 @@ private fun ActivityHistoryContent(
                                     )
                                 }
                             }
+                        }                        // LazyColumn close
+                    }                            // else (list non-empty) close
+                    }                            // Column (filter bar + list) close
+                }                                // LOADED branch close
+            }                                    // when close
+        }                                        // Box close
+    }
+
+/**
+ * v0.9.3 Riwayat filter bar (poin 1–3 saran): dua baris chip yang bisa
+ * discroll horizontal — jenis olahraga + bulan. Digabung = AND. Opsi chip
+ * diambil dari data (hanya jenis/bulan yang benar-benar ada), semua chip
+ * awalnya tidak terpilih = "Semua", jadi riwayat yang masih sedikit
+ * tampak persis seperti sebelum fitur ini ada.
+ */
+@Composable
+private fun HistoryFilterBar(
+    viewModel: ActivityHistoryViewModel,
+    modifier: Modifier = Modifier
+) {
+    val sportOptions by viewModel.sportOptions.collectAsState()
+    val monthOptions by viewModel.monthOptions.collectAsState()
+    val sportFilter by viewModel.sportFilter.collectAsState()
+    val monthFilter by viewModel.monthFilter.collectAsState()
+    if (sportOptions.size <= 1 && monthOptions.size <= 1) return
+    Column(modifier) {
+        if (sportOptions.size > 1) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = sportFilter == null,
+                    onClick = { viewModel.setSportFilter(null) },
+                    label = { Text(stringResource(com.nyasar.app.R.string.filter_all)) }
+                )
+                sportOptions.forEach { sport ->
+                    FilterChip(
+                        selected = sportFilter == sport,
+                        onClick = {
+                            viewModel.setSportFilter(if (sportFilter == sport) null else sport)
+                        },
+                        label = {
+                            Icon(
+                                SportType.fromString(sport).icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(stringResource(SportType.fromString(sport).labelRes))
                         }
-                    }
+                    )
+                }
+            }
+        }
+        if (monthOptions.size > 1) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = monthFilter == null,
+                    onClick = { viewModel.setMonthFilter(null) },
+                    label = { Text(stringResource(com.nyasar.app.R.string.filter_all)) }
+                )
+                monthOptions.forEach { bucket ->
+                    FilterChip(
+                        selected = monthFilter == bucket.key,
+                        onClick = {
+                            viewModel.setMonthFilter(if (monthFilter == bucket.key) null else bucket.key)
+                        },
+                        label = { Text(formatMonthLabel(bucket)) }
+                    )
                 }
             }
         }
     }
+}
+
+/** Label chip bulan — locale ID yang sama dengan tanggal di kartu, jadi
+ *  bahasa chip dan isi baris tidak pernah kontradiksi. */
+private fun formatMonthLabel(bucket: ActivityHistoryViewModel.MonthBucket): String =
+    SimpleDateFormat("MMMM yyyy", Locale("id", "ID")).format(Date(bucket.newestEpochMs)) +
+        " (" + bucket.count + ")"
 
 @Composable
 private fun ActivityCard(

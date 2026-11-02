@@ -2,6 +2,9 @@ package com.nyasar.app.backup
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.room.withTransaction
 import com.nyasar.app.data.db.ActivityDao
 import com.nyasar.app.data.db.ActivityEntity
@@ -586,8 +589,17 @@ class BackupManager(
             autoBackupScope.launch {
                 val manager = get(context)
                 when (val r = manager.restoreAll()) {
-                    is RestoreResult.Success ->
+                    is RestoreResult.Success -> {
                         Log.i(TAG, "auto-restore ok: routes=${r.restoredRoutes} activities=${r.restoredActivities} skipped=${r.skipped}")
+                        // Poin 4 (v0.9.2): hasil restore dulu hanya masuk
+                        // logcat — user tidak pernah tahu datanya pulih dari
+                        // cloud. Isi holder process-wide kalau ada yang
+                        // benar-benar dipulihkan; dialog MainActivity
+                        // menampilkan ringkasannya sekali lalu menghapusnya.
+                        if (r.restoredRoutes > 0 || r.restoredActivities > 0) {
+                            RestoreReport.set(r)
+                        }
+                    }
                     is RestoreResult.Failure ->
                         Log.i(TAG, "auto-restore not completed: ${r.kind}")
                 }
@@ -608,5 +620,23 @@ class BackupManager(
                 }
             }
         }
+    }
+}
+
+/**
+ * Poin 4 (v0.9.2): ringkasan auto-restore login. Backup tanpa tombol
+ * membuat hasil restore tidak pernah terlihat user — "restore mubazir".
+ * Holder process-wide seperti UpdateBadge: diisi runInitialSyncBody hanya
+ * saat ada yang benar-benar dipulihkan, dibaca NavHost di MainActivity
+ * sekali, lalu di-set null saat dialog ditutup (tutup = tidak muncul lagi
+ * di proses yang sama).
+ */
+object RestoreReport {
+    var pending by mutableStateOf<BackupManager.RestoreResult.Success?>(null)
+        private set
+
+    /** Single writer pattern: diisi dari sync login, dibersihkan oleh dialog. */
+    fun set(r: BackupManager.RestoreResult.Success?) {
+        pending = r
     }
 }

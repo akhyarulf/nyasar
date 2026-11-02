@@ -124,7 +124,11 @@ fun RecordingScreen(
     // tab bar must stay hidden (RECORDING, PAUSED, or the Summary overlay)
     // so MainActivity can suppress it without this screen needing any
     // knowledge of the bar itself.
-    onRecordingActiveChanged: (Boolean) -> Unit = {}
+    onRecordingActiveChanged: (Boolean) -> Unit = {},
+    // v0.9.3 poin 5: CTA dari banner "rute belum tercakup area offline"
+    // (IDLE + route terpasang + titik awal di luar area lengkap) — menuju
+    // daftar area offline untuk mengunduh sebelum mulai merekam.
+    onOpenOfflineMaps: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val recoveryCandidate by viewModel.recoveryCandidate.collectAsState()
@@ -855,12 +859,28 @@ fun RecordingScreen(
             shape = CircleShape,
             color = Color.Black.copy(alpha = 0.6f)
         ) {
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.exit),
-                tint = Color.White,
-                modifier = Modifier.padding(10.dp)
-            )
+            Box {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.exit),
+                    tint = Color.White,
+                    modifier = Modifier.padding(10.dp)
+                )
+                // v0.9.3 affordance: while the session is live the back
+                // button asks first (exit-confirmation dialog below) — the
+                // red dot makes the changed behavior guessable from the
+                // press-target itself instead of only after the dialog.
+                if (recordingInProgress) {
+                    Text(
+                        "●",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 2.dp, end = 6.dp)
+                    )
+                }
+            }
         }
 
         Surface(
@@ -871,6 +891,102 @@ fun RecordingScreen(
         ) {
             // RecordingStatusText: theme-aware StatusChip (dark-mode contrast fix).
             RecordingStatusText(effectiveStatus, state.isAutoPaused, state.gpsHealth, state.gpsAccuracyMeters, state.gpsProvider)
+        }
+
+        // v0.9.3 battery heads-up — shown ONLY on the IDLE screen (while the
+        // user is still deciding to start): the recorder runs off the main
+        // battery, so a dying phone stops recording (auto-resume cannot help
+        // a dead phone — see PROJECT_CONTEXT). Non-blocking on purpose (same
+        // philosophy as the storageError banner): informational, never a
+        // gate. Recomputed when the status changes / the screen re-enters —
+        // good enough for a ±monthly heads-up, no battery polling loop.
+        val lowBatteryPct = remember(state.status) {
+            val am = notifContext.getSystemService(android.os.BatteryManager::class.java)
+            val level = am?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+            if (level in 1..15) level else null
+        }
+        val phonePluggedIn = remember(state.status) {
+            val sticky = notifContext.registerReceiver(
+                null,
+                android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+            )
+            (sticky?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
+        }
+        // Shares the 72dp banner lane with storageError / location banners —
+        // only rendered here when none of those is active, so the lane never
+        // visually stacks two banners on top of each other.
+        if (state.status == RecordingStatus.IDLE && lowBatteryPct != null && !phonePluggedIn &&
+            !state.storageError && !showLocationDeniedBanner && viewModel.hasLocationServicesEnabled()
+        ) {
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Text(
+                        stringResource(R.string.battery_low_banner, lowBatteryPct),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        }
+
+        // v0.9.3 poin 5 — offline-coverage heads-up: route terpasang saat
+        // IDLE dan titik awal rute berada di luar SEMUA area offline yang
+        // lengkap. Semantik complete+bounds yang sama dengan overlay
+        // hijau/abu di peta — banner tidak pernah bertentangan dengan yang
+        // dilihat user di peta. Advisory, bukan gate (filosofi sama dengan
+        // banner baterai), dan memakai lane 72dp yang sama: dirender hanya
+        // saat tidak ada banner lain yang memilikinya. CTA langsung ke
+        // Offline Maps untuk mengunduh sebelum mulai.
+        val routeStartUncovered = remember(state.status, previewTrack, offlineAreas) {
+            if (state.status != RecordingStatus.IDLE || previewTrack.isEmpty()) {
+                false
+            } else {
+                val start = previewTrack.first()
+                val covered = offlineAreas.any { area ->
+                    area.complete && area.bounds.contains(
+                        org.maplibre.android.geometry.LatLng(start.lat, start.lon)
+                    )
+                }
+                !covered
+            }
+        }
+        if (routeStartUncovered && !state.storageError && !showLocationDeniedBanner &&
+            viewModel.hasLocationServicesEnabled() && !(lowBatteryPct != null && !phonePluggedIn)
+        ) {
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        Text(
+                            stringResource(R.string.offline_route_uncovered_banner),
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        TextButton(
+                            onClick = onOpenOfflineMaps,
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(stringResource(R.string.offline_route_uncovered_cta))
+                        }
+                    }
+                }
+            }
         }
 
         // P3I §20/26: surfaced separately from GPS health — this is about
@@ -1313,6 +1429,7 @@ fun RecordingScreen(
             val canPublishNow = publishViewModel.canPublish
             PostRecordingForm(
                 summary = summary,
+                speedUnit = speedUnit,
                 canPublish = canPublishNow,
                 onSave = { title, _, sportType, difficulty, diffDesc, trailType, description, isPublic ->
                     // "Save = publish" (konsep 2026-09): ONE call — local save
@@ -1370,17 +1487,72 @@ fun RecordingScreen(
                     previewRouteId = null
                 }
             )
+
+            // Poin 6 (v0.9.2): dialog non-blocking "rute serupa" — muncul
+            // sebelum save+publish berjalan; form review tetap di belakang.
+            // "Tetap Simpan" melanjutkan alur, "Batal" menutup prompt
+            // tanpa menyimpan apa pun (user tetap di form).
+            val duplicatePrompt by publishViewModel.duplicatePrompt.collectAsState()
+            duplicatePrompt?.let { prompt ->
+                AlertDialog(
+                    onDismissRequest = { publishViewModel.dismissDuplicatePrompt() },
+                    title = { Text(stringResource(R.string.duplicate_route_prompt_title)) },
+                    text = {
+                        Text(
+                            stringResource(
+                                R.string.duplicate_route_prompt_message,
+                                com.nyasar.app.util.SpeedUtils.formatDistanceWithUnit(
+                                    prompt.distanceMeters, speedUnit
+                                ),
+                                prompt.routeName
+                            )
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { prompt.onConfirm() }) {
+                            Text(stringResource(R.string.duplicate_route_prompt_confirm))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { publishViewModel.dismissDuplicatePrompt() }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    }
+                )
+            }
         }
     }
+
+    // Same threshold spirit as the "Belum bergerak?" stop guard: mention
+    // the live distance only once it's meaningful (>50 m) — below that the
+    // number makes the reminder feel naggy instead of reassuring.
+    val exitConfirmMessage =
+        if (state.distanceMeters > 50.0) {
+            stringResource(
+                R.string.exit_confirm_message_with_distance,
+                com.nyasar.app.util.SpeedUtils.formatDistanceWithUnit(
+                    state.distanceMeters, speedUnit
+                )
+            )
+        } else stringResource(R.string.exit_confirm_message)
 
     if (showExitConfirm) {
         AlertDialog(
             onDismissRequest = { showExitConfirm = false },
             title = { Text(stringResource(R.string.exit_confirm_title)) },
-            text = { Text(stringResource(R.string.exit_confirm_message)) },
+            text = { Text(exitConfirmMessage) },
             confirmButton = {
                 TextButton(onClick = {
                     showExitConfirm = false
+                    // Immediate positive feedback that leaving did NOT stop
+                    // the recording — the status-bar chip is the only other
+                    // proof and it is off-screen by the time the user asks
+                    // themselves "eh, masih jalan ga rekamannya?".
+                    android.widget.Toast.makeText(
+                        notifContext,
+                        notifContext.getString(R.string.exit_recording_background_notice),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                     onExit()
                 }) { Text(stringResource(R.string.exit_confirm_exit)) }
             },

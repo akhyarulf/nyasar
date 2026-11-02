@@ -1,6 +1,6 @@
 # Checklist Uji Manual — v0.9.2
 
-Perangkat uji minimal: 1 HP dengan Android 8+ , lokasi & internet aktif.
+Perangkat uji minimal: 1 HP dengan Android 8+, lokasi & internet aktif.
 Semua butir dikerjakan dengan app versi build dari branch/tag v0.9.2.
 
 ## Ringkasan rilis (apa yang berubah)
@@ -49,6 +49,53 @@ Semua butir dikerjakan dengan app versi build dari branch/tag v0.9.2.
 ### 7. Update-check (kalau ada rilis baru setelah ini)
 - [ ] Setelah versi selanjutnya rilis di GitHub, buka app → dialog
       "Update tersedia" muncul dengan tautan halaman rilis.
+
+### 7b. Perilaku baru — rilis cepat v0.9.3 (tambahan)
+- [ ] Tombol back saat ● RECORDING punya titik merah kecil.
+- [ ] Dengan baterai ≤ 15% (tidak di-charge): banner "Baterai XX%" tampil
+      di layar SIAP; hilang saat charging / baterai naik; tidak bertumpuk
+      dengan banner storage/location lain.
+- [ ] Dialog keluar saat jarak sudah > 50 m menyebut jarak sejauh ini —
+      satuannya mengikuti pilihan Speed Unit (km/mi), bukan selalu km.
+- [ ] Setelah pilih "Keluar" dari dialog: toast "rekaman tetap jalan di
+      background" muncul, dan notifikasi recording masih aktif.
+- [ ] Settings → Tentang → "Salin Info Debug": clipboard berisi versi
+      Nyasar, Android + model HP, dan bahasa aktif, plus konfirmasi toast.
+- [ ] Form review pasca-stop: angka kecepatan menyesuaikan satuan yang
+      dipilih di Settings (ganti ke mph lalu cek lagi).
+
+### 7c. Badge update (B21)
+- [ ] Setelah app baca ada versi lebih baru (butuh rilis terpasang > versi
+      app): baris "Pembaruan vX tersedia" tampil di Settings → Tentang dan
+      TETAP ADA setelah dialog update ditutup "Nanti Saja".
+- [ ] Ketuk baris = browser membuka tautan unduhan Nyasar.apk (GitHub
+      Releases), bukan crash/halaman kosong.
+- [ ] Di build dengan versi terbaru (tidak ada tag lebih baru): baris TIDAK
+      tampil.
+
+### 7d. Poin 1–6 (saran batch sebelumnya)
+- [ ] Riwayat: filter Olahraga + chip bulan bisa dipilih bersamaan (AND),
+      hasil terfilter benar; toggle chip → "Semua" mengembalikan tampilan
+      penuh; kombinasi tanpa hasil menampilkan state "tidak ada yang
+      cocok" + tombol "Hapus filter".
+- [ ] Riwayat: chip bulan hanya menampilkan bulan yang benar-benar ada
+      data; label bulan format "Januari 2026" (EN: "January 2026").
+- [ ] Login di perangkat baru (atau proses baru) dengan data cloud:
+      dialog ringkasan "Data dipulihkan dari cloud" muncul SEKALI dengan
+      jumlah rute/aktivitas/dilewati; tutup → tidak muncul lagi di proses
+      yang sama; login tanpa data baru dipulihkan → tidak ada dialog.
+- [ ] Layar rekam IDLE dengan rute terpasang yang titik awalnya di luar
+      area offline lengkap: banner peringatan + tombol "Unduh Area"
+      muncul; setelah area diunduh (atau rute tanpa rute) banner hilang;
+      banner tidak menumpuk dengan banner storage/location/baterai.
+- [ ] Simpan aktivitas yang titik awalnya < 50 m dari titik awal rute
+      milik sendiri: dialog "Rute serupa terdeteksi" muncul sebelum
+      save; "Batal" = tidak ada yang tersimpan, form tetap terbuka;
+      "Tetap Simpan" = save+publish jalan normal.
+- [ ] Aktivitas yang direkam mengikuti sebuah rute (routeId terpasang)
+      TIDAK pernah memunculkan dialog rute serupa.
+- [ ] EN: semua teks baru (filter, dialog restore, banner offline,
+      dialog rute serupa) berbahasa Inggris tanpa campur Indonesia.
 
 ### 8. Pesan lokal (bilingual)
 - [ ] Ganti bahasa ke EN → Settings → Data → hapus data lokal → dialog

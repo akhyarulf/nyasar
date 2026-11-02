@@ -9,17 +9,25 @@ import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.data.db.PendingPublishEntity
 import com.nyasar.app.data.db.RouteDao
+import com.nyasar.app.data.db.RouteEntity
 import com.nyasar.app.data.db.WaypointEntity
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.repository.WaypointRepository
 import com.nyasar.app.data.supabase.PublishRepository
 import com.nyasar.app.data.supabase.PublishRepository.PublishError
 import com.nyasar.app.data.supabase.SupabaseClientProvider
+import com.nyasar.app.navigation.GeoMath
+import com.nyasar.app.navigation.LatLng
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+/** Poin 6 (v0.9.2): ambang "rute serupa" — titik awal aktivitas dalam 50 m
+ *  dari titik awal salah satu rute user (start-to-start = trailhead yang
+ *  sama; murah karena tidak perlu mem-parse seluruh garis rute). */
+private const val DUPLICATE_ROUTE_START_M = 50.0
 
 /** How the publish form gets its difficulty/trail options (strings resolved
  *  in the Composable — only stable values cross the process boundary). */
@@ -181,10 +189,12 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * The Review form's single action — SAVE first (local, always),
-     * backup second (silent), publish third (best-effort this tap, queued
-     * otherwise). The title update is applied before anything else so the
-     * backed-up/published name is the user's, not the auto title.
+     * Poin 6 (v0.9.2): "rute serupa" — cek titik awal aktivitas terhadap
+     * rute milik user SEBELUM save. Kalau ketemu, tampilkan dialog
+     * non-blocking ([duplicatePrompt]) dan tunda save sampai user
+     * memutuskan: "Tetap Simpan" → lanjut, "Batal" → form review tetap
+     * terbuka dan tidak ada yang disimpan. Tidak ada kemiripan = langsung
+     * jalan seperti biasa.
      */
     fun saveAndPublish(
         activityId: String,
@@ -196,6 +206,47 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
         description: String?,
         isPublic: Boolean,
         /** Fired after the local save committed (screen may pop immediately). */
+        onSaved: (publishQueuedForLater: Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            val similar = findSimilarRoute(activityId)
+            if (similar != null) {
+                _duplicatePrompt.value = DuplicateRoutePrompt(
+                    routeName = similar.first.name,
+                    distanceMeters = similar.second,
+                    onConfirm = {
+                        _duplicatePrompt.value = null
+                        performSaveAndPublish(
+                            activityId, title, sportType, difficulty,
+                            difficultyDescription, trailType, description,
+                            isPublic, onSaved
+                        )
+                    }
+                )
+                return@launch
+            }
+            performSaveAndPublish(
+                activityId, title, sportType, difficulty,
+                difficultyDescription, trailType, description,
+                isPublic, onSaved
+            )
+        }
+    }
+
+    /** The Review form's actual save+publish body (see [saveAndPublish]) —
+     *  SAVE first (local, always), backup second (silent), publish third
+     *  (best-effort this tap, queued otherwise). The title update is applied
+     *  before anything else so the backed-up/published name is the user's,
+     *  not the auto title. */
+    private fun performSaveAndPublish(
+        activityId: String,
+        title: String,
+        sportType: com.nyasar.app.recording.SportType,
+        difficulty: PublishDifficulty,
+        difficultyDescription: String?,
+        trailType: PublishTrailType,
+        description: String?,
+        isPublic: Boolean,
         onSaved: (publishQueuedForLater: Boolean) -> Unit
     ) {
         viewModelScope.launch {
@@ -235,6 +286,51 @@ class PublishViewModel(app: Application) : AndroidViewModel(app) {
             }
             onSaved(queued)
         }
+    }
+
+    /**
+     * Poin 6: prompt "rute serupa" yang menunggu di UI. [onConfirm]
+     * melanjutkan save+publish yang tertunda; [dismissDuplicatePrompt]
+     * membatalkan (form review tetap terbuka, tidak ada yang disimpan).
+     */
+    data class DuplicateRoutePrompt(
+        val routeName: String,
+        val distanceMeters: Double,
+        val onConfirm: () -> Unit
+    )
+
+    private val _duplicatePrompt = MutableStateFlow<DuplicateRoutePrompt?>(null)
+    val duplicatePrompt: StateFlow<DuplicateRoutePrompt?> = _duplicatePrompt.asStateFlow()
+
+    fun dismissDuplicatePrompt() {
+        _duplicatePrompt.value = null
+    }
+
+    /**
+     * Poin 6: "kemiripan rute" — titik awal aktivitas berada dalam
+     * [DUPLICATE_ROUTE_START_M] dari titik awal salah satu rute user.
+     * Start-to-start supaya murah: tidak perlu mem-parse seluruh garis
+     * rute. Aktivitas yang memang terlampir pada sebuah rute
+     * (activity.routeId) tidak pernah di-prompt — itu rutenya sendiri.
+     */
+    private suspend fun findSimilarRoute(activityId: String): Pair<RouteEntity, Double>? {
+        val activity = activityDao.getById(activityId) ?: return null
+        if (activity.routeId != null) return null
+        val start = activityDao.getPoints(activityId).firstOrNull() ?: return null
+        val startLatLng = LatLng(start.lat, start.lon)
+        var best: Pair<RouteEntity, Double>? = null
+        for (route in routeDao.getAllOnce()) {
+            val routeStart = try {
+                routeRepository.loadDocument(route).allTrackPoints.firstOrNull()
+            } catch (e: Exception) {
+                null
+            } ?: continue
+            val d = GeoMath.distanceMeters(startLatLng, LatLng(routeStart.lat, routeStart.lon))
+            if (d <= DUPLICATE_ROUTE_START_M && (best == null || d < best.second)) {
+                best = route to d
+            }
+        }
+        return best
     }
 
     /** Publish an existing activity now (queue-flush + explicit paths).

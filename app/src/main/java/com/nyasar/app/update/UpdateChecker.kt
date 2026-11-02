@@ -1,6 +1,9 @@
 package com.nyasar.app.update
 
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -110,5 +113,32 @@ object UpdateChecker {
         if (core.isEmpty()) return null
         val nums = core.split('.').map { it.toIntOrNull() ?: return null }
         return if (nums.isEmpty()) null else nums
+    }
+}
+
+/**
+ * v0.9.3 update badge state for Settings (issue: the update *dialog* shows
+ * once and then the signal disappears for the rest of the session — for a
+ * sideload distribution model that silent dismissal is how updates get
+ * missed for weeks). The most recent non-null [UpdateChecker.check] result
+ * is kept process-wide here; Settings renders a persistent "update
+ * available" row while it is non-null, tapping it deep-links to the same
+ * Nyasar.apk asset the dialog points at.
+ *
+ * Lifecycle = exactly "until actually updated": MainActivity's cold-start
+ * check is the only writer, and it becomes null again the moment the
+ * installed version is no longer older than the latest tag (i.e. after the
+ * user installs the new APK — the next cold start's check returns null).
+ * No DataStore persistence, no second network call, badges can never show
+ * a stale update after installing — the network check itself is the source
+ * of truth.
+ */
+object UpdateBadge {
+    var available by mutableStateOf<UpdateChecker.UpdateInfo?>(null)
+        private set
+
+    /** Single writer pattern: called from MainActivity's update coroutine. */
+    fun set(info: UpdateChecker.UpdateInfo?) {
+        available = info
     }
 }

@@ -16,6 +16,12 @@
          the user still decides per system sheet. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Boot auto-resume (2026-11): saat HP selesai reboot, Android
+         mengirim BOOT_COMPLETED ke BootCompletedReceiver supaya
+         RecordingService bisa berjalan lagi tanpa pengguna membuka app.
+         Deklarasi manifest-group saja — tidak butuh grant runtime. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:name=".NyasarApp"
         android:allowBackup="true"
@@ -90,6 +96,23 @@
             android:name=".recording.RecordingService"
             android:foregroundServiceType="location"
             android:exported="false" />
+
+        <!-- Bangunkan kembali rekaman yang terputus oleh reboot: Android
+             mengirim BOOT_COMPLETED setelah boot selesai -> receiver
+             mengecek DB untuk activity berstatus 'recording'/'paused'
+             dan menyalakan RecordingService lagi tanpa pengguna buka app
+             (staleness guard 24 jam ada di receiver). exported="false"
+             cukup karena BOOT_COMPLETED adalah broadcast SISTEM — menurut
+             dok <receiver>, flag exported hanya membatasi pengirim
+             NON-sistem; sistem tetap mengirim ke receiver yang tidak
+             exported. -->
+        <receiver
+            android:name=".recording.BootCompletedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Needed to share exported GPX files (route or activity) with
              other apps (WhatsApp, Drive, etc) — spec Export/Share GPX. -->

@@ -121,7 +121,7 @@ class ActivityHistoryViewModel(app: Application) : AndroidViewModel(app) {
         val mf = _monthFilter.value
         var list = raw
         if (sf != null) list = list.filter { it.sportType == sf }
-        if (mf != null) list = list.filter { monthKeyOf(it.startedAtEpochMs) == mf.key }
+        if (mf != null) list = list.filter { monthKeyOf(it.startedAtEpochMs) == mf }
         _uiState.value = ActivityHistoryUiState(
             loadState = HistoryLoadState.LOADED,
             activities = list,

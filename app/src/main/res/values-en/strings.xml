@@ -241,6 +241,17 @@
     <string name="update_badge_subtitle">You\'re on %1$s — tap to download the v%2$s APK from GitHub Releases</string>
     <string name="history_filter_no_matches">No activities match this filter</string>
     <string name="history_filter_reset">Clear filter</string>
+    <string name="history_search_hint">Search activities</string>
+    <string name="history_sort_cd">Sort history list</string>
+    <string name="history_sort_newest">Newest first</string>
+    <string name="history_sort_oldest">Oldest first</string>
+    <string name="history_sort_farthest">Longest distance</string>
+    <string name="history_summary_month">%1$s · %2$s · %3$s</string>
+    <string name="history_summary_all">%1$s · %2$s</string>
+    <plurals name="history_summary_activities">
+        <item quantity="one">%d activity</item>
+        <item quantity="other">%d activities</item>
+    </plurals>
     <string name="try_again">TRY AGAIN</string>
     <string name="previous_recording_active">Previous recording is still active</string>
     <string name="unsaved_recording_message">&quot;%s&quot; hasn\'t finished saving. Continue, save now, or discard?</string>

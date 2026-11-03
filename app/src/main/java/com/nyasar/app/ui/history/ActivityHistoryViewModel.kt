@@ -3,6 +3,7 @@ package com.nyasar.app.ui.history
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nyasar.app.R
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.recording.SportType
@@ -12,6 +13,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 enum class HistoryLoadState { LOADING, LOADED, ERROR }
+
+/** Urutan daftar riwayat — default NEWEST (sama dengan urutan SQL DAO). */
+enum class HistorySort(val labelRes: Int) {
+    NEWEST(R.string.history_sort_newest),
+    OLDEST(R.string.history_sort_oldest),
+    FARTHEST(R.string.history_sort_farthest)
+}
 
 data class ActivityHistoryUiState(
     val loadState: HistoryLoadState = HistoryLoadState.LOADING,
@@ -58,6 +66,13 @@ class ActivityHistoryViewModel(app: Application) : AndroidViewModel(app) {
     val sportFilter: StateFlow<String?> = _sportFilter.asStateFlow()
     private val _monthFilter = MutableStateFlow<String?>(null)
     val monthFilter: StateFlow<String?> = _monthFilter.asStateFlow()
+
+    /** Free-text search over activity names — trimmed, case-insensitive;
+     *  combined with both chips (AND), never replacing them. */
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    private val _sortMode = MutableStateFlow(HistorySort.NEWEST)
+    val sortMode: StateFlow<HistorySort> = _sortMode.asStateFlow()
 
     // Card thumbnail cache — keyed by activity id, holds a downsampled
     // (lon, lat) list. In-memory only, cleared with the ViewModel; not
@@ -113,19 +128,37 @@ class ActivityHistoryViewModel(app: Application) : AndroidViewModel(app) {
         publishFiltered()
     }
 
-    /** Re-applies both chips in one pass — the "gabung" contract: sport and
-     *  month narrow the same list, AND-combined, not replacing each other. */
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+        publishFiltered()
+    }
+
+    fun setSortMode(mode: HistorySort) {
+        _sortMode.value = mode
+        publishFiltered()
+    }
+
+    /** Re-applies chips + search in one pass, then the sort — the "gabung"
+     *  contract: sport, month and text all narrow the same list
+     *  (AND-combined, not replacing each other); sort only reorders it. */
     private fun publishFiltered() {
         val raw = rawActivities.value
         val sf = _sportFilter.value
         val mf = _monthFilter.value
+        val q = _searchQuery.value.trim()
         var list = raw
         if (sf != null) list = list.filter { it.sportType == sf }
         if (mf != null) list = list.filter { monthKeyOf(it.startedAtEpochMs) == mf }
+        if (q.isNotEmpty()) list = list.filter { it.name.contains(q, ignoreCase = true) }
+        list = when (_sortMode.value) {
+            HistorySort.NEWEST -> list.sortedByDescending { it.startedAtEpochMs }
+            HistorySort.OLDEST -> list.sortedBy { it.startedAtEpochMs }
+            HistorySort.FARTHEST -> list.sortedByDescending { it.distanceMeters }
+        }
         _uiState.value = ActivityHistoryUiState(
             loadState = HistoryLoadState.LOADED,
             activities = list,
-            filtersActive = sf != null || mf != null
+            filtersActive = sf != null || mf != null || q.isNotEmpty()
         )
     }
 

@@ -97,6 +97,23 @@ Semua butir dikerjakan dengan app versi build dari branch/tag v0.9.2.
 - [ ] EN: semua teks baru (filter, dialog restore, banner offline,
       dialog rute serupa) berbahasa Inggris tanpa campur Indonesia.
 
+### 7e. Paket C — search, sort, & statistik riwayat
+- [ ] Kolom "Cari aktivitas" menyaring daftar berdasarkan nama (ketik
+      sebagian nama → hanya yang cocok tampil; hapus teks → daftar penuh).
+- [ ] Pencarian tanpa hasil → state "tidak ada yang cocok"; tombol
+      "Hapus filter" menghapus pencarian juga (daftar penuh kembali).
+- [ ] Menu urut (ikon di kanan kolom search): Terbaru (default), Terlama,
+      Terjauh — urutan kartu berubah sesuai; berlaku bersama filter
+      olahraga/bulan (bukan menggantikan).
+- [ ] Baris ringkasan di atas daftar menampilkan jumlah aktivitas + total
+      km dari yang sedang tampil; saat filter bulan aktif menyebut bulannya
+      (mis. "November 2026 · 3 aktivitas · 42,50 km").
+- [ ] Riwayat kosong: kolom search TIDAK tampil; EmptyState "mulai rekam"
+      tetap seperti biasa.
+- [ ] EN: teks search/menu urut/ringkasan berbahasa Inggris; label bulan
+      tampil "January 2026" (bukan "Januari 2026"); plural "1 activity"
+      vs "2 activities" benar.
+
 ### 8. Pesan lokal (bilingual)
 - [ ] Ganti bahasa ke EN → Settings → Data → hapus data lokal → dialog
       Konfirmasi → sukses: footer berbahasa yang dipilih (bukan campuran).

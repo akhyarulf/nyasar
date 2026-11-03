@@ -241,6 +241,17 @@
     <string name="update_badge_subtitle">Kamu pakai versi %1$s — ketuk untuk unduh APK v%2$s dari GitHub Releases</string>
     <string name="history_filter_no_matches">Tidak ada aktivitas yang cocok dengan filter ini</string>
     <string name="history_filter_reset">Hapus filter</string>
+    <string name="history_search_hint">Cari aktivitas</string>
+    <string name="history_sort_cd">Urutkan daftar riwayat</string>
+    <string name="history_sort_newest">Terbaru</string>
+    <string name="history_sort_oldest">Terlama</string>
+    <string name="history_sort_farthest">Terjauh</string>
+    <string name="history_summary_month">%1$s · %2$s · %3$s</string>
+    <string name="history_summary_all">%1$s · %2$s</string>
+    <plurals name="history_summary_activities">
+        <item quantity="one">%d aktivitas</item>
+        <item quantity="other">%d aktivitas</item>
+    </plurals>
     <string name="try_again">COBA LAGI</string>
     <string name="previous_recording_active">Recording sebelumnya masih aktif</string>
     <string name="unsaved_recording_message">&quot;%s&quot; belum selesai disimpan. Lanjutkan, simpan sekarang, atau buang?</string>

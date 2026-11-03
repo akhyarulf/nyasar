@@ -15,9 +15,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import com.nyasar.app.recording.ShareMetric
 import com.nyasar.app.recording.SportType
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +37,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,6 +55,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.roundToInt
 import com.nyasar.app.R
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.pressScale
@@ -133,6 +138,7 @@ private fun ActivityHistoryContent(
 ) {
     val state by viewModel.uiState.collectAsState()
     val thumbnails by viewModel.thumbnails.collectAsState()
+    val monthFilter by viewModel.monthFilter.collectAsState()
 
     Box(Modifier.fillMaxSize()) {
         when (state.loadState) {
@@ -148,13 +154,24 @@ private fun ActivityHistoryContent(
                     )
                 }
                 HistoryLoadState.LOADED -> {
-                    // v0.9.3: filter bar (sport + bulan chips, AND-combined)
-                    // always sits between the header and the list — it renders
-                    // as nothing (no rows to advertise) until the data has
-                    // several sport types/months, so a fresh history looks
-                    // exactly like it did before this feature.
+                    // v0.9.3: search + sort bar, filter bar (sport + bulan
+                    // chips, AND-combined) and a summary strip always sit
+                    // between the header and the list — they render as
+                    // nothing (no rows to advertise) until the data has
+                    // something to filter/sort/summarize, so a fresh history
+                    // looks exactly like it did before this feature.
                     Column(Modifier.fillMaxSize()) {
+                        if (state.activities.isNotEmpty() || state.filtersActive) {
+                            HistorySearchSortBar(viewModel)
+                        }
                         HistoryFilterBar(viewModel)
+                        if (state.activities.isNotEmpty()) {
+                            HistorySummaryStrip(
+                                monthKey = monthFilter,
+                                count = state.activities.size,
+                                totalMeters = state.activities.sumOf { it.distanceMeters }
+                            )
+                        }
                         if (state.activities.isEmpty()) {
                             if (state.filtersActive) {
                                 // Filtered to zero — a plain no-matches state,
@@ -176,6 +193,7 @@ private fun ActivityHistoryContent(
                                     TextButton(onClick = {
                                         viewModel.setSportFilter(null)
                                         viewModel.setMonthFilter(null)
+                                        viewModel.setSearchQuery("")
                                     }) {
                                         Text(stringResource(R.string.history_filter_reset))
                                     }
@@ -239,6 +257,10 @@ private fun HistoryFilterBar(
     val sportFilter by viewModel.sportFilter.collectAsState()
     val monthFilter by viewModel.monthFilter.collectAsState()
     if (sportOptions.size <= 1 && monthOptions.size <= 1) return
+    // Active locale — AppCompatDelegate.setApplicationLocales keeps this in
+    // sync with the LANGUAGE setting, so chip labels follow it (EN must
+    // read "January 2026", not "Januari 2026").
+    val locale = LocalConfiguration.current.locales[0]
     Column(modifier) {
         if (sportOptions.size > 1) {
             Row(
@@ -290,7 +312,7 @@ private fun HistoryFilterBar(
                         onClick = {
                             viewModel.setMonthFilter(if (monthFilter == bucket.key) null else bucket.key)
                         },
-                        label = { Text(formatMonthLabel(bucket)) }
+                        label = { Text(formatMonthLabel(bucket, locale)) }
                     )
                 }
             }
@@ -298,11 +320,132 @@ private fun HistoryFilterBar(
     }
 }
 
-/** Label chip bulan — locale ID yang sama dengan tanggal di kartu, jadi
- *  bahasa chip dan isi baris tidak pernah kontradiksi. */
-private fun formatMonthLabel(bucket: ActivityHistoryViewModel.MonthBucket): String =
-    SimpleDateFormat("MMMM yyyy", Locale("id", "ID")).format(Date(bucket.newestEpochMs)) +
+/** Label chip bulan — memakai locale aktif (setting LANGUAGE), jadi bahasa
+ *  chip, ringkasan, dan tanggal kartu selalu sejalan. */
+private fun formatMonthLabel(
+    bucket: ActivityHistoryViewModel.MonthBucket,
+    locale: Locale
+): String =
+    SimpleDateFormat("MMMM yyyy", locale).format(Date(bucket.newestEpochMs)) +
         " (" + bucket.count + ")"
+
+/** "2026-11" → "November 2026" — locale aktif, sama dengan chip bulan. */
+private fun formatMonthKey(key: String, locale: Locale): String =
+    runCatching {
+        SimpleDateFormat("yyyy-MM", Locale.ROOT).parse(key)?.let {
+            SimpleDateFormat("MMMM yyyy", locale).format(it)
+        }
+    }.getOrNull() ?: key
+
+/**
+ * v0.9.3 Paket C: kolom search (nama aktivitas) + menu urut (Terbaru /
+ * Terlama / Terjauh). Keduanya menyetel state ViewModel yang di-AND-kan
+ * dengan chip olahraga/bulan — search tidak menggantikan filter, hanya
+ * menyempitkannya; urutan berlaku setelah penyaringan.
+ */
+@Composable
+private fun HistorySearchSortBar(
+    viewModel: ActivityHistoryViewModel,
+    modifier: Modifier = Modifier
+) {
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val sortMode by viewModel.sortMode.collectAsState()
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { viewModel.setSearchQuery(it) },
+            modifier = Modifier.weight(1f),
+            placeholder = {
+                Text(stringResource(R.string.history_search_hint), style = MaterialTheme.typography.bodyMedium)
+            },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp))
+            },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium,
+            shape = RoundedCornerShape(50)
+        )
+        Spacer(Modifier.width(8.dp))
+        Box {
+            IconButton(onClick = { sortMenuOpen = true }) {
+                Icon(
+                    Icons.Default.Sort,
+                    contentDescription = stringResource(R.string.history_sort_cd),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                HistorySort.entries.forEach { sort ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(sort.labelRes)) },
+                        trailingIcon = {
+                            if (sort == sortMode) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        },
+                        onClick = {
+                            viewModel.setSortMode(sort)
+                            sortMenuOpen = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Statistik bulanan yang mengikuti tampilan saat ini: jumlah aktivitas +
+ * total km dari daftar yang sedang tampil, disebut bulannya bila filter
+ * bulan aktif ("November 2026 · 3 aktivitas · 42,50 km"). Tanpa filter
+ * bulan → hanya jumlah + total. Dihitung dari state, bukan state baru.
+ */
+@Composable
+private fun HistorySummaryStrip(
+    monthKey: String?,
+    count: Int,
+    totalMeters: Double,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(NyasarRadius.md),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        val locale = LocalConfiguration.current.locales[0]
+        val activities = pluralStringResource(R.plurals.history_summary_activities, count, count)
+        val distance = "%.2f km".format(totalMeters / 1000.0)
+        val summary = if (monthKey != null) {
+            stringResource(
+                R.string.history_summary_month,
+                formatMonthKey(monthKey, locale),
+                activities,
+                distance
+            )
+        } else {
+            stringResource(R.string.history_summary_all, activities, distance)
+        }
+        Text(
+            summary,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+    }
+}
 
 @Composable
 private fun ActivityCard(
@@ -315,6 +458,7 @@ private fun ActivityCard(
 ) {
     LaunchedEffect(activity.id) { onThumbnailNeeded() }
     val cardInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val locale = LocalConfiguration.current.locales[0]
 
     // Real map snapshot state — stores bitmap + bounds together
     val context = LocalContext.current
@@ -376,7 +520,7 @@ private fun ActivityCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            formatDate(activity.startedAtEpochMs),
+                            formatDate(activity.startedAtEpochMs, locale),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -591,5 +735,5 @@ private fun formatDuration(ms: Long): String {
     return if (h > 0) "%dh %02dm".format(h, m) else "%dm %02ds".format(m, s)
 }
 
-private fun formatDate(epochMs: Long): String =
-    SimpleDateFormat("d MMM yyyy, HH:mm", Locale("id", "ID")).format(Date(epochMs))
+private fun formatDate(epochMs: Long, locale: Locale): String =
+    SimpleDateFormat("d MMM yyyy, HH:mm", locale).format(Date(epochMs))

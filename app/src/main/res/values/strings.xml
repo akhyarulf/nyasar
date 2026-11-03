@@ -252,6 +252,18 @@
         <item quantity="one">%d aktivitas</item>
         <item quantity="other">%d aktivitas</item>
     </plurals>
+    <string name="rec_options_cd">Buka opsi rekaman</string>
+    <string name="rec_options_title">Opsi rekaman</string>
+    <string name="rec_options_subtitle">Ubah tanpa keluar dari peta</string>
+    <string name="rec_options_auto_pause">Jeda otomatis</string>
+    <string name="rec_options_auto_pause_desc">Berhenti mencatat saat kamu diam</string>
+    <string name="rec_options_keep_screen_on">Layar tetap nyala</string>
+    <string name="rec_options_keep_screen_on_desc">Selama sesi rekam berjalan</string>
+    <string name="rec_options_off_route">Peringatan menyimpang</string>
+    <string name="rec_options_off_route_desc">Ingatkan saat menjauh dari jalur</string>
+    <string name="rec_options_off_route_footnote">Peringatan muncul saat kamu lebih dari 60 m dari jalur terpasang — tidak pernah saat tanpa rute.</string>
+    <string name="off_route_hint">Menyimpang %1$s dari jalur</string>
+    <string name="off_route_mute">Diamkan</string>
     <string name="try_again">COBA LAGI</string>
     <string name="previous_recording_active">Recording sebelumnya masih aktif</string>
     <string name="unsaved_recording_message">&quot;%s&quot; belum selesai disimpan. Lanjutkan, simpan sekarang, atau buang?</string>

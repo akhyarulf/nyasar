@@ -114,6 +114,32 @@ Semua butir dikerjakan dengan app versi build dari branch/tag v0.9.2.
       tampil "January 2026" (bukan "Januari 2026"); plural "1 activity"
       vs "2 activities" benar.
 
+### 7f. Opsi rekaman (sheet gear) + peringatan menyimpang
+- [ ] Ikon gear di kanan atas layar rekam (di bawah kompas) membuka sheet
+      "Opsi rekaman" berisi 3 baris: Jeda otomatis, Layar tetap nyala,
+      Peringatan menyimpang — masing-masing dengan switch.
+- [ ] Ubah tiap switch di sheet → efeknya nyata DAN nilai di Settings
+      ikut berubah (satu DataStore, bukan dua state terpisah):
+      · Jeda otomatis OFF → rekam sambil diam tidak menjeda sesi;
+      · Layar tetap nyala OFF → layar mati sendiri saat merekam;
+      · Peringatan menyimpang OFF → tidak ada banner hint sama sekali.
+- [ ] Default "Peringatan menyimpang" = OFF (install bersih / data app
+      dihapus): rekam dengan rute lalu menjauh jauh → TIDAK ada banner.
+      Nyalakan switch di sheet, ulangi → banner muncul.
+- [ ] Saat switch ON dan menjauh > 60 m dari jalur → banner
+      "Menyimpang XX m dari jalur" muncul (warna amber/tertiary, BUKAN
+      merah); kembali ke jalur → banner hilang sendiri.
+- [ ] Banner hint TIDAK muncul saat IDLE/PAUSED, saat tanpa rute
+      terpasang, atau saat banner storage/GPS sedang tampil (satu lane,
+      tidak menumpuk).
+- [ ] Ketuk "Diamkan" di banner → banner hilang dan switch "Peringatan
+      menyimpang" di sheet ikut OFF (persisten setelah app dibuka ulang).
+- [ ] Switch "Peringatan menyimpang" juga ada di Settings → Rekaman
+      dengan catatan kaki ambang 60 m; ubah dari Settings → nilai di
+      sheet gear ikut berubah (dua pintu, satu pref).
+- [ ] EN: judul sheet, ketiga baris + penjelasannya, banner hint, dan
+      tombol "Mute" berbahasa Inggris tanpa campur Indonesia.
+
 ### 8. Pesan lokal (bilingual)
 - [ ] Ganti bahasa ke EN → Settings → Data → hapus data lokal → dialog
       Konfirmasi → sukses: footer berbahasa yang dipilih (bukan campuran).

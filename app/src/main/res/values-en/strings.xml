@@ -252,6 +252,18 @@
         <item quantity="one">%d activity</item>
         <item quantity="other">%d activities</item>
     </plurals>
+    <string name="rec_options_cd">Open recording options</string>
+    <string name="rec_options_title">Recording options</string>
+    <string name="rec_options_subtitle">Change these without leaving the map</string>
+    <string name="rec_options_auto_pause">Auto-pause</string>
+    <string name="rec_options_auto_pause_desc">Stops counting while you stand still</string>
+    <string name="rec_options_keep_screen_on">Keep screen on</string>
+    <string name="rec_options_keep_screen_on_desc">While a recording is running</string>
+    <string name="rec_options_off_route">Off-route alerts</string>
+    <string name="rec_options_off_route_desc">Warn me when I stray from the route</string>
+    <string name="rec_options_off_route_footnote">The alert appears when you are more than 60 m off the attached route — never when no route is attached.</string>
+    <string name="off_route_hint">%1$s off the route</string>
+    <string name="off_route_mute">Mute</string>
     <string name="try_again">TRY AGAIN</string>
     <string name="previous_recording_active">Previous recording is still active</string>
     <string name="unsaved_recording_message">&quot;%s&quot; hasn\'t finished saving. Continue, save now, or discard?</string>

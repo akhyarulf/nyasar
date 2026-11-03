@@ -20,6 +20,15 @@ Fitur baru:
 - Cek "Rute serupa terdeteksi" sebelum menyimpan aktivitas yang titik
   awalnya kurang dari 50 m dari titik awal rute milikmu sendiri — pilih
   "Batal" atau "Tetap Simpan".
+- Gear di kanan atas layar rekam membuka "Opsi rekaman": jeda otomatis,
+  layar tetap nyala, dan peringatan menyimpang — bisa diubah tanpa keluar
+  dari peta. Ketiganya juga ada di Settings → Rekaman, satu pengaturan
+  yang sama di dua tempat.
+- Peringatan menyimpang (opsional, default MATI): saat rute terpasang dan
+  kamu lebih dari 60 m dari jalurnya, muncul banner "Menyimpang XX m dari
+  jalur" dengan tombol "Diamkan" untuk mematikannya saat itu juga.
+- Halaman Settings dirapikan: header bagian netral tanpa blok berbingkai,
+  baris lebih lega dengan pemisah tipis, dan ikon/judul lebih tegas.
 
 Catatan penting:
 - Guard usia 24 jam: sesi lebih tua dari 24 jam tidak di-resume otomatis.

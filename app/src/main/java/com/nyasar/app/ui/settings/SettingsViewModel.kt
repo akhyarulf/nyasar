@@ -80,6 +80,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repository.setSpeedUnit(unit) }
     }
 
+    /** Also reachable from the recording options sheet (gear on the map) —
+     *  one preference, two doors, no second source of truth. */
+    fun setOffRouteAlertsEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setOffRouteAlertsEnabled(enabled) }
+    }
+
     fun setOfflineOverlayEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setOfflineOverlayEnabled(enabled) }
     }

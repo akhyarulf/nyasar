@@ -2,7 +2,6 @@ package com.nyasar.app.ui.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,6 +29,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Translate
@@ -47,12 +46,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.R
 import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.ui.components.AnimatedScreen
-import com.nyasar.app.ui.theme.NyasarRadius
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -265,6 +264,31 @@ internal fun SettingsContent(
                             onCheckedChange = { viewModel.setAutoPauseEnabled(it) }
                         )
                     }
+                    // Same three options the recording options sheet (gear on
+                    // the map) exposes — one DataStore preference each, so a
+                    // flip on either surface is visible on the other.
+                    SettingRow(
+                        icon = Icons.Default.Route,
+                        title = stringResource(R.string.rec_options_off_route),
+                        subtitle = stringResource(R.string.rec_options_off_route_desc),
+                        // The footnote below belongs to THIS row — a hairline
+                        // between them would sever it.
+                        divider = false
+                    ) {
+                        Switch(
+                            checked = current.offRouteAlertsEnabled,
+                            onCheckedChange = { viewModel.setOffRouteAlertsEnabled(it) }
+                        )
+                    }
+                    // Strava-style section footnote: the number behind the
+                    // toggle (60 m) is not guessable from the label alone, so
+                    // it gets one plain sentence instead of a mystery switch.
+                    Text(
+                        stringResource(R.string.rec_options_off_route_footnote),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 36.dp, end = 14.dp, top = 2.dp, bottom = 10.dp)
+                    )
                 }
 
                 SettingsSection(stringResource(R.string.units_section)) {
@@ -333,6 +357,7 @@ internal fun SettingsContent(
                         icon = Icons.Default.CleaningServices,
                         title = stringResource(R.string.cache),
                         subtitle = cacheSize?.let { formatStorageBytes(it) } ?: stringResource(R.string.calculating),
+                        divider = false,
                         trailing = {
                             TextButton(onClick = {
                                 viewModel.clearCache()
@@ -340,7 +365,7 @@ internal fun SettingsContent(
                             }) { Text(stringResource(R.string.clear_cache)) }
                         }
                     )
-                    Row(Modifier.padding(start = 40.dp, end = 14.dp, bottom = 10.dp)) {
+                    Row(Modifier.padding(start = 36.dp, end = 14.dp, bottom = 10.dp)) {
                         Text(
                             stringResource(R.string.cache_permanent),
                             style = MaterialTheme.typography.labelMedium,
@@ -352,7 +377,7 @@ internal fun SettingsContent(
                         stringResource(R.string.storage_title),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 2.dp)
+                        modifier = Modifier.padding(start = 36.dp, top = 4.dp, bottom = 2.dp)
                     )
                     Text(
                         stringResource(
@@ -483,29 +508,28 @@ internal fun SettingsContent(
     }
 }
 
-/** One grouped section: small colored header above a bordered card whose
- *  children share the card's background. Keeps every section visually
- *  identical (same radius/border/padding) so the page reads as one system. */
+/** One grouped section. Reference-app anatomy (2026-11 restyle): a neutral
+ *  uppercase band label over FLAT rows separated by hairlines — no bordered
+ *  card per section. The old version was a green label above a bordered box,
+ *  which both spent the accent color on decoration (it is supposed to mean
+ *  "status") and stacked card-in-card, the two things that made the page
+ *  read as a generated template rather than an app screen. */
 @Composable
 private fun SettingsSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Text(
-        title,
+        // Locale.ROOT on purpose: this is a visual band, not copy — Turkish
+        // dotless-i style transformations must never touch it.
+        title.uppercase(java.util.Locale.ROOT),
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+        letterSpacing = 0.8.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 2.dp, top = 18.dp, bottom = 4.dp)
     )
-    Card(
-        shape = RoundedCornerShape(NyasarRadius.md),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-    ) {
-        Column(Modifier.fillMaxWidth(), content = content)
-    }
-    Spacer(Modifier.height(16.dp))
+    Column(Modifier.fillMaxWidth(), content = content)
 }
 
 /** One settings row: 20dp leading icon, compact title + optional
@@ -513,9 +537,7 @@ private fun SettingsSection(
  *  click. Rows without a click still render identically — only the ripple
  *  differs. */
 @Composable
-private fun StorageBreakdownRow(icon: ImageVector, title: String, size: String?, count: Int?) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+private fun StorageBreakdownRow(icon: ImageVector, title: String, size: String?, count: Int?) {    Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -543,37 +565,52 @@ private fun SettingRow(
     subtitle: String? = null,
     iconTint: Color? = null,
     onClick: (() -> Unit)? = null,
+    /** Hairline under the row. Off for the last row of a section and for rows
+     *  followed by a footnote, which must read as part of the row above. */
+    divider: Boolean = true,
     trailing: @Composable RowScope.() -> Unit = {}
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(horizontal = 2.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
             )
-            if (subtitle != null) {
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                // One step up from the old bodyMedium/labelMedium pair: the
+                // title now outranks its own description, so the page has a
+                // hierarchy instead of two near-identical greys.
                 Text(
-                    subtitle,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
+            trailing()
         }
-        trailing()
+        if (divider) {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                modifier = Modifier.padding(start = 36.dp)
+            )
+        }
     }
 }
 
@@ -600,7 +637,7 @@ private fun RadioOption(label: String, selected: Boolean, onSelect: () -> Unit) 
         Modifier
             .fillMaxWidth()
             .selectable(selected = selected, onClick = onSelect)
-            .padding(start = 46.dp, end = 14.dp, top = 2.dp, bottom = 2.dp)
+            .padding(start = 36.dp, end = 14.dp, top = 2.dp, bottom = 2.dp)
             .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Check
@@ -544,6 +545,21 @@ fun RecordingScreen(
     val speedUnit by settingsRepository.settings
         .map { it.speedUnit }
         .collectAsState(initial = "kmh")
+    // Recording options sheet (gear, top-end): the three switches that change
+    // what happens DURING a session, reachable from the map instead of only
+    // from Settings. Same DataStore flow, so flipping one here is the same
+    // write the Settings screen performs.
+    val autoPauseEnabled by settingsRepository.settings
+        .map { it.autoPauseEnabled }
+        .collectAsState(initial = true)
+    // Opt-in: `initial = false` matches SettingsRepository's own default, so
+    // the first frame before DataStore emits can never flash a hint the user
+    // has not asked for.
+    val offRouteAlertsEnabled by settingsRepository.settings
+        .map { it.offRouteAlertsEnabled }
+        .collectAsState(initial = false)
+    val optionsScope = rememberCoroutineScope()
+    var showOptionsSheet by remember { mutableStateOf(false) }
     val view = androidx.compose.ui.platform.LocalView.current
     DisposableEffect(keepScreenOn, state.status) {
         val shouldKeepOn = keepScreenOn && state.status != RecordingStatus.STOPPED
@@ -778,6 +794,26 @@ fun RecordingScreen(
     val userLatLng = if (state.currentLat != null && state.currentLon != null) {
         LatLng(state.currentLat!!, state.currentLon!!)
     } else previewLocation?.let { LatLng(it.lat, it.lon) }
+
+    // Off-route distance (optional safety hint, Paket D): TrackMatcher already
+    // owns the segment math NavigationService uses, so this reuses it instead
+    // of open-coding a second polyline walk. Built once per attached route
+    // (O(n)), queried once per GPS fix (O(n) — same cost navigation pays).
+    val routeMatcher = remember(previewTrack) {
+        if (previewTrack.size >= 2) com.nyasar.app.navigation.TrackMatcher(previewTrack) else null
+    }
+    // NOTE: TrackMatcher/GeoMath speak their own LatLng (navigation package),
+    // NOT MapLibre's — converted explicitly here; passing userLatLng directly
+    // is a type error, not just a stylistic difference.
+    val offRouteMeters = remember(routeMatcher, state.currentLat, state.currentLon, previewLocation) {
+        val position = if (state.currentLat != null && state.currentLon != null) {
+            com.nyasar.app.navigation.LatLng(state.currentLat!!, state.currentLon!!)
+        } else {
+            previewLocation?.let { com.nyasar.app.navigation.LatLng(it.lat, it.lon) }
+        }
+        if (routeMatcher == null || position == null) null
+        else routeMatcher.match(position)?.distanceFromTrackMeters
+    }
 
     // Camera/follow/orientation state (spec P3 §14-16, gap closed —
     // previously followUser was hardcoded true with no manual-pan escape,
@@ -1140,6 +1176,89 @@ fun RecordingScreen(
                 .safeDrawingPadding()
                 .padding(top = 12.dp, end = 12.dp)
         )
+
+        // Recording options — gear under the compass (same corner the
+        // reference app parks it in). Deliberately NOT a new row inside the
+        // stat card: the card already owns an expand affordance, and a second
+        // control there fought it. Same map-control recipe as the buttons
+        // below (theme surface, shared elevation tokens, press spring).
+        val optionsInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        Surface(
+            onClick = { showOptionsSheet = true },
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
+            shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .safeDrawingPadding()
+                .padding(top = 68.dp, end = 12.dp)
+                .size(44.dp)
+                .pressScale(optionsInteraction)
+        ) {
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = stringResource(R.string.rec_options_cd),
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(10.dp)
+            )
+        }
+
+        // Off-route hint — only while recording on an attached route, only
+        // when the pref is on, and only while no other top-lane banner is
+        // already talking. That lane holds exactly ONE message by design
+        // (storage/GPS banners are mutually exclusive conditions); this one
+        // joins the same rotation instead of stacking on top of them.
+        val otherTopBanner = state.storageError || showLocationDeniedBanner ||
+            !viewModel.hasLocationServicesEnabled()
+        val showOffRouteHint = offRouteAlertsEnabled && routeMatcher != null &&
+            effectiveStatus == RecordingStatus.RECORDING && !otherTopBanner &&
+            offRouteMeters != null && offRouteMeters > OFF_ROUTE_THRESHOLD_METERS
+        if (showOffRouteHint) {
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    // Same top-overlay lane as the error banners (status bar
+                    // + 72dp) — guarded above so it never lands on top of one.
+                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    // tertiaryContainer, not errorContainer: straying from a
+                    // route is advice, not a failure — errors stay red.
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                    ) {
+                        Text(
+                            stringResource(
+                                R.string.off_route_hint,
+                                formatOffRouteDistance(offRouteMeters ?: 0.0)
+                            ),
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        // Mid-hike escape: one tap turns the alert off for
+                        // good (same DataStore write the sheet makes), so a
+                        // user who intentionally left the route is not
+                        // nagged every fix.
+                        TextButton(onClick = {
+                            optionsScope.launch { settingsRepository.setOffRouteAlertsEnabled(false) }
+                        }) {
+                            Text(
+                                stringResource(R.string.off_route_mute),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         // v7: crosshair waypoint picker — saved pin links to the live
         // activity (context set above), user can switch to independent
@@ -1572,6 +1691,24 @@ fun RecordingScreen(
                 showSportFilterSheet = false
             },
             onDismiss = { showSportFilterSheet = false }
+        )
+    }
+
+    if (showOptionsSheet) {
+        RecordingOptionsSheet(
+            autoPauseEnabled = autoPauseEnabled,
+            onAutoPauseChange = { enabled ->
+                optionsScope.launch { settingsRepository.setAutoPauseEnabled(enabled) }
+            },
+            keepScreenOn = keepScreenOn,
+            onKeepScreenOnChange = { enabled ->
+                optionsScope.launch { settingsRepository.setKeepScreenOnWhileRecording(enabled) }
+            },
+            offRouteAlertsEnabled = offRouteAlertsEnabled,
+            onOffRouteAlertsChange = { enabled ->
+                optionsScope.launch { settingsRepository.setOffRouteAlertsEnabled(enabled) }
+            },
+            onDismiss = { showOptionsSheet = false }
         )
     }
 
@@ -2455,6 +2592,18 @@ private fun SummaryRow(label: String, value: String) {
 @Composable
 private fun Modifier.verticalScrollCompat(): Modifier =
     this.then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))
+
+/** Straying more than this from the attached route raises the hint. Wide
+ *  on purpose: a forest trail's own GPX is noisy and a phone's GPS wanders
+ *  ±10–15 m under canopy, so a tight threshold would cry wolf. */
+private const val OFF_ROUTE_THRESHOLD_METERS = 60.0
+
+/** "120 m" / "1,4 km" — coarse on purpose (rounded to 10 m): the hint is a
+ *  nudge, not a measurement, and a jittering "117 m→123 m→118 m" reads as
+ *  broken rather than informative. */
+private fun formatOffRouteDistance(meters: Double): String =
+    if (meters < 1000.0) "${((meters / 10.0).roundToInt() * 10)} m"
+    else "%.1f km".format(meters / 1000.0)
 
 private fun formatDuration(ms: Long): String {
     val totalSeconds = ms / 1000

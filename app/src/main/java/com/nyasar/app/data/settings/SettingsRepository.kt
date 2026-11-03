@@ -21,6 +21,14 @@ data class AppSettings(
     /** Speed unit setting: "kmh" or "mph". Applied consistently across
      *  recording, activity, navigation, statistics, history, and route info. */
     val speedUnit: String = "kmh",
+    /** Off-route warning while a route is attached ("Menyimpang X m dari
+     *  jalur"). OPT-IN (default off) per user decision: leaving the route is
+     *  often deliberate on a hike, so the app stays quiet until the user
+     *  asks to be warned. Turned on from the recording options sheet (gear),
+     *  and turned back off either there or from "Diamkan" on the banner
+     *  itself. Read live (not snapshotted at session start) so that in-session
+     *  action takes effect immediately. */
+    val offRouteAlertsEnabled: Boolean = false,
     /** Last basemap picked in the in-map BasemapPickerSheet, persisted by
      *  BasemapEntry.gpxKey (stable id, survives renames and removals —
      *  see BasemapEntry.fromId's fallback note: an id that no longer
@@ -93,6 +101,7 @@ class SettingsRepository(private val context: Context) {
         val KEEP_SCREEN_ON = androidx.datastore.preferences.core.booleanPreferencesKey("keep_screen_on_recording")
         val AUTO_PAUSE = androidx.datastore.preferences.core.booleanPreferencesKey("auto_pause_enabled")
         val SPEED_UNIT = stringPreferencesKey("speed_unit") // "kmh" | "mph"
+        val OFF_ROUTE_ALERTS = androidx.datastore.preferences.core.booleanPreferencesKey("off_route_alerts_enabled")
         val BASEMAP_ID = stringPreferencesKey("basemap_id") // BasemapEntry.gpxKey
         val OVERLAY_IDS = androidx.datastore.preferences.core.stringSetPreferencesKey("overlay_ids") // OverlayLayer.id
         val MY_ROUTES_OVERLAY = androidx.datastore.preferences.core.booleanPreferencesKey("my_routes_overlay_enabled")
@@ -110,6 +119,7 @@ class SettingsRepository(private val context: Context) {
             keepScreenOnWhileRecording = prefs[Keys.KEEP_SCREEN_ON] ?: true,
             autoPauseEnabled = prefs[Keys.AUTO_PAUSE] ?: true,
             speedUnit = prefs[Keys.SPEED_UNIT] ?: "kmh",
+            offRouteAlertsEnabled = prefs[Keys.OFF_ROUTE_ALERTS] ?: false,
             basemapId = prefs[Keys.BASEMAP_ID] ?: "libertyTopo",
             overlayIds = prefs[Keys.OVERLAY_IDS] ?: emptySet(),
             myRoutesOverlayEnabled = prefs[Keys.MY_ROUTES_OVERLAY] ?: true,
@@ -147,6 +157,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setSpeedUnit(unit: String) {
         context.dataStore.edit { it[Keys.SPEED_UNIT] = unit }
+    }
+
+    suspend fun setOffRouteAlertsEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.OFF_ROUTE_ALERTS] = enabled }
     }
 
     /** Persist the 9-basemap picker selection. Called from every screen that

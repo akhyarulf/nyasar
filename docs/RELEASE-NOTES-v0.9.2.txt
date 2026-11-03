@@ -5,6 +5,22 @@ setelah HP di-reboot (mohon tunggu 1–2 menit setelah boot sampai kartu
 notifikasi "Recording aktif" muncul lagi). Sesi yang sudah kamu PAUSE
 tetap pause — tidak dipaksa jalan sendiri.
 
+Fitur baru:
+- Riwayat kini punya filter Olahraga + chip bulan yang bisa dipilih
+  bersamaan (AND), pencarian nama aktivitas, pengurutan (Terbaru /
+  Terlama / Terjauh), dan baris ringkasan "jumlah aktivitas · total km"
+  yang mengikuti tampilan — saat filter bulan aktif, bulannya ikut
+  disebut. Label bulan dan tanggal juga kini ikut bahasa pilihan kamu
+  (EN: "January 2026").
+- Saat login di perangkat baru membawa data cloud, dialog "Data
+  dipulihkan dari cloud" muncul sekali dengan ringkasan jumlah rute /
+  aktivitas yang dipulihkan (dan yang dilewati).
+- Banner peringatan di layar rekam ketika rute terpasang titik awalnya
+  di luar area peta offline, lengkap dengan tombol "Unduh Area".
+- Cek "Rute serupa terdeteksi" sebelum menyimpan aktivitas yang titik
+  awalnya kurang dari 50 m dari titik awal rute milikmu sendiri — pilih
+  "Batal" atau "Tetap Simpan".
+
 Catatan penting:
 - Guard usia 24 jam: sesi lebih tua dari 24 jam tidak di-resume otomatis.
 - Force-Stop dari Pengaturan sistem tetap memblokir auto-resume sampai

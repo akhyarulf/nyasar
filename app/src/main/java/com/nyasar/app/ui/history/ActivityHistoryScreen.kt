@@ -59,7 +59,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.pressScale
-import com.nyasar.app.ui.theme.NyasarRadius
 
 /**
  * Card-per-activity layout (spec ref: Strava's Activities feed) — was a
@@ -211,8 +210,11 @@ private fun ActivityHistoryContent(
                         } else {
                             LazyColumn(
                                 Modifier.weight(1f),
-                                contentPadding = PaddingValues(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                                // No horizontal padding: the feed rows are
+                                // full-bleed now (map included), separated by
+                                // hairlines instead of floating in a margin.
+                                contentPadding = PaddingValues(vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                             items(state.activities, key = { it.id }) { activity ->
                                 // Staggered entrance — each card fades+rises
@@ -282,8 +284,12 @@ private fun HistoryFilterBar(
                             viewModel.setSportFilter(if (sportFilter == sport) null else sport)
                         },
                         label = {
+                            // Same UNSPECIFIED → Hike fallback the cards use:
+                            // the raw HelpOutline glyph put a "?" in the filter
+                            // bar, which reads as "this filter is broken".
                             Icon(
-                                SportType.fromString(sport).icon,
+                                (SportType.fromString(sport).takeIf { it != SportType.UNSPECIFIED }
+                                    ?: SportType.HIKE).icon,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -301,10 +307,13 @@ private fun HistoryFilterBar(
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // "Semua bulan", not a second identical "All" pill: two
+                // look-alike "All" chips stacked in adjacent rows left it
+                // ambiguous which one meant "everything".
                 FilterChip(
                     selected = monthFilter == null,
                     onClick = { viewModel.setMonthFilter(null) },
-                    label = { Text(stringResource(com.nyasar.app.R.string.filter_all)) }
+                    label = { Text(stringResource(com.nyasar.app.R.string.filter_all_months)) }
                 )
                 monthOptions.forEach { bucket ->
                     FilterChip(
@@ -417,9 +426,10 @@ private fun HistorySummaryStrip(
     totalMeters: Double,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = RoundedCornerShape(NyasarRadius.md),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+    // Only a weight change, no filled strip: this line is information, not a
+    // control. The old rounded surfaceVariant bar read as a disabled button
+    // and out-shouted the selected filter chip right above it.
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
@@ -442,7 +452,7 @@ private fun HistorySummaryStrip(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+            modifier = Modifier.padding(vertical = 8.dp)
         )
     }
 }
@@ -477,11 +487,14 @@ private fun ActivityCard(
         )
     }
 
-    Surface(
-        shape = RoundedCornerShape(NyasarRadius.md),
-        tonalElevation = 2.dp,
-        modifier = Modifier
+    // Feed row, not a card: full-bleed with a hairline on top, so the map can
+    // run edge to edge (reference-app anatomy). A rounded tile with 16dp side
+    // margins pushed the map into a small inset frame and made every row look
+    // like an equal-weight widget instead of a feed entry.
+    Column(
+        Modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
             .pressScale(cardInteraction)
             .clickable(
                 interactionSource = cardInteraction,
@@ -489,6 +502,7 @@ private fun ActivityCard(
                 onClick = onClick
             )
     ) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Column {
             Column(Modifier.padding(16.dp)) {
                 // Header: icon + sport label + date
@@ -689,28 +703,35 @@ private fun ActivityCard(
                 }
             }
 
-            // Action row at bottom — two share buttons (GPX + Card), centered
+            // Action row: two share targets, evenly spread across the full
+            // width like a feed footer (reference-app anatomy) instead of two
+            // small icons huddled in the middle of an otherwise empty bar.
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.Center,
+                    .padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onShareGpx, modifier = Modifier.size(40.dp)) {
+                IconButton(
+                    onClick = onShareGpx,
+                    modifier = Modifier.weight(1f).height(48.dp)
+                ) {
                     Icon(
                         Icons.Default.Share,
                         contentDescription = stringResource(R.string.bagikan_gpx),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(22.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = onShare, modifier = Modifier.size(40.dp)) {
+                IconButton(
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f).height(48.dp)
+                ) {
                     Icon(
                         Icons.Default.Image,
                         contentDescription = stringResource(R.string.share_card_cd),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(22.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

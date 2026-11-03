@@ -261,6 +261,7 @@
     <string name="rec_options_keep_screen_on_desc">Selama sesi rekam berjalan</string>
     <string name="rec_options_off_route">Peringatan menyimpang</string>
     <string name="rec_options_off_route_desc">Ingatkan saat menjauh dari jalur</string>
+    <string name="filter_all_months">Semua bulan</string>
     <string name="rec_options_off_route_footnote">Peringatan muncul saat kamu lebih dari 60 m dari jalur terpasang — tidak pernah saat tanpa rute.</string>
     <string name="off_route_hint">Menyimpang %1$s dari jalur</string>
     <string name="off_route_mute">Diamkan</string>

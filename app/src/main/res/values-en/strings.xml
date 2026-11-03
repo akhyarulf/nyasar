@@ -261,6 +261,7 @@
     <string name="rec_options_keep_screen_on_desc">While a recording is running</string>
     <string name="rec_options_off_route">Off-route alerts</string>
     <string name="rec_options_off_route_desc">Warn me when I stray from the route</string>
+    <string name="filter_all_months">All months</string>
     <string name="rec_options_off_route_footnote">The alert appears when you are more than 60 m off the attached route — never when no route is attached.</string>
     <string name="off_route_hint">%1$s off the route</string>
     <string name="off_route_mute">Mute</string>

@@ -816,6 +816,7 @@
     <string name="browse_sort_most_liked">Most liked</string>
     <string name="browse_sort_distance_asc">Shortest distance</string>
     <string name="browse_sort_distance_desc">Longest distance</string>
+    <string name="browse_sort_cd">Sort</string>
     <string name="browse_empty_all">No public routes yet. Be the first to publish from your Activity!</string>
     <string name="browse_empty_search">No routes match this search/filter</string>
     <string name="browse_error_network">Connection problem — check your internet and try again</string>

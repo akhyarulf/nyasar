@@ -79,6 +79,13 @@ fun ActivityHistoryScreen(
 ) {
     // Standalone wrapper (kept for the "profile?tab=history" nested entry,
     // which needs its own back arrow): same content, own Scaffold header.
+    //
+    // The filter trigger lives in that header now (reference-app placement:
+    // controls in the bar, one full-width search field below it) — hence the
+    // sheet state sits here rather than inside the content.
+    var showFilters by remember { mutableStateOf(false) }
+    val sportFilter by viewModel.sportFilter.collectAsState()
+    val monthFilter by viewModel.monthFilter.collectAsState()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -86,6 +93,18 @@ fun ActivityHistoryScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+                actions = {
+                    // Green only when a filter is applied: the icon is a
+                    // state readout, not a permanently lit button.
+                    IconButton(onClick = { showFilters = true }) {
+                        Icon(
+                            Icons.Default.Tune,
+                            contentDescription = stringResource(R.string.history_filter_button),
+                            tint = if (sportFilter != null || monthFilter != null) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             )
@@ -100,6 +119,9 @@ fun ActivityHistoryScreen(
                 emptyCta = onBack
             )
         }
+    }
+    if (showFilters) {
+        HistoryFilterSheet(viewModel = viewModel, onDismiss = { showFilters = false })
     }
 }
 
@@ -138,8 +160,6 @@ private fun ActivityHistoryContent(
     val state by viewModel.uiState.collectAsState()
     val thumbnails by viewModel.thumbnails.collectAsState()
     val monthFilter by viewModel.monthFilter.collectAsState()
-    val sportFilter by viewModel.sportFilter.collectAsState()
-    var showFilters by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         when (state.loadState) {
@@ -155,21 +175,14 @@ private fun ActivityHistoryContent(
                     )
                 }
                 HistoryLoadState.LOADED -> {
-                    // One control row (search + filter pill) and a summary
-                    // line sit between the header and the feed; the chips
-                    // themselves live in a sheet behind the pill. The row
-                    // renders as nothing until there is data (or a filter is
-                    // on), so a fresh history still looks like a plain list.
+                    // One full-width search field and a summary line sit
+                    // between the header and the feed; filters/sort live in
+                    // the sheet behind the header icon. Both render as
+                    // nothing until there is data (or a filter is on), so a
+                    // fresh history still looks like a plain list.
                     Column(Modifier.fillMaxSize()) {
                         if (state.activities.isNotEmpty() || state.filtersActive) {
-                            // State comes from the applied filters only — sort
-                            // lives in the same sheet but is not a filter and
-                            // must not light the button up.
-                            HistorySearchFilterBar(
-                                viewModel = viewModel,
-                                filtersActive = sportFilter != null || monthFilter != null,
-                                onOpenFilters = { showFilters = true }
-                            )
+                            HistorySearchBar(viewModel)
                         }
                         if (state.activities.isNotEmpty()) {
                             HistorySummaryStrip(
@@ -246,18 +259,11 @@ private fun ActivityHistoryContent(
                     }                            // Column (filter bar + list) close
                 }                                // LOADED branch close
             }                                    // when close
-            if (showFilters) {
-                HistoryFilterSheet(
-                    viewModel = viewModel,
-                    onDismiss = { showFilters = false }
-                )
-            }
         }                                        // Box close
     }
 
 /**
- * Filter + sort sheet, opened by the primary pill in
- * [HistorySearchFilterBar].
+ * Filter + sort sheet, opened by the filter icon in the screen header.
  *
  * Live-applied on purpose: history is already in memory, so a chip toggles
  * the list instantly and there is nothing to "Apply" — a draft copy would
@@ -267,7 +273,7 @@ private fun ActivityHistoryContent(
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun HistoryFilterSheet(
+internal fun HistoryFilterSheet(
     viewModel: ActivityHistoryViewModel,
     onDismiss: () -> Unit
 ) {
@@ -447,28 +453,23 @@ private fun formatMonthKey(key: String, locale: Locale): String =
     }.getOrNull() ?: key
 
 /**
- * Search + filter row — the "find trails / Filters" anatomy: one filled
- * search pill that owns the row's width, and ONE filled primary pill that
- * opens the filter sheet. Replaces the old outlined search + sort icon +
- * two permanently visible chip rows: three controls and ~110dp of chrome
- * sat above the first activity, so the feed started below the fold on a
- * 5" phone. Filters are now summonable, and the row states plainly whether
- * any are on — the button itself turns green.
+ * Full-width search field for the feed head. Filters and sort live in the
+ * sheet behind the header icon, so this row holds exactly one control —
+ * the reference app's activities screen has one wide field under the tabs
+ * and nothing beside it. Replaces the old outlined search + sort icon + two
+ * permanently visible chip rows, which put ~110dp of chrome above the first
+ * activity and pushed the feed below the fold on a 5" phone.
  */
 @Composable
-private fun HistorySearchFilterBar(
+private fun HistorySearchBar(
     viewModel: ActivityHistoryViewModel,
-    filtersActive: Boolean,
-    onOpenFilters: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
-    Row(
+    Box(
         modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
     ) {
         // Filled, not outlined: an outline pill on the near-black canvas read
         // as a wireframe box. Filled surfaceContainerHigh gives it the same
@@ -476,7 +477,7 @@ private fun HistorySearchFilterBar(
         TextField(
             value = searchQuery,
             onValueChange = { viewModel.setSearchQuery(it) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             placeholder = {
                 Text(
                     stringResource(R.string.history_search_hint),
@@ -499,29 +500,6 @@ private fun HistorySearchFilterBar(
                 disabledIndicatorColor = Color.Transparent
             )
         )
-        // Icon-only, quiet by default. A secondary control must not hold the
-        // screen's accent — that belongs to Record — so green here means
-        // "filters are on", not "this is a button". 56dp matches the search
-        // field so the row keeps a single height; the label and the count
-        // badge now live only in the sheet, which already spells out what is
-        // applied (and the sheet title is the same word this icon means).
-        Surface(
-            onClick = onOpenFilters,
-            shape = RoundedCornerShape(50),
-            color = if (filtersActive) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.size(56.dp)
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Default.Tune,
-                    contentDescription = stringResource(R.string.history_filter_button),
-                    tint = if (filtersActive) MaterialTheme.colorScheme.onPrimaryContainer
-                           else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
     }
 }
 
@@ -705,10 +683,15 @@ private fun ActivityCard(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    // Right-aligned third block — the reference app parks
+                    // its last column flush with the text margin instead of
+                    // spacing three equal weights, which is what gives the
+                    // stat row its asymmetric, deliberate rhythm.
                     StatColumn(
                         label = stringResource(R.string.time),
                         value = formatDuration(activity.elapsedTimeMs),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        alignEnd = true
                     )
                 }
             }
@@ -839,8 +822,11 @@ private fun ActivityCard(
                     Icon(
                         Icons.Default.Share,
                         contentDescription = stringResource(R.string.bagikan_gpx),
-                        modifier = Modifier.size(22.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        // Full-strength icon, 24dp: the reference footer's
+                        // glyphs are as bright as the title above them, not
+                        // a muted "disabled-looking" tint.
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 IconButton(
@@ -850,8 +836,8 @@ private fun ActivityCard(
                     Icon(
                         Icons.Default.Image,
                         contentDescription = stringResource(R.string.share_card_cd),
-                        modifier = Modifier.size(22.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -864,21 +850,30 @@ private fun ActivityCard(
  *  body copy, so a card had no focal point — the eye landed on the title and
  *  stopped. 24sp bold over 14sp regular is the whole trick. */
 @Composable
-private fun StatColumn(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier) {
+private fun StatColumn(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    alignEnd: Boolean = false
+) {
+    val alignment = if (alignEnd) Alignment.End else Alignment.Start
+    val textAlign = if (alignEnd) TextAlign.End else TextAlign.Start
+    Column(modifier, horizontalAlignment = alignment) {
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            textAlign = textAlign
         )
         Text(
             value,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            textAlign = textAlign
         )
     }
 }

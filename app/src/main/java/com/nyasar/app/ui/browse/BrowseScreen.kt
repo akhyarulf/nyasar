@@ -3,6 +3,7 @@
 package com.nyasar.app.ui.browse
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,20 +91,65 @@ fun BrowseScreen(
     val savePending by viewModel.savePending.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    // Filter + sort live in the header as icon-only actions (reference feed
+    // anatomy: a title with a row of glyphs, no control bar eating the first
+    // 60dp of the list). Filter is green only while it is applied — colour as
+    // state, not decoration. Hoisted here because both the header and the
+    // sheet need them.
+    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
+    val activeFilters by viewModel.appliedCount.collectAsState()
+    val currentSort = viewModel.currentSort()
+
     Scaffold(
         topBar = {
             NyasarTabHeader(
-                title = stringResource(R.string.browse_title)
+                title = stringResource(R.string.browse_title),
                 // Subtitle dihapus (feedback user 2026-09): tagline tidak
                 // menambah informasi, header cukup judul + aksi saja.
+                actions = {
+                    var sortMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { sortMenu = true }) {
+                            Icon(
+                                Icons.Default.SwapVert,
+                                contentDescription = stringResource(R.string.browse_sort_cd),
+                                // Same rule as the filter glyph: green means
+                                // "not the default state", so an active sort
+                                // is visible without a label.
+                                tint = if (currentSort != BrowseRepository.SortOrder.NEWEST)
+                                           MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                            BrowseRepository.SortOrder.entries.forEach { s ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(s.labelRes)) },
+                                    onClick = {
+                                        viewModel.onSortSelected(s)
+                                        sortMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    IconButton(onClick = { showFilterSheet = true }) {
+                        Icon(
+                            Icons.Default.Tune,
+                            contentDescription = stringResource(R.string.history_filter_button),
+                            tint = if (activeFilters > 0) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
             )
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            // Search + filter/sort share ONE inset block (16dp sides, 12dp
-            // top, 8dp between) so the controls read as a single attached
-            // cluster under the header — not two separately-floated rows
-            // with air between them.
+            // One control under the header: the search field, full width.
+            // Filter and sort moved into the header as icon-only actions, so
+            // the first route starts ~60dp higher than it used to and the
+            // feed reads as content instead of a control panel.
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::onQueryChanged,
@@ -128,61 +176,10 @@ fun BrowseScreen(
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp)
             )
 
-            // Filter/sort row (Wikiloc concept): a search-weighted Filters
-            // chip opens BrowseFilterSheet (draft edits, applied on Apply);
-            // sort stays an instant dropdown. The badge shows the APPLIED
-            // active count (StateFlow — recomposes on apply/clear) so it
-            // stays truthful while sheet edits are still draft.
-            var showFilterSheet by rememberSaveable { mutableStateOf(false) }
-            val currentSort = viewModel.currentSort()
-            val activeFilters by viewModel.appliedCount.collectAsState()
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = activeFilters > 0,
-                    onClick = { showFilterSheet = true },
-                    label = { Text(stringResource(R.string.browse_filter_filters), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                )
-                if (activeFilters > 0) {
-                    Surface(
-                        shape = RoundedCornerShape(NyasarRadius.pill),
-                        color = MaterialTheme.colorScheme.primary
-                    ) {
-                        Text(
-                            activeFilters.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-                Spacer(Modifier.weight(1f))
-                Box {
-                    var sortMenu by remember { mutableStateOf(false) }
-                    FilterChip(
-                        selected = currentSort != BrowseRepository.SortOrder.NEWEST,
-                        onClick = { sortMenu = true },
-                        label = { Text(stringResource(currentSort.labelRes), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    )
-                    DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                        BrowseRepository.SortOrder.entries.forEach { s ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(s.labelRes)) },
-                                onClick = {
-                                    viewModel.onSortSelected(s)
-                                    sortMenu = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
+            // Summoned from the header's filter glyph. Same draft semantics as
+            // before: edits apply on "Terapkan", and the header glyph turns
+            // green from the APPLIED count (StateFlow), so it never claims a
+            // filter the list isn't actually using.
             if (showFilterSheet) {
                 BrowseFilterSheet(
                     viewModel = viewModel,
@@ -236,8 +233,10 @@ fun BrowseScreen(
                         )
                     } else {
                         LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            // Full-bleed feed rows: the map and the hairlines
+                            // run edge to edge, so the list itself carries no
+                            // side padding — only a bottom gap.
+                            contentPadding = PaddingValues(bottom = 16.dp),
                             // Filter chips row scrolls its own context; list
                             // items animate in with the shared stagger.
                             modifier = Modifier.fillMaxSize()
@@ -289,29 +288,37 @@ internal fun PublicRouteCard(
     onClick: () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
-    Surface(
-        shape = RoundedCornerShape(NyasarRadius.md),
-        tonalElevation = NyasarElevation.cardTonal,
-        modifier = Modifier
+    // Feed row, not a card: hairline on top, full-bleed map, no rounded inset
+    // frame. The rounded card with 16dp margins made every route look like an
+    // equal-weight widget; a feed entry earns its emphasis from the map and
+    // the numbers, not from a container.
+    Column(
+        Modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
             .pressScale(interaction)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Column {
-            // ── Strava card order: (1) publisher header, (2) route name,
-            // (3) description, (4) stats grid, (5) full-bleed map, then the
-            // like/comment/share action row. Box kept from the old design.
+            // ── Reference-feed order: (1) publisher byline, (2) route name,
+            // (3) description, (4) stat row, (5) full-bleed map, then the
+            // like/comment/save/share action row.
             //
-            // (1) Publisher header: avatar chip + username + age — the exact
-            //     anatomy of Strava's byline, over our own visual language.
+            // (1) Publisher header: avatar chip + username + date — the exact
+            //     anatomy of the reference byline, over our own visual language.
             Row(
                 Modifier.padding(horizontal = NyasarSpacing.lg, vertical = NyasarSpacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Rounded square, not a circle — the reference frames
+                // identities in a superellipse-ish tile, and that one shape
+                // choice is what stops the byline reading as a default
+                // Material list row.
                 Surface(
-                    shape = CircleShape,
+                    shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -333,7 +340,7 @@ internal fun PublicRouteCard(
                     )
                     Text(
                         formatRelativeDate(route.createdAt),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )
@@ -395,8 +402,12 @@ internal fun PublicRouteCard(
                     )
                 }
 
-                // (4) Stats grid — Strava's "label above, bold value below",
-                //     up to 3 tiles on phones: Distance / Elev Gain / Time.
+            // (4) Stat row — reference feed anatomy: small quiet label above,
+            //     numbers much larger and heavier below (bodyMedium /
+            //     headlineSmall). The old labelMedium/titleMedium pair made
+            //     every number read like body copy, so the card had no focal
+            //     point. Third block sits flush right, which is what gives the
+            //     row its asymmetric rhythm instead of three equal weights.
                 Spacer(Modifier.height(NyasarSpacing.md))
                 Row(Modifier.fillMaxWidth()) {
                     StatTile(
@@ -413,7 +424,8 @@ internal fun PublicRouteCard(
                         label = stringResource(R.string.stat_moving_time),
                         value = route.movingTimeMs?.takeIf { ms -> ms > 0 }
                             ?.let { ms -> formatCardDuration(ms) } ?: "—",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        alignEnd = true
                     )
                 }
             }
@@ -432,12 +444,19 @@ internal fun PublicRouteCard(
                 )
             }
 
-            // (6) Action row: like / comment / share — Strava's kudos row.
+            // (6) Action row — hairline, then four glyphs evenly spread
+            //     across the full width at full-strength onSurface. The old
+            //     row huddled 20dp muted icons inside text buttons, so the
+            //     footer read as a toolbar instead of a feed footer. Counts
+            //     stay beside their glyph so the number is still visible.
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = NyasarSpacing.sm, vertical = NyasarSpacing.xs),
+                Modifier.fillMaxWidth().padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
+                FeedActionSlot(
+                    icon = if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = stringResource(if (liked) R.string.browse_liked else R.string.browse_like),
                     onClick = {
                         if (SupabaseClientProvider.client.auth.currentSessionOrNull() != null) {
                             onToggleLike()
@@ -445,39 +464,23 @@ internal fun PublicRouteCard(
                             onRequireSignIn()
                         }
                     },
-                    enabled = !likePending
-                ) {
-                    Icon(
-                        imageVector = if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = null,
-                        tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (route.likesCount > 0) route.likesCount.toString() else "",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                TextButton(onClick = onOpenComments) {
-                    Icon(
-                        Icons.AutoMirrored.Outlined.Chat,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (route.commentsCount > 0) route.commentsCount.toString() else "",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(Modifier.weight(1f))
+                    tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    label = route.likesCount.takeIf { it > 0 }?.toString(),
+                    enabled = !likePending,
+                    modifier = Modifier.weight(1f)
+                )
+                FeedActionSlot(
+                    icon = Icons.AutoMirrored.Outlined.Chat,
+                    contentDescription = stringResource(R.string.browse_comment),
+                    onClick = onOpenComments,
+                    label = route.commentsCount.takeIf { it > 0 }?.toString(),
+                    modifier = Modifier.weight(1f)
+                )
                 // Save (bookmark) — Wikiloc-style private to-do, distinct
                 // from the public like. Filled = in the user's list.
-                IconButton(
+                FeedActionSlot(
+                    icon = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                    contentDescription = stringResource(if (saved) R.string.browse_saved else R.string.browse_save),
                     onClick = {
                         if (SupabaseClientProvider.client.auth.currentSessionOrNull() != null) {
                             onToggleSave()
@@ -485,44 +488,90 @@ internal fun PublicRouteCard(
                             onRequireSignIn()
                         }
                     },
-                    enabled = !savePending
-                ) {
-                    Icon(
-                        imageVector = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = stringResource(if (saved) R.string.browse_saved else R.string.browse_save),
-                        tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                IconButton(onClick = onShare) {
-                    Icon(
-                        Icons.Default.Share,
-                        contentDescription = stringResource(R.string.browse_share_route),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                    tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    enabled = !savePending,
+                    modifier = Modifier.weight(1f)
+                )
+                FeedActionSlot(
+                    icon = Icons.Default.Share,
+                    contentDescription = stringResource(R.string.browse_share_route),
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
 }
 
-/** Strava stat tile: small muted label above a bold value. */
+/**
+ * Feed stat block: quiet label on top, number much larger and heavier below.
+ * [alignEnd] parks the last block flush with the right text margin — that
+ * asymmetry, not three equal columns, is what makes a stat row look designed.
+ */
 @Composable
-private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier) {
+private fun StatTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    alignEnd: Boolean = false
+) {
+    Column(
+        modifier,
+        horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start
+    ) {
         Text(
             label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            textAlign = if (alignEnd) androidx.compose.ui.text.style.TextAlign.End
+                        else androidx.compose.ui.text.style.TextAlign.Start
         )
         Text(
             value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+/** One slot of the feed footer: 48dp tall, glyph centred inside its share of
+ *  the width, count beside it when there is one. */
+@Composable
+private fun FeedActionSlot(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurface,
+    label: String? = null,
+    enabled: Boolean = true
+) {
+    Box(modifier.height(48.dp), contentAlignment = Alignment.Center) {
+        Row(
+            Modifier
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(24.dp),
+                tint = tint
+            )
+            if (label != null) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

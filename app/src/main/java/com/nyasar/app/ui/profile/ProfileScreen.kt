@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,6 +94,17 @@ fun ProfileScreen(
     // "profile" instance was already on the back stack).
     LaunchedEffect(initialTab) { selectedTab = initialTab.ordinal }
 
+    // History filters: the trigger sits in the page header (reference-app
+    // placement — controls in the bar, content below), so the sheet state
+    // lives here instead of inside the embedded history pane. This is the
+    // same ViewModel instance that pane resolves: both go through this
+    // destination's ViewModelStore, so toggling here filters the list there.
+    val historyViewModel: com.nyasar.app.ui.history.ActivityHistoryViewModel = viewModel()
+    val historySportFilter by historyViewModel.sportFilter.collectAsState()
+    val historyMonthFilter by historyViewModel.monthFilter.collectAsState()
+    var showHistoryFilters by rememberSaveable { mutableStateOf(false) }
+    val historyFiltersActive = historySportFilter != null || historyMonthFilter != null
+
     val tabRow = @Composable {
         // Secondary-style tab row: full-width underline + labelMedium caps
         // feels lighter than the primary indicator bar, and the hairline
@@ -131,6 +144,18 @@ fun ProfileScreen(
             NyasarTabHeader(
                 title = stringResource(R.string.profile_title),
                 actions = {
+                    if (selectedTab == ProfileTab.HISTORY.ordinal) {
+                        // Green = a filter is applied (state), otherwise a
+                        // plain toolbar glyph like the reference's icons.
+                        IconButton(onClick = { showHistoryFilters = true }) {
+                            Icon(
+                                Icons.Default.Tune,
+                                contentDescription = stringResource(R.string.history_filter_button),
+                                tint = if (historyFiltersActive) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                     TabHeaderAction(
                         icon = Icons.Default.Settings,
                         contentDescription = stringResource(R.string.settings),
@@ -179,6 +204,16 @@ fun ProfileScreen(
                         }
                     },
                     actions = {
+                        if (selectedTab == ProfileTab.HISTORY.ordinal) {
+                            IconButton(onClick = { showHistoryFilters = true }) {
+                                Icon(
+                                    Icons.Default.Tune,
+                                    contentDescription = stringResource(R.string.history_filter_button),
+                                    tint = if (historyFiltersActive) MaterialTheme.colorScheme.primary
+                                           else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                         IconButton(onClick = onOpenSettings) {
                             Icon(
                                 Icons.Default.Settings,
@@ -211,6 +246,15 @@ fun ProfileScreen(
                 }
             }
         }
+    }
+
+    // Sibling of both hosts above: a ModalBottomSheet is its own overlay, so
+    // it doesn't need to live inside either branch's layout.
+    if (showHistoryFilters) {
+        com.nyasar.app.ui.history.HistoryFilterSheet(
+            viewModel = historyViewModel,
+            onDismiss = { showHistoryFilters = false }
+        )
     }
 }
 

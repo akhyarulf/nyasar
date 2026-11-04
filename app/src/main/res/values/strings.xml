@@ -816,6 +816,7 @@
     <string name="browse_sort_most_liked">Terbanyak disukai</string>
     <string name="browse_sort_distance_asc">Jarak terpendek</string>
     <string name="browse_sort_distance_desc">Jarak terjauh</string>
+    <string name="browse_sort_cd">Urutkan</string>
     <string name="browse_empty_all">Belum ada rute publik. Jadilah yang pertama publish dari Activity-mu!</string>
     <string name="browse_empty_search">Tidak ada rute yang cocok dengan pencarian/filter ini</string>
     <string name="browse_error_network">Koneksi bermasalah — cek internet lalu coba lagi</string>

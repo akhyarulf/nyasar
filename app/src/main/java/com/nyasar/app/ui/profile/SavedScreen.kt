@@ -79,9 +79,11 @@ fun SavedEmbedded(
                 if (s.routes.isEmpty()) {
                     SavedEmptyState(Modifier.align(Alignment.Center))
                 } else {
+                    // Same full-bleed feed rows as Jelajah (the card is
+                    // shared), so the list carries no side padding — the row
+                    // itself owns its 16dp text inset and its hairlines.
                     LazyColumn(
-                        contentPadding = PaddingValues(NyasarSpacing.lg),
-                        verticalArrangement = Arrangement.spacedBy(NyasarSpacing.md),
+                        contentPadding = PaddingValues(bottom = NyasarSpacing.lg),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(s.routes, key = { it.id }) { route ->

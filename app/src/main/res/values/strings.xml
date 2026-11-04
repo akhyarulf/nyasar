@@ -241,8 +241,12 @@
     <string name="update_badge_subtitle">Kamu pakai versi %1$s — ketuk untuk unduh APK v%2$s dari GitHub Releases</string>
     <string name="history_filter_no_matches">Tidak ada aktivitas yang cocok dengan filter ini</string>
     <string name="history_filter_reset">Hapus filter</string>
+    <string name="history_filter_button">Filter</string>
+    <string name="history_filter_sport">Jenis olahraga</string>
+    <string name="history_filter_month">Bulan</string>
+    <string name="history_filter_sort">Urutan</string>
+    <string name="history_filter_done">Selesai</string>
     <string name="history_search_hint">Cari aktivitas</string>
-    <string name="history_sort_cd">Urutkan daftar riwayat</string>
     <string name="history_sort_newest">Terbaru</string>
     <string name="history_sort_oldest">Terlama</string>
     <string name="history_sort_farthest">Terjauh</string>

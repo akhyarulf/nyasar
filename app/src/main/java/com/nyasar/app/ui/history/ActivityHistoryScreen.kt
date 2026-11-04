@@ -5,8 +5,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,12 +15,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import com.nyasar.app.recording.ShareMetric
 import com.nyasar.app.recording.SportType
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.map.providers.TileProviderFactory
@@ -138,6 +138,8 @@ private fun ActivityHistoryContent(
     val state by viewModel.uiState.collectAsState()
     val thumbnails by viewModel.thumbnails.collectAsState()
     val monthFilter by viewModel.monthFilter.collectAsState()
+    val sportFilter by viewModel.sportFilter.collectAsState()
+    var showFilters by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         when (state.loadState) {
@@ -153,17 +155,22 @@ private fun ActivityHistoryContent(
                     )
                 }
                 HistoryLoadState.LOADED -> {
-                    // v0.9.3: search + sort bar, filter bar (sport + bulan
-                    // chips, AND-combined) and a summary strip always sit
-                    // between the header and the list — they render as
-                    // nothing (no rows to advertise) until the data has
-                    // something to filter/sort/summarize, so a fresh history
-                    // looks exactly like it did before this feature.
+                    // One control row (search + filter pill) and a summary
+                    // line sit between the header and the feed; the chips
+                    // themselves live in a sheet behind the pill. The row
+                    // renders as nothing until there is data (or a filter is
+                    // on), so a fresh history still looks like a plain list.
                     Column(Modifier.fillMaxSize()) {
                         if (state.activities.isNotEmpty() || state.filtersActive) {
-                            HistorySearchSortBar(viewModel)
+                            // State comes from the applied filters only — sort
+                            // lives in the same sheet but is not a filter and
+                            // must not light the button up.
+                            HistorySearchFilterBar(
+                                viewModel = viewModel,
+                                filtersActive = sportFilter != null || monthFilter != null,
+                                onOpenFilters = { showFilters = true }
+                            )
                         }
-                        HistoryFilterBar(viewModel)
                         if (state.activities.isNotEmpty()) {
                             HistorySummaryStrip(
                                 monthKey = monthFilter,
@@ -239,16 +246,108 @@ private fun ActivityHistoryContent(
                     }                            // Column (filter bar + list) close
                 }                                // LOADED branch close
             }                                    // when close
+            if (showFilters) {
+                HistoryFilterSheet(
+                    viewModel = viewModel,
+                    onDismiss = { showFilters = false }
+                )
+            }
         }                                        // Box close
     }
 
 /**
- * v0.9.3 Riwayat filter bar (poin 1–3 saran): dua baris chip yang bisa
- * discroll horizontal — jenis olahraga + bulan. Digabung = AND. Opsi chip
- * diambil dari data (hanya jenis/bulan yang benar-benar ada), semua chip
- * awalnya tidak terpilih = "Semua", jadi riwayat yang masih sedikit
- * tampak persis seperti sebelum fitur ini ada.
+ * Filter + sort sheet, opened by the primary pill in
+ * [HistorySearchFilterBar].
+ *
+ * Live-applied on purpose: history is already in memory, so a chip toggles
+ * the list instantly and there is nothing to "Apply" — a draft copy would
+ * only introduce a second state that can disagree with the feed. The footer
+ * button therefore closes instead of confirming, and "Hapus filter" is the
+ * only reset.
  */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun HistoryFilterSheet(
+    viewModel: ActivityHistoryViewModel,
+    onDismiss: () -> Unit
+) {
+    val sortMode by viewModel.sortMode.collectAsState()
+    val sportFilter by viewModel.sportFilter.collectAsState()
+    val monthFilter by viewModel.monthFilter.collectAsState()
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+        ) {
+            Text(
+                stringResource(R.string.history_filter_button),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(14.dp))
+            HistoryFilterBar(viewModel)
+            Spacer(Modifier.height(16.dp))
+            FilterSectionTitle(stringResource(R.string.history_filter_sort))
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                HistorySort.entries.forEach { sort ->
+                    FilterChip(
+                        selected = sort == sortMode,
+                        onClick = { viewModel.setSortMode(sort) },
+                        label = { Text(stringResource(sort.labelRes)) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        // Footer outside the scroll area: with every chip row expanded on a
+        // short screen, "Selesai" must never be the thing that scrolls away.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 28.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(
+                onClick = {
+                    viewModel.setSportFilter(null)
+                    viewModel.setMonthFilter(null)
+                    viewModel.setSortMode(HistorySort.NEWEST)
+                },
+                enabled = sportFilter != null || monthFilter != null || sortMode != HistorySort.NEWEST
+            ) { Text(stringResource(R.string.history_filter_reset)) }
+            Spacer(Modifier.weight(1f))
+            Button(onClick = onDismiss) { Text(stringResource(R.string.history_filter_done)) }
+        }
+    }
+}
+
+/** Section label inside the filter sheet — same recipe as the Settings
+ *  screen's section headers, so sheets and settings read as one system. */
+@Composable
+private fun FilterSectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.8.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+/**
+ * Sheet body for the filter pill: sport + month chips as wrapped flows (no
+ * horizontal scrolling — a sheet is the one place where every option should
+ * be visible at once, and off-screen chips there read as a truncated list).
+ * Combined = AND; options come from the data, so only sports/months that
+ * actually exist are offered.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HistoryFilterBar(
     viewModel: ActivityHistoryViewModel,
@@ -263,14 +362,16 @@ private fun HistoryFilterBar(
     // sync with the LANGUAGE setting, so chip labels follow it (EN must
     // read "January 2026", not "Januari 2026").
     val locale = LocalConfiguration.current.locales[0]
-    Column(modifier) {
+    Column(
+        modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         if (sportOptions.size > 1) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            FilterSectionTitle(stringResource(R.string.history_filter_sport))
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 FilterChip(
                     selected = sportFilter == null,
@@ -300,12 +401,11 @@ private fun HistoryFilterBar(
             }
         }
         if (monthOptions.size > 1) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            FilterSectionTitle(stringResource(R.string.history_filter_month))
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 // "Semua bulan", not a second identical "All" pill: two
                 // look-alike "All" chips stacked in adjacent rows left it
@@ -347,67 +447,79 @@ private fun formatMonthKey(key: String, locale: Locale): String =
     }.getOrNull() ?: key
 
 /**
- * v0.9.3 Paket C: kolom search (nama aktivitas) + menu urut (Terbaru /
- * Terlama / Terjauh). Keduanya menyetel state ViewModel yang di-AND-kan
- * dengan chip olahraga/bulan — search tidak menggantikan filter, hanya
- * menyempitkannya; urutan berlaku setelah penyaringan.
+ * Search + filter row — the "find trails / Filters" anatomy: one filled
+ * search pill that owns the row's width, and ONE filled primary pill that
+ * opens the filter sheet. Replaces the old outlined search + sort icon +
+ * two permanently visible chip rows: three controls and ~110dp of chrome
+ * sat above the first activity, so the feed started below the fold on a
+ * 5" phone. Filters are now summonable, and the row states plainly whether
+ * any are on — the button itself turns green.
  */
 @Composable
-private fun HistorySearchSortBar(
+private fun HistorySearchFilterBar(
     viewModel: ActivityHistoryViewModel,
+    filtersActive: Boolean,
+    onOpenFilters: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val sortMode by viewModel.sortMode.collectAsState()
-    var sortMenuOpen by remember { mutableStateOf(false) }
     Row(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        OutlinedTextField(
+        // Filled, not outlined: an outline pill on the near-black canvas read
+        // as a wireframe box. Filled surfaceContainerHigh gives it the same
+        // weight as the reference app's search field.
+        TextField(
             value = searchQuery,
             onValueChange = { viewModel.setSearchQuery(it) },
             modifier = Modifier.weight(1f),
             placeholder = {
-                Text(stringResource(R.string.history_search_hint), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.history_search_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             },
             leadingIcon = {
                 Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp))
             },
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium,
-            shape = RoundedCornerShape(50)
+            shape = RoundedCornerShape(50),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent
+            )
         )
-        Spacer(Modifier.width(8.dp))
-        Box {
-            IconButton(onClick = { sortMenuOpen = true }) {
+        // Icon-only, quiet by default. A secondary control must not hold the
+        // screen's accent — that belongs to Record — so green here means
+        // "filters are on", not "this is a button". 56dp matches the search
+        // field so the row keeps a single height; the label and the count
+        // badge now live only in the sheet, which already spells out what is
+        // applied (and the sheet title is the same word this icon means).
+        Surface(
+            onClick = onOpenFilters,
+            shape = RoundedCornerShape(50),
+            color = if (filtersActive) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.size(56.dp)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
-                    Icons.Default.Sort,
-                    contentDescription = stringResource(R.string.history_sort_cd),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icons.Default.Tune,
+                    contentDescription = stringResource(R.string.history_filter_button),
+                    tint = if (filtersActive) MaterialTheme.colorScheme.onPrimaryContainer
+                           else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
                 )
-            }
-            DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
-                HistorySort.entries.forEach { sort ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(sort.labelRes)) },
-                        trailingIcon = {
-                            if (sort == sortMode) {
-                                Icon(
-                                    Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        },
-                        onClick = {
-                            viewModel.setSortMode(sort)
-                            sortMenuOpen = false
-                        }
-                    )
-                }
             }
         }
     }
@@ -507,10 +619,14 @@ private fun ActivityCard(
             Column(Modifier.padding(16.dp)) {
                 // Header: icon + sport label + date
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Rounded square, not a circle: the reference feed frames
+                    // identities in a superellipse-ish tile, and that single
+                    // shape choice is what stops the header reading as
+                    // "generic Material list with a dot icon".
                     Surface(
-                        shape = RoundedCornerShape(50),
+                        shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             // Hike icon fallback for UNSPECIFIED — the raw
@@ -521,21 +637,24 @@ private fun ActivityCard(
                                     ?: SportType.HIKE).icon,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(12.dp))
                     Column {
+                        // Two-line identity block: bold who/what, quiet when.
+                        // The size gap between the two lines is the hierarchy
+                        // the old bodySmall/bodySmall pair was missing.
                         Text(
                             stringResource(SportType.fromString(activity.sportType).labelRes),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             formatDate(activity.startedAtEpochMs, locale),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -740,11 +859,27 @@ private fun ActivityCard(
     }
 }
 
+/** Reference-app stat block: small quiet label on top, numbers much larger
+ *  and heavier below. The previous 14sp/16sp pair made every number read like
+ *  body copy, so a card had no focal point — the eye landed on the title and
+ *  stopped. 24sp bold over 14sp regular is the whole trick. */
 @Composable
 private fun StatColumn(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

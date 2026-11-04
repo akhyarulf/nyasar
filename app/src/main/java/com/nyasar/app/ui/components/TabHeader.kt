@@ -54,7 +54,11 @@ fun NyasarTabHeader(
     actions: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = modifier) {
+    // Seamless with the page, not a band: the reference app's headers sit on
+    // the same near-black canvas as the feed, and the hairline below does all
+    // the separating. A lighter header strip was the single biggest reason
+    // the four tabs looked like a "dashboard" instead of a feed.
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier) {
         Column {
             Box(
                 Modifier

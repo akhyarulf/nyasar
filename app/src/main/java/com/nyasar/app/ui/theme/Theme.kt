@@ -72,18 +72,24 @@ private val DarkColors = darkColorScheme(
     errorContainer = Color(0xFF5C2B2B),
     onError = Color(0xFF3B1111),
     onErrorContainer = Color(0xFFF8D7D7),
-    background = Color(0xFF1A1C19),
-    onBackground = Color(0xFFE2E3DE),
-    surface = Color(0xFF1A1C19),
-    onSurface = Color(0xFFE2E3DE),
-    surfaceVariant = Color(0xFF414941),
-    onSurfaceVariant = Color(0xFFC1C9BF),
-    outline = Color(0xFF8B958D),
-    outlineVariant = Color(0xFF414941),
-    surfaceContainerLow = Color(0xFF1E211E),
-    surfaceContainer = Color(0xFF232623),
-    surfaceContainerHigh = Color(0xFF2D302D),
-    surfaceContainerHighest = Color(0xFF383B38),
+    // 2026-11 dark rework: near-black, hue-neutral surfaces with the green
+    // spent only on accents. The old #1A1C19/#232623 pair sat in a mid grey
+    // that read "muted app theme" rather than a deliberate outdoor-brand
+    // canvas — everything (cards, headers, chips) landed within a few
+    // luminance steps of each other, which is exactly what makes a UI look
+    // assembled instead of designed. Green now has nothing competing with it.
+    background = Color(0xFF0F110F),
+    onBackground = Color(0xFFE4E6E1),
+    surface = Color(0xFF0F110F),
+    onSurface = Color(0xFFE4E6E1),
+    surfaceVariant = Color(0xFF3A403A),
+    onSurfaceVariant = Color(0xFFBFC7BD),
+    outline = Color(0xFF7E887F),
+    outlineVariant = Color(0xFF2C312C),
+    surfaceContainerLow = Color(0xFF141614),
+    surfaceContainer = Color(0xFF191C19),
+    surfaceContainerHigh = Color(0xFF212421),
+    surfaceContainerHighest = Color(0xFF282C28),
     surfaceTint = NyasarGreenLight,
     inverseSurface = Color(0xFFE2E3DE),
     inverseOnSurface = Color(0xFF1A1C19),

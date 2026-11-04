@@ -808,6 +808,7 @@
     <string name="route_visibility_private_hint">Rute ini tersembunyi dari Jelajah — file GPX-nya juga terkunci</string>
     <string name="saved_title">Tersimpan</string>
     <string name="saved_empty">Belum ada rute tersimpan\nTekan ikon bookmark di Jelajah untuk menyimpan</string>
+    <string name="browse_search">Cari</string>
     <string name="browse_search_hint">Cari nama rute…</string>
     <string name="browse_clear_search">Hapus pencarian</string>
     <string name="browse_filter_difficulty">Kesulitan</string>

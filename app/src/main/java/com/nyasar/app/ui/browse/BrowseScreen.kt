@@ -41,6 +41,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -101,6 +103,17 @@ fun BrowseScreen(
     val activeFilters by viewModel.appliedCount.collectAsState()
     val currentSort = viewModel.currentSort()
 
+    // Search is a header glyph now: the field is mounted only while the user
+    // is searching (or a query is still filtering the list, so the reason the
+    // feed is short never disappears). That buys back the full row of height
+    // the always-on field used to take, above every single route.
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(searchOpen) {
+        // Runs after composition, so the field exists by the time this fires.
+        if (searchOpen) searchFocusRequester.requestFocus()
+    }
+
     Scaffold(
         topBar = {
             NyasarTabHeader(
@@ -112,6 +125,24 @@ fun BrowseScreen(
                 // Subtitle dihapus (feedback user 2026-09): tagline tidak
                 // menambah informasi, header cukup judul + aksi saja.
                 actions = {
+                    // Search, then refine: glyph order mirrors how the feed is
+                    // narrowed. Search stays lit while the field is open.
+                    IconButton(onClick = {
+                        if (searchOpen) {
+                            viewModel.onQueryChanged("")
+                            searchOpen = false
+                        } else {
+                            searchOpen = true
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = stringResource(R.string.browse_search),
+                            tint = if (searchOpen || query.isNotEmpty())
+                                       MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     var sortMenu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { sortMenu = true }) {
@@ -151,35 +182,38 @@ fun BrowseScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            // One control under the header: the search field, full width.
-            // Filter and sort moved into the header as icon-only actions, so
-            // the first route starts ~60dp higher than it used to and the
-            // feed reads as content instead of a control panel.
-            OutlinedTextField(
-                value = query,
-                onValueChange = viewModel::onQueryChanged,
-                placeholder = { Text(stringResource(R.string.browse_search_hint), maxLines = 1) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.onQueryChanged("") }) {
+            // The search field, summoned from the header glyph. The X clears
+            // the query AND folds the field away in one tap — the two things
+            // you want after finishing a search, instead of two icons.
+            if (searchOpen || query.isNotEmpty()) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = viewModel::onQueryChanged,
+                    placeholder = { Text(stringResource(R.string.browse_search_hint), maxLines = 1) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            viewModel.onQueryChanged("")
+                            searchOpen = false
+                        }) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = stringResource(R.string.browse_clear_search)
                             )
                         }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(NyasarRadius.md),
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp)
-            )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(NyasarRadius.md),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+                        .focusRequester(searchFocusRequester)
+                )
+            }
 
             // Summoned from the header's filter glyph. Same draft semantics as
             // before: edits apply on "Terapkan", and the header glyph turns

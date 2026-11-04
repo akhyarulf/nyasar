@@ -808,6 +808,7 @@
     <string name="route_visibility_private_hint">Hidden from Explore — its GPX file is locked too</string>
     <string name="saved_title">Saved</string>
     <string name="saved_empty">No saved routes yet\nTap the bookmark icon in Explore to save one</string>
+    <string name="browse_search">Search</string>
     <string name="browse_search_hint">Search route names…</string>
     <string name="browse_clear_search">Clear search</string>
     <string name="browse_filter_difficulty">Difficulty</string>

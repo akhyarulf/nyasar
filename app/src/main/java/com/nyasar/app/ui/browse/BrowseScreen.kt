@@ -409,8 +409,10 @@ internal fun PublicRouteCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         route.name,
+                        // Semibold, not Bold: at 20sp the extra weight made the
+                        // name fight the stat numbers below it. One bold voice
+                        // per card — the numbers.
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -548,7 +550,10 @@ private fun StatTile(
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.bodyMedium,
+            // Small and quiet: the label is a caption for the number, not a
+            // peer of the description above it. bodyMedium made every line in
+            // the card the same size.
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

@@ -19,6 +19,25 @@ import com.nyasar.app.R
  * - Title styles use SemiBold for slightly more presence than the default
  *   Medium weight, without going full Bold.
  * - Body/label styles stay at Regular/Medium for readability.
+ *
+ * Scale discipline (2026-11): the old scale was Material's defaults plus
+ * positive letter-spacing on every body/label style, which made a dense feed
+ * read as "everything is big and everything is equally loud". Two fixes:
+ *
+ * 1. Sizes step down faster. Title tier tops out at 20sp and the headline used
+ *    for stat numbers at 21sp, so a route name, a stat value and a byline can
+ *    sit in one card without the card feeling like a poster. Big type is now
+ *    reserved for the places that earn it: the live recording timer and
+ *    display-size numbers in activity summaries.
+ * 2. Tracking goes negative on titles and ~zero on body. Inter is drawn for
+ *    UI text; adding +0.25 / +0.5sp on top of it (Material's old default for
+ *    Roboto) is what gave small labels that loose, slightly off look. Titles
+ *    get a little negative tracking so long route names hold together, small
+ *    caps-like labels get a touch of positive tracking only where they are
+ *    genuinely uppercase.
+ *
+ * Hierarchy should come from colour and weight (quiet onSurfaceVariant labels
+ * over bold values), not from making every element larger.
  */
 val InterFontFamily = FontFamily(
     Font(R.font.inter_regular, FontWeight.Normal),
@@ -32,89 +51,89 @@ val NyasarTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 57.sp,
-        lineHeight = 64.sp,
-        letterSpacing = (-0.25).sp
+        fontSize = 48.sp,
+        lineHeight = 54.sp,
+        letterSpacing = (-0.5).sp
     ),
     displayMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 45.sp,
-        lineHeight = 52.sp,
-        letterSpacing = 0.sp
+        fontSize = 38.sp,
+        lineHeight = 44.sp,
+        letterSpacing = (-0.4).sp
     ),
     displaySmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 36.sp,
-        lineHeight = 44.sp,
-        letterSpacing = 0.sp
+        fontSize = 32.sp,
+        lineHeight = 38.sp,
+        letterSpacing = (-0.3).sp
     ),
-    // --- Headline: section headers ---
+    // --- Headline: section headers, live values ---
     headlineLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        lineHeight = 40.sp,
-        letterSpacing = 0.sp
+        fontSize = 27.sp,
+        lineHeight = 33.sp,
+        letterSpacing = (-0.3).sp
     ),
     headlineMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 36.sp,
-        letterSpacing = 0.sp
+        fontSize = 23.sp,
+        lineHeight = 29.sp,
+        letterSpacing = (-0.25).sp
     ),
     headlineSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 32.sp,
-        letterSpacing = 0.sp
+        fontSize = 21.sp,
+        lineHeight = 26.sp,
+        letterSpacing = (-0.2).sp
     ),
     // --- Title: card/section titles ---
     titleLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
+        fontSize = 20.sp,
+        lineHeight = 26.sp,
+        letterSpacing = (-0.2).sp
     ),
     titleMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.15.sp
+        lineHeight = 22.sp,
+        letterSpacing = (-0.1).sp
     ),
     titleSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
-        letterSpacing = 0.1.sp
+        letterSpacing = 0.sp
     ),
     // --- Body: readable text ---
     bodyLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
+        lineHeight = 23.sp,
+        letterSpacing = 0.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
-        letterSpacing = 0.25.sp
+        letterSpacing = 0.sp
     ),
     bodySmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        letterSpacing = 0.4.sp
+        letterSpacing = 0.05.sp
     ),
     // --- Label: small UI labels / chips ---
     labelLarge = TextStyle(
@@ -122,20 +141,20 @@ val NyasarTypography = Typography(
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
-        letterSpacing = 0.1.sp
+        letterSpacing = 0.05.sp
     ),
     labelMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
+        letterSpacing = 0.2.sp
     ),
     labelSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
+        lineHeight = 15.sp,
+        letterSpacing = 0.3.sp
     )
 )

@@ -642,7 +642,7 @@ private fun ActivityCard(
                 // Wikiloc-style draft chip — a draft must be visibly NOT a
                 // regular finished activity (its publish is deferred).
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(activity.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    Text(activity.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (activity.status == com.nyasar.app.data.db.ActivityStatus.DRAFT) {
                         Spacer(Modifier.width(8.dp))
                         Surface(
@@ -848,7 +848,7 @@ private fun ActivityCard(
 /** Reference-app stat block: small quiet label on top, numbers much larger
  *  and heavier below. The previous 14sp/16sp pair made every number read like
  *  body copy, so a card had no focal point — the eye landed on the title and
- *  stopped. 24sp bold over 14sp regular is the whole trick. */
+ *  stopped. 21sp bold over a 12sp caption is the whole trick. */
 @Composable
 private fun StatColumn(
     label: String,
@@ -861,7 +861,7 @@ private fun StatColumn(
     Column(modifier, horizontalAlignment = alignment) {
         Text(
             label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

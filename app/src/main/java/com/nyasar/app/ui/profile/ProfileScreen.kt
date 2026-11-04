@@ -1,21 +1,14 @@
 package com.nyasar.app.ui.profile
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,22 +35,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
+import com.nyasar.app.ui.components.AuthorAvatar
 import com.nyasar.app.ui.components.NyasarTabHeader
 import com.nyasar.app.ui.components.TabHeaderAction
 
 /**
- * Profile tab (IA rework 2026, rev3): a Wikiloc-style profile header card
- * (avatar initial + username + email, or a sign-in invite when signed out)
- * sits ABOVE the History/Saved sub-tabs — above the tabs, so it reads as
- * the page identity, not a list row. Tapping it opens the standalone
- * Account screen ("account" route) when signed in, or sign-in when not;
- * Settings lives behind the gear icon in the top-right corner. Child
- * screens are REUSED VERBATIM — this file adds no new feature logic,
- * it only hosts them and owns the sub-tab state.
+ * Profile tab (IA rework 2026, rev4): identity lives IN the top bar — the
+ * avatar sits beside the gear, so the page reads title-left / picture-right
+ * like the reference app and the History/Saved tabs begin directly under the
+ * header with no second identity row eating a full screen row. Tapping the
+ * avatar opens the standalone Account screen ("account" route) when signed
+ * in, or sign-in when not. Child screens are REUSED VERBATIM — this file
+ * adds no new feature logic, it only hosts them and owns the sub-tab state.
  *
  * Two hosting modes, selected by [showHeader]:
  * - showHeader = true  — opened from the bottom bar as plain "profile":
@@ -104,6 +96,45 @@ fun ProfileScreen(
     val historyMonthFilter by historyViewModel.monthFilter.collectAsState()
     var showHistoryFilters by rememberSaveable { mutableStateOf(false) }
     val historyFiltersActive = historySportFilter != null || historyMonthFilter != null
+
+    // Account entry point, rendered in the top bar next to settings. This used
+    // to be a 72dp identity row under the header (avatar + name + email); the
+    // picture moved up beside the gear, which puts the tabs right under the
+    // bar and matches the reference layout. Signed out / restoring it degrades
+    // to a person glyph that leads to sign-in — the same role the old card's
+    // invite had, without the extra row.
+    val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
+    val session by authViewModel.sessionState.collectAsState()
+    val signedInAccount =
+        session as? com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn
+    val accountLoading =
+        session is com.nyasar.app.ui.auth.AuthViewModel.SessionState.LoadingAccount ||
+            session is com.nyasar.app.ui.auth.AuthViewModel.SessionState.Restoring
+
+    val accountAction: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier
+                .padding(end = 4.dp)
+                // 48dp touch target around a 32dp avatar — the circle stays
+                // small next to the 24dp toolbar glyphs, but the tap area
+                // doesn't shrink with it.
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(enabled = !accountLoading) {
+                    if (signedInAccount != null) onOpenProfile() else onOpenAccount()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            if (accountLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                AuthorAvatar(name = signedInAccount?.username, size = 32.dp)
+            }
+        }
+    }
 
     val tabRow = @Composable {
         // Secondary-style tab row: full-width underline + labelMedium caps
@@ -161,11 +192,8 @@ fun ProfileScreen(
                         contentDescription = stringResource(R.string.settings),
                         onClick = onOpenSettings
                     )
+                    accountAction()
                 }
-            )
-            ProfileHeaderCard(
-                onOpenProfile = onOpenProfile,
-                onOpenSignIn = onOpenAccount
             )
             tabRow()
             when (selectedTab) {
@@ -222,15 +250,12 @@ fun ProfileScreen(
                                 )
                             )
                         }
+                        accountAction()
                     }
                 )
             }
         ) { padding ->
             Column(Modifier.padding(padding).fillMaxSize()) {
-                ProfileHeaderCard(
-                    onOpenProfile = onOpenProfile,
-                    onOpenSignIn = onOpenAccount
-                )
                 tabRow()
                 when (selectedTab) {
                     ProfileTab.HISTORY.ordinal -> ProfileHistoryPane(
@@ -255,99 +280,6 @@ fun ProfileScreen(
             viewModel = historyViewModel,
             onDismiss = { showHistoryFilters = false }
         )
-    }
-}
-
-/**
- * Wikiloc-style identity header ABOVE the sub-tabs.
- * - Signed in: avatar circle with the username initial + name + email;
- *   tap → the standalone Account screen (edit username, manage/delete,
- *   logout).
- * - Signed out / restoring: invite card; tap → sign-in.
- */
-@Composable
-private fun ProfileHeaderCard(
-    onOpenProfile: () -> Unit,
-    onOpenSignIn: () -> Unit
-) {
-    val authViewModel: com.nyasar.app.ui.auth.AuthViewModel = viewModel()
-    val session by authViewModel.sessionState.collectAsState()
-
-    val signedIn = session as? com.nyasar.app.ui.auth.AuthViewModel.SessionState.SignedIn
-    val accountLoading = session is com.nyasar.app.ui.auth.AuthViewModel.SessionState.LoadingAccount ||
-        session is com.nyasar.app.ui.auth.AuthViewModel.SessionState.Restoring
-    val isInteractive = !accountLoading
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = isInteractive) {
-                if (signedIn != null) onOpenProfile() else onOpenSignIn()
-            }
-            // A touch more vertical air than a plain list row: this card is
-            // the page's identity block, sandwiched between the tab header
-            // and the History/Saved tabs — tighter felt cramped.
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
-        ) {
-            if (accountLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            } else if (signedIn != null) {
-                Text(
-                    text = signedIn.username?.trim()?.take(1)?.uppercase()
-                        ?: stringResource(R.string.account_no_username).take(1),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            } else {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = when {
-                    accountLoading -> stringResource(R.string.account_checking_session)
-                    signedIn != null -> signedIn.username
-                        ?: stringResource(R.string.account_no_username)
-                    else -> stringResource(R.string.profile_sign_in_title)
-                },
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = when {
-                    accountLoading -> stringResource(R.string.loading)
-                    signedIn != null -> signedIn.email?.takeIf { it.isNotBlank() }
-                        ?: stringResource(R.string.account_checking_session)
-                    else -> stringResource(R.string.profile_sign_in_subtitle)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (!accountLoading) {
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 

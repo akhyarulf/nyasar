@@ -64,6 +64,7 @@ import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.data.supabase.SocialRepository
 import com.nyasar.app.recording.SportType
+import com.nyasar.app.ui.components.AuthorAvatar
 import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.ElevationProfile
 import com.nyasar.app.ui.components.NyasarMapView
@@ -312,20 +313,9 @@ fun PublicRouteDetailScreen(
                             Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(23.dp)
-                                    )
-                                }
-                            }
+                            // Same monogram as the feed rows, so the author
+                            // doesn't change face between list and detail.
+                            AuthorAvatar(name = route.profiles?.username)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(

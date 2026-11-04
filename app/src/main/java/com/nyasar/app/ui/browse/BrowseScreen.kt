@@ -55,6 +55,7 @@ import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.auth
 import com.nyasar.app.recording.SportType
+import com.nyasar.app.ui.components.AuthorAvatar
 import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.NyasarTabHeader
@@ -305,30 +306,18 @@ internal fun PublicRouteCard(
             // (3) description, (4) stat row, (5) full-bleed map, then the
             // like/comment/save/share action row.
             //
-            // (1) Publisher header: avatar chip + username + date — the exact
+            // (1) Publisher header: monogram + username + date — the exact
             //     anatomy of the reference byline, over our own visual language.
             Row(
                 Modifier.padding(horizontal = NyasarSpacing.lg, vertical = NyasarSpacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Rounded square, not a circle — the reference frames
-                // identities in a superellipse-ish tile, and that one shape
-                // choice is what stops the byline reading as a default
-                // Material list row.
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
+                // Identity at the top of the row, same monogram treatment as
+                // the Profile header: green-tinted circle + the author's
+                // initial. The grey square with a generic person glyph this
+                // replaces was indistinguishable from a broken-image state
+                // once two cards from the same author stacked up.
+                AuthorAvatar(name = route.username)
                 Spacer(Modifier.width(NyasarSpacing.md))
                 Column(Modifier.weight(1f)) {
                     Text(

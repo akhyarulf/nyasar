@@ -104,7 +104,11 @@ fun BrowseScreen(
     Scaffold(
         topBar = {
             NyasarTabHeader(
-                title = stringResource(R.string.browse_title),
+                // Brand-first header, like the reference feed: the bottom bar
+                // already labels this tab, so repeating "Jelajah Rute" up here
+                // only competed with the logo chip. The wordmark makes the top
+                // of the app read as the product, not as a page title.
+                title = stringResource(R.string.app_name),
                 // Subtitle dihapus (feedback user 2026-09): tagline tidak
                 // menambah informasi, header cukup judul + aksi saja.
                 actions = {

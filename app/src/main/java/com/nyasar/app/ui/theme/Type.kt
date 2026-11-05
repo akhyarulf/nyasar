@@ -46,6 +46,22 @@ val InterFontFamily = FontFamily(
     Font(R.font.inter_bold, FontWeight.Bold),
 )
 
+/**
+ * Feed stat number. Material's name-based scale has no slot between
+ * labelLarge (14sp) and titleMedium (16sp) that reads as a number, and the
+ * headline sizes are far too large for a row of three values inside a card —
+ * at 21sp "10.17 km" filled most of its third of the row. 17sp bold is the
+ * reference app's proportion: bigger and heavier than the caption above it,
+ * small enough that three values sit comfortably on one line.
+ */
+val NyasarStatValue = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.Bold,
+    fontSize = 17.sp,
+    lineHeight = 22.sp,
+    letterSpacing = (-0.2).sp
+)
+
 val NyasarTypography = Typography(
     // --- Display / Headline: stat numbers ---
     displayLarge = TextStyle(

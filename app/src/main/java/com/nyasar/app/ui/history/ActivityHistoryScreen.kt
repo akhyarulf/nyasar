@@ -59,6 +59,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.ui.components.EmptyState
 import com.nyasar.app.ui.components.pressScale
+import com.nyasar.app.ui.theme.NyasarSpacing
+import com.nyasar.app.ui.theme.NyasarStatValue
 
 /**
  * Card-per-activity layout (spec ref: Strava's Activities feed) — was a
@@ -661,7 +663,10 @@ private fun ActivityCard(
 
                 Spacer(Modifier.height(12.dp))
                 // 3-column stat row — sport-aware: middle column is Pace for running, Elev Gain for hiking
-                Row(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NyasarSpacing.md)
+                ) {
                     StatColumn(
                         label = stringResource(R.string.distance),
                         value = "%.2f km".format(activity.distanceMeters / 1000.0),
@@ -845,7 +850,7 @@ private fun ActivityCard(
 /** Reference-app stat block: small quiet label on top, numbers much larger
  *  and heavier below. The previous 14sp/16sp pair made every number read like
  *  body copy, so a card had no focal point — the eye landed on the title and
- *  stopped. 21sp bold over a 12sp caption is the whole trick. */
+ *  stopped. A 17sp bold number over a 12sp caption is the whole trick. */
 @Composable
 private fun StatColumn(
     label: String,
@@ -862,8 +867,7 @@ private fun StatColumn(
         )
         Text(
             value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = NyasarStatValue,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

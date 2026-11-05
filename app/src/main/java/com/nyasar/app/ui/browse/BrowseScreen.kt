@@ -67,6 +67,7 @@ import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarElevation
 import com.nyasar.app.ui.theme.NyasarRadius
 import com.nyasar.app.ui.theme.NyasarSpacing
+import com.nyasar.app.ui.theme.NyasarStatValue
 import android.content.Intent
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -437,7 +438,12 @@ internal fun PublicRouteCard(
             //     right margin made "Time" look like a separate, unrelated
             //     block and left a hole in the middle of the row.
                 Spacer(Modifier.height(NyasarSpacing.md))
-                Row(Modifier.fillMaxWidth()) {
+                // Explicit gutters on top of the equal thirds: with smaller
+                // values the columns otherwise read as one run of numbers.
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NyasarSpacing.md)
+                ) {
                     StatTile(
                         label = stringResource(R.string.stat_distance),
                         value = "%.1f km".format(route.distanceMeters / 1000.0),
@@ -554,8 +560,7 @@ private fun StatTile(
         )
         Text(
             value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = NyasarStatValue,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

@@ -504,17 +504,22 @@ internal fun PublicRouteCard(
 
             Spacer(Modifier.height(NyasarSpacing.md))
 
-            // (5) Hero map — full-bleed, taller (Strava's ~4:3 card map).
+            // (5) Hero map — full-bleed, and sized by the SAME 1080×640 ratio
+            //     the History card uses (ActivityCard feeds MapSnapshotHelper a
+            //     1080×640 bitmap and draws it into a matching box). The old
+            //     fixed 210dp band was shorter and wider than that frame, so the
+            //     route got squeezed into a thin strip and the feed map read as
+            //     a smaller, narrower map than the identical route in History.
+            //     Ratio, not a dp height: 210dp is a different shape on every
+            //     phone, while the snapshot's framing never changes.
             //     Tile sources: MapTiler topo when keyed, then OSM standard,
             //     then OpenTopoMap (see StaticMapPreview fallback chain).
-            Box {
-                StaticMapPreview(
-                    polyline = route.trackPolyline,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(210.dp)
-                )
-            }
+            StaticMapPreview(
+                polyline = route.trackPolyline,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1080f / 640f)
+            )
 
             // (6) Action row — hairline, then three glyphs evenly spread
             //     across the full width at full-strength onSurface. The old

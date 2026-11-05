@@ -376,8 +376,9 @@ internal fun PublicRouteCard(
                 // End of the byline: difficulty/trail badges first (moved up
                 // here from the name row — short pastel chips read better on
                 // the byline line and long route names no longer push them
-                // off a single line), then the sport icon. When neither
-                // badge exists, the sport icon stands alone as before.
+                // off a single line), then the sport icon, then the save
+                // toggle. With no badges the sport icon and toggle stand
+                // alone on the right edge.
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(NyasarSpacing.xs)
@@ -400,6 +401,27 @@ internal fun PublicRouteCard(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                    // Save (bookmark) lives up here now instead of in the
+                    // footer: a fourth glyph turned the action strip into a
+                    // toolbar, and the three that belong together (like /
+                    // comment / share) get a cleaner third each. Saving is a
+                    // per-route decision made while reading the card, not a
+                    // social action, so it sits beside the sport icon.
+                    Spacer(Modifier.width(NyasarSpacing.xs))
+                    FeedActionSlot(
+                        icon = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        contentDescription = stringResource(if (saved) R.string.browse_saved else R.string.browse_save),
+                        onClick = {
+                            if (SupabaseClientProvider.client.auth.currentSessionOrNull() != null) {
+                                onToggleSave()
+                            } else {
+                                onRequireSignIn()
+                            }
+                        },
+                        tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        enabled = !savePending,
+                        compact = true
+                    )
                 }
             }
 
@@ -477,7 +499,7 @@ internal fun PublicRouteCard(
                 )
             }
 
-            // (6) Action row — hairline, then four glyphs evenly spread
+            // (6) Action row — hairline, then three glyphs evenly spread
             //     across the full width at full-strength onSurface. The old
             //     row huddled 20dp muted icons inside text buttons, so the
             //     footer read as a toolbar instead of a feed footer. Counts
@@ -507,22 +529,6 @@ internal fun PublicRouteCard(
                     contentDescription = stringResource(R.string.browse_comment),
                     onClick = onOpenComments,
                     label = route.commentsCount.takeIf { it > 0 }?.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                // Save (bookmark) — Wikiloc-style private to-do, distinct
-                // from the public like. Filled = in the user's list.
-                FeedActionSlot(
-                    icon = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                    contentDescription = stringResource(if (saved) R.string.browse_saved else R.string.browse_save),
-                    onClick = {
-                        if (SupabaseClientProvider.client.auth.currentSessionOrNull() != null) {
-                            onToggleSave()
-                        } else {
-                            onRequireSignIn()
-                        }
-                    },
-                    tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    enabled = !savePending,
                     modifier = Modifier.weight(1f)
                 )
                 FeedActionSlot(
@@ -577,19 +583,29 @@ private fun FeedActionSlot(
     modifier: Modifier = Modifier,
     tint: Color = MaterialTheme.colorScheme.onSurface,
     label: String? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    compact: Boolean = false
 ) {
-    Box(modifier.height(48.dp), contentAlignment = Alignment.Center) {
+    Box(
+        // Compact mode is for the byline: 40dp keeps the header exactly as
+        // tall as the avatar beside it, so the glyph joins the metadata line
+        // instead of growing it.
+        modifier.height(if (compact) 40.dp else 48.dp),
+        contentAlignment = Alignment.Center
+    ) {
         Row(
             Modifier
                 .clickable(enabled = enabled, onClick = onClick)
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(
+                    horizontal = if (compact) 10.dp else 8.dp,
+                    vertical = if (compact) 8.dp else 6.dp
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 icon,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(if (compact) 20.dp else 24.dp),
                 tint = tint
             )
             if (label != null) {

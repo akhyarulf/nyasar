@@ -683,15 +683,12 @@ private fun ActivityCard(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    // Right-aligned third block — the reference app parks
-                    // its last column flush with the text margin instead of
-                    // spacing three equal weights, which is what gives the
-                    // stat row its asymmetric, deliberate rhythm.
+                    // Left-aligned like the other two: a flush-right "Time"
+                    // read as a separate block and opened a hole mid-row.
                     StatColumn(
                         label = stringResource(R.string.time),
                         value = formatDuration(activity.elapsedTimeMs),
-                        modifier = Modifier.weight(1f),
-                        alignEnd = true
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -853,27 +850,22 @@ private fun ActivityCard(
 private fun StatColumn(
     label: String,
     value: String,
-    modifier: Modifier = Modifier,
-    alignEnd: Boolean = false
+    modifier: Modifier = Modifier
 ) {
-    val alignment = if (alignEnd) Alignment.End else Alignment.Start
-    val textAlign = if (alignEnd) TextAlign.End else TextAlign.Start
-    Column(modifier, horizontalAlignment = alignment) {
+    Column(modifier, horizontalAlignment = Alignment.Start) {
         Text(
             label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = textAlign
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             value,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = textAlign
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

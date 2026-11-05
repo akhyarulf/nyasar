@@ -432,11 +432,10 @@ internal fun PublicRouteCard(
                 }
 
             // (4) Stat row — reference feed anatomy: small quiet label above,
-            //     numbers much larger and heavier below (bodyMedium /
-            //     headlineSmall). The old labelMedium/titleMedium pair made
-            //     every number read like body copy, so the card had no focal
-            //     point. Third block sits flush right, which is what gives the
-            //     row its asymmetric rhythm instead of three equal weights.
+            //     numbers much larger and heavier below. Three equal columns,
+            //     every one of them left-aligned: pushing the last block to the
+            //     right margin made "Time" look like a separate, unrelated
+            //     block and left a hole in the middle of the row.
                 Spacer(Modifier.height(NyasarSpacing.md))
                 Row(Modifier.fillMaxWidth()) {
                     StatTile(
@@ -453,8 +452,7 @@ internal fun PublicRouteCard(
                         label = stringResource(R.string.stat_moving_time),
                         value = route.movingTimeMs?.takeIf { ms -> ms > 0 }
                             ?.let { ms -> formatCardDuration(ms) } ?: "—",
-                        modifier = Modifier.weight(1f),
-                        alignEnd = true
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -533,21 +531,17 @@ internal fun PublicRouteCard(
 }
 
 /**
- * Feed stat block: quiet label on top, number much larger and heavier below.
- * [alignEnd] parks the last block flush with the right text margin — that
- * asymmetry, not three equal columns, is what makes a stat row look designed.
+ * Feed stat block: quiet label on top, number much larger and heavier below,
+ * both starting at the same left edge so the three columns read as one row of
+ * equal parts (the reference app's stat row is entirely left-aligned).
  */
 @Composable
 private fun StatTile(
     label: String,
     value: String,
-    modifier: Modifier = Modifier,
-    alignEnd: Boolean = false
+    modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier,
-        horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start
-    ) {
+    Column(modifier, horizontalAlignment = Alignment.Start) {
         Text(
             label,
             // Small and quiet: the label is a caption for the number, not a
@@ -556,9 +550,7 @@ private fun StatTile(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = if (alignEnd) androidx.compose.ui.text.style.TextAlign.End
-                        else androidx.compose.ui.text.style.TextAlign.Start
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             value,

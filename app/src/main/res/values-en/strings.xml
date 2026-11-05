@@ -843,6 +843,11 @@
     <string name="browse_stat_distance">Distance</string>
     <string name="browse_stat_elev_gain">Elev Gain</string>
     <string name="browse_stat_time">Time</string>
+    <!-- Byline timestamp. Relative while fresh, then a real date ("25 Oct"). -->
+    <string name="feed_time_now">just now</string>
+    <string name="feed_time_minutes">%1$dm</string>
+    <string name="feed_time_hours">%1$dh</string>
+    <string name="feed_time_days">%1$dd</string>
     <string name="browse_like">Like</string>
     <string name="browse_liked">Liked</string>
     <string name="browse_comment">Comment</string>

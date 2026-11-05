@@ -24,6 +24,12 @@ val ForestGreen = Color(0xFF2E5339) // Secondary/tertiary
 val WarningAmber = Color(0xFFF2A900) // Warning/pause states
 val OffRouteRed = Color(0xFFD64545) // Error/danger
 val SuccessGreen = Color(0xFF5A7562) // Actual track/recorded line — matches primary green
+// Route trace drawn ON a map. Deliberately not `primary`: the sage accent is
+// tuned for text and buttons on our own dark canvas, and on the pale green /
+// cream of the map basemap it disappears — a 3dp sage line on green terrain
+// reads as a faint smudge, so the one element that carries the whole map card
+// was the least legible thing on it. Same hue family, much more saturation.
+val NyasarTrackGreen = Color(0xFF2E8B57)
 val AccentBlue = Color(0xFF2979FF) // GPS/location markers
 
 private val LightColors = lightColorScheme(

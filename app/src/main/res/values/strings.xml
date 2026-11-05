@@ -843,6 +843,11 @@
     <string name="browse_stat_distance">Jarak</string>
     <string name="browse_stat_elev_gain">Elevasi naik</string>
     <string name="browse_stat_time">Waktu</string>
+    <!-- Byline timestamp. Relative while fresh, then a real date ("25 Okt"). -->
+    <string name="feed_time_now">baru saja</string>
+    <string name="feed_time_minutes">%1$d mnt</string>
+    <string name="feed_time_hours">%1$d jam</string>
+    <string name="feed_time_days">%1$d hari</string>
     <string name="browse_like">Suka</string>
     <string name="browse_liked">Disukai</string>
     <string name="browse_comment">Komentar</string>

@@ -784,7 +784,8 @@ private fun TrackLegend() {
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         LegendItem(color = androidx.compose.ui.graphics.Color(0xFF42A5F5), label = stringResource(R.string.route_planned))
-        LegendItem(color = androidx.compose.ui.graphics.Color(0xFF5A7562), label = stringResource(R.string.track_actual))
+        // Matches the line actually drawn on maps (NyasarTrackGreen).
+        LegendItem(color = androidx.compose.ui.graphics.Color(0xFF2E8B57), label = stringResource(R.string.track_actual))
     }
 }
 

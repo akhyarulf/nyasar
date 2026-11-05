@@ -39,14 +39,17 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import android.content.Context
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -348,7 +351,15 @@ internal fun PublicRouteCard(
             // (1) Publisher header: monogram + username + date — the exact
             //     anatomy of the reference byline, over our own visual language.
             Row(
-                Modifier.padding(horizontal = NyasarSpacing.lg, vertical = NyasarSpacing.md),
+                // 12dp on the end, not 16: the badge is a circle, and a 40dp
+                // circle pushed in to the text margin leaves its glyph reading
+                // ~11dp inside the card's edge — it looked like it had drifted.
+                Modifier.padding(
+                    start = NyasarSpacing.lg,
+                    end = NyasarSpacing.md,
+                    top = NyasarSpacing.md,
+                    bottom = NyasarSpacing.md
+                ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Identity at the top of the row, same monogram treatment as
@@ -367,67 +378,33 @@ internal fun PublicRouteCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        formatRelativeDate(route.createdAt),
+                        feedTimestamp(route.createdAt),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )
                 }
-                // End of the byline: difficulty/trail badges first (moved up
-                // here from the name row — short pastel chips read better on
-                // the byline line and long route names no longer push them
-                // off a single line), then the sport icon, then the save
-                // toggle. With no badges the sport icon and toggle stand
-                // alone on the right edge.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(NyasarSpacing.xs)
-                ) {
-                    route.difficulty?.let { d -> BrowseRepository.DifficultyFilter.fromWire(d) }?.let { chip ->
-                        DifficultyChip(label = stringResource(chip.labelRes), wire = chip.wire)
+                // Save (bookmark) is the only thing at the end of the byline:
+                // the byline answers "who and when", and a badge-filled line
+                // (chips + sport + toggle) turned it into a metadata soup that
+                // also made chip-less cards look empty. The route's own
+                // attributes moved down to the name, where they belong.
+                SaveBadge(
+                    saved = saved,
+                    enabled = !savePending,
+                    onClick = {
+                        if (SupabaseClientProvider.client.auth.currentSessionOrNull() != null) {
+                            onToggleSave()
+                        } else {
+                            onRequireSignIn()
+                        }
                     }
-                    route.trailType?.let { t -> BrowseRepository.TrailTypeFilter.fromWire(t) }?.let { chip ->
-                        TrailTypeChip(label = stringResource(chip.labelRes))
-                    }
-                    // Sport icon only when the publisher actually picked a
-                    // sport — the old render drew HelpOutline ("?") for the
-                    // UNSPECIFIED default, which read as a broken/unexplained
-                    // glyph on every fresh card (user report).
-                    SportType.fromString(route.sportType).takeIf { it != SportType.UNSPECIFIED }?.let { sport ->
-                        Icon(
-                            imageVector = sport.icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    // Save (bookmark) lives up here now instead of in the
-                    // footer: a fourth glyph turned the action strip into a
-                    // toolbar, and the three that belong together (like /
-                    // comment / share) get a cleaner third each. Saving is a
-                    // per-route decision made while reading the card, not a
-                    // social action, so it sits beside the sport icon.
-                    Spacer(Modifier.width(NyasarSpacing.xs))
-                    FeedActionSlot(
-                        icon = if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = stringResource(if (saved) R.string.browse_saved else R.string.browse_save),
-                        onClick = {
-                            if (SupabaseClientProvider.client.auth.currentSessionOrNull() != null) {
-                                onToggleSave()
-                            } else {
-                                onRequireSignIn()
-                            }
-                        },
-                        tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        enabled = !savePending,
-                        compact = true
-                    )
-                }
+                )
             }
 
-            // (2) Route name (full width — difficulty/trail badges live in
-            //     the byline row above now, so long names get the whole line
-            //     instead of squeezing chips off-screen).
+            // (2) Route name — full width, on its own line. The badges moved
+            //     below it, so long names get the whole line instead of
+            //     squeezing chips off-screen.
             Column(Modifier.padding(horizontal = NyasarSpacing.lg)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -442,9 +419,47 @@ internal fun PublicRouteCard(
                     )
                 }
 
+                // (2b) Route attributes: difficulty, trail shape, sport. They
+                //     describe the ROUTE, so they sit with its name instead of
+                //     crowding the author byline. Own line also means long
+                //     names can no longer push the chips off-screen (the
+                //     reason they were moved up to the byline before).
+                val diffChip = route.difficulty
+                    ?.let { BrowseRepository.DifficultyFilter.fromWire(it) }
+                val trailChip = route.trailType
+                    ?.let { BrowseRepository.TrailTypeFilter.fromWire(it) }
+                // Sport icon only when the publisher actually picked a sport —
+                // the old render drew HelpOutline ("?") for the UNSPECIFIED
+                // default, which read as a broken glyph on every fresh card.
+                val sport = SportType.fromString(route.sportType)
+                    .takeIf { it != SportType.UNSPECIFIED }
+                val hasMeta = diffChip != null || trailChip != null || sport != null
+                if (hasMeta) {
+                    Spacer(Modifier.height(NyasarSpacing.sm))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(NyasarSpacing.xs)
+                    ) {
+                        diffChip?.let { chip ->
+                            DifficultyChip(label = stringResource(chip.labelRes), wire = chip.wire)
+                        }
+                        trailChip?.let { chip ->
+                            TrailTypeChip(label = stringResource(chip.labelRes))
+                        }
+                        sport?.let {
+                            Icon(
+                                imageVector = it.icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 // (3) Description (Strava shows it right under the name).
                 route.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                    Spacer(Modifier.height(NyasarSpacing.xs))
+                    Spacer(Modifier.height(if (hasMeta) NyasarSpacing.sm else NyasarSpacing.xs))
                     Text(
                         desc,
                         style = MaterialTheme.typography.bodyMedium,
@@ -477,7 +492,9 @@ internal fun PublicRouteCard(
                         modifier = Modifier.weight(1f)
                     )
                     StatTile(
-                        label = stringResource(R.string.stat_moving_time),
+                        // Short label: "Moving time" is the longest of the
+                        // three and ellipsises on a 320dp-wide card.
+                        label = stringResource(R.string.browse_stat_time),
                         value = route.movingTimeMs?.takeIf { ms -> ms > 0 }
                             ?.let { ms -> formatCardDuration(ms) } ?: "—",
                         modifier = Modifier.weight(1f)
@@ -573,6 +590,44 @@ private fun StatTile(
     }
 }
 
+/** Save toggle at the end of the byline. A bare outline glyph here was
+ *  indistinguishable from the sport icon that used to sit next to it — both
+ *  20dp, both muted — so one looked tappable and the other looked decorative
+ *  for no reason. The soft circular well marks it as the card's one control,
+ *  and the fill/tint pair reads as state without a label. */
+@Composable
+private fun SaveBadge(
+    saved: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val well = if (saved) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val glyph = if (saved) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(well)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+            contentDescription = stringResource(if (saved) R.string.browse_saved else R.string.browse_save),
+            modifier = Modifier.size(18.dp),
+            tint = glyph
+        )
+    }
+}
+
 /** One slot of the feed footer: 48dp tall, glyph centred inside its share of
  *  the width, count beside it when there is one. */
 @Composable
@@ -583,29 +638,19 @@ private fun FeedActionSlot(
     modifier: Modifier = Modifier,
     tint: Color = MaterialTheme.colorScheme.onSurface,
     label: String? = null,
-    enabled: Boolean = true,
-    compact: Boolean = false
+    enabled: Boolean = true
 ) {
-    Box(
-        // Compact mode is for the byline: 40dp keeps the header exactly as
-        // tall as the avatar beside it, so the glyph joins the metadata line
-        // instead of growing it.
-        modifier.height(if (compact) 40.dp else 48.dp),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier.height(48.dp), contentAlignment = Alignment.Center) {
         Row(
             Modifier
                 .clickable(enabled = enabled, onClick = onClick)
-                .padding(
-                    horizontal = if (compact) 10.dp else 8.dp,
-                    vertical = if (compact) 8.dp else 6.dp
-                ),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 icon,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(if (compact) 20.dp else 24.dp),
+                modifier = Modifier.size(24.dp),
                 tint = tint
             )
             if (label != null) {
@@ -620,9 +665,20 @@ private fun FeedActionSlot(
     }
 }
 
-/** Strava-style relative timestamp for the card byline ("3 j"). Falls back
- *  to the date when older than a week. */
-internal fun formatRelativeDate(iso: String): String {
+/** Timestamp for the card byline: relative while the post is fresh ("3 jam"),
+ *  a real date afterwards ("25 Okt") — raw ISO-8601 like "2026-10-25" in a
+ *  social feed reads as debug output, and the relative part used to be English
+ *  hardcoded strings ("3h") in an app whose copy is Indonesian.
+ *
+ *  Everything short of the date itself now comes from string resources, so the
+ *  Indonesian and English builds say their own version of the same thing. */
+@Composable
+internal fun feedTimestamp(iso: String): String {
+    val context = LocalContext.current
+    return remember(iso) { formatFeedTimestamp(iso, context) }
+}
+
+private fun formatFeedTimestamp(iso: String, context: Context): String {
     val millis = runCatching {
         java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
             .apply { setTimeZone(java.util.TimeZone.getTimeZone("UTC")) }
@@ -631,11 +687,16 @@ internal fun formatRelativeDate(iso: String): String {
     }.getOrNull() ?: return iso.take(10)
     val diffMin = ((System.currentTimeMillis() - millis) / 60000L).coerceAtLeast(0)
     return when {
-        diffMin < 1 -> "now"
-        diffMin < 60 -> "${diffMin}m"
-        diffMin < 60 * 24 -> "${diffMin / 60}h"
-        diffMin < 60 * 24 * 7 -> "${diffMin / (60 * 24)}d"
-        else -> iso.take(10)
+        diffMin < 1 -> context.getString(R.string.feed_time_now)
+        diffMin < 60 -> context.getString(R.string.feed_time_minutes, diffMin.toInt())
+        diffMin < 60 * 24 -> context.getString(R.string.feed_time_hours, (diffMin / 60).toInt())
+        diffMin < 60 * 24 * 7 -> context.getString(R.string.feed_time_days, (diffMin / (60 * 24)).toInt())
+        else -> {
+            // Per-app locale, so a phone set to Indonesian but the app switched
+            // to English still gets "Oct" instead of "Okt".
+            val locale = context.resources.configuration.locales.get(0)
+            java.text.SimpleDateFormat("d MMM", locale).format(java.util.Date(millis))
+        }
     }
 }
 

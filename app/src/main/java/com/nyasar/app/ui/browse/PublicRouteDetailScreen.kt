@@ -71,6 +71,7 @@ import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.ui.components.StaticMapPreview
 import com.nyasar.app.ui.components.TrailTypeChip
 import com.nyasar.app.ui.theme.NyasarRadius
+import com.nyasar.app.ui.theme.NyasarStatValue
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -327,31 +328,51 @@ fun PublicRouteDetailScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    com.nyasar.app.ui.browse.formatRelativeDate(route.createdAt),
+                                    feedTimestamp(route.createdAt),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            val diffChip = route.difficulty
-                                ?.let { BrowseRepository.DifficultyFilter.fromWire(it) }
-                            val trailChip = route.trailType
-                                ?.let { BrowseRepository.TrailTypeFilter.fromWire(it) }
-                            diffChip?.let {
-                                DifficultyChip(label = stringResource(it.labelRes), wire = it.wire)
-                                Spacer(Modifier.width(8.dp))
-                            }
-                            trailChip?.let {
-                                TrailTypeChip(label = stringResource(it.labelRes))
-                            }
                         }
 
-                        // (2) Name + description.
+                        // (2) Name + route attributes + description. The
+                        //     difficulty/trail chips used to sit on the byline;
+                        //     they describe the route, so they belong under its
+                        //     name — same order as the feed card.
                         Column(Modifier.padding(horizontal = 16.dp)) {
                             Text(
                                 route.name,
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                             )
+                            val diffChip = route.difficulty
+                                ?.let { BrowseRepository.DifficultyFilter.fromWire(it) }
+                            val trailChip = route.trailType
+                                ?.let { BrowseRepository.TrailTypeFilter.fromWire(it) }
+                            val sport = SportType.fromString(route.sportType)
+                                .takeIf { it != SportType.UNSPECIFIED }
+                            if (diffChip != null || trailChip != null || sport != null) {
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    diffChip?.let {
+                                        DifficultyChip(label = stringResource(it.labelRes), wire = it.wire)
+                                    }
+                                    trailChip?.let {
+                                        TrailTypeChip(label = stringResource(it.labelRes))
+                                    }
+                                    sport?.let {
+                                        Icon(
+                                            imageVector = it.icon,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
                             route.description?.takeIf { it.isNotBlank() }?.let { desc ->
                                 Spacer(Modifier.height(6.dp))
                                 Text(
@@ -417,8 +438,12 @@ fun PublicRouteDetailScreen(
                             }
 
                             // (3) Stats — Strava row format (label above, bold
-                            // value below): Distance / Elev Gain / Time.
-                            Row(Modifier.fillMaxWidth()) {
+                            // value below): Distance / Elev Gain / Time. Same
+                            // NyasarStatValue and same gutters as the feed card.
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         stringResource(R.string.browse_stat_distance),
@@ -427,8 +452,7 @@ fun PublicRouteDetailScreen(
                                     )
                                     Text(
                                         "%.1f km".format(route.distanceMeters / 1000.0),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
+                                        style = NyasarStatValue
                                     )
                                 }
                                 Column(Modifier.weight(1f)) {
@@ -439,8 +463,7 @@ fun PublicRouteDetailScreen(
                                     )
                                     Text(
                                         route.elevationGainM?.let { "+${it.roundToInt()} m" } ?: "—",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
+                                        style = NyasarStatValue
                                     )
                                 }
                                 Column(Modifier.weight(1f)) {
@@ -452,8 +475,7 @@ fun PublicRouteDetailScreen(
                                     Text(
                                         route.movingTimeMs?.takeIf { ms -> ms > 0 }
                                             ?.let { formatHms(it) } ?: "—",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
+                                        style = NyasarStatValue
                                     )
                                 }
                             }
@@ -632,7 +654,7 @@ fun PublicRouteDetailScreen(
                                                         )
                                                         Spacer(Modifier.width(8.dp))
                                                         Text(
-                                                            com.nyasar.app.ui.browse.formatRelativeDate(c.createdAt),
+                                                            feedTimestamp(c.createdAt),
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                                         )

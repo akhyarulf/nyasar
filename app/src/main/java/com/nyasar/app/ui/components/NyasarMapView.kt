@@ -658,9 +658,11 @@ fun NyasarMapView(
                 val lineString = LineString.fromLngLats(track.map { Point.fromLngLat(it.lon, it.lat) })
                 // When there's a planned route, track goes in blue (#42A5F5);
                 // when there's no planned route, track is actual walked path —
-                // shown in the same muted green (#5A7562) everywhere.
+                // shown in the same map-trace green (#2E8B57, NyasarTrackGreen)
+                // as the static card previews, so a route looks identical
+                // wherever it is drawn.
                 val trackColor = trackColorOverride
-                    ?: if (track.isNotEmpty() && actualTrack.isEmpty()) "#5A7562" else "#42A5F5"
+                    ?: if (track.isNotEmpty() && actualTrack.isEmpty()) "#2E8B57" else "#42A5F5"
                 val trackSource = style.getSourceAs<GeoJsonSource>(SOURCE_TRACK)
                 if (trackSource != null) {
                     trackSource.setGeoJson(lineString)
@@ -688,7 +690,7 @@ fun NyasarMapView(
                     style.addSource(GeoJsonSource(SOURCE_ACTUAL_TRACK, actualLine))
                     style.addLayer(
                         LineLayer(LAYER_ACTUAL_TRACK, SOURCE_ACTUAL_TRACK).withProperties(
-                            PropertyFactory.lineColor("#5A7562"),
+                            PropertyFactory.lineColor("#2E8B57"),
                             PropertyFactory.lineWidth(5f),
                             PropertyFactory.lineCap("round"),
                             PropertyFactory.lineJoin("round")

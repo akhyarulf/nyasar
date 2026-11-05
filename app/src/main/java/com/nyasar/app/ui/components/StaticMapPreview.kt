@@ -29,6 +29,7 @@ import com.nyasar.app.BuildConfig
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.ui.browse.trackPath
+import com.nyasar.app.ui.theme.NyasarTrackGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -294,7 +295,7 @@ internal fun renderStaticMap(
     paint.strokeCap = AndroidPaint.Cap.ROUND
     paint.color = traceColorArgb
     // Dark casing under the colored trace = readable on any basemap.
-    canvas.drawPath(trace, paint.apply { strokeWidth = traceStrokeSourcePx * 1.8f; color = 0xAA202020.toInt() })
+    canvas.drawPath(trace, paint.apply { strokeWidth = traceStrokeSourcePx + traceStrokeSourcePx * 0.9f; color = 0xD91A1F1A.toInt() })
     canvas.drawPath(trace, paint.apply { strokeWidth = traceStrokeSourcePx; color = traceColorArgb })
     // Start/end dots.
     paint.style = AndroidPaint.Style.FILL
@@ -314,11 +315,15 @@ fun StaticMapPreview(
     maxZoom: Int = 14
 ) {
     val points = remember(polyline) { BrowseRepository.decodeTrack(polyline) }
-    val traceColor = MaterialTheme.colorScheme.primary
+    // Map trace, not the UI accent — see NyasarTrackGreen: the sage primary
+    // disappears against the basemap's pale green.
+    val traceColor = NyasarTrackGreen
     val fallbackBg = MaterialTheme.colorScheme.surfaceVariant
     val density = LocalDensity.current
     // Trace stroke in VIEW px (converted to bitmap px inside the renderer).
-    val strokeViewPx = with(density) { 2.5.dp.toPx() }
+    // 3dp: at 2.5 the line lost its edge once the map had any texture under
+    // it, and the trace is the only thing the map card is actually showing.
+    val strokeViewPx = with(density) { 3.dp.toPx() }
     val apiKey = BuildConfig.MAPTILER_API_KEY
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -458,10 +463,16 @@ internal fun snapshotCameraFor(
     }
     // Fractional zoom-out = margin so the trace isn't glued to the card
     // edges (same visual padding the 80px newLatLngBounds gave the real map).
-    val fitted = zoom - 0.45
+    //
+    // Tightly-bounded routes get less of it: a 500m loop already fills only a
+    // small patch at its fit zoom, and the blanket 0.45 zoom-out shrank it
+    // into a speck. Same reason the ceiling is 17 rather than 16 — for short
+    // routes one extra level is the difference between a route and a dot.
+    val smallBbox = zoom >= 15
+    val fitted = zoom - if (smallBbox) 0.15 else 0.45
     return CameraPosition.Builder()
         .target(LatLng((minLat + maxLat) / 2.0, (minLon + maxLon) / 2.0))
-        .zoom(fitted.coerceAtMost(16.0))
+        .zoom(fitted.coerceAtMost(if (smallBbox) 17.0 else 16.0))
         .build()
 }
 
@@ -498,9 +509,11 @@ internal fun drawTraceOnSnapshot(
         strokeCap = AndroidPaint.Cap.ROUND
     }
     val stroke = (strokeViewPx * ratio).coerceIn(3f, 10f)
-    // Dark casing under the colored trace = readable on any basemap.
-    paint.strokeWidth = stroke * 1.8f
-    paint.color = 0xAA202020.toInt()
+    // Dark casing under the colored trace = readable on any basemap. Near-
+    // opaque and tighter than before: the old 67%-alpha halo turned into a
+    // grey smudge around the line on light terrain instead of separating it.
+    paint.strokeWidth = stroke + stroke * 0.9f
+    paint.color = 0xD91A1F1A.toInt()
     canvas.drawPath(trace, paint)
     paint.strokeWidth = stroke
     paint.color = traceColorArgb

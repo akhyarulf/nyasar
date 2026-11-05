@@ -693,9 +693,17 @@ private fun formatFeedTimestamp(iso: String, context: Context): String {
         diffMin < 60 * 24 * 7 -> context.getString(R.string.feed_time_days, (diffMin / (60 * 24)).toInt())
         else -> {
             // Per-app locale, so a phone set to Indonesian but the app switched
-            // to English still gets "Oct" instead of "Okt".
+            // to English still gets "Oct" instead of "Okt". Older than this year
+            // and the year has to show too, or last October reads as this one.
             val locale = context.resources.configuration.locales.get(0)
-            java.text.SimpleDateFormat("d MMM", locale).format(java.util.Date(millis))
+            val date = java.util.Date(millis)
+            val thisYear = java.util.Calendar.getInstance()
+                .get(java.util.Calendar.YEAR)
+            val postYear = java.util.Calendar.getInstance()
+                .apply { time = date }
+                .get(java.util.Calendar.YEAR)
+            val pattern = if (postYear == thisYear) "d MMM" else "d MMM yyyy"
+            java.text.SimpleDateFormat(pattern, locale).format(date)
         }
     }
 }

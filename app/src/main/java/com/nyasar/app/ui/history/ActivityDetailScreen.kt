@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,7 +31,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,12 +45,16 @@ import com.nyasar.app.gpx.GpxExporter
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.navigation.LatLng
+import com.nyasar.app.recording.ShareMetric
+import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.ElevationPoint
 import com.nyasar.app.ui.components.ElevationProfile
 import com.nyasar.app.ui.components.InlineStatsGrid
 import com.nyasar.app.ui.components.SplitsTable
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.ui.components.SummaryStatTile
+import com.nyasar.app.ui.theme.NyasarTrackGreen
+import com.nyasar.app.util.SpeedUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -199,10 +208,31 @@ fun ActivityDetailScreen(
     // on the waypoint table here (which is the "duplicate observers" the
     // spec warns against).
 
+    // Collapsing header: the headline inside the scroll content already IS the
+    // title at rest, so the app bar repeated the same string twice and spent
+    // ~70dp doing it. It now appears only after the headline has scrolled out.
+    val detailScrollState = rememberScrollState()
+    val density = LocalDensity.current
+    // 210dp ≈ where the headline's baseline passes under the app bar on a
+    // screen with the 240dp hero map. A smaller threshold showed the title in
+    // the bar while the headline was still visible — the duplicate again.
+    val titleThreshold = with(density) { 210.dp.toPx() }.toInt()
+    val showBarTitle by remember(detailScrollState) {
+        derivedStateOf { detailScrollState.value > titleThreshold }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.activity?.name ?: stringResource(R.string.activity), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = {
+                    if (showBarTitle) {
+                        Text(
+                            state.activity?.name ?: stringResource(R.string.activity),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -309,7 +339,8 @@ fun ActivityDetailScreen(
                             },
                             speedUnit = speedUnit,
                             waypointsVisible = waypointsVisible,
-                            onExpandMap = { activityMapExpanded = true }
+                            onExpandMap = { activityMapExpanded = true },
+                            scrollState = detailScrollState
                         )
                         // Full-screen interactive map (Wikiloc pattern, same
                         // overlay shape as browse Route Detail / RoutePreview):
@@ -525,13 +556,22 @@ private fun ActivityDetailContent(
     onShareGpx: (ActivityEntity, List<com.nyasar.app.data.db.ActivityPointEntity>, List<com.nyasar.app.data.db.WaypointEntity>) -> Unit,
     speedUnit: String = "kmh",
     waypointsVisible: Boolean = true,
-    onExpandMap: () -> Unit = {}
+    onExpandMap: () -> Unit = {},
+    scrollState: androidx.compose.foundation.ScrollState = rememberScrollState()
 ) {
     var scrubbedPoint by remember { mutableStateOf<ElevationPoint?>(null) }
     var showSplits by remember { mutableStateOf(false) }
+    var showGpsDetail by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    // Per-app locale: the date used to be hardcoded id-ID, so an English build
+    // said "Minggu, 25 Oktober 2026" above English stats.
+    val locale = context.resources.configuration.locales.get(0)
+    // 40dp, not the map's 80px default (~29dp here): that default is tuned for
+    // a full-screen map, and on a 240dp hero it let the track touch the frame
+    // edges and clipped the labels at the top.
+    val heroFitPaddingPx = with(LocalDensity.current) { 40.dp.toPx() }.toInt()
+    Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
         // ── Hero map: FIXED 240dp full-bleed at the very top — the unified
         // block every detail screen shares (browse Route Detail, Route
         // Preview). Tap-anywhere + expand button open the full-screen map,
@@ -544,6 +584,7 @@ private fun ActivityDetailContent(
                     .height(240.dp)
                     .clickable { onExpandMap() },
                 provider = provider,
+                fitBoundsPaddingPx = heroFitPaddingPx,
                 track = if (plannedTrack.isNotEmpty()) plannedTrack else actualTrack,
                 actualTrack = if (plannedTrack.isNotEmpty()) actualTrack else emptyList(),
                 highlightPoint = scrubbedPoint?.let { org.maplibre.android.geometry.LatLng(it.lat, it.lon) },
@@ -553,9 +594,6 @@ private fun ActivityDetailContent(
                     waypointsDuringActivity.firstOrNull { it.id == id }?.let(onWaypointTap)
                 }
             )
-            if (plannedTrack.isNotEmpty()) {
-                TrackLegend()
-            }
             // Expand button — same floating round control as the other
             // detail screens' hero maps.
             Surface(
@@ -576,6 +614,11 @@ private fun ActivityDetailContent(
                     )
                 }
             }
+            }
+            // Legend BELOW the map, not floating on it: inside the Box it sat
+            // on top of the basemap's own labels/attribution and was unreadable.
+            if (plannedTrack.isNotEmpty()) {
+                TrackLegend()
             }
         } else {
             // No points recorded — don't error, just skip the map (spec:
@@ -606,55 +649,105 @@ private fun ActivityDetailContent(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                formatActivityDateTime(activity.startedAtEpochMs),
+                formatActivityDateTime(activity.startedAtEpochMs, locale),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(12.dp))
 
-            // Unified inline stats (3 per row, label over bold value, no
-            // tiles) — the shared shape with browse Route Detail and Route
-            // Preview. This screen's data: the activity record itself.
-            InlineStatsGrid(buildList {
-                add(stringResource(R.string.stat_distance) to "%.2f km".format(activity.distanceMeters / 1000.0))
-                add(stringResource(R.string.stat_moving_time) to formatDuration(activity.movingTimeMs))
-                add(stringResource(R.string.pace) to formatPace(activity.distanceMeters, activity.movingTimeMs))
-                activity.elevationGainM?.let { add(stringResource(R.string.elevation_gain) to "+${it.roundToInt()} m") }
-                activity.avgSpeedKmh?.let { add(stringResource(R.string.stat_avg_speed) to com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1)) }
-                activity.maxSpeedKmh?.let { add(stringResource(R.string.stat_max_speed) to com.nyasar.app.util.SpeedUtils.formatSpeed(it, speedUnit, 1)) }
-                activity.elevationLossM?.let { add(stringResource(R.string.stat_elev_loss) to "−${it.roundToInt()} m") }
-            })
+            // Stats used to be ONE flat 7-cell grid, so the third row held a
+            // single orphan (Elevation loss) and the eye had to work out which
+            // numbers belonged together. Two labeled blocks of exactly three
+            // instead: what the activity WAS, then how fast it moved.
+            val primaryMetric = SportType.fromString(activity.sportType).primaryMetric
+            SectionHeader(stringResource(R.string.activity_section_summary))
+            InlineStatsGrid(
+                listOf(
+                    stringResource(R.string.stat_distance) to "%.2f km".format(activity.distanceMeters / 1000.0),
+                    stringResource(R.string.stat_moving_time) to formatDuration(activity.movingTimeMs),
+                    stringResource(R.string.elevation_gain) to
+                        (activity.elevationGainM?.let { "+${it.roundToInt()} m" } ?: "—")
+                )
+            )
 
+            // Pace only where it means something: "24:00 /km" on a hike is the
+            // reciprocal of walking speed, not a number a hiker reads — hikes
+            // get total time there instead. Either way: three cells, never a
+            // two-cell row with a hole.
+            SectionHeader(stringResource(R.string.speed))
+            InlineStatsGrid(
+                buildList {
+                    if (primaryMetric == ShareMetric.PACE) {
+                        add(stringResource(R.string.pace) to formatPace(activity.distanceMeters, activity.movingTimeMs))
+                    }
+                    add(
+                        stringResource(R.string.stat_avg_speed) to
+                            (activity.avgSpeedKmh?.let { SpeedUtils.formatSpeed(it, speedUnit, 1) } ?: "—")
+                    )
+                    add(
+                        stringResource(R.string.stat_max_speed) to
+                            (activity.maxSpeedKmh?.let { SpeedUtils.formatSpeed(it, speedUnit, 1) } ?: "—")
+                    )
+                    // Hikes keep a third cell too (no orphan row): total time
+                    // is the number a hiker reads next to speed, long before
+                    // pace. Elevation loss lives with the elevation summary.
+                    if (primaryMetric != ShareMetric.PACE) {
+                        add(stringResource(R.string.stat_total_time) to formatDuration(activity.elapsedTimeMs))
+                    }
+                }
+            )
+
+            // GPS quality: one verdict a person can act on, with the numbers
+            // behind it one tap away — the old version led with "weak fixes"
+            // and "largest fix gap" and read like a debug log.
             if (rawPoints.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Text(stringResource(R.string.gps_quality_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
                 val quality = gpsQuality
-                InlineStatsGrid(
-                    listOf(
-                        stringResource(R.string.gps_quality_average) to "±${quality.averageAccuracyMeters?.roundToInt() ?: 0} m",
-                        stringResource(R.string.gps_quality_weak) to "${quality.weakPercent}%",
-                        stringResource(R.string.gps_quality_gap) to formatGap(quality.largestGapMs)
-                    ),
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-                Text(
-                    stringResource(
-                        R.string.gps_quality_detail,
-                        quality.pointCount,
-                        quality.bestAccuracyMeters?.roundToInt() ?: 0,
-                        quality.worstAccuracyMeters?.roundToInt() ?: 0
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                SectionHeader(stringResource(R.string.gps_quality_title))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GpsAccuracyBadge(quality.averageAccuracyMeters)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        stringResource(
+                            R.string.gps_quality_summary,
+                            "±${quality.averageAccuracyMeters?.roundToInt() ?: 0} m",
+                            quality.pointCount
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(
+                    onClick = { showGpsDetail = !showGpsDetail },
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        stringResource(
+                            if (showGpsDetail) R.string.gps_quality_detail_hide
+                            else R.string.gps_quality_detail_show
+                        ),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+                if (showGpsDetail) {
+                    Text(
+                        stringResource(
+                            R.string.gps_quality_extra,
+                            quality.weakPercent,
+                            formatGap(quality.largestGapMs),
+                            quality.bestAccuracyMeters?.roundToInt() ?: 0,
+                            quality.worstAccuracyMeters?.roundToInt() ?: 0
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             if (plannedDistanceMeters != null) {
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.planned_vs_actual), style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
-                PlannedVsActualRow(
+                SectionHeader(stringResource(R.string.planned_vs_actual))
+                // Two numbers side by side made the reader subtract them by
+                // hand; bars the reader can compare at a glance, in the same
+                // colours as the map (blue planned, green actual).
+                PlannedVsActualBars(
                     plannedDistanceMeters = plannedDistanceMeters,
                     actualDistanceMeters = activity.distanceMeters
                 )
@@ -664,13 +757,7 @@ private fun ActivityDetailContent(
                 ElevationStats.toElevationProfile(elevationProfile)
             }
             if (elevationPoints.size >= 2) {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    stringResource(R.string.route_detail_elevation_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.height(6.dp))
+                SectionHeader(stringResource(R.string.route_detail_elevation_title))
                 ElevationProfile(
                     points = elevationPoints,
                     modifier = Modifier.fillMaxWidth().height(180.dp),
@@ -693,6 +780,15 @@ private fun ActivityDetailContent(
                         SummaryStatTile(
                             "${it.roundToInt()} m",
                             stringResource(R.string.stat_lowest_point),
+                            Modifier.weight(1f)
+                        )
+                    } ?: Spacer(Modifier.weight(1f))
+                    // Descent belongs with the profile that shows it, not in a
+                    // speed block three sections up.
+                    activity.elevationLossM?.let {
+                        SummaryStatTile(
+                            "−${it.roundToInt()} m",
+                            stringResource(R.string.stat_elev_loss),
                             Modifier.weight(1f)
                         )
                     } ?: Spacer(Modifier.weight(1f))
@@ -731,12 +827,7 @@ private fun ActivityDetailContent(
             // above — a marker on a 260dp map is easy to miss/mis-tap, the
             // list makes them scannable and gives each one a readable name.
             if (waypointsDuringActivity.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Waypoint (${waypointsDuringActivity.size})",
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Spacer(Modifier.height(8.dp))
+                SectionHeader("Waypoint (${waypointsDuringActivity.size})")
                 waypointsDuringActivity.forEach { wp ->
                     ActivityWaypointRow(wp, onClick = { onWaypointTap(wp) })
                 }
@@ -745,9 +836,7 @@ private fun ActivityDetailContent(
                 // tampilkan empty state ringan") — previously this section
                 // simply didn't render at all when empty, giving no
                 // indication waypoints were even a feature of the app.
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.waypoint_label), style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
+                SectionHeader(stringResource(R.string.waypoint_label))
                 Text(
                     stringResource(R.string.no_waypoints_recorded),
                     style = MaterialTheme.typography.bodySmall,
@@ -760,22 +849,121 @@ private fun ActivityDetailContent(
     }
 }
 
+/** Route colours shared by the map legend and the planned-vs-actual bars, so
+ *  "blue = planned, green = actual" means the same thing everywhere on screen. */
+private val PlannedTrackBlue = Color(0xFF42A5F5)
+
+/** One heading style for every section on this screen. Previously the same
+ *  level used titleMedium, titleSmall and body weights, and the gaps before
+ *  them were 12/16dp depending on which block you were in. */
 @Composable
-private fun PlannedVsActualRow(plannedDistanceMeters: Double, actualDistanceMeters: Double) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Column(Modifier.weight(1f)) {
-            Text("%.2f km".format(plannedDistanceMeters / 1000.0), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.planned_distance), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Column(Modifier.weight(1f)) {
-            Text("%.2f km".format(actualDistanceMeters / 1000.0), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.actual_distance), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+private fun SectionHeader(text: String) {
+    Spacer(Modifier.height(20.dp))
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface
+    )
+    Spacer(Modifier.height(8.dp))
+}
+
+/** Accuracy verdict pill: good/fair/poor from the average fix radius, in the
+ *  theme's own containers rather than invented colours. */
+@Composable
+private fun GpsAccuracyBadge(averageAccuracyMeters: Float?) {
+    val (labelRes, container, content) = when {
+        averageAccuracyMeters == null || averageAccuracyMeters > 20f -> Triple(
+            R.string.gps_accuracy_poor,
+            MaterialTheme.colorScheme.errorContainer,
+            MaterialTheme.colorScheme.onErrorContainer
+        )
+        averageAccuracyMeters > 8f -> Triple(
+            R.string.gps_accuracy_fair,
+            MaterialTheme.colorScheme.tertiaryContainer,
+            MaterialTheme.colorScheme.onTertiaryContainer
+        )
+        else -> Triple(
+            R.string.gps_accuracy_good,
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    }
+    Surface(shape = RoundedCornerShape(50), color = container) {
+        Text(
+            stringResource(labelRes),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = content,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
     }
 }
 
-private fun formatActivityDateTime(epochMs: Long): String =
-    SimpleDateFormat("EEEE, d MMMM yyyy · HH:mm", Locale("id", "ID")).format(Date(epochMs))
+/** Two distance bars on a shared scale — the longer distance fills the track, so
+ *  "planned 3.55 vs actual 3.83" is a length you can see instead of two numbers
+ *  you have to compare in your head. */
+@Composable
+private fun PlannedVsActualBars(plannedDistanceMeters: Double, actualDistanceMeters: Double) {
+    val maxDistance = maxOf(plannedDistanceMeters, actualDistanceMeters).coerceAtLeast(1.0)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        DistanceBar(
+            label = stringResource(R.string.compare_planned),
+            distanceMeters = plannedDistanceMeters,
+            maxDistanceMeters = maxDistance,
+            color = PlannedTrackBlue
+        )
+        DistanceBar(
+            label = stringResource(R.string.compare_actual),
+            distanceMeters = actualDistanceMeters,
+            maxDistanceMeters = maxDistance,
+            color = NyasarTrackGreen
+        )
+    }
+}
+
+@Composable
+private fun DistanceBar(
+    label: String,
+    distanceMeters: Double,
+    maxDistanceMeters: Double,
+    color: Color
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(60.dp)
+        )
+        Box(
+            Modifier
+                .weight(1f)
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth((distanceMeters / maxDistanceMeters).toFloat().coerceIn(0.02f, 1f))
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color)
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "%.2f km".format(distanceMeters / 1000.0),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(64.dp)
+        )
+    }
+}
+
+private fun formatActivityDateTime(epochMs: Long, locale: Locale): String =
+    SimpleDateFormat("EEEE, d MMMM yyyy · HH:mm", locale).format(Date(epochMs))
 
 @Composable
 private fun TrackLegend() {
@@ -783,9 +971,9 @@ private fun TrackLegend() {
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        LegendItem(color = androidx.compose.ui.graphics.Color(0xFF42A5F5), label = stringResource(R.string.route_planned))
+        LegendItem(color = PlannedTrackBlue, label = stringResource(R.string.route_planned))
         // Matches the line actually drawn on maps (NyasarTrackGreen).
-        LegendItem(color = androidx.compose.ui.graphics.Color(0xFF2E8B57), label = stringResource(R.string.track_actual))
+        LegendItem(color = NyasarTrackGreen, label = stringResource(R.string.track_actual))
     }
 }
 

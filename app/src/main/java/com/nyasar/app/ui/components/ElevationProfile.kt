@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -70,7 +71,6 @@ fun ElevationProfile(
     val totalDistance = points.last().distanceMeters.takeIf { it > 0.0 } ?: 1.0
 
     val lineColor = MaterialTheme.colorScheme.primary
-    val fillColor = lineColor.copy(alpha = 0.2f)
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val tooltipBg = MaterialTheme.colorScheme.inverseSurface
@@ -131,11 +131,15 @@ fun ElevationProfile(
             val drawableHeight = chartHeight - topPadding - bottomPadding
 
             // --- Draw Y-axis labels and horizontal grid lines ---
-            // Y-axis: fewer labels, skip bottom to avoid overlap with X-axis
-            val yLabelCount = 4
+            // Y-axis: 3 ticks, each with its unit. Four bare numbers (1721,
+            // 1545, 1369, 1192) forced the reader to guess the unit, and at a
+            // hardcoded 20px they were ~7sp — unreadable on a phone. Text is
+            // sized in sp now, so it scales with the user's font setting.
+            val yLabelCount = 3
+            val axisTextSize = 11.sp.toPx()
             val yLabelPaint = android.graphics.Paint().apply {
                 color = labelColor.hashCode()
-                textSize = 20f
+                textSize = axisTextSize
                 isAntiAlias = true
                 textAlign = android.graphics.Paint.Align.RIGHT
                 typeface = interTypeface
@@ -157,9 +161,9 @@ fun ElevationProfile(
                 // Label text — only draw if not at the very bottom (avoids overlap with X-axis "0.00")
                 if (i < yLabelCount) {
                     drawContext.canvas.nativeCanvas.drawText(
-                        "${elevValue.roundToInt()}",
+                        "${elevValue.roundToInt()} m",
                         -4f,
-                        y + 6f,
+                        y + axisTextSize * 0.35f,
                         yLabelPaint
                     )
                 }
@@ -175,10 +179,12 @@ fun ElevationProfile(
             )
 
             // --- Draw X-axis labels below the baseline ---
-            val xLabelCount = 6
+            // Four ticks at one decimal, with the unit on the last one: six
+            // "0.00 … 3.83" labels gave false precision and crowded the axis.
+            val xLabelCount = 4
             val xLabelPaint = android.graphics.Paint().apply {
                 color = labelColor.hashCode()
-                textSize = 20f
+                textSize = axisTextSize
                 isAntiAlias = true
                 textAlign = android.graphics.Paint.Align.CENTER
                 typeface = interTypeface
@@ -189,9 +195,9 @@ fun ElevationProfile(
                 val x = fraction * chartWidth
 
                 drawContext.canvas.nativeCanvas.drawText(
-                    "%.2f".format(distKm),
+                    if (i == xLabelCount) "%.1f km".format(distKm) else "%.1f".format(distKm),
                     x,
-                    baselineY + 22f,
+                    baselineY + axisTextSize + 8f,
                     xLabelPaint
                 )
             }
@@ -212,10 +218,32 @@ fun ElevationProfile(
                 lineTo(0f, topPadding + drawableHeight)
                 close()
             }
-            drawPath(fillPath, color = fillColor, style = Fill)
+            // Gradient fill (dense at the line, gone at the baseline) instead
+            // of a flat 20% wash: the curve reads as a shape, not a tint.
+            drawPath(
+                fillPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(lineColor.copy(alpha = 0.35f), lineColor.copy(alpha = 0.02f)),
+                    startY = topPadding,
+                    endY = topPadding + drawableHeight
+                ),
+                style = Fill
+            )
 
             // Line stroke
             drawPath(path, color = lineColor, style = Stroke(width = 3.5f))
+
+            // Highest point: a dot where the curve peaks, so "where is the top"
+            // is answered by the chart itself, not only by the Y-axis tick.
+            run {
+                val peakIndex = points.indices.maxByOrNull { points[it].elevationM } ?: return@run
+                val peak = points[peakIndex]
+                val peakX = (peak.distanceMeters / totalDistance).toFloat() * chartWidth
+                val peakY = topPadding +
+                    (1f - ((peak.elevationM - minE) / rangeE).toFloat()) * drawableHeight
+                drawCircle(color = lineColor, radius = 4.5f, center = Offset(peakX, peakY))
+                drawCircle(color = Color.White, radius = 2f, center = Offset(peakX, peakY))
+            }
 
             // --- Selected point indicator ---
             selectedIndex?.let { idx ->

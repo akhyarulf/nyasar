@@ -516,6 +516,16 @@
     <string name="stat_avg_speed">Rata-rata</string>
     <string name="stat_max_speed">Maksimum</string>
     <string name="stat_elev_loss">Turun</string>
+    <string name="activity_section_summary">Ringkasan</string>
+    <string name="compare_planned">Rencana</string>
+    <string name="compare_actual">Aktual</string>
+    <string name="gps_accuracy_good">Akurasi baik</string>
+    <string name="gps_accuracy_fair">Akurasi cukup</string>
+    <string name="gps_accuracy_poor">Akurasi buruk</string>
+    <string name="gps_quality_summary">%1$s rata-rata · %2$d titik</string>
+    <string name="gps_quality_detail_show">Lihat detail</string>
+    <string name="gps_quality_detail_hide">Sembunyikan detail</string>
+    <string name="gps_quality_extra">Fix lemah %1$d%% · jarak fix terbesar %2$s · terbaik ±%3$d m · terburuk ±%4$d m</string>
     <string name="gps_quality_title">Kualitas GPS</string>
     <string name="gps_quality_average">Rata-rata</string>
     <string name="gps_quality_weak">Fix lemah</string>

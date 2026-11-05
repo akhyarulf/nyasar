@@ -516,6 +516,16 @@
     <string name="stat_avg_speed">Average speed</string>
     <string name="stat_max_speed">Max speed</string>
     <string name="stat_elev_loss">Elevation loss</string>
+    <string name="activity_section_summary">Summary</string>
+    <string name="compare_planned">Planned</string>
+    <string name="compare_actual">Actual</string>
+    <string name="gps_accuracy_good">Good accuracy</string>
+    <string name="gps_accuracy_fair">Fair accuracy</string>
+    <string name="gps_accuracy_poor">Poor accuracy</string>
+    <string name="gps_quality_summary">%1$s average · %2$d fixes</string>
+    <string name="gps_quality_detail_show">Show details</string>
+    <string name="gps_quality_detail_hide">Hide details</string>
+    <string name="gps_quality_extra">Weak fixes %1$d%% · largest fix gap %2$s · best ±%3$d m · worst ±%4$d m</string>
     <string name="gps_quality_title">GPS quality</string>
     <string name="gps_quality_average">Average</string>
     <string name="gps_quality_weak">Weak fixes</string>

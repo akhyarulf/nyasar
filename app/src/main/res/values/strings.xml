@@ -288,6 +288,16 @@
     <string name="edit_publish_subtitle">Perbarui nama, jenis aktivitas, kesulitan, deskripsi, dan siapa yang bisa melihat.</string>
     <string name="edit_publish_name_label">Nama</string>
     <string name="edit_publish_save">Simpan perubahan</string>
+    <string name="edit_activity_page_title">Edit aktivitas</string>
+    <string name="edit_route_page_title">Edit rute</string>
+    <string name="edit_name_required">Nama tidak boleh kosong</string>
+    <string name="edit_desc_placeholder">Akses jalan, kondisi jalur, sumber air…</string>
+    <string name="edit_difficulty_note_label">Catatan kesulitan (opsional)</string>
+    <string name="edit_visibility_public_hint">Publik: muncul di Explore, orang lain bisa menyimpannya dan mengikuti rute ini.</string>
+    <string name="edit_visibility_private_hint">Hanya kamu: tetap di Library, tidak pernah muncul di Explore.</string>
+    <string name="edit_discard_title">Buang perubahan?</string>
+    <string name="edit_discard_message">Perubahan yang belum disimpan akan hilang.</string>
+    <string name="edit_discard_confirm">Buang</string>
     <string name="status_published_public">Publik</string>
     <string name="status_published_private">Privat</string>
     <string name="status_publish_queued">Menunggu koneksi — akan terbit sendiri</string>

@@ -754,7 +754,8 @@ fun RoutePreviewScreen(
     // renames the local route.
     if (showEditSheet) {
         val meta = state.publishedMeta
-        com.nyasar.app.ui.publish.EditPublishSheet(
+        com.nyasar.app.ui.publish.EditPublicationPage(
+            title = stringResource(R.string.edit_route_page_title),
             initialName = state.name.orEmpty(),
             meta = com.nyasar.app.ui.publish.PublishRepositoryMeta(
                 isPublic = meta?.isPublic
@@ -788,11 +789,12 @@ fun RoutePreviewScreen(
     }
 
     // Edit-Route (2026-09-20): form lengkap ala Edit Activity — nama +
-    // difficulty + trail type + deskripsi + visibility via EditPublishSheet.
+    // difficulty + trail type + deskripsi + visibility via EditPublicationPage.
     // Nggak cuma rename lagi; data prefilled dari published meta (kalau
     // sudah publish) atau dari row antrian (kalau queued/belum).
     if (showEditRouteDialog) {
-        com.nyasar.app.ui.publish.EditPublishSheet(
+        com.nyasar.app.ui.publish.EditPublicationPage(
+            title = stringResource(R.string.edit_route_page_title),
             initialName = state.name.orEmpty(),
             meta = com.nyasar.app.ui.publish.PublishRepositoryMeta(
                 isPublic = state.publishedMeta?.isPublic

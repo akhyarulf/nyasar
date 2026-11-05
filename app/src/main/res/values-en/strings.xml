@@ -286,6 +286,16 @@
     <string name="edit_publish_subtitle">Update the name, activity type, difficulty, description, and who can see this.</string>
     <string name="edit_publish_name_label">Name</string>
     <string name="edit_publish_save">Save changes</string>
+    <string name="edit_activity_page_title">Edit activity</string>
+    <string name="edit_route_page_title">Edit route</string>
+    <string name="edit_name_required">Name can’t be empty</string>
+    <string name="edit_desc_placeholder">Access road, trail conditions, water sources…</string>
+    <string name="edit_difficulty_note_label">Difficulty note (optional)</string>
+    <string name="edit_visibility_public_hint">Public: shows in Explore, and others can save and follow this route.</string>
+    <string name="edit_visibility_private_hint">Only you: stays in your Library, never shows in Explore.</string>
+    <string name="edit_discard_title">Discard changes?</string>
+    <string name="edit_discard_message">Your unsaved edits will be lost.</string>
+    <string name="edit_discard_confirm">Discard</string>
     <string name="status_published_public">Public</string>
     <string name="status_published_private">Private</string>
     <string name="status_publish_queued">Waiting for connection — will publish itself</string>

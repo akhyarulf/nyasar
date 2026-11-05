@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import com.nyasar.app.R
 import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.data.supabase.PublishRepository
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /**
  * Edit-Activity dialog (the menu item formerly called "Rename"). Prefills
@@ -55,13 +57,24 @@ fun EditActivityDialog(
         mutableStateOf(com.nyasar.app.recording.SportType.UNSPECIFIED)
     }
     var loading by remember { mutableStateOf(true) }
+    // "Minggu, 2 Nov 2025 · 3.83 km" — the full-page form covers the map, so
+    // it has to say which activity is being edited. Locale follows the app
+    // config, like the detail screen's own date line.
+    var contextLine by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(activityId) {
+        val activity = runCatching {
+            AppDatabase.get(context).activityDao().getById(activityId)
+        }.getOrNull()
         currentSport = runCatching {
-            com.nyasar.app.recording.SportType.fromString(
-                AppDatabase.get(context).activityDao().getById(activityId)?.sportType
-            )
+            com.nyasar.app.recording.SportType.fromString(activity?.sportType)
         }.getOrDefault(com.nyasar.app.recording.SportType.UNSPECIFIED)
+        contextLine = activity?.let { a ->
+            val locale = context.resources.configuration.locales[0]
+            val date = SimpleDateFormat("EEE, d MMM yyyy · HH:mm", locale)
+                .format(Date(a.startedAtEpochMs))
+            "$date · %.2f km".format(a.distanceMeters / 1000.0)
+        }
         // Prefill source priority: cloud (published truth) → pending queue
         // (draft/queued form data) → defaults. Both probes are cheap and
         // null-safe offline.
@@ -97,7 +110,9 @@ fun EditActivityDialog(
             }
         )
     } else {
-        EditPublishSheet(
+        EditPublicationPage(
+            title = stringResource(R.string.edit_activity_page_title),
+            contextLine = contextLine,
             initialName = initialTitle,
             meta = meta ?: PublishRepositoryMeta(true, null, null, null, null),
             initialSportType = currentSport,

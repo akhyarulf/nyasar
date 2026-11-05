@@ -52,7 +52,9 @@ package com.nyasar.app.map
  *    MapLibre-compatible style.
  *
  * @param gpxKey   stable persisted id (kept identical to prior catalog).
- * @param gpxName  display name shown in the picker.
+ * @param gpxName  canonical name (offline download screens, style JSON).
+ * @param pickerLabel short name used only by the basemap picker's
+ *                  1/4-width tiles; defaults to [gpxName].
  * @param styleUrl MapLibre style JSON URL for vector basemaps, or null.
  * @param rasterUrl  XYZ/WMTS template ({z}/{x}/{y}) for single-host raster.
  * @param rasterUrls Explicit host list for multi-host raster (no {s} in
@@ -67,6 +69,14 @@ package com.nyasar.app.map
 enum class BasemapEntry(
     val gpxKey: String,
     val gpxName: String,
+    /**
+     * Label for the picker's 4-per-row tiles. A tile is a quarter of the
+     * sheet's width, so a long catalog name wraps to a second line and makes
+     * that grid row taller than its neighbours; entries whose name does not
+     * fit override this with a shorter one. [gpxName] stays canonical
+     * everywhere else (offline download screens, style JSON naming).
+     */
+    val pickerLabel: String = gpxName,
     /** MapLibre style JSON URL, or null when this is a raster basemap. */
     val styleUrl: String?,
     /**
@@ -163,7 +173,7 @@ enum class BasemapEntry(
     // (OpenFreeMap publishes no topo/contour style) — this one genuinely
     // requires MAPTILER_API_KEY (see isConfiguredFor() below).
     OSM_TOPO(
-        "osmTopo", "OpenMapTiles OSM Topo",
+        "osmTopo", "OpenMapTiles OSM Topo", pickerLabel = "OSM Topo",
         // P3I audit fix, retained: rather than leave styleUrl=null and
         // let this silently fall through TileProvider.styleUrlFor's `else`
         // branch to whichever provider happens to be default (previously

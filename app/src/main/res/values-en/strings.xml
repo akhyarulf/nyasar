@@ -499,6 +499,8 @@
     <!-- Basemap picker sheet -->
     <string name="overlays_title">Overlays</string>
     <string name="overlays_subtitle">Extra map content (Waymarked Trails)</string>
+    <string name="overlays_attribution">© waymarkedtrails.org · OpenStreetMap</string>
+    <string name="layers_clear_action">Turn off</string>
     <string name="overlay_hiking">Hiking</string>
     <string name="overlay_cycling">Cycling</string>
     <string name="overlay_mtb">MTB</string>

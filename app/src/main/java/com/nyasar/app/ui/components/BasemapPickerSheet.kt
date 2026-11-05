@@ -5,6 +5,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +63,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nyasar.app.R
 import com.nyasar.app.map.BasemapEntry
@@ -106,6 +110,20 @@ import com.nyasar.app.ui.theme.NyasarRadius
  * screen-side (previously reachable only via Settings → Offline). All three
  * toggles are persisted app-wide in DataStore (see SettingsRepository) and
  * default OFF.
+ *
+ * Uniform tiles: every section is a 4-per-row grid, including the ones
+ * that have fewer than 4 items. [PickerGrid] pads each row with empty
+ * weighted cells, because the row divides its width between its actual
+ * children — without padding, 3 overlay tiles stretched to 1/3 width and a
+ * single Data tile (public route detail hides the waypoint/offline toggles)
+ * filled the entire sheet and pushed the sheet into a scroll. The sheet's
+ * content is sized to fit without scrolling on normal phones; the scroll
+ * container stays only as a fallback for short screens.
+ *
+ * Selection semantics: basemaps are a radio group (exactly one), overlays
+ * and Data layers are checkboxes (any number) — exposed via
+ * selectable/toggleable with the matching [Role] so TalkBack announces the
+ * selected state instead of a bare "button".
  *
  * Thumbnails: real map previews backed by
  * [com.nyasar.app.ui.map.MapSnapshotHelper.generateBasemapPreview] (each
@@ -171,10 +189,10 @@ fun BasemapPickerSheet(
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 20.dp)
+                .padding(bottom = 16.dp)
         ) {
             Text(stringResource(R.string.map_types_title), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Exactly-4-per-row by construction — see PickerGrid's doc.
             PickerGrid(items = BasemapEntry.ordered) { entry ->
@@ -185,16 +203,20 @@ fun BasemapPickerSheet(
                 )
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             HorizontalDivider()
-            Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.overlays_title), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.overlays_subtitle),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            Spacer(Modifier.height(8.dp))
+            LayerSectionHeader(
+                title = stringResource(R.string.overlays_title),
+                subtitle = stringResource(R.string.overlays_subtitle),
+                actionLabel = if (activeOverlays.isNotEmpty()) {
+                    stringResource(R.string.layers_clear_action)
+                } else null,
+                onAction = if (activeOverlays.isNotEmpty()) {
+                    { activeOverlays.toList().forEach(onToggleOverlay) }
+                } else null
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Overlays grid: the 3 Waymarked Trails layers — third-party map
             // content, same for every user. User-owned layers (routes/
@@ -206,17 +228,39 @@ fun BasemapPickerSheet(
                     onClick = { onToggleOverlay(overlay) }
                 )
             }
+            // Attribution for the Waymarked Trails tile data — shown only
+            // while an overlay is actually on, where it is a licence
+            // requirement rather than decorative text.
+            if (activeOverlays.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.overlays_attribution),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             HorizontalDivider()
-            Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.data_title), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.data_subtitle),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            Spacer(Modifier.height(8.dp))
+            val anyDataActive = myRoutesEnabled ||
+                (showWaypointsToggle && waypointsVisible) ||
+                (showOfflineAreasToggle && offlineAreasEnabled)
+            LayerSectionHeader(
+                title = stringResource(R.string.data_title),
+                subtitle = stringResource(R.string.data_subtitle),
+                actionLabel = if (anyDataActive) {
+                    stringResource(R.string.layers_clear_action)
+                } else null,
+                onAction = if (anyDataActive) {
+                    {
+                        if (myRoutesEnabled) onToggleMyRoutes()
+                        if (showWaypointsToggle && waypointsVisible) onToggleWaypoints()
+                        if (showOfflineAreasToggle && offlineAreasEnabled) onToggleOfflineAreas()
+                    }
+                } else null
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Data grid: the user's own layers — Jalur Saya (saved routes),
             // waypoint pins, downloaded-area coverage. Same 4-per-row wrap;
@@ -246,7 +290,14 @@ fun BasemapPickerSheet(
  *  cells instead of measuring fixed-width children, so exactly 4 per row
  *  holds by construction on any screen width and density. (FlowRow was
  *  replaced because it measures fixed-width children and wraps the 4th
- *  tile on sub-pixel overflow — unfixable from dp arithmetic.) */
+ *  tile on sub-pixel overflow — unfixable from dp arithmetic.)
+ *
+ *  Partial rows are PADDED with empty weighted cells up to 4. The row
+ *  splits its width between its children, so without padding a 3-item
+ *  section (Overlays) rendered 1/3-width tiles — visibly larger than the
+ *  1/4-width basemap tiles — and a 1-item section (Data on public route
+ *  detail) rendered one tile as wide as the whole sheet. Padding keeps
+ *  every tile in every section exactly the same size. */
 @Composable
 private fun <T> PickerGrid(
     items: List<T>,
@@ -260,7 +311,49 @@ private fun <T> PickerGrid(
                     // computed by the layout system itself — no rounding drift.
                     Box(Modifier.weight(1f)) { content(item) }
                 }
+                // Fill the row out to 4 cells so a short section keeps the
+                // same tile width as a full row (see this function's doc).
+                repeat(4 - rowItems.size) {
+                    Spacer(Modifier.weight(1f))
+                }
             }
+        }
+    }
+}
+
+/** Section header with an optional trailing text action ("Turn off"), so a
+ *  section that has layers switched on can be reset without hunting for the
+ *  individual tiles. Kept to two text lines tall and only shown when there
+ *  is actually something to clear. */
+@Composable
+private fun LayerSectionHeader(
+    title: String,
+    subtitle: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (actionLabel != null && onAction != null) {
+            Text(
+                actionLabel,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(NyasarRadius.sm))
+                    .clickable(role = Role.Button, onClick = onAction)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            )
         }
     }
 }
@@ -288,7 +381,10 @@ private fun BasemapTile(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(NyasarRadius.sm))
-            .clickable(onClick = onClick)
+            // Radio semantics: exactly one basemap is active, so TalkBack
+            // announces "selected" instead of a bare button.
+            .selectable(selected = isSelected, role = Role.RadioButton, onClick = onClick)
+            .semantics(mergeDescendants = true) {}
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -309,7 +405,7 @@ private fun BasemapTile(
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            entry.gpxName,
+            entry.pickerLabel,
             style = MaterialTheme.typography.labelSmall,
             color = if (isSelected) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -358,7 +454,11 @@ private fun DataToggleTile(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(NyasarRadius.sm))
-            .clickable(onClick = onClick)
+            // Checkbox semantics: overlays/Data layers are independent
+            // on/off switches, so the selected state is announced as
+            // "checked" rather than as a plain button.
+            .toggleable(value = isChecked, role = Role.Checkbox) { onClick() }
+            .semantics(mergeDescendants = true) {}
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

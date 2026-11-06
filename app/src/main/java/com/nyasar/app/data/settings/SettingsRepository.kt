@@ -85,7 +85,12 @@ data class AppSettings(
      *  optimized) has been shown+actioned. Once true the start-flow gate
      *  never raises it again — manual access stays available via the
      *  Settings screen row, which opens the same system sheet on demand. */
-    val batteryOptimizationOnboardingShown: Boolean = false
+    val batteryOptimizationOnboardingShown: Boolean = false,
+    /** Default visibility for a NEW publish (Wikiloc 2-level): true = Semua
+     *  orang, false = Hanya saya. Only a DEFAULT — the publish form still
+     *  shows both options and whatever the user picks there wins. Opt-in
+     *  privacy, so the default stays true to preserve the shipped behavior. */
+    val defaultRouteVisibilityPublic: Boolean = true
 )
 
 /**
@@ -109,6 +114,7 @@ class SettingsRepository(private val context: Context) {
         val LOCATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("location_onboarding_shown")
         val NOTIFICATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("notification_onboarding_shown")
         val BATTERY_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("battery_optimization_onboarding_shown")
+        val DEFAULT_ROUTE_VISIBILITY = androidx.datastore.preferences.core.booleanPreferencesKey("default_route_visibility_public")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -127,8 +133,15 @@ class SettingsRepository(private val context: Context) {
             waypointsVisible = prefs[Keys.WAYPOINTS_VISIBLE] ?: true,
             locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false,
             notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false,
-            batteryOptimizationOnboardingShown = prefs[Keys.BATTERY_ONBOARDING] ?: false
+            batteryOptimizationOnboardingShown = prefs[Keys.BATTERY_ONBOARDING] ?: false,
+            defaultRouteVisibilityPublic = prefs[Keys.DEFAULT_ROUTE_VISIBILITY] ?: true
         )
+    }
+
+    /** Persist the default visibility applied to a NEW publish — see
+     *  [AppSettings.defaultRouteVisibilityPublic]. */
+    suspend fun setDefaultRouteVisibilityPublic(isPublic: Boolean) {
+        context.dataStore.edit { it[Keys.DEFAULT_ROUTE_VISIBILITY] = isPublic }
     }
 
     suspend fun setBatteryOptimizationOnboardingShown() {

@@ -175,6 +175,71 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
         if (_passwordReset.value.sent) _passwordReset.value = PasswordResetState()
     }
 
+    /**
+     * Passwordless (email-code) sign-in state — deliberately separate from
+     * [loginForm] so the password button never spins for a code request.
+     * [codeSent] flips once the mail is away; the screen then shows the
+     * 6-digit field. The 60s resend cooldown is UI state (it is
+     * presentation-only), while the server enforces its own per-user limit.
+     */
+    data class OtpState(
+        val email: String = "",
+        val codeSent: Boolean = false,
+        val busy: Boolean = false,
+        val errorRes: Int? = null
+    )
+
+    private val _otpState = MutableStateFlow(OtpState())
+    val otpState: StateFlow<OtpState> = _otpState.asStateFlow()
+
+    /** Step 1 — ask Supabase to email a one-time code (see AuthRepository). */
+    fun sendEmailOtp(email: String) {
+        if (_otpState.value.busy) return
+        val trimmed = email.trim()
+        if (trimmed.isBlank() || !trimmed.contains("@")) {
+            _otpState.value = _otpState.value.copy(errorRes = R.string.auth_error_invalid_email)
+            return
+        }
+        _otpState.value = OtpState(email = trimmed, busy = true)
+        viewModelScope.launch {
+            when (val r = repo.sendEmailOtp(trimmed)) {
+                is AuthRepository.Outcome.Success ->
+                    _otpState.value = OtpState(email = trimmed, codeSent = true)
+                is AuthRepository.Outcome.Failure ->
+                    _otpState.value = OtpState(email = trimmed, errorRes = r.error.messageRes())
+            }
+        }
+    }
+
+    /** Step 2 — exchange the typed code for a session. Success needs no
+     *  navigation here: the sessionStatus collector flips [sessionState] to
+     *  SignedIn/NeedsUsername and the NavHost gate takes over exactly as it
+     *  does after a password login. */
+    fun verifyEmailOtp(code: String) {
+        val state = _otpState.value
+        if (state.busy || !state.codeSent) return
+        _otpState.value = state.copy(busy = true, errorRes = null)
+        viewModelScope.launch {
+            when (val r = repo.verifyEmailOtp(state.email, code)) {
+                is AuthRepository.Outcome.Success ->
+                    _otpState.value = _otpState.value.copy(busy = false)
+                is AuthRepository.Outcome.Failure ->
+                    _otpState.value = _otpState.value.copy(busy = false, errorRes = r.error.messageRes())
+            }
+        }
+    }
+
+    fun clearOtpError() {
+        if (_otpState.value.errorRes != null) {
+            _otpState.value = _otpState.value.copy(errorRes = null)
+        }
+    }
+
+    /** Back to step 1 ("ganti email") and on leaving the screen. */
+    fun resetOtp() {
+        _otpState.value = OtpState()
+    }
+
     private val _registerForm = MutableStateFlow(FormState())
     val registerForm: StateFlow<FormState> = _registerForm.asStateFlow()
 
@@ -559,6 +624,7 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
 fun AuthRepository.AuthError.messageRes(): Int = when (this) {
     AuthRepository.AuthError.EMAIL_IN_USE -> com.nyasar.app.R.string.auth_error_email_in_use
     AuthRepository.AuthError.INVALID_CREDENTIALS -> com.nyasar.app.R.string.auth_error_invalid_credentials
+    AuthRepository.AuthError.INVALID_OTP -> com.nyasar.app.R.string.auth_error_invalid_code
     AuthRepository.AuthError.WEAK_PASSWORD -> com.nyasar.app.R.string.auth_error_weak_password
     AuthRepository.AuthError.USERNAME_TAKEN -> com.nyasar.app.R.string.auth_error_username_taken
     AuthRepository.AuthError.USERNAME_INVALID -> com.nyasar.app.R.string.username_invalid_chars

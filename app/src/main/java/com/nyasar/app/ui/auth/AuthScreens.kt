@@ -86,6 +86,7 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onGoToRegister: () -> Unit,
     onGoToForgotPassword: () -> Unit = {},
+    onGoToEmailOtp: () -> Unit = {},
     onLoginBack: () -> Unit = {},
     viewModel: AuthViewModel = viewModel()
 ) {
@@ -155,6 +156,16 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(stringResource(R.string.auth_forgot_password))
+        }
+
+        // Passwordless alternative (2026-11): kode 6 digit ke email. Ditaruh
+        // tepat di bawah "lupa kata sandi" karena keduanya menjawab masalah
+        // yang sama — orang tidak ingat/mempunyai sandi.
+        TextButton(
+            onClick = onGoToEmailOtp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(R.string.auth_login_with_code))
         }
 
         Spacer(Modifier.height(4.dp))
@@ -310,6 +321,194 @@ fun ForgotPasswordScreen(
                 )
             } else {
                 Text(stringResource(R.string.auth_forgot_cta), fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+/**
+ * Login tanpa password — kode 6 digit lewat EMAIL (2026-11, permintaan user).
+ * Tanpa nomor HP dan tanpa SMS (SMS butuh provider berbayar); memakai kanal
+ * email yang sudah dipakai app untuk konfirmasi pendaftaran & reset sandi.
+ *
+ * Dua langkah dalam satu layar:
+ *   1. ketik email → "kirim kode" (Supabase auth/v1/otp, akun dibuat otomatis
+ *      bila belum ada — perilaku standar signInWith(OTP));
+ *   2. ketik kode → verifikasi. Sukses tidak menavigasi sendiri: sesi muncul
+ *      lewat sessionStatus dan NavHost yang memutuskan (gate username sama
+ *      seperti login sandi).
+ *
+ * Server butuh 60 detik sebelum kode baru boleh dikirim untuk user yang
+ * sama; tombol "kirim ulang" mengikuti jendela itu supaya tap tidak berujung
+ * 429. Kalau email tidak pernah tiba, penyebabnya ada di project (template
+ * Magic Link tanpa `{{ .Token }}`, atau SMTP bawaan Supabase yang dibatasi
+ * 2 email/jam) — bukan di layar ini.
+ */
+@Composable
+fun EmailOtpScreen(
+    onOtpSuccess: () -> Unit,
+    onBack: () -> Unit = {},
+    onGoToPasswordLogin: () -> Unit = {},
+    viewModel: AuthViewModel = viewModel()
+) {
+    val state by viewModel.otpState.collectAsState()
+    val session by viewModel.sessionState.collectAsState()
+
+    LaunchedEffect(session) {
+        when (session) {
+            is AuthViewModel.SessionState.SignedIn,
+            is AuthViewModel.SessionState.NeedsUsername -> onOtpSuccess()
+            else -> Unit
+        }
+    }
+
+    AuthScaffold(
+        title = stringResource(R.string.auth_otp_title),
+        onBackAction = onBack
+    ) {
+        var email by rememberSaveable { mutableStateOf("") }
+        var code by rememberSaveable { mutableStateOf("") }
+        // Cooldown "kirim ulang": countdown presentasi, di-restart setiap
+        // kali kode dikirim (resendTick) dan setiap kali langkah 2 muncul.
+        var resendLeft by rememberSaveable { mutableStateOf(0) }
+        var resendTick by rememberSaveable { mutableStateOf(0) }
+
+        LaunchedEffect(state.codeSent, resendTick) {
+            if (!state.codeSent) {
+                resendLeft = 0
+                return@LaunchedEffect
+            }
+            resendLeft = 60
+            while (resendLeft > 0) {
+                delay(1_000)
+                resendLeft -= 1
+            }
+        }
+
+        Text(
+            if (state.codeSent) stringResource(R.string.auth_otp_step2_sub, state.email)
+            else stringResource(R.string.auth_otp_step1_sub),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(16.dp))
+
+        if (!state.codeSent) {
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it; viewModel.clearOtpError() },
+                label = { Text(stringResource(R.string.auth_email)) },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                singleLine = true,
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            val err = state.errorRes
+            if (err != null) {
+                Spacer(Modifier.height(12.dp))
+                ErrorBanner(stringResource(err))
+            }
+
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = { viewModel.sendEmailOtp(email) },
+                enabled = !state.busy && email.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                if (state.busy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text(stringResource(R.string.auth_otp_send_cta), fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            TextButton(
+                onClick = onGoToPasswordLogin,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.auth_otp_use_password))
+            }
+        } else {
+            SuccessBanner(stringResource(R.string.auth_otp_sent_banner))
+            Spacer(Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = code,
+                onValueChange = { input ->
+                    code = input.filter { it.isDigit() }.take(6)
+                    viewModel.clearOtpError()
+                },
+                label = { Text(stringResource(R.string.auth_otp_code)) },
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                singleLine = true,
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            val err = state.errorRes
+            if (err != null) {
+                Spacer(Modifier.height(12.dp))
+                ErrorBanner(stringResource(err))
+            }
+
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = { viewModel.verifyEmailOtp(code) },
+                enabled = !state.busy && code.length == 6,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                if (state.busy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text(stringResource(R.string.auth_otp_verify_cta), fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            TextButton(
+                onClick = {
+                    viewModel.sendEmailOtp(state.email)
+                    resendTick += 1
+                },
+                enabled = !state.busy && resendLeft == 0,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (resendLeft > 0) stringResource(R.string.auth_otp_resend_in, resendLeft)
+                    else stringResource(R.string.auth_otp_resend)
+                )
+            }
+            TextButton(
+                onClick = {
+                    val sentTo = state.email
+                    viewModel.resetOtp()
+                    email = sentTo
+                    code = ""
+                },
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.auth_otp_change_email))
             }
         }
     }

@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
     onOpenOfflineMaps: () -> Unit = {},
+    onOpenLegal: () -> Unit = {},
     onBack: () -> Unit
 ) {
     // Standalone wrapper (kept for the "settings" route used by map screens'
@@ -79,6 +80,7 @@ fun SettingsScreen(
         Box(Modifier.padding(padding).fillMaxSize()) {
             SettingsContent(
                 onOpenOfflineMaps = onOpenOfflineMaps,
+                onOpenLegal = onOpenLegal,
                 onBack = onBack
             )
         }
@@ -98,6 +100,7 @@ fun SettingsScreen(
 internal fun SettingsContent(
     onOpenOfflineMaps: () -> Unit,
     onBack: () -> Unit,
+    onOpenLegal: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel()
 ) {
     val settings by viewModel.settings.collectAsState()
@@ -161,6 +164,30 @@ internal fun SettingsContent(
                             subtitle = stringResource(R.string.backup_auto_desc)
                         )
                     }
+                }
+
+                // ── Publikasi (2026-11, Strava-parity pass: "Privacy
+                // Controls"). One default for every NEW publish — the form
+                // still shows both options, so this is a default and never a
+                // lock. "Everyone" stays pre-selected for compatibility with
+                // the shipped behaviour; changing it is an explicit privacy
+                // decision the user can make once instead of per route.
+                SettingsSection(stringResource(R.string.publish_section)) {
+                    OptionRow(
+                        icon = Icons.Default.Visibility,
+                        title = stringResource(R.string.default_visibility_title),
+                        subtitle = stringResource(R.string.default_visibility_desc)
+                    )
+                    RadioOption(
+                        label = stringResource(R.string.publish_visibility_public),
+                        selected = current.defaultRouteVisibilityPublic,
+                        onSelect = { viewModel.setDefaultRouteVisibilityPublic(true) }
+                    )
+                    RadioOption(
+                        label = stringResource(R.string.publish_visibility_private),
+                        selected = !current.defaultRouteVisibilityPublic,
+                        onSelect = { viewModel.setDefaultRouteVisibilityPublic(false) }
+                    )
                 }
 
                 SettingsSection(stringResource(R.string.gps_section)) {
@@ -420,6 +447,37 @@ internal fun SettingsContent(
                     }
                 }
 
+                // ── Bantuan & Legal (2026-11): the two things users look
+                // for in Settings and could not find before — where to report
+                // a problem, and what happens to their location data. Placed
+                // above "Tentang" so the page ends with information, not
+                // actions (same order as the reference apps).
+                val helpContext = LocalContext.current
+                SettingsSection(stringResource(R.string.help_legal_section)) {
+                    SettingRow(
+                        icon = Icons.Default.AlternateEmail,
+                        title = stringResource(R.string.help_feedback_title),
+                        subtitle = stringResource(R.string.help_feedback_desc),
+                        onClick = {
+                            // Repository issue tracker: a real, permanent
+                            // channel (the distribution group lives in
+                            // WhatsApp chats, which cannot be linked here).
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(HELP_FEEDBACK_URL)
+                            )
+                            runCatching { helpContext.startActivity(intent) }
+                        }
+                    )
+                    SettingRow(
+                        icon = Icons.Default.Info,
+                        title = stringResource(R.string.help_legal_title),
+                        subtitle = stringResource(R.string.help_legal_desc),
+                        onClick = onOpenLegal,
+                        divider = false
+                    )
+                }
+
                 // v0.9.3: one-tap debug info for WL/WhatsApp bug reports (the
                 // distributor group lives in chats, not GitHub — every report
                 // previously cost a round-trip of "versi berapa? merek HP
@@ -550,6 +608,11 @@ private fun StorageBreakdownRow(icon: ImageVector, title: String, size: String?,
         )
     }
 }
+
+/** Support/report channel for the "Bantuan & masukan" row. The repo is the
+ *  permanent, linkable home of the project (the distribution group lives in
+ *  WhatsApp chats and cannot be addressed from an installed APK). */
+private const val HELP_FEEDBACK_URL = "https://github.com/akhyarulf/nyasar/issues"
 
 private fun formatStorageBytes(bytes: Long): String = when {
     bytes >= 1024L * 1024L * 1024L -> "%.2f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))

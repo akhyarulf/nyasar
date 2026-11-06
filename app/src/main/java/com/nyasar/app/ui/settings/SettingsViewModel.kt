@@ -90,6 +90,13 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repository.setOfflineOverlayEnabled(enabled) }
     }
 
+    /** Default visibility for NEW publishes — read back by the publish forms
+     *  through [rememberDefaultPublishVisibility]; the setting is a default,
+     *  never a lock. */
+    fun setDefaultRouteVisibilityPublic(isPublic: Boolean) {
+        viewModelScope.launch { repository.setDefaultRouteVisibilityPublic(isPublic) }
+    }
+
     /** DATA > storage: read-only snapshot of all app-managed local storage. */
     fun refreshStorage() {
         viewModelScope.launch(Dispatchers.IO) {

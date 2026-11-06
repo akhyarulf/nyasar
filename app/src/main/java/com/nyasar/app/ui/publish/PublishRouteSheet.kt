@@ -156,9 +156,17 @@ private fun PublishFormSheet(
     var difficultyDescription by rememberSaveable { mutableStateOf("") }
     var trailType by rememberSaveable { mutableStateOf(PublishTrailType.NONE.name) }
     var description by rememberSaveable { mutableStateOf("") }
-    // Visibility (Wikiloc 2-level): default Public — matches the old
-    // behavior where every publish was implicitly public.
+    // Visibility (Wikiloc 2-level): seeded from Settings › Publikasi
+    // ("visibilitas default rute baru") — an unset preference still resolves
+    // to Public, i.e. exactly the old behavior. Stops listening the moment
+    // the user taps either option, so a late DataStore emission can never
+    // override a deliberate choice inside an open form.
+    val defaultVisibility by com.nyasar.app.ui.settings.rememberDefaultPublishVisibility()
+    var isPublicTouched by rememberSaveable { mutableStateOf(false) }
     var isPublic by rememberSaveable { mutableStateOf(true) }
+    LaunchedEffect(defaultVisibility) {
+        if (!isPublicTouched) isPublic = defaultVisibility
+    }
 
     LaunchedEffect(state) {
         val s = state
@@ -267,14 +275,14 @@ private fun PublishFormSheet(
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(
                     selected = isPublic,
-                    onClick = { isPublic = true },
+                    onClick = { isPublicTouched = true; isPublic = true },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                 ) {
                     Text(stringResource(R.string.publish_visibility_public))
                 }
                 SegmentedButton(
                     selected = !isPublic,
-                    onClick = { isPublic = false },
+                    onClick = { isPublicTouched = true; isPublic = false },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                 ) {
                     Text(stringResource(R.string.publish_visibility_private))

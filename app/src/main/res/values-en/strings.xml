@@ -934,4 +934,38 @@
     <string name="follow_paths_off_cd">Freeform lines on — tap to follow real paths</string>
     <string name="snap_status_on">Following real paths (OSM trails &amp; roads)</string>
     <string name="snap_status_routing">Finding the nearest path…</string>
+
+    <!-- Passwordless sign-in (6-digit code by email) -->
+    <string name="auth_login_with_code">Sign in with an email code</string>
+    <string name="auth_otp_title">Sign in with a code</string>
+    <string name="auth_otp_step1_sub">Enter your email and we send a 6-digit code. No password, no phone number.</string>
+    <string name="auth_otp_step2_sub">Code sent to %1$s. Type the 6 digits from that email.</string>
+    <string name="auth_otp_code">6-digit code</string>
+    <string name="auth_otp_send_cta">Send code</string>
+    <string name="auth_otp_verify_cta">Sign in</string>
+    <string name="auth_otp_sent_banner">Email sent — check your inbox (and spam).</string>
+    <string name="auth_otp_resend">Send a new code</string>
+    <string name="auth_otp_resend_in">Resend in %1$d s</string>
+    <string name="auth_otp_change_email">Change email</string>
+    <string name="auth_otp_use_password">Sign in with a password</string>
+    <string name="auth_error_invalid_email">That email address does not look right</string>
+    <string name="auth_error_invalid_code">Code is wrong or expired — request a new one</string>
+
+    <!-- Settings › Publishing -->
+    <string name="publish_section">Publishing</string>
+    <string name="default_visibility_title">Default visibility for new routes</string>
+    <string name="default_visibility_desc">Newly published routes start with this choice. You can still change it while publishing.</string>
+
+    <!-- Settings › Help &amp; legal -->
+    <string name="help_legal_section">Help &amp; legal</string>
+    <string name="help_feedback_title">Report a problem &amp; send feedback</string>
+    <string name="help_feedback_desc">Open the project issue tracker on GitHub</string>
+    <string name="help_legal_title">Privacy policy &amp; terms</string>
+    <string name="help_legal_desc">What is stored, and what you may do with it</string>
+    <string name="legal_title">Privacy &amp; terms</string>
+    <string name="legal_privacy_heading">Privacy policy</string>
+    <string name="legal_privacy_body">Nyasar keeps your recorded GPS points on your phone, not on a server. There is no analytics, no ads and no third-party tracker.\n\nData reaches the server only after you choose to publish a route: the route line (polyline), the metadata you fill in, and the original GPX file. Published routes are public — anyone can view, download and use them. Routes marked &quot;Only you&quot; never appear in Explore, and their GPX lives in private storage only the owner can open.\n\nAutomatic backup stores a compressed activity summary readable by your account only. Your email and username are used to sign in and as the public identity on your routes.\n\nYou can delete routes one by one, wipe local data from Settings › Data, and delete your account together with its routes from the Account screen. Services used: Supabase (database, authentication, file storage) and the map/tile provider you pick in the app.</string>
+    <string name="legal_terms_heading">Terms of use</string>
+    <string name="legal_terms_body">Nyasar is a free app for exploring and sharing routes. Use it with care: trail conditions change, and in-app navigation is not a substitute for judgement on the ground.\n\nDo not publish routes you have no right to share, or content that is misleading or dangerous. Routes you publish may be used by others, including downloaded and followed.\n\nThe service may change or stop at any time: this is a one-person project with no availability guarantee. You are responsible for your own safety on the trail.</string>
+    <string name="legal_updated_at">Updated November 2026</string>
 </resources>

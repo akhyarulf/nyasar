@@ -934,4 +934,38 @@
     <string name="follow_paths_off_cd">Garis bebas aktif — ketuk untuk mengikuti jalur asli</string>
     <string name="snap_status_on">Mengikuti jalur asli (jejak &amp; jalan OSM)</string>
     <string name="snap_status_routing">Mencari jalur terdekat…</string>
+
+    <!-- Login tanpa password (kode 6 digit lewat email) -->
+    <string name="auth_login_with_code">Masuk dengan kode email</string>
+    <string name="auth_otp_title">Masuk dengan kode</string>
+    <string name="auth_otp_step1_sub">Ketik email kamu, kami kirim kode 6 digit. Tanpa kata sandi, tanpa nomor HP.</string>
+    <string name="auth_otp_step2_sub">Kode dikirim ke %1$s. Masukkan 6 digit dari email itu.</string>
+    <string name="auth_otp_code">Kode 6 digit</string>
+    <string name="auth_otp_send_cta">Kirim kode</string>
+    <string name="auth_otp_verify_cta">Masuk</string>
+    <string name="auth_otp_sent_banner">Email terkirim — cek inbox (dan folder spam).</string>
+    <string name="auth_otp_resend">Kirim ulang kode</string>
+    <string name="auth_otp_resend_in">Kirim ulang dalam %1$d dtk</string>
+    <string name="auth_otp_change_email">Ganti email</string>
+    <string name="auth_otp_use_password">Masuk pakai kata sandi</string>
+    <string name="auth_error_invalid_email">Alamat email belum benar</string>
+    <string name="auth_error_invalid_code">Kode salah atau sudah kedaluwarsa — minta kode baru</string>
+
+    <!-- Pengaturan › Publikasi -->
+    <string name="publish_section">Publikasi</string>
+    <string name="default_visibility_title">Visibilitas default rute baru</string>
+    <string name="default_visibility_desc">Rute yang baru kamu publikasikan mulai dengan pilihan ini. Masih bisa diubah saat mempublikasikan.</string>
+
+    <!-- Pengaturan › Bantuan &amp; legal -->
+    <string name="help_legal_section">Bantuan &amp; legal</string>
+    <string name="help_feedback_title">Laporkan masalah &amp; masukan</string>
+    <string name="help_feedback_desc">Buka halaman laporan proyek di GitHub</string>
+    <string name="help_legal_title">Kebijakan privasi &amp; ketentuan</string>
+    <string name="help_legal_desc">Data apa yang disimpan dan apa yang boleh dilakukan</string>
+    <string name="legal_title">Privasi &amp; ketentuan</string>
+    <string name="legal_privacy_heading">Kebijakan privasi</string>
+    <string name="legal_privacy_body">Nyasar menyimpan titik GPS rekamanmu di HP, bukan di server. Tidak ada analitik, iklan, maupun pelacak pihak ketiga.\n\nYang dikirim ke server hanya setelah kamu memilih mempublikasikan rute: ringkasan jalur (polyline), metadata yang kamu isi, dan file GPX asli. Rute yang dipublikasikan bersifat publik — siapa pun bisa melihat, mengunduh, dan memakainya. Rute bertanda &quot;Hanya saya&quot; tidak muncul di Jelajah, dan file GPX-nya disimpan di penyimpanan privat yang hanya bisa dibuka pemiliknya.\n\nBackup otomatis menyimpan ringkasan aktivitas dalam bentuk terkompresi dan hanya bisa dibaca oleh akunmu sendiri. Email dan nama pengguna dipakai untuk login dan sebagai identitas publik rute.\n\nKamu bisa menghapus rute satu per satu, mengosongkan data lokal dari Pengaturan › Data, dan menghapus akun beserta rutenya dari layar Akun. Layanan yang dipakai: Supabase (database, autentikasi, penyimpanan file) serta penyedia peta/tile yang kamu pilih di aplikasi.</string>
+    <string name="legal_terms_heading">Ketentuan pemakaian</string>
+    <string name="legal_terms_body">Nyasar adalah aplikasi gratis untuk menjelajah dan membagikan rute. Pakailah dengan sadar: kondisi jalur bisa berubah, dan navigasi di aplikasi ini bukan pengganti penilaian di lapangan.\n\nJangan mempublikasikan rute yang bukan hakmu untuk dibagikan, atau konten yang menyesatkan dan berbahaya. Rute yang kamu publikasikan boleh dipakai orang lain, termasuk diunduh dan diikuti.\n\nLayanan bisa berubah atau berhenti kapan saja karena ini proyek perorangan tanpa jaminan ketersediaan. Kamu bertanggung jawab atas keamanan perjalananmu sendiri.</string>
+    <string name="legal_updated_at">Diperbarui November 2026</string>
 </resources>

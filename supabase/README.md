@@ -158,3 +158,34 @@ $$;
 Format username sengaja TIDAK diubah (`emailprefix_id6`, sesuai desain
 live) — cuma email-nya yang di-guard `coalesce` supaya NULL-safe untuk
 provider mana pun.
+
+---
+
+## Email auth (konfirmasi daftar, reset sandi, login kode OTP)
+
+Semua email di app ini dikirim oleh Supabase Auth. Yang bawaan TIDAK cukup
+untuk penguji sungguhan:
+
+- SMTP bawaan: **2 email/jam** dan hanya alamat yang terdaftar di tim
+  project yang diterima (alamat lain gagal dengan `Email address not
+authorized`).
+- Karena itu, sebelum mengundang penguji: **pasang custom SMTP**
+  (Resend/Brevo gratis) di Authentication → Emails → SMTP Settings. Setelah
+  itu limit naik ke 30/jam dan bisa dinaikkan di Authentication → Rate
+  Limits.
+
+Untuk fitur **“Masuk dengan kode email”** (kode 6 digit, tanpa sandi, tanpa
+nomor HP):
+
+1. Custom SMTP aktif (lihat di atas) — tanpa itu kode tidak pernah tiba.
+2. Template **Magic Link** di Authentication → Emails harus memuat
+   `{{ .Token }}`; kalau tidak, email hanya berisi tautan tanpa kode untuk
+   diketik.
+3. Kode kedaluwarsa 1 jam (`auth.email.otp_expiry`, default 3600 dtk) dan
+   kirim ulang dibatasi 60 detik per user — layar OTP sudah mengikuti
+   jendela ini.
+4. `signInWith(OTP)` membuat akun baru bila email belum terdaftar, jadi
+   alur pilih-username di app otomatis ikut jalan untuk user baru.
+
+Catatan biaya: OTP via **SMS** butuh provider berbayar (Twilio dkk.) dan
+sengaja tidak dipakai.

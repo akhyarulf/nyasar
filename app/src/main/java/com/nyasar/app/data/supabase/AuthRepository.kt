@@ -9,6 +9,7 @@ import io.github.jan.supabase.gotrue.OtpType
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.Email
+import io.github.jan.supabase.gotrue.providers.builtin.OTP
 import io.github.jan.supabase.gotrue.providers.builtin.IDToken
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
@@ -62,6 +63,7 @@ class AuthRepository {
     enum class AuthError {
         EMAIL_IN_USE,      // 422 "already registered" on signup
         INVALID_CREDENTIALS, // login: wrong email/password
+        INVALID_OTP,       // login-by-code: wrong/expired 6-digit token
         WEAK_PASSWORD,     // 422 on signup
         USERNAME_TAKEN,    // unique violation on the profiles UPDATE
         USERNAME_INVALID,  // client-side validation failed before any call
@@ -187,6 +189,69 @@ class AuthRepository {
             Outcome.Failure(AuthError.NETWORK)
         } catch (e: Exception) {
             Log.e(TAG, "sendPasswordReset failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /**
+     * Passwordless sign-in, step 1: ask Supabase to email a one-time code to
+     * [email] (`auth/v1/otp` via gotrue-kt's `signInWith(OTP)`). No password,
+     * no phone number, no SMS provider.
+     *
+     * Two project-side prerequisites worth knowing when this path "does
+     * nothing":
+     *  - Auth → Emails → Magic Link template must contain `{{ .Token }}`,
+     *    otherwise the mail carries a link but no 6-digit code to type;
+     *  - Auth → SMTP must be a real provider. Supabase's built-in sender is
+     *    capped at 2 mails/hour and refuses addresses outside the project
+     *    team, so OTP is unusable there (see supabase/README.md).
+     *
+     * Like [sendPasswordReset] this reports Success for any well-formed
+     * request — Supabase deliberately does not reveal whether an address is
+     * registered, and `signInWith(OTP)` creates the account when it is not.
+     */
+    suspend fun sendEmailOtp(email: String): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        return try {
+            SupabaseClientProvider.client.auth.signInWith(OTP) {
+                this.email = email.trim()
+            }
+            Outcome.Success
+        } catch (e: RestException) {
+            Log.e(TAG, "sendEmailOtp failed: ${e.message}")
+            Outcome.Failure(AuthError.NETWORK)
+        } catch (e: Exception) {
+            Log.e(TAG, "sendEmailOtp failed", e)
+            Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /**
+     * Passwordless sign-in, step 2: exchange the emailed code for a session.
+     * gotrue-kt persists the session exactly like [signIn], so the app-wide
+     * sessionStatus collector (and the username gate) need no special case.
+     */
+    suspend fun verifyEmailOtp(email: String, token: String): Outcome {
+        if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
+        return try {
+            SupabaseClientProvider.client.auth.verifyEmailOtp(
+                type = OtpType.Email.EMAIL,
+                email = email.trim(),
+                token = token.trim()
+            )
+            Outcome.Success
+        } catch (e: BadRequestRestException) {
+            Outcome.Failure(AuthError.INVALID_OTP)
+        } catch (e: UnauthorizedRestException) {
+            Outcome.Failure(AuthError.INVALID_OTP)
+        } catch (e: RestException) {
+            // 429 (rate limit / too many tries) also lands here; from the
+            // user's point of view the code did not work, so one honest
+            // category beats leaking server internals.
+            Log.e(TAG, "verifyEmailOtp failed: ${e.message}")
+            Outcome.Failure(AuthError.INVALID_OTP)
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyEmailOtp failed", e)
             Outcome.Failure(AuthError.NETWORK)
         }
     }

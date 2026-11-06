@@ -1104,6 +1104,14 @@ private fun NyasarNavHost(
         ) {
             SettingsScreen(
                 onOpenOfflineMaps = { navController.navigate("offline-maps") },
+                onOpenLegal = { navController.navigate("settings/legal") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        // 2026-11: privacy policy + terms live IN the app (both languages),
+        // reachable from Settings › Bantuan & legal.
+        composable("settings/legal") {
+            com.nyasar.app.ui.settings.LegalScreen(
                 onBack = { navController.popBackStack() }
             )
         }
@@ -1127,7 +1135,18 @@ private fun NyasarNavHost(
                 onLoginSuccess = { navController.popBackStack() },
                 onGoToRegister = { navController.navigate("auth/register") },
                 onGoToForgotPassword = { navController.navigate("auth/forgot") },
+                onGoToEmailOtp = { navController.navigate("auth/otp") },
                 onLoginBack = { navController.popBackStack() }
+            )
+        }
+        // Login tanpa password (kode 6 digit ke email). Sesi tetap dibuat oleh
+        // gotrue-kt, lalu gate username di atas yang menentukan tujuan akhir —
+        // layar ini hanya perlu mundur satu langkah setelah sukses.
+        composable("auth/otp") {
+            com.nyasar.app.ui.auth.EmailOtpScreen(
+                onOtpSuccess = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+                onGoToPasswordLogin = { navController.popBackStack() }
             )
         }
         composable("auth/forgot") {

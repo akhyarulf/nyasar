@@ -94,7 +94,15 @@ fun PostRecordingForm(
     var difficultyDescription by remember { mutableStateOf("") }
     var trailType by remember { mutableStateOf(PublishTrailType.NONE) }
     var description by remember { mutableStateOf("") }
+    // Seeded from Settings › Publikasi ("visibilitas default rute baru");
+    // an unset preference still resolves to Public. The user's tap wins from
+    // then on — see rememberDefaultPublishVisibility.
+    val defaultVisibility by com.nyasar.app.ui.settings.rememberDefaultPublishVisibility()
+    var isPublicTouched by remember { mutableStateOf(false) }
     var isPublic by remember { mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(defaultVisibility) {
+        if (!isPublicTouched) isPublic = defaultVisibility
+    }
 
     Scaffold(
         topBar = {
@@ -301,14 +309,14 @@ fun PostRecordingForm(
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(
                     selected = isPublic,
-                    onClick = { isPublic = true },
+                    onClick = { isPublicTouched = true; isPublic = true },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                 ) {
                     Text(stringResource(R.string.publish_visibility_public))
                 }
                 SegmentedButton(
                     selected = !isPublic,
-                    onClick = { isPublic = false },
+                    onClick = { isPublicTouched = true; isPublic = false },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                 ) {
                     Text(stringResource(R.string.publish_visibility_private))

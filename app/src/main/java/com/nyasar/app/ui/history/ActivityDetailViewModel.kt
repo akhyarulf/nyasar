@@ -147,6 +147,14 @@ class ActivityDetailViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { settingsRepository.setMyRoutesOverlayEnabled(enabled) }
     }
 
+    /** Opt-in Backtrack entry point on this page (Settings › Navigasi,
+     *  default OFF — see AppSettings.backtrackEnabled). Read live, so
+     *  flipping the switch and coming back shows/hides the button without a
+     *  restart. */
+    val backtrackEnabled: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.backtrackEnabled }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val myRouteLines: StateFlow<List<com.nyasar.app.map.MyRouteLine>> =
         myRoutesOverlayEnabled

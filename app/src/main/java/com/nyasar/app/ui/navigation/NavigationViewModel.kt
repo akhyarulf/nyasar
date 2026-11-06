@@ -3,6 +3,7 @@ package com.nyasar.app.ui.navigation
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nyasar.app.data.db.AppDatabase
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.repository.WaypointRepository
 import com.nyasar.app.data.settings.SettingsRepository
@@ -15,6 +16,8 @@ import com.nyasar.app.map.providers.TileProviderFactory
 import com.nyasar.app.navigation.GpsFix
 import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.navigation.NavigationEngine
+import com.nyasar.app.navigation.NavigationState
+import com.nyasar.app.navigation.SunTimesCalc
 import com.nyasar.app.recording.RecordingService
 import com.nyasar.app.recording.RecordingServiceConnection
 import com.nyasar.app.recording.RecordingStatus
@@ -53,7 +56,28 @@ data class NavigationUiState(
      *  Kept separate from [userLocation]'s raw bearingDeg so the map layer
      *  and camera never rotate off noisy GPS bearing while the user is
      *  standing still. */
-    val displayHeadingDeg: Float? = null
+    val displayHeadingDeg: Float? = null,
+    /** Distance still to walk along the track, straight from the engine
+     *  (it already computed this — it just was never surfaced). Basis for
+     *  the arrival estimate. */
+    val remainingDistanceMeters: Double = 0.0,
+    /** Opt-in "Perkiraan tiba & matahari terbenam" (Settings › Navigasi,
+     *  default OFF). Read once at [NavigationViewModel.start] — the stat bar
+     *  either has this line for the whole session or not at all. */
+    val etaSunEnabled: Boolean = false,
+    /** Estimated arrival at the end of the track, from the session's own
+     *  moving average. Null while there is too little walking to average
+     *  (see MIN_ETA_*), never a guess.
+     */
+    val etaEpochMs: Long? = null,
+    /** Sunrise/sunset at the user's CURRENT position for today, or null when
+     *  the sun does not cross the horizon there (or the feature is off). */
+    val sunriseEpochMs: Long? = null,
+    val sunsetEpochMs: Long? = null,
+    /** True when this session was started from an activity's own track
+     *  (Backtrack) instead of a saved route — the sheet/waypoint attachment
+     *  target and the on-screen hint both depend on it. */
+    val backtrackMode: Boolean = false
 )
 
 /**
@@ -100,6 +124,7 @@ data class NavWaypointRef(
 class NavigationViewModel(app: Application) : AndroidViewModel(app) {
 
     private val routeRepository = RouteRepository(app)
+    private val activityDao = AppDatabase.get(app).activityDao()
     private val locationRepository = LocationRepository(app)
     private val settingsRepository = SettingsRepository(app)
     private val recordingConnection = RecordingServiceConnection(app)
@@ -213,6 +238,16 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var started = false
+    /** Mirrors AppSettings.etaSunEnabled for THIS session (see the state
+     *  field of the same name). */
+    private var etaSunEnabled = false
+    /** Cached sun times for "today at roughly here" — recomputed only when
+     *  the local day changes or the user has moved far enough for it to
+     *  matter, instead of re-running the trig on every 1 Hz fix. */
+    private var cachedSunTimes: com.nyasar.app.navigation.SunTimes? = null
+    private var cachedSunLat: Double? = null
+    private var cachedSunLon: Double? = null
+    private var cachedSunDayKey: Long = 0L
     // Full-route elevation profile, computed once at start() — reused per
     // fix to compute "remaining gain from here to the end" without
     // re-walking the whole track on every GPS update.
@@ -251,6 +286,7 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
             // keep state simple).
             val settings = settingsRepository.settings.first()
             val provider = TileProviderFactory.byId(settings.providerId)
+            etaSunEnabled = settings.etaSunEnabled
 
             val trackPoints = doc.allTrackPoints
             val navEngine = NavigationEngine(trackPoints)
@@ -266,59 +302,129 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
                 )?.let { NavWaypointRef(wp.name, wp.lat, wp.lon, wp.elevationM) to it }
             }
 
-            // P3E3 fix #1: user-created waypoints as NEXT WAYPOINT
-            // candidates too, not only GPX ones. Recomputed on every
-            // change to the waypoint table (add/edit/delete — including
-            // one dropped on this very screen mid-navigation), not a
-            // one-shot snapshot like the GPX list above.
-            // v7: GPX-origin DB rows are EXCLUDED — this route's GPX
-            // waypoints already enter the engine via gpxWaypointsAlongTrack
-            // above, so counting the merged rows again would double-report
-            // every imported pin.
-            viewModelScope.launch {
-                waypointRepository.observeAll().collect { userWaypoints ->
-                    userWaypointsAlongTrack = userWaypoints
-                        .filter { it.source != com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX }
-                        .mapNotNull { wp ->
-                            val match = navEngine.matchWaypoint(
-                                com.nyasar.app.navigation.LatLng(wp.lat, wp.lon)
-                            ) ?: return@mapNotNull null
-                            if (match.distanceFromTrackMeters > MAX_WAYPOINT_TRACK_DISTANCE_M) return@mapNotNull null
-                            NavWaypointRef(wp.name, wp.lat, wp.lon, wp.elevationM) to match.distanceTraveledMeters
-                        }
-                }
-            }
+            observeUserWaypoints(navEngine)
 
             _uiState.value = _uiState.value.copy(
                 track = trackPoints,
                 waypoints = doc.waypoints,
-                provider = provider
+                provider = provider,
+                etaSunEnabled = etaSunEnabled
             )
 
-            if (!locationRepository.hasLocationPermission()) return@launch
+            connectGps()
+        }
+    }
 
-            // Try the shared-GPS path first (recording already running for
-            // this session, i.e. user picked Route + Recording + Navigation
-            // together in Start Activity). Only *bind* — never start —
-            // RecordingService here: if it isn't already running (plain
-            // "Mulai Navigasi" with recording off), binding must not spin
-            // it up just to read its state, or navigation-only sessions
-            // would silently create empty recording rows.
-            val activeService = if (isRecordingServiceRunning()) {
-                recordingConnection.bind(autoCreate = false)
-                recordingConnection.service.first { it != null }
-            } else {
-                null
-            }
+    /**
+     * Backtrack: navigate back along an activity's OWN recorded track.
+     *
+     * The engine only ever measures "forward along the track", so the whole
+     * feature is the track being fed in reversed — the recorded row order
+     * reversed puts the start point at the end, and every existing piece
+     * (remaining distance, remaining elevation, next waypoint, off-route
+     * distance) then computes the right thing for walking back without a
+     * single special case in NavigationEngine.
+     *
+     * No route row, no GPX file and no new table: the activity's points are
+     * read straight from Room, which is also why this works with no network
+     * and adds nothing to the Supabase quota. Elevation is the same recorded
+     * elevation, so the elevation stats are the exact reverse profile.
+     *
+     * Entry point is opt-in (Settings › Navigasi, default OFF) — see
+     * AppSettings.backtrackEnabled.
+     */
+    fun startBacktrack(activityId: String) {
+        if (started) return
+        started = true
 
-            if (activeService != null && activeService.state.value.status != RecordingStatus.STOPPED) {
-                boundRecordingService = activeService
-                val listener: (GpsFix) -> Unit = { fix -> onFix(fix) }
-                sharedFixListener = listener
-                activeService.addFixListener(listener)
-            } else {
-                locationRepository.observeLocation().collect { fix -> onFix(fix) }
+        viewModelScope.launch {
+            val points = activityDao.getPoints(activityId)
+            // Fewer than 2 points is not a track; showing a "route" made of
+            // one GPS blip would be a fabricated map, so bail out to the
+            // plain empty screen instead.
+            if (points.size < 2) return@launch
+
+            val reversedTrack: List<TrackPoint> = points
+                .map { TrackPoint(it.lat, it.lon, it.elevationM, it.timestampMs) }
+                .reversed()
+
+            val settings = settingsRepository.settings.first()
+            val navEngine = NavigationEngine(reversedTrack)
+            engine = navEngine
+            routeElevationProfile = ElevationStats.toElevationProfile(reversedTrack)
+            etaSunEnabled = settings.etaSunEnabled
+
+            _uiState.value = _uiState.value.copy(
+                track = reversedTrack,
+                // No GPX waypoints: an activity has none. User waypoints
+                // still come in through observeUserWaypoints below, so pins
+                // dropped on the way out (water source, junction) still
+                // guide the walk back.
+                waypoints = emptyList(),
+                provider = TileProviderFactory.byId(settings.providerId),
+                backtrackMode = true,
+                etaSunEnabled = etaSunEnabled
+            )
+
+            observeUserWaypoints(navEngine)
+            connectGps()
+        }
+    }
+
+    /**
+     * P3E3 fix #1: user-created waypoints as NEXT WAYPOINT candidates too,
+     * not only GPX ones. Recomputed on every change to the waypoint table
+     * (add/edit/delete — including one dropped on this very screen
+     * mid-navigation), not a one-shot snapshot like the GPX list.
+     * v7: GPX-origin DB rows are EXCLUDED — this route's GPX waypoints
+     * already enter the engine via gpxWaypointsAlongTrack, so counting the
+     * merged rows again would double-report every imported pin.
+     *
+     * Shared by both session types: a route session matches them against
+     * the route, a Backtrack session against the reversed activity track.
+     */
+    private fun observeUserWaypoints(navEngine: NavigationEngine) {
+        viewModelScope.launch {
+            waypointRepository.observeAll().collect { userWaypoints ->
+                userWaypointsAlongTrack = userWaypoints
+                    .filter { it.source != com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX }
+                    .mapNotNull { wp ->
+                        val match = navEngine.matchWaypoint(
+                            com.nyasar.app.navigation.LatLng(wp.lat, wp.lon)
+                        ) ?: return@mapNotNull null
+                        if (match.distanceFromTrackMeters > MAX_WAYPOINT_TRACK_DISTANCE_M) return@mapNotNull null
+                        NavWaypointRef(wp.name, wp.lat, wp.lon, wp.elevationM) to match.distanceTraveledMeters
+                    }
             }
+        }
+    }
+
+    /**
+     * One GPS source for the whole session. Try the shared-GPS path first
+     * (recording already running for this session, i.e. user picked Route +
+     * Recording + Navigation together in Start Activity). Only *bind* —
+     * never start — RecordingService here: if it isn't already running
+     * (plain "Mulai Navigasi" with recording off), binding must not spin it
+     * up just to read its state, or navigation-only sessions would silently
+     * create empty recording rows.
+     */
+    private suspend fun connectGps() {
+        if (!locationRepository.hasLocationPermission()) return
+
+        val activeService = if (isRecordingServiceRunning()) {
+            recordingConnection.bind(autoCreate = false)
+            recordingConnection.service.first { it != null }
+        } else {
+            null
+        }
+
+        if (activeService != null && activeService.state.value.status != RecordingStatus.STOPPED) {
+            boundRecordingService = activeService
+            val listener: (GpsFix) -> Unit = { fix -> onFix(fix) }
+            sharedFixListener = listener
+            activeService.addFixListener(listener)
+        } else {
+            locationRepository.observeLocation().collect { fix -> onFix(fix) }
         }
     }
 
@@ -329,6 +435,10 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
             displayHeadingDeg = resolveDisplayHeading()
         )
         val nav = engine?.onGpsFix(fix) ?: return
+        // Opt-in line only: when the user hasn't enabled it, none of this is
+        // computed at all (no trig, no extra state churn).
+        val now = System.currentTimeMillis()
+        val sunTimes = if (etaSunEnabled) sunTimesFor(fix, now) else null
         _uiState.value = _uiState.value.copy(
             distanceTraveledMeters = nav.distanceTraveledMeters,
             distanceFromTrackMeters = nav.distanceFromTrackMeters,
@@ -337,8 +447,58 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
             remainingElevationGainM = remainingElevationGain(nav.distanceTraveledMeters),
             currentSpeedKmh = nav.currentSpeedKmh,
             movingTimeMs = nav.movingTimeMs,
-            nextWaypoint = nextWaypoint(fix, nav.distanceTraveledMeters)
+            nextWaypoint = nextWaypoint(fix, nav.distanceTraveledMeters),
+            remainingDistanceMeters = nav.remainingDistanceMeters,
+            etaEpochMs = if (etaSunEnabled) estimateArrival(nav, now) else null,
+            sunriseEpochMs = sunTimes?.sunriseEpochMs,
+            sunsetEpochMs = sunTimes?.sunsetEpochMs
         )
+    }
+
+    /**
+     * Arrival estimate from the session's OWN pace: distance walked divided
+     * by moving time (auto-pause time excluded, so standing still does not
+     * push the estimate out), applied to what is left on the track.
+     *
+     * Deliberately refuses to answer in the first few hundred metres: a
+     * pace sampled over 30 s of GPS noise is meaningless, and a wildly wrong
+     * "you'll arrive at 21:40" is worse than no estimate at all on a screen
+     * people make safety decisions with.
+     */
+    private fun estimateArrival(nav: NavigationState, nowEpochMs: Long): Long? {
+        if (nav.remainingDistanceMeters <= 0.0) return null
+        if (nav.distanceTraveledMeters < MIN_ETA_DISTANCE_M) return null
+        val movingSeconds = nav.movingTimeMs / 1000.0
+        if (movingSeconds < MIN_ETA_MOVING_SECONDS) return null
+        val averageSpeedMps = nav.distanceTraveledMeters / movingSeconds
+        if (averageSpeedMps < MIN_ETA_SPEED_MPS) return null
+        return nowEpochMs + (nav.remainingDistanceMeters / averageSpeedMps * 1000.0).toLong()
+    }
+
+    /**
+     * Sun times for "today at the user's position", cached per local day and
+     * refreshed only after the user has moved ~2 km (sunset drifts ~1 min per
+     * 20 km east-west at Indonesian latitudes, so anything finer is wasted
+     * work on a 1 Hz fix stream).
+     */
+    private fun sunTimesFor(fix: GpsFix, nowEpochMs: Long): com.nyasar.app.navigation.SunTimes? {
+        val dayKey = nowEpochMs / 86_400_000L
+        val cachedLat = cachedSunLat
+        val cachedLon = cachedSunLon
+        val cacheValid = cachedSunTimes != null && cachedLat != null && cachedLon != null &&
+            cachedSunDayKey == dayKey &&
+            com.nyasar.app.navigation.GeoMath.distanceMeters(
+                com.nyasar.app.navigation.LatLng(cachedLat, cachedLon),
+                com.nyasar.app.navigation.LatLng(fix.lat, fix.lon)
+            ) < SUN_CACHE_MOVE_METERS
+        if (cacheValid) return cachedSunTimes
+
+        val times = SunTimesCalc.forLocalDay(nowEpochMs, fix.lat, fix.lon)
+        cachedSunTimes = times
+        cachedSunLat = fix.lat
+        cachedSunLon = fix.lon
+        cachedSunDayKey = dayKey
+        return times
     }
 
     /**
@@ -426,5 +586,15 @@ class NavigationViewModel(app: Application) : AndroidViewModel(app) {
          *  skip this check entirely: they're authored inside the route
          *  file itself, so they're never "unrelated" to it. */
         private const val MAX_WAYPOINT_TRACK_DISTANCE_M = 400.0
+
+        /** Minimum distance walked before an arrival estimate is shown —
+         *  below this the average pace is still GPS noise. */
+        private const val MIN_ETA_DISTANCE_M = 200.0
+        /** ...and a minimum of actual moving time to average over. */
+        private const val MIN_ETA_MOVING_SECONDS = 120.0
+        /** Slower than this (0.18 km/h) is "stopped", not a pace — no ETA. */
+        private const val MIN_ETA_SPEED_MPS = 0.05
+        /** Re-run the sun calculation only after moving this far. */
+        private const val SUN_CACHE_MOVE_METERS = 2000.0
     }
 }

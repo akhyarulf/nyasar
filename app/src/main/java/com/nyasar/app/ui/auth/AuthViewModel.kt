@@ -625,6 +625,8 @@ fun AuthRepository.AuthError.messageRes(): Int = when (this) {
     AuthRepository.AuthError.EMAIL_IN_USE -> com.nyasar.app.R.string.auth_error_email_in_use
     AuthRepository.AuthError.INVALID_CREDENTIALS -> com.nyasar.app.R.string.auth_error_invalid_credentials
     AuthRepository.AuthError.INVALID_OTP -> com.nyasar.app.R.string.auth_error_invalid_code
+    AuthRepository.AuthError.EMAIL_SEND_FAILED -> com.nyasar.app.R.string.auth_error_email_send_failed
+    AuthRepository.AuthError.RATE_LIMITED -> com.nyasar.app.R.string.auth_error_rate_limited
     AuthRepository.AuthError.WEAK_PASSWORD -> com.nyasar.app.R.string.auth_error_weak_password
     AuthRepository.AuthError.USERNAME_TAKEN -> com.nyasar.app.R.string.auth_error_username_taken
     AuthRepository.AuthError.USERNAME_INVALID -> com.nyasar.app.R.string.username_invalid_chars

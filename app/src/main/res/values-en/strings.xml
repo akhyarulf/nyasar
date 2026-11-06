@@ -950,6 +950,8 @@
     <string name="auth_otp_use_password">Sign in with a password</string>
     <string name="auth_error_invalid_email">That email address does not look right</string>
     <string name="auth_error_invalid_code">Code is wrong or expired — request a new one</string>
+    <string name="auth_error_email_send_failed">Email cannot be sent right now — try again later</string>
+    <string name="auth_error_rate_limited">Too many requests — wait a moment before asking for another code</string>
 
     <!-- Settings › Publishing -->
     <string name="publish_section">Publishing</string>
@@ -968,4 +970,16 @@
     <string name="legal_terms_heading">Terms of use</string>
     <string name="legal_terms_body">Nyasar is a free app for exploring and sharing routes. Use it with care: trail conditions change, and in-app navigation is not a substitute for judgement on the ground.\n\nDo not publish routes you have no right to share, or content that is misleading or dangerous. Routes you publish may be used by others, including downloaded and followed.\n\nThe service may change or stop at any time: this is a one-person project with no availability guarantee. You are responsible for your own safety on the trail.</string>
     <string name="legal_updated_at">Updated November 2026</string>
+
+    <!-- Navigation: two opt-in features (off by default), see Settings › Navigation -->
+    <string name="nav_section">Navigation</string>
+    <string name="backtrack_setting_title">Backtrack button</string>
+    <string name="backtrack_setting_desc">Show the \"Backtrack this track\" button on an activity. Navigation follows your own recorded track in reverse, so you can return to where you started.</string>
+    <string name="eta_sun_setting_title">Arrival estimate &amp; sunset</string>
+    <string name="eta_sun_setting_desc">Show the estimated arrival time on the navigation screen, the sunset time, and a warning if you are expected to still be out after dark. Computed on the phone, no internet needed.</string>
+    <string name="backtrack_start_button">Backtrack this track</string>
+    <string name="backtrack_active_label">Backtrack · heading to the start</string>
+    <string name="nav_eta_label">ETA</string>
+    <string name="nav_sunset_label">Sunset</string>
+    <string name="nav_after_dark_warning">Estimated arrival is after sunset</string>
 </resources>

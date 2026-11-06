@@ -950,6 +950,8 @@
     <string name="auth_otp_use_password">Masuk pakai kata sandi</string>
     <string name="auth_error_invalid_email">Alamat email belum benar</string>
     <string name="auth_error_invalid_code">Kode salah atau sudah kedaluwarsa — minta kode baru</string>
+    <string name="auth_error_email_send_failed">Email tidak bisa dikirim sekarang — coba lagi nanti</string>
+    <string name="auth_error_rate_limited">Terlalu sering — tunggu sebentar sebelum minta kode lagi</string>
 
     <!-- Pengaturan › Publikasi -->
     <string name="publish_section">Publikasi</string>
@@ -968,4 +970,16 @@
     <string name="legal_terms_heading">Ketentuan pemakaian</string>
     <string name="legal_terms_body">Nyasar adalah aplikasi gratis untuk menjelajah dan membagikan rute. Pakailah dengan sadar: kondisi jalur bisa berubah, dan navigasi di aplikasi ini bukan pengganti penilaian di lapangan.\n\nJangan mempublikasikan rute yang bukan hakmu untuk dibagikan, atau konten yang menyesatkan dan berbahaya. Rute yang kamu publikasikan boleh dipakai orang lain, termasuk diunduh dan diikuti.\n\nLayanan bisa berubah atau berhenti kapan saja karena ini proyek perorangan tanpa jaminan ketersediaan. Kamu bertanggung jawab atas keamanan perjalananmu sendiri.</string>
     <string name="legal_updated_at">Diperbarui November 2026</string>
+
+    <!-- Navigasi: dua fitur opt-in (default mati), lihat Pengaturan › Navigasi -->
+    <string name="nav_section">Navigasi</string>
+    <string name="backtrack_setting_title">Tombol kembali lewat jejak</string>
+    <string name="backtrack_setting_desc">Tampilkan tombol \"Kembali lewat jejak ini\" di detail aktivitas. Navigasi mengikuti jejak rekamanmu sendiri dengan arah terbalik, untuk kembali ke titik awal.</string>
+    <string name="eta_sun_setting_title">Perkiraan tiba &amp; matahari terbenam</string>
+    <string name="eta_sun_setting_desc">Tampilkan perkiraan jam tiba di layar navigasi, jam matahari terbenam, dan peringatan bila kamu diperkirakan masih di jalur setelah gelap. Dihitung di HP, tanpa internet.</string>
+    <string name="backtrack_start_button">Kembali lewat jejak ini</string>
+    <string name="backtrack_active_label">Backtrack · menuju titik awal</string>
+    <string name="nav_eta_label">Perkiraan tiba</string>
+    <string name="nav_sunset_label">Terbenam</string>
+    <string name="nav_after_dark_warning">Perkiraan tiba setelah matahari terbenam</string>
 </resources>

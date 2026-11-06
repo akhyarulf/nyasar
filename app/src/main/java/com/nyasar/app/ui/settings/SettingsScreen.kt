@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.filled.WbTwilight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -188,6 +190,34 @@ internal fun SettingsContent(
                         selected = !current.defaultRouteVisibilityPublic,
                         onSelect = { viewModel.setDefaultRouteVisibilityPublic(false) }
                     )
+                }
+
+                // ── Navigasi (2026-11): dua fitur opt-in, KEDUANYA default
+                // mati — keduanya menambah elemen ke layar yang sengaja
+                // dibuat minim (spec: navigation bukan dashboard), jadi
+                // pengguna yang memilih sendiri untuk mengaktifkannya.
+                SettingsSection(stringResource(R.string.nav_section)) {
+                    SettingRow(
+                        icon = Icons.Default.Undo,
+                        title = stringResource(R.string.backtrack_setting_title),
+                        subtitle = stringResource(R.string.backtrack_setting_desc)
+                    ) {
+                        Switch(
+                            checked = current.backtrackEnabled,
+                            onCheckedChange = { viewModel.setBacktrackEnabled(it) }
+                        )
+                    }
+                    SettingRow(
+                        icon = Icons.Default.WbTwilight,
+                        title = stringResource(R.string.eta_sun_setting_title),
+                        subtitle = stringResource(R.string.eta_sun_setting_desc),
+                        divider = false
+                    ) {
+                        Switch(
+                            checked = current.etaSunEnabled,
+                            onCheckedChange = { viewModel.setEtaSunEnabled(it) }
+                        )
+                    }
                 }
 
                 SettingsSection(stringResource(R.string.gps_section)) {

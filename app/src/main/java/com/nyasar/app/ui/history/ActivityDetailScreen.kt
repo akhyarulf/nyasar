@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,6 +74,10 @@ fun ActivityDetailScreen(
     activityId: String,
     viewModel: ActivityDetailViewModel = viewModel(),
     waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel(),
+    /** Opt-in (Settings › Navigasi, default OFF): open a navigation session
+     *  that follows THIS activity's recorded track in reverse. Host wires
+     *  this to the "navigate-backtrack/{activityId}" route. */
+    onStartBacktrack: (String) -> Unit = {},
     onBack: () -> Unit
 ) {
     LaunchedEffect(activityId) {
@@ -80,6 +85,7 @@ fun ActivityDetailScreen(
         viewModel.load(activityId)
     }
     val state by viewModel.uiState.collectAsState()
+    val backtrackEnabled by viewModel.backtrackEnabled.collectAsState()
     val context = LocalContext.current
 
     var showMenu by remember { mutableStateOf(false) }
@@ -341,6 +347,8 @@ fun ActivityDetailScreen(
                             speedUnit = speedUnit,
                             waypointsVisible = waypointsVisible,
                             onExpandMap = { activityMapExpanded = true },
+                            backtrackEnabled = backtrackEnabled,
+                            onStartBacktrack = onStartBacktrack,
                             scrollState = detailScrollState
                         )
                         // Full-screen interactive map (Wikiloc pattern, same
@@ -558,6 +566,8 @@ private fun ActivityDetailContent(
     speedUnit: String = "kmh",
     waypointsVisible: Boolean = true,
     onExpandMap: () -> Unit = {},
+    backtrackEnabled: Boolean = false,
+    onStartBacktrack: (String) -> Unit = {},
     scrollState: androidx.compose.foundation.ScrollState = rememberScrollState()
 ) {
     var scrubbedPoint by remember { mutableStateOf<ElevationPoint?>(null) }
@@ -843,6 +853,21 @@ private fun ActivityDetailContent(
                     Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.bagikan_gpx))
+                }
+            }
+
+            // Backtrack (2026-11, opt-in — Settings › Navigasi, default OFF):
+            // second button, outlined so it never competes with Share as the
+            // primary action. Same recorded points, just walked backwards.
+            if (rawPoints.isNotEmpty() && backtrackEnabled) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { onStartBacktrack(activity.id) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.backtrack_start_button))
                 }
             }
 

@@ -97,6 +97,16 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repository.setDefaultRouteVisibilityPublic(isPublic) }
     }
 
+    /** Opt-in: Backtrack action on activity details (default off). */
+    fun setBacktrackEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setBacktrackEnabled(enabled) }
+    }
+
+    /** Opt-in: arrival estimate + sunset on the navigation screen (default off). */
+    fun setEtaSunEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setEtaSunEnabled(enabled) }
+    }
+
     /** DATA > storage: read-only snapshot of all app-managed local storage. */
     fun refreshStorage() {
         viewModelScope.launch(Dispatchers.IO) {

@@ -202,10 +202,14 @@ isinya bukan rahasia untuk app Android).
   butuh screenshot beneran dari device user (hero sekarang murni teks).
 
 ### Fitur app — kandidat (menunggu feedback user, jangan gas duluan)
-- **Backtrack** — navigasi mengikuti jejak rekaman sendiri (input =
-  activity points, reuse OffRouteDetector + NavigationScreen).
-- **Sunrise/sunset + estimasi tiba** — murni matematis lokal, warning
-  "perkiraan selesai lewat matahari terbenam".
+- ~~Backtrack~~ ✅ 2026-11 (opt-in): jejak aktivitas dibaca dari Room,
+  dibalik, lalu masuk `NavigationEngine` yang sama — tanpa rute/GPX/
+  tabel baru. Rute nav `navigate-backtrack/{activityId}`, tombolnya di
+  detail aktivitas. Saklar `backtrackEnabled`, **default OFF**.
+- ~~Sunrise/sunset + estimasi tiba~~ ✅ 2026-11 (opt-in):
+  `navigation/SunTimes.kt` (rumus murni lokal, tanpa dependency) +
+  ETA dari pace sesi sendiri; baris di stat bar navigasi + peringatan
+  "tiba setelah gelap". Saklar `etaSunEnabled`, **default OFF**.
 - **Alarm dekat waypoint** saat navigasi (getar/notifikasi).
 
 ### Sengaja ditunda (butuh massa user / di luar scope)

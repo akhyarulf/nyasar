@@ -90,7 +90,19 @@ data class AppSettings(
      *  orang, false = Hanya saya. Only a DEFAULT — the publish form still
      *  shows both options and whatever the user picks there wins. Opt-in
      *  privacy, so the default stays true to preserve the shipped behavior. */
-    val defaultRouteVisibilityPublic: Boolean = true
+    val defaultRouteVisibilityPublic: Boolean = true,
+    /** Show the "Backtrack this track" action on an activity. OFF by
+     *  default: it puts an extra navigation entry point on every activity
+     *  detail page, which is only worth the clutter once the user has asked
+     *  for it (same opt-in rule as [offRouteAlertsEnabled]). */
+    val backtrackEnabled: Boolean = false,
+    /** Estimated arrival time + sunset on the navigation screen, plus the
+     *  "still out after dark" warning. OFF by default: it is a second,
+     *  denser line in an already-slim stat bar, and the app's rule is that
+     *  navigation must not turn into a dashboard until asked. Read at
+     *  navigation start (like [providerId]) — changing it mid-hike is not
+     *  applied to the running session. */
+    val etaSunEnabled: Boolean = false
 )
 
 /**
@@ -115,6 +127,8 @@ class SettingsRepository(private val context: Context) {
         val NOTIFICATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("notification_onboarding_shown")
         val BATTERY_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("battery_optimization_onboarding_shown")
         val DEFAULT_ROUTE_VISIBILITY = androidx.datastore.preferences.core.booleanPreferencesKey("default_route_visibility_public")
+        val BACKTRACK_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("backtrack_enabled")
+        val ETA_SUN_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("eta_sun_enabled")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -134,8 +148,22 @@ class SettingsRepository(private val context: Context) {
             locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false,
             notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false,
             batteryOptimizationOnboardingShown = prefs[Keys.BATTERY_ONBOARDING] ?: false,
-            defaultRouteVisibilityPublic = prefs[Keys.DEFAULT_ROUTE_VISIBILITY] ?: true
+            defaultRouteVisibilityPublic = prefs[Keys.DEFAULT_ROUTE_VISIBILITY] ?: true,
+            backtrackEnabled = prefs[Keys.BACKTRACK_ENABLED] ?: false,
+            etaSunEnabled = prefs[Keys.ETA_SUN_ENABLED] ?: false
         )
+    }
+
+    /** Persist the Backtrack action switch — see
+     *  [AppSettings.backtrackEnabled]. */
+    suspend fun setBacktrackEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.BACKTRACK_ENABLED] = enabled }
+    }
+
+    /** Persist the arrival-estimate/sunset line — see
+     *  [AppSettings.etaSunEnabled]. */
+    suspend fun setEtaSunEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ETA_SUN_ENABLED] = enabled }
     }
 
     /** Persist the default visibility applied to a NEW publish — see

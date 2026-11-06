@@ -64,6 +64,18 @@ class AuthRepository {
         EMAIL_IN_USE,      // 422 "already registered" on signup
         INVALID_CREDENTIALS, // login: wrong email/password
         INVALID_OTP,       // login-by-code: wrong/expired 6-digit token
+        /** auth server accepted the request but could not hand the mail to
+         *  an SMTP provider (500 "Error sending confirmation mail"). This is
+         *  a project-configuration problem (custom SMTP missing/expired
+         *  key), NOT the user's connection — kept separate from [NETWORK]
+         *  because "periksa koneksi internet" sent the user chasing the
+         *  wrong thing. */
+        EMAIL_SEND_FAILED,
+        /** 429: the per-user/per-project send window is still closed (e.g.
+         *  Supabase's default "you can only request this after 48 seconds",
+         *  or the built-in 2/hour sender limit). Retrying immediately can
+         *  never work, so it deserves its own message. */
+        RATE_LIMITED,
         WEAK_PASSWORD,     // 422 on signup
         USERNAME_TAKEN,    // unique violation on the profiles UPDATE
         USERNAME_INVALID,  // client-side validation failed before any call
@@ -219,10 +231,37 @@ class AuthRepository {
             Outcome.Success
         } catch (e: RestException) {
             Log.e(TAG, "sendEmailOtp failed: ${e.message}")
-            Outcome.Failure(AuthError.NETWORK)
+            Outcome.Failure(classifyOtpSendFailure(e))
         } catch (e: Exception) {
             Log.e(TAG, "sendEmailOtp failed", e)
             Outcome.Failure(AuthError.NETWORK)
+        }
+    }
+
+    /**
+     * Turn a gotrue send failure into something the user can act on.
+     *
+     * Matching is done on the message text because gotrue-kt 2.2.2 exposes
+     * the server payload only through it (and swallows some PostgREST-style
+     * errors entirely — see the project notes). The two strings below are
+     * stable, distinctive parts of the auth server's own error bodies:
+     *  - 500 `Error sending confirmation mail` (or `unexpected_failure` when
+     *    the SMTP provider rejects the message) → [AuthError.EMAIL_SEND_FAILED]
+     *  - 429 `For security purposes, you can only request this after N
+     *    seconds` / `over_email_send_rate_limit` → [AuthError.RATE_LIMITED]
+     * Anything else stays [AuthError.NETWORK] (timeout, DNS, 5xx from a
+     * proxy), which is the only case where "check your connection" is true.
+     */
+    private fun classifyOtpSendFailure(e: RestException): AuthError {
+        val message = (e.message ?: "").lowercase()
+        return when {
+            message.contains("only request this after") ||
+                message.contains("rate limit") ||
+                message.contains("over_email_send_rate_limit") -> AuthError.RATE_LIMITED
+            message.contains("sending") ||
+                message.contains("smtp") ||
+                message.contains("unexpected_failure") -> AuthError.EMAIL_SEND_FAILED
+            else -> AuthError.NETWORK
         }
     }
 

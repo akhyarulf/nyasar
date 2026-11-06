@@ -53,7 +53,13 @@ import com.nyasar.app.R
  */
 @Composable
 fun NavigationScreen(
-    routeId: String,
+    /** Saved-route session (the normal case). Null for a Backtrack session,
+     *  which has no route row at all — see [backtrackActivityId]. */
+    routeId: String?,
+    /** Set to the activity id for a Backtrack session: navigate along that
+     *  activity's own recorded track, reversed (see
+     *  NavigationViewModel.startBacktrack). Mutually exclusive with a route. */
+    backtrackActivityId: String? = null,
     withRecording: Boolean = false,
     viewModel: NavigationViewModel = viewModel(),
     recordingViewModel: RecordingViewModel = viewModel(),
@@ -65,9 +71,26 @@ fun NavigationScreen(
     waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel(),
     onExit: () -> Unit
 ) {
-    LaunchedEffect(routeId) {
-        waypointViewModel.setContext(com.nyasar.app.ui.waypoint.WaypointContext.Route(routeId))
-        viewModel.start(routeId)
+    LaunchedEffect(routeId, backtrackActivityId) {
+        val activityId = backtrackActivityId
+        when {
+            activityId != null -> {
+                // Waypoints created on the way back attach to the ACTIVITY
+                // (the same context the activity detail screen uses), since
+                // there is no route to attach them to.
+                waypointViewModel.setContext(
+                    com.nyasar.app.ui.waypoint.WaypointContext.Recording(
+                        activityId = activityId,
+                        routeId = null
+                    )
+                )
+                viewModel.startBacktrack(activityId)
+            }
+            routeId != null -> {
+                waypointViewModel.setContext(com.nyasar.app.ui.waypoint.WaypointContext.Route(routeId))
+                viewModel.start(routeId)
+            }
+        }
     }
     val state by viewModel.uiState.collectAsState()
     val cameraMode by viewModel.cameraMode.collectAsState()
@@ -237,6 +260,17 @@ fun NavigationScreen(
             tonalElevation = 4.dp
         ) {
             Column(Modifier.padding(16.dp)) {
+                // Backtrack hint: the map alone can't tell the user this line
+                // is their own track in reverse, and "why is the line going
+                // the wrong way?" is exactly the confusion worth one label.
+                if (state.backtrackMode) {
+                    Text(
+                        stringResource(R.string.backtrack_active_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -282,6 +316,17 @@ fun NavigationScreen(
                     )
                 }
 
+                // Opt-in (Settings › Navigasi, default OFF): arrival estimate
+                // + sunset at the current position. Drawn in the error colour
+                // only when the estimate really lands after sunset — that is
+                // a safety signal, not decoration.
+                if (state.etaSunEnabled) {
+                    SunEtaLine(
+                        etaEpochMs = state.etaEpochMs,
+                        sunsetEpochMs = state.sunsetEpochMs
+                    )
+                }
+
                 if (withRecording) {
                     Spacer(Modifier.height(12.dp))
                     RecordingStrip(
@@ -309,7 +354,10 @@ fun NavigationScreen(
             lon = tap.lon,
             elevationM = tap.elevationM,
             // Navigation context: default (and only route option) = THIS route.
-            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(routeId = routeId),
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = routeId,
+                activityId = backtrackActivityId
+            ),
             initialLinkedRouteId = routeId,
             onDismiss = waypointViewModel::dismissPendingTap,
             onSave = { name, category, note, linkedRouteId, linkedActivityId ->
@@ -347,7 +395,10 @@ fun NavigationScreen(
             lat = wp.lat,
             lon = wp.lon,
             elevationM = wp.elevationM,
-            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(routeId = routeId),
+            attachments = com.nyasar.app.ui.waypoint.WaypointAttachments(
+                routeId = routeId,
+                activityId = backtrackActivityId
+            ),
             initialLinkedRouteId = wp.linkedRouteId,
             initialLinkedActivityId = wp.linkedActivityId,
             lockAttachment = wp.source == com.nyasar.app.data.db.WaypointEntity.SOURCE_GPX,
@@ -499,6 +550,45 @@ private fun StatBlock(value: String, label: String) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+/**
+ * "Perkiraan tiba 17:40 · Terbenam 17:52", plus the after-dark warning when
+ * the estimate is past sunset. Renders nothing at all while neither number
+ * is known (too little walking for a pace, or no horizon crossing today) —
+ * an empty line is better than "-" on a screen this compact.
+ */
+@Composable
+private fun SunEtaLine(etaEpochMs: Long?, sunsetEpochMs: Long?) {
+    val etaLabel = stringResource(R.string.nav_eta_label)
+    val sunsetLabel = stringResource(R.string.nav_sunset_label)
+    val afterDark = etaEpochMs != null && sunsetEpochMs != null && etaEpochMs > sunsetEpochMs
+    val line = when {
+        etaEpochMs != null && sunsetEpochMs != null ->
+            "$etaLabel ${formatClock(etaEpochMs)} · $sunsetLabel ${formatClock(sunsetEpochMs)}"
+        etaEpochMs != null -> "$etaLabel ${formatClock(etaEpochMs)}"
+        sunsetEpochMs != null -> "$sunsetLabel ${formatClock(sunsetEpochMs)}"
+        else -> null
+    } ?: return
+
+    Spacer(Modifier.height(8.dp))
+    Text(
+        line,
+        style = MaterialTheme.typography.labelMedium,
+        color = if (afterDark) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    if (afterDark) {
+        Text(
+            stringResource(R.string.nav_after_dark_warning),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+}
+
+/** Local wall-clock time, 24-hour — the convention the whole app already
+ *  uses for durations and split times. */
+private fun formatClock(epochMs: Long): String =
+    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(epochMs))
 
 private fun formatDuration(ms: Long): String {
     val totalSeconds = ms / 1000

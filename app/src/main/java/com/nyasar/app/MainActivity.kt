@@ -944,6 +944,7 @@ private fun NyasarNavHost(
             val activityId = backStackEntry.arguments?.getString("activityId") ?: return@composable
             ActivityDetailScreen(
                 activityId = activityId,
+                onStartBacktrack = { id -> navController.navigate("navigate-backtrack/$id") },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -1067,6 +1068,19 @@ private fun NyasarNavHost(
             NavigationScreen(
                 routeId = routeId,
                 withRecording = withRecording,
+                onExit = { navController.popBackStack() }
+            )
+        }
+        // 2026-11 Backtrack (opt-in, Settings › Navigasi): navigate back along
+        // an activity's OWN recorded track. There is no route row or GPX file
+        // for an activity, hence a separate route with no {routeId} —
+        // NavigationViewModel.startBacktrack reads the points from Room and
+        // feeds them in reversed.
+        composable("navigate-backtrack/{activityId}") { backStackEntry ->
+            val activityId = backStackEntry.arguments?.getString("activityId") ?: return@composable
+            NavigationScreen(
+                routeId = null,
+                backtrackActivityId = activityId,
                 onExit = { navController.popBackStack() }
             )
         }

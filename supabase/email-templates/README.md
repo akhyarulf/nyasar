@@ -24,7 +24,14 @@ table-based on purpose. Palette follows the app: sage `#5A7562`, forest
 
 These only go out once the matching notification is switched on
 (Authentication → Emails → Security). No links, no codes — they exist so a
-change nobody made cannot happen quietly.
+change nobody made cannot happen quietly. A template pasted while its toggle is
+off never sends anything.
+
+What this project actually needs: **07** and **08** (both toggles are on),
+plus **10** / **11** if the Google button is ever enabled — an identity quietly
+attached to an account is exactly what those two catch. **09** is dead weight
+(email-only auth, no phone numbers), and **12** / **13** stay dormant until MFA
+exists in the app. Install the rest only when the matching toggle is turned on.
 
 | File | Dashboard → Security notifications | Subject |
 | --- | --- | --- |
@@ -33,8 +40,8 @@ change nobody made cannot happen quietly.
 | `09-phone-changed.html` | Phone number changed | `Your Nyasar phone number was changed` |
 | `10-identity-linked.html` | Sign-in method linked | `A new sign-in method was added to Nyasar` |
 | `11-identity-unlinked.html` | Sign-in method removed | `A sign-in method was removed from Nyasar` |
-| `12-verification-added.html` | Verification method added | `Two-step verification was turned on for Nyasar` |
-| `13-verification-removed.html` | Verification method removed | `Two-step verification was turned off for Nyasar` |
+| `12-mfa-method-added.html` | MFA method added | `Two-step verification was turned on for Nyasar` |
+| `13-mfa-method-removed.html` | MFA method removed | `Two-step verification was turned off for Nyasar` |
 
 ## Installing one
 

@@ -897,6 +897,16 @@
     <string name="route_detail_open_route">Open route</string>
     <string name="route_detail_export_gpx">Export GPX</string>
     <string name="route_detail_more">More options</string>
+    <string name="route_detail_unpublished">Not published yet</string>
+    <string name="route_detail_file_section">Route file</string>
+    <string name="route_detail_imported">Imported</string>
+    <string name="route_detail_point_count">Track points</string>
+    <string name="route_detail_format">Format</string>
+    <string name="route_detail_no_elevation_data">This route\'s file has no elevation data.</string>
+    <string name="route_detail_broken_file">This route\'s track can\'t be read (0 points). Re-import the GPX or delete the route.</string>
+    <string name="route_detail_offline_ready">Offline map ready for this area</string>
+    <string name="route_detail_elev_network">Couldn\'t download the GPX file (network).</string>
+    <string name="route_detail_elev_no_data">The GPX file has no elevation data.</string>
     <string name="browse_comments_jump">See comments</string>
     <string name="comment_delete_cd">Delete comment</string>
     <string name="comment_delete_confirm_title">Delete this comment?</string>

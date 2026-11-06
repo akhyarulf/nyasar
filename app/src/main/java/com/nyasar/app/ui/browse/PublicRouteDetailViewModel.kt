@@ -32,6 +32,18 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** Why the detail's elevation chart could not be built. Each case needs a
+ *  different action from the user (retry / network / nothing to show), so they
+ *  are distinguished instead of collapsing into one generic "unavailable". */
+enum class ElevationUnavailableReason {
+    /** Storage object missing, unreadable, or the GPX failed to parse. */
+    NO_FILE,
+    /** Download timed out / connection problem — retrying can help. */
+    NETWORK,
+    /** File parsed fine but carries no <ele> samples (lat/lon-only GPX). */
+    NO_ELEVATION
+}
+
 /**
  * ViewModel for a single PUBLIC route's detail screen (Fase 2 slice 2):
  * loads the row + publisher username, decodes track_polyline for the map
@@ -171,7 +183,7 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
         data object Idle : ElevationState()
         data object Loading : ElevationState()
         data class Ready(val profile: List<ElevationPoint>) : ElevationState()
-        data object Unavailable : ElevationState()
+        data class Unavailable(val reason: ElevationUnavailableReason) : ElevationState()
     }
 
     private val _elevation = MutableStateFlow<ElevationState>(ElevationState.Idle)
@@ -445,17 +457,39 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
                                 .parse(outcome.gpxXml.byteInputStream(), route.name)
                                 .allTrackPoints
                             val profile = ElevationStats.toElevationProfile(points)
-                            if (profile.size >= 2) ElevationState.Ready(profile)
-                            else ElevationState.Unavailable
+                            if (profile.size >= 2) {
+                                ElevationState.Ready(profile)
+                            } else {
+                                // Parsed, but no usable elevation samples — a
+                                // lat/lon-only GPX, NOT a broken file.
+                                Log.w(
+                                    TAG,
+                                    "elevation: ${points.size} track points, ${profile.size} with elevation"
+                                )
+                                ElevationState.Unavailable(ElevationUnavailableReason.NO_ELEVATION)
+                            }
                         }
-                        is BrowseRepository.GpxOutcome.Failure -> ElevationState.Unavailable
+                        is BrowseRepository.GpxOutcome.Failure -> {
+                            Log.w(TAG, "elevation: gpx download failed (${outcome.error})")
+                            ElevationState.Unavailable(
+                                if (outcome.error == BrowseRepository.BrowseError.NETWORK) {
+                                    ElevationUnavailableReason.NETWORK
+                                } else {
+                                    ElevationUnavailableReason.NO_FILE
+                                }
+                            )
+                        }
                     }
                 } catch (e: Exception) {
-                    Log.e("PublicRouteDetailVM", "elevation profile failed", e)
-                    ElevationState.Unavailable
+                    Log.e(TAG, "elevation profile failed", e)
+                    ElevationState.Unavailable(ElevationUnavailableReason.NO_FILE)
                 }
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "PublicRouteDetailVM"
     }
 
     fun load(routeId: String) {

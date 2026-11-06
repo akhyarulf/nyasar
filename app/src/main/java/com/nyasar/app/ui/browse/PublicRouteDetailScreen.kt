@@ -715,19 +715,33 @@ fun PublicRouteDetailScreen(
                                 // vanish, leaving a blank gap under the stats
                                 // with no explanation (the header still claims an
                                 // elevation gain). Say so and offer a retry.
-                                PublicRouteDetailViewModel.ElevationState.Unavailable -> {
+                                is PublicRouteDetailViewModel.ElevationState.Unavailable -> {
+                                    // The reason decides the sentence: a missing
+                                    // file, a network failure and a GPX with no
+                                    // elevation samples are three different
+                                    // stories. Retry only where it can help.
+                                    val messageRes = when (e.reason) {
+                                        ElevationUnavailableReason.NETWORK ->
+                                            R.string.route_detail_elev_network
+                                        ElevationUnavailableReason.NO_ELEVATION ->
+                                            R.string.route_detail_elev_no_data
+                                        ElevationUnavailableReason.NO_FILE ->
+                                            R.string.route_detail_elev_unavailable
+                                    }
                                     Row(
                                         Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            stringResource(R.string.route_detail_elev_unavailable),
+                                            stringResource(messageRes),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.weight(1f)
                                         )
-                                        TextButton(onClick = { viewModel.loadElevation(route) }) {
-                                            Text(stringResource(R.string.retry))
+                                        if (e.reason != ElevationUnavailableReason.NO_ELEVATION) {
+                                            TextButton(onClick = { viewModel.loadElevation(route) }) {
+                                                Text(stringResource(R.string.retry))
+                                            }
                                         }
                                     }
                                     Spacer(Modifier.height(8.dp))

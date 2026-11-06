@@ -35,6 +35,10 @@ data class RoutePreviewUiState(
     val highestElevationM: Double? = null,
     val lowestElevationM: Double? = null,
     val waypointCount: Int = 0,
+    /** When the GPX was imported — surfaced in the detail's "Route file"
+     *  block. The value was always in Room; the screen just never showed it,
+     *  which left a dead gap under the stats on waypoint-less routes. */
+    val importedAtEpochMs: Long = 0L,
     val track: List<TrackPoint> = emptyList(),
     val waypoints: List<GpxWaypoint> = emptyList(),
     val provider: TileProvider = TileProviderFactory.default(),
@@ -292,6 +296,7 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
                 highestElevationM = route.highestElevationM,
                 lowestElevationM = route.lowestElevationM,
                 waypointCount = route.waypointCount,
+                importedAtEpochMs = route.importedAtEpochMs,
                 track = doc.allTrackPoints,
                 waypoints = doc.waypoints,
                 provider = TileProviderFactory.byId(settings.providerId),
@@ -305,6 +310,18 @@ class RoutePreviewViewModel(app: Application) : AndroidViewModel(app) {
     // renameRoute() dihapus (2026-09-20): Edit-Route kini form lengkap via
     // PublishViewModel.editPublished (yang juga me-rename lokal di step 1-nya)
     // + load() untuk refresh langsung.
+
+    /** Delete this library route (row + stored GPX) and report back so the
+     *  screen can pop. Goes through the SAME repository call as the Library
+     *  list's delete, so the two entry points cannot drift; a failed delete
+     *  keeps the screen open instead of pretending the route is gone. */
+    fun deleteRoute(routeId: String, onDeleted: () -> Unit) {
+        viewModelScope.launch {
+            val route = repository.getRoute(routeId)
+            val deleted = route == null || runCatching { repository.delete(route) }.isSuccess
+            if (deleted) onDeleted()
+        }
+    }
 
     /** Best-effort status/meta refresh after an edit/publish lands. */
     fun refreshPublishStatus(routeId: String) {

@@ -441,22 +441,29 @@ class BrowseRepository {
         if (!SupabaseClientProvider.isConfigured) {
             return GpxOutcome.Failure(BrowseError.NOT_CONFIGURED)
         }
-        if (route.gpxFileUrl.isNullOrBlank()) {
-            return GpxOutcome.Failure(BrowseError.NO_GPX_FILE)
-        }
-        val isPrivate = route.gpxFileUrl.startsWith(PublishRepository.PRIVATE_PATH_PREFIX)
+        val marker = route.gpxFileUrl.orEmpty()
+        val isPrivate = marker.startsWith(PublishRepository.PRIVATE_PATH_PREFIX)
         return try {
             val storage = client.pluginManager.getPlugin(io.github.jan.supabase.storage.Storage)
             val path = storagePathFor(route.userId, route.id)
-            val bytes = if (isPrivate) {
-                storage["route-gpx-private"].downloadAuthenticated(path)
-            } else {
-                storage["route-gpx"].downloadPublic(path)
+            // Read routing:
+            //  - "private:<path>" marker → owner-only bucket;
+            //  - a public URL (or any other value) → public bucket;
+            //  - EMPTY gpx_file_url → try BOTH buckets.
+            // gpx_file_url is written by a best-effort backfill AFTER the
+            // upload (uploadPipeline step 4), so a blank value only means the
+            // backfill never landed — the object itself is still at its
+            // deterministic path. Bailing out here made the elevation chart,
+            // Save-to-Library and Export all fail on exactly those rows
+            // (the "elevation profile unavailable" report on older routes).
+            val bytes = when {
+                isPrivate -> storage["route-gpx-private"].downloadAuthenticated(path)
+                marker.isNotBlank() -> storage["route-gpx"].downloadPublic(path)
+                else -> runCatching { storage["route-gpx"].downloadPublic(path) }
+                    .recoverCatching { storage["route-gpx-private"].downloadAuthenticated(path) }
+                    .getOrThrow()
             }
-            val gpx = java.util.zip.GZIPInputStream(bytes.inputStream()).use { stream ->
-                stream.readBytes().toString(Charsets.UTF_8)
-            }
-            GpxOutcome.Success(gpx, gpxFileNameFor(route))
+            GpxOutcome.Success(decompressGpx(bytes), gpxFileNameFor(route))
         } catch (e: RestException) {
             // 404/400 from storage usually means the object is absent — e.g. a
             // row created before migration 0003 was applied. Classify so the
@@ -475,6 +482,22 @@ class BrowseRepository {
         } catch (e: Exception) {
             Log.e(TAG, "downloadGpx unexpected: ${e.message}", e)
             GpxOutcome.Failure(BrowseError.UNKNOWN)
+        }
+    }
+
+    /** gzip → UTF-8 XML. Gzip is detected by its magic header instead of
+     *  assuming the format: a legacy/plain-XML object then reads fine, and a
+     *  genuinely truncated file still surfaces as a parse failure upstream
+     *  rather than a misleading "file tidak ada". */
+    private fun decompressGpx(bytes: ByteArray): String {
+        val isGzip = bytes.size >= 2 &&
+            bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
+        return if (isGzip) {
+            java.util.zip.GZIPInputStream(bytes.inputStream()).use { stream ->
+                stream.readBytes().toString(Charsets.UTF_8)
+            }
+        } else {
+            bytes.toString(Charsets.UTF_8)
         }
     }
 

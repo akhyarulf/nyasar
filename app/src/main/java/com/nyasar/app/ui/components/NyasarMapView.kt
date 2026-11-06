@@ -35,6 +35,11 @@ import kotlinx.coroutines.withContext
 
 private const val SOURCE_TRACK = "nyasar-track-source"
 private const val LAYER_TRACK = "nyasar-track-layer"
+// Start/finish dots for a planned route — opt-in via showTrackEndpoints.
+private const val SOURCE_TRACK_START = "nyasar-track-start-source"
+private const val LAYER_TRACK_START = "nyasar-track-start-layer"
+private const val SOURCE_TRACK_END = "nyasar-track-end-source"
+private const val LAYER_TRACK_END = "nyasar-track-end-layer"
 private const val SOURCE_ACTUAL_TRACK = "nyasar-actual-track-source"
 private const val LAYER_ACTUAL_TRACK = "nyasar-actual-track-layer"
 private const val SOURCE_DRAWN_POINTS = "nyasar-drawn-points-source"
@@ -140,6 +145,12 @@ fun NyasarMapView(
      *  Without this, migrating RoutePreview onto the full-load pipeline
      *  would silently recolor every route green. */
     trackColorOverride: String? = null,
+    /** Start/finish dots at the two ends of [track]. Off by default — Home and
+     *  Recording draw the line only (a "start" dot on a live recording track
+     *  is noise). The library Route Detail turns it on: the static browse
+     *  preview has always shown endpoints, and without them a blue line gives
+     *  no clue which end is the trailhead. */
+    showTrackEndpoints: Boolean = false,
     /** The track actually walked so far (recording), drawn as a second line in
      *  a different color from [track] (the planned route). Updates on every
      *  GPS fix — kept in its own source/effect so it never touches the
@@ -600,7 +611,8 @@ fun NyasarMapView(
                     map, mapView, track,
                     if (waypointsVisible) waypoints else emptyList(),
                     if (waypointsVisible) userWaypoints else emptyList(),
-                    focusBounds, refitCamera = needsCameraFit
+                    focusBounds, refitCamera = needsCameraFit,
+                    showTrackEndpoints = showTrackEndpoints
                 )
                 if (needsCameraFit) lastFittedTrackSignature = trackSignature
                 onMapReady(map)
@@ -677,6 +689,7 @@ fun NyasarMapView(
                         )
                     )
                 }
+                applyTrackEndpoints(style, track, showTrackEndpoints)
 
                 // Actual/recorded track (spec section 3: "jejak yang sudah
                 // dilewati digambar realtime di map"). Separate source from
@@ -1426,7 +1439,10 @@ private fun refreshSharedContent(
     /** False = content-only refresh (waypoints changed but the route is the
      *  same): skip the camera fit so a background DB emission never yanks the
      *  user's pan/zoom position back to the full-route bounds. */
-    refitCamera: Boolean
+    refitCamera: Boolean,
+    /** Mirrors the public flag — keeps start/finish dots in sync on the shared
+     *  fast path too (the content refresh can rewrite the track source). */
+    showTrackEndpoints: Boolean = false
 ) {
     map.getStyle { style ->
         val trackSource = style.getSourceAs<GeoJsonSource>(SOURCE_TRACK)
@@ -1444,6 +1460,7 @@ private fun refreshSharedContent(
                 )
             )
         }
+        applyTrackEndpoints(style, track, showTrackEndpoints)
 
         val features = waypoints.map { wp ->
             Feature.fromGeometry(Point.fromLngLat(wp.lon, wp.lat)).apply {
@@ -1602,6 +1619,55 @@ private fun handleMapTap(
 
     handlers.onMapClick(point.latitude, point.longitude)
     return false
+}
+
+/**
+ * Paints (or clears) the start/finish dots for [track]: two tiny GeoJSON
+ * sources holding ONE point each. A one-point source renders nothing, so the
+ * layer can stay installed permanently — an empty/singleton track simply
+ * shows no dot at 0,0, and "already added" never has to be tracked.
+ */
+private fun applyTrackEndpoints(
+    style: org.maplibre.android.maps.Style,
+    track: List<TrackPoint>,
+    visible: Boolean
+) {
+    val start = if (visible) track.firstOrNull() else null
+    // A single-point track IS its own start and end — drawing both dots on top
+    // of each other just wastes a source.
+    val end = if (visible && track.size > 1) track.last() else null
+    applyEndpoint(style, SOURCE_TRACK_START, LAYER_TRACK_START, start, "#2E8B57")
+    applyEndpoint(style, SOURCE_TRACK_END, LAYER_TRACK_END, end, "#E53935")
+}
+
+private fun applyEndpoint(
+    style: org.maplibre.android.maps.Style,
+    sourceId: String,
+    layerId: String,
+    point: TrackPoint?,
+    color: String
+) {
+    val collection = if (point == null) {
+        FeatureCollection.fromFeatures(emptyArray())
+    } else {
+        FeatureCollection.fromFeatures(
+            arrayOf(Feature.fromGeometry(Point.fromLngLat(point.lon, point.lat)))
+        )
+    }
+    val source = style.getSourceAs<GeoJsonSource>(sourceId)
+    if (source != null) {
+        source.setGeoJson(collection)
+        return
+    }
+    style.addSource(GeoJsonSource(sourceId, collection))
+    style.addLayer(
+        CircleLayer(layerId, sourceId).withProperties(
+            PropertyFactory.circleRadius(6f),
+            PropertyFactory.circleColor(color),
+            PropertyFactory.circleStrokeWidth(2.5f),
+            PropertyFactory.circleStrokeColor("#FFFFFF")
+        )
+    )
 }
 
 private fun boundsOf(points: List<TrackPoint>): org.maplibre.android.geometry.LatLngBounds {

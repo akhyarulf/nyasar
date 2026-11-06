@@ -897,6 +897,16 @@
     <string name="route_detail_open_route">Buka rute</string>
     <string name="route_detail_export_gpx">Ekspor GPX</string>
     <string name="route_detail_more">Opsi lain</string>
+    <string name="route_detail_unpublished">Belum dipublikasikan</string>
+    <string name="route_detail_file_section">File rute</string>
+    <string name="route_detail_imported">Diimpor</string>
+    <string name="route_detail_point_count">Titik track</string>
+    <string name="route_detail_format">Format</string>
+    <string name="route_detail_no_elevation_data">File rute ini tidak punya data elevasi.</string>
+    <string name="route_detail_broken_file">Track rute ini tidak bisa dibaca (0 titik). Impor ulang file GPX-nya atau hapus rute ini.</string>
+    <string name="route_detail_offline_ready">Peta offline sudah siap untuk area ini</string>
+    <string name="route_detail_elev_network">Gagal mengunduh file GPX (jaringan).</string>
+    <string name="route_detail_elev_no_data">File GPX tidak punya data elevasi.</string>
     <string name="browse_comments_jump">Lihat komentar</string>
     <string name="comment_delete_cd">Hapus komentar</string>
     <string name="comment_delete_confirm_title">Hapus komentar ini?</string>

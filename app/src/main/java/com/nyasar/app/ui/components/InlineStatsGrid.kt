@@ -14,6 +14,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
+ * One cell of [InlineStatsGrid]: muted label over a bold value, plus an
+ * OPTIONAL small hint line under the value — e.g. "20% avg" below Elev Gain,
+ * derived from numbers already on the same screen. Kept as a named type
+ * instead of a Pair so cells can grow a hint without a second overload (two
+ * `InlineStatsGrid(List<…>, Modifier)` declarations would clash after type
+ * erasure).
+ */
+data class InlineStat(
+    val label: String,
+    val value: String,
+    val hint: String? = null
+)
+
+/**
  * Strava-style inline stats grid — the shared visual language for ALL three
  * route/activity detail screens (browse Route Detail, library Route Preview,
  * activity ActivityDetail): small muted label ABOVE a bold value, 3 per row,
@@ -24,26 +38,34 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun InlineStatsGrid(
-    stats: List<Pair<String, String>>,
+    stats: List<InlineStat>,
     modifier: Modifier = Modifier
 ) {
     if (stats.isEmpty()) return
     Column(modifier) {
         stats.chunked(3).forEach { rowStats ->
             Row(Modifier.fillMaxWidth()) {
-                rowStats.forEach { (label, value) ->
+                rowStats.forEach { stat ->
                     Column(Modifier.weight(1f)) {
                         Text(
-                            label,
+                            stat.label,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            value,
+                            stat.value,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
+                        stat.hint?.let { hint ->
+                            Text(
+                                hint,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
                 repeat(3 - rowStats.size) { Spacer(Modifier.weight(1f)) }

@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.res.ResourcesCompat
@@ -138,7 +139,11 @@ fun ElevationProfile(
             val yLabelCount = 3
             val axisTextSize = 11.sp.toPx()
             val yLabelPaint = android.graphics.Paint().apply {
-                color = labelColor.hashCode()
+                // toArgb(), NOT hashCode(): Compose's Color is a value class over
+                // a ULong, so hashCode() is an arbitrary Int — the axis text was
+                // painted with whatever alpha that hash happened to carry (i.e.
+                // invisible for some theme colors).
+                color = labelColor.toArgb()
                 textSize = axisTextSize
                 isAntiAlias = true
                 textAlign = android.graphics.Paint.Align.RIGHT
@@ -158,15 +163,18 @@ fun ElevationProfile(
                     strokeWidth = 1f
                 )
 
-                // Label text — only draw if not at the very bottom (avoids overlap with X-axis "0.00")
-                if (i < yLabelCount) {
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "${elevValue.roundToInt()} m",
-                        -4f,
-                        y + axisTextSize * 0.35f,
-                        yLabelPaint
-                    )
-                }
+                // EVERY tick gets a label, bottom one included: that is the
+                // chart's minimum — the same number the section below quotes
+                // as "Lowest point". Skipping it made the axis look like it
+                // stopped one gridline early while the curve kept descending.
+                // The Y labels sit in the 52dp left inset, so the bottom one
+                // cannot collide with the centered "0.0" X label anyway.
+                drawContext.canvas.nativeCanvas.drawText(
+                    "${elevValue.roundToInt()} m",
+                    -4f,
+                    if (i == yLabelCount) y - 3f else y + axisTextSize * 0.35f,
+                    yLabelPaint
+                )
             }
 
             // --- Baseline ---
@@ -183,7 +191,7 @@ fun ElevationProfile(
             // "0.00 … 3.83" labels gave false precision and crowded the axis.
             val xLabelCount = 4
             val xLabelPaint = android.graphics.Paint().apply {
-                color = labelColor.hashCode()
+                color = labelColor.toArgb()
                 textSize = axisTextSize
                 isAntiAlias = true
                 textAlign = android.graphics.Paint.Align.CENTER

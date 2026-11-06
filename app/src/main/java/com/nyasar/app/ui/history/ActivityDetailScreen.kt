@@ -49,6 +49,7 @@ import com.nyasar.app.recording.ShareMetric
 import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.ElevationPoint
 import com.nyasar.app.ui.components.ElevationProfile
+import com.nyasar.app.ui.components.InlineStat
 import com.nyasar.app.ui.components.InlineStatsGrid
 import com.nyasar.app.ui.components.SplitsTable
 import com.nyasar.app.ui.components.NyasarMapView
@@ -662,10 +663,18 @@ private fun ActivityDetailContent(
             SectionHeader(stringResource(R.string.activity_section_summary))
             InlineStatsGrid(
                 listOf(
-                    stringResource(R.string.stat_distance) to "%.2f km".format(activity.distanceMeters / 1000.0),
-                    stringResource(R.string.stat_moving_time) to formatDuration(activity.movingTimeMs),
-                    stringResource(R.string.elevation_gain) to
-                        (activity.elevationGainM?.let { "+${it.roundToInt()} m" } ?: "—")
+                    InlineStat(
+                        stringResource(R.string.stat_distance),
+                        "%.2f km".format(activity.distanceMeters / 1000.0)
+                    ),
+                    InlineStat(
+                        stringResource(R.string.stat_moving_time),
+                        formatDuration(activity.movingTimeMs)
+                    ),
+                    InlineStat(
+                        stringResource(R.string.elevation_gain),
+                        activity.elevationGainM?.let { "+${it.roundToInt()} m" } ?: "—"
+                    )
                 )
             )
 
@@ -677,21 +686,35 @@ private fun ActivityDetailContent(
             InlineStatsGrid(
                 buildList {
                     if (primaryMetric == ShareMetric.PACE) {
-                        add(stringResource(R.string.pace) to formatPace(activity.distanceMeters, activity.movingTimeMs))
+                        add(
+                            InlineStat(
+                                stringResource(R.string.pace),
+                                formatPace(activity.distanceMeters, activity.movingTimeMs)
+                            )
+                        )
                     }
                     add(
-                        stringResource(R.string.stat_avg_speed) to
-                            (activity.avgSpeedKmh?.let { SpeedUtils.formatSpeed(it, speedUnit, 1) } ?: "—")
+                        InlineStat(
+                            stringResource(R.string.stat_avg_speed),
+                            activity.avgSpeedKmh?.let { SpeedUtils.formatSpeed(it, speedUnit, 1) } ?: "—"
+                        )
                     )
                     add(
-                        stringResource(R.string.stat_max_speed) to
-                            (activity.maxSpeedKmh?.let { SpeedUtils.formatSpeed(it, speedUnit, 1) } ?: "—")
+                        InlineStat(
+                            stringResource(R.string.stat_max_speed),
+                            activity.maxSpeedKmh?.let { SpeedUtils.formatSpeed(it, speedUnit, 1) } ?: "—"
+                        )
                     )
                     // Hikes keep a third cell too (no orphan row): total time
                     // is the number a hiker reads next to speed, long before
                     // pace. Elevation loss lives with the elevation summary.
                     if (primaryMetric != ShareMetric.PACE) {
-                        add(stringResource(R.string.stat_total_time) to formatDuration(activity.elapsedTimeMs))
+                        add(
+                            InlineStat(
+                                stringResource(R.string.stat_total_time),
+                                formatDuration(activity.elapsedTimeMs)
+                            )
+                        )
                     }
                 }
             )

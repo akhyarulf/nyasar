@@ -10,9 +10,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.Layers
@@ -40,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
 import com.nyasar.app.data.db.WaypointCategory
 import com.nyasar.app.data.db.WaypointEntity
+import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.gpx.model.GpxWaypoint
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.ui.publish.PublishLibraryRouteSheet
@@ -47,10 +51,13 @@ import com.nyasar.app.navigation.ElevationStats
 import com.nyasar.app.ui.components.AnimatedAppear
 import com.nyasar.app.ui.components.BasemapPickerSheet
 import com.nyasar.app.ui.components.CompassButton
+import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.ElevationProfile
+import com.nyasar.app.ui.components.InlineStat
 import com.nyasar.app.ui.components.InlineStatsGrid
 import com.nyasar.app.ui.components.NyasarMapView
 import com.nyasar.app.ui.components.SummaryStatTile
+import com.nyasar.app.ui.components.TrailTypeChip
 import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarElevation
 import com.nyasar.app.ui.theme.NyasarRadius
@@ -139,12 +146,17 @@ fun RoutePreviewScreen(
     // Publish this imported route to Browse (sisa Slice 1) — same sheet form
     // as activity publish; the ViewModel picks the library-route pipeline.
     var showPublishSheet by remember { mutableStateOf(false) }
-    // Edit-published sheet (owner edits metadata of an already-published
-    // route) — the CloudUpload button becomes an Edit button once the
-    // publish probe finds a cloud row.
-    var showEditSheet by remember { mutableStateOf(false) }
-    // Edit-Route dialog: rename the LOCAL library route (title only).
-    var showEditRouteDialog by remember { mutableStateOf(false) }
+    // ONE edit form for this route (2026-11 de-dup): the screen used to
+    // carry TWO identical EditPublicationPage blocks — one behind the
+    // title's "Edit route" button, one behind the map's CloudUpload/Edit
+    // pill — both calling editPublished(...) with the same payload. There is
+    // now a single entry point (the overflow menu) and a single flag.
+    var showEditForm by remember { mutableStateOf(false) }
+    // Overflow menu + delete confirmation. These routes are the user's OWN
+    // library data: delete belongs on the detail too, not only in the
+    // Library list.
+    var showMoreMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     // Highlight marker position when user scrubs the elevation chart
     var highlightLatLng by remember { mutableStateOf<LatLng?>(null) }
 
@@ -215,33 +227,119 @@ fun RoutePreviewScreen(
     }
     val allDbWaypoints = dbWaypoints + userWaypoints
 
+    // Is this route's bounding box already inside a COMPLETE offline download?
+    // Offline regions are rectangles, so rectangle-contains-rectangle is exact
+    // (same rule as OfflineRegion.covers). Basemap-agnostic on purpose — the
+    // coverage overlay on the map doesn't filter by style either.
+    val offlineCoverageReady = remember(state.track, offlineAreas) {
+        if (state.track.isEmpty()) return@remember false
+        val builder = org.maplibre.android.geometry.LatLngBounds.Builder()
+        state.track.forEach { builder.include(LatLng(it.lat, it.lon)) }
+        val routeBounds = builder.build()
+        offlineAreas.any { area ->
+            area.complete &&
+                area.bounds.latitudeSouth <= routeBounds.latitudeSouth &&
+                area.bounds.latitudeNorth >= routeBounds.latitudeNorth &&
+                area.bounds.longitudeWest <= routeBounds.longitudeWest &&
+                area.bounds.longitudeEast >= routeBounds.longitudeEast
+        }
+    }
+
     // Unified top bar (browse-referensi): "Route Detail" title + back on a
     // Surface over the map block — replaces the old floating round pill, and
     // the map hero now sits DIRECTLY under it like every other detail screen.
     Column(Modifier.fillMaxSize()) {
         Surface(color = MaterialTheme.colorScheme.background) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 4.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.back),
-                        tint = MaterialTheme.colorScheme.onSurface
+            Box {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.route_detail_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // Owner actions live HERE instead of floating over the map:
+                    // edit / publish / share / delete are occasional, while the
+                    // three always-visible pills used to cover a big slice of
+                    // the 240dp map hero (and push the route title into a
+                    // two-line wrap). One overflow keeps the map clean and
+                    // gives every action a label instead of a bare icon.
+                    IconButton(onClick = { showMoreMenu = true }) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = stringResource(R.string.route_detail_more),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = showMoreMenu,
+                    onDismissRequest = { showMoreMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.edit_route)) },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        onClick = {
+                            showMoreMenu = false
+                            showEditForm = true
+                        }
+                    )
+                    if (state.publishStatus == PublishStatus.NOT_PUBLISHED) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.publish_title)) },
+                            leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
+                            onClick = {
+                                showMoreMenu = false
+                                showPublishSheet = true
+                            }
+                        )
+                    }
+                    state.gpxFilePath?.let { path ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.share_gpx)) },
+                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                            onClick = {
+                                showMoreMenu = false
+                                shareRouteGpx(context, path, displayRouteName(state.name))
+                            }
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(R.string.delete_route),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        },
+                        onClick = {
+                            showMoreMenu = false
+                            showDeleteConfirm = true
+                        }
                     )
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(R.string.route_detail_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
         }
 
@@ -299,6 +397,9 @@ fun RoutePreviewScreen(
                 // the list as a walked path (green, ActivityDetail semantics)
                 // which was never this screen's look.
                 trackColorOverride = "#42A5F5",
+                // Start/finish dots (the static browse preview has them, this
+                // live map didn't — so the blue line had no direction).
+                showTrackEndpoints = true,
                 // v7 merge filter: the GPX layer keeps only waypoints WITHOUT
                 // a DB counterpart for this route — every merged one is
                 // already in dbWaypoints, without this each imported waypoint
@@ -334,55 +435,10 @@ fun RoutePreviewScreen(
                 )
             }
 
-            // --- Floating top-right action pills (status-bar aware). Back
-            // --- now lives in the unified top bar ABOVE the map; these stay
-            // --- on-map quick actions.
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(end = 12.dp, top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                state.gpxFilePath?.let { path ->
-                    RoundIconButton(
-                        icon = Icons.Default.Share,
-                        contentDescription = stringResource(R.string.share_gpx),
-                        onClick = { shareRouteGpx(context, path, state.name ?: "route") }
-                    )
-                }
-                // Publish/Edit toggle (2026-09): not published yet → the
-                // publish sheet; already published (or queued offline) →
-                // the edit sheet with prefilled cloud metadata. The badge
-                // chip under the map names the state explicitly.
-                RoundIconButton(
-                    icon = if (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.NOT_PUBLISHED) {
-                        Icons.Default.CloudUpload
-                    } else {
-                        Icons.Default.Edit
-                    },
-                    contentDescription = stringResource(
-                        if (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.NOT_PUBLISHED) {
-                            R.string.publish_title
-                        } else {
-                            R.string.edit_published
-                        }
-                    ),
-                    onClick = {
-                        if (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.NOT_PUBLISHED) {
-                            showPublishSheet = true
-                        } else {
-                            showEditSheet = true
-                        }
-                    }
-                )
-                RoundIconButton(
-                    icon = Icons.Default.CloudDownload,
-                    contentDescription = stringResource(R.string.prepare_offline_cd),
-                    onClick = { onDownloadOfflineMap(routeId) }
-                )
-            }
-
+            // No floating action pills here any more (2026-11): share /
+            // publish-edit / offline-download moved into the top bar's
+            // overflow menu. The hero map keeps ONLY the compass and the
+            // full-screen launcher, so the track is never covered by chrome.
             CompassButton(
                 bearingDeg = mapBearing,
                 onClick = { activeMap?.let { it.animateCamera(CameraUpdateFactory.bearingTo(0.0)) } },
@@ -433,53 +489,107 @@ fun RoutePreviewScreen(
         // waypoint list → offline entry.
         Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    state.name ?: stringResource(R.string.default_route_name),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                // Edit-Route (local title) — always available on the user's
-                // own library route.
-                androidx.compose.material3.TextButton(onClick = { showEditRouteDialog = true }) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.edit_route))
+            // Title: the stored name is a FILE NAME ("PUNCAK ARGOKLONO.gpx"),
+            // so the extension is dropped for display only — share/export still
+            // hand over the real file. The old inline "Edit route" button is
+            // gone (it duplicated the map pill behind the same form) which also
+            // gives the title the full row width instead of a two-line wrap.
+            Text(
+                displayRouteName(state.name).ifBlank { stringResource(R.string.default_route_name) },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            // Corrupt/unreadable GPX: the screen used to render "0.0 km" with
+            // no explanation and no way out.
+            if (state.track.isEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(NyasarRadius.md),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ) {
+                    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        Text(
+                            stringResource(R.string.route_detail_broken_file),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        TextButton(onClick = { showDeleteConfirm = true }) {
+                            Text(stringResource(R.string.delete_route))
+                        }
+                    }
                 }
             }
             // Publish status badge (Library "mana yang sudah dipublish"):
-            // PUBLIC / PRIVATE / QUEUED (offline, will self-publish) /
-            // hidden when simply not published yet.
+            // PUBLIC / PRIVATE / QUEUED / NOT PUBLISHED. The last one used to
+            // render NOTHING at all, so an unpublished route looked identical
+            // to a published one apart from a cryptic cloud icon.
             when (state.publishStatus) {
-                com.nyasar.app.ui.preview.PublishStatus.PUBLIC -> StatusBadge(
+                PublishStatus.PUBLIC -> StatusBadge(
                     text = stringResource(R.string.status_published_public),
                     container = MaterialTheme.colorScheme.primaryContainer,
                     content = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                com.nyasar.app.ui.preview.PublishStatus.PRIVATE -> StatusBadge(
+                PublishStatus.PRIVATE -> StatusBadge(
                     text = stringResource(R.string.status_published_private),
                     container = MaterialTheme.colorScheme.tertiaryContainer,
                     content = MaterialTheme.colorScheme.onTertiaryContainer
                 )
-                com.nyasar.app.ui.preview.PublishStatus.QUEUED -> StatusBadge(
+                PublishStatus.QUEUED -> StatusBadge(
                     text = stringResource(R.string.status_publish_queued),
                     container = MaterialTheme.colorScheme.surfaceVariant,
                     content = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                else -> {}
+                PublishStatus.NOT_PUBLISHED -> StatusBadge(
+                    text = stringResource(R.string.route_detail_unpublished),
+                    container = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    content = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            // Trail metadata from the published row — the SAME chips Browse and
+            // the publish form use. publishedMeta already carried difficulty +
+            // trail type, but the screen only ever used them to prefill the
+            // edit sheet.
+            val publishedMeta = state.publishedMeta
+            val difficultyFilter = publishedMeta?.difficulty
+                ?.let { BrowseRepository.DifficultyFilter.fromWire(it) }
+            val trailTypeFilter = publishedMeta?.trailType
+                ?.let { BrowseRepository.TrailTypeFilter.fromWire(it) }
+            if (difficultyFilter != null || trailTypeFilter != null) {
+                Row(
+                    Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    difficultyFilter?.let { DifficultyChip(stringResource(it.labelRes), it.wire) }
+                    trailTypeFilter?.let { TrailTypeChip(stringResource(it.labelRes)) }
+                }
             }
             Spacer(Modifier.height(12.dp))
 
             // Stats — Strava-style INLINE grid (muted label over bold value,
             // 3 per row, no tiles): the shared shape with browse Route Detail
-            // and ActivityDetail. This screen's own data: distance, gain, loss.
+            // and ActivityDetail. This screen's own data: distance, gain, loss
+            // — plus the average gradient, derived from the two numbers already
+            // on screen (gain ÷ distance), exactly like Browse.
             val tiles = buildList {
-                add(stringResource(R.string.stat_distance) to "%.1f km".format(state.distanceKm))
-                state.elevationGainM?.let { add(stringResource(R.string.elevation_gain) to "+${it.roundToInt()} m") }
-                state.elevationLossM?.let { add(stringResource(R.string.stat_elev_loss) to "−${it.roundToInt()} m") }
+                add(InlineStat(stringResource(R.string.stat_distance), "%.1f km".format(state.distanceKm)))
+                state.elevationGainM?.let { gainM ->
+                    add(
+                        InlineStat(
+                            label = stringResource(R.string.elevation_gain),
+                            value = "+${gainM.roundToInt()} m",
+                            hint = state.distanceKm.takeIf { km -> km > 0.0 && gainM > 0.0 }?.let { km ->
+                                stringResource(
+                                    R.string.route_detail_avg_grade,
+                                    "%.0f%%".format(gainM / (km * 1000.0) * 100.0)
+                                )
+                            }
+                        )
+                    )
+                }
+                state.elevationLossM?.let { add(InlineStat(stringResource(R.string.stat_elev_loss), "−${it.roundToInt()} m")) }
             }
             InlineStatsGrid(tiles)
 
@@ -508,19 +618,31 @@ fun RoutePreviewScreen(
                 Spacer(Modifier.height(12.dp))
                 // Summary cells — ONLY highest/lowest here: gain & loss are
                 // already in the header stats above (de-dup fix), repeating
-                // them read as double data.
+                // them read as double data. Read from the PROFILE that is
+                // actually plotted: RouteEntity's cached values can be null
+                // on an older import, and "0 m" next to a 1700 m chart is
+                // worse than no tile at all.
                 Row(Modifier.fillMaxWidth()) {
                     SummaryStatTile(
-                        "${(state.highestElevationM ?: 0.0).roundToInt()} m",
+                        "${elevationProfile.maxOf { it.elevationM }.roundToInt()} m",
                         stringResource(R.string.stat_highest_point),
                         Modifier.weight(1f)
                     )
                     SummaryStatTile(
-                        "${(state.lowestElevationM ?: 0.0).roundToInt()} m",
+                        "${elevationProfile.minOf { it.elevationM }.roundToInt()} m",
                         stringResource(R.string.stat_lowest_point),
                         Modifier.weight(1f)
                     )
                 }
+            } else if (state.track.isNotEmpty()) {
+                // Track exists but carries no <ele> samples: say it instead of
+                // silently omitting the whole section.
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.route_detail_no_elevation_data),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             // Waypoint list (DB rows: GPX-imported + user pins linked here).
@@ -541,11 +663,53 @@ fun RoutePreviewScreen(
                 }
             }
 
+            // ── Route file (provenance). All of this was already in
+            // RouteEntity but never shown, which left a large dead gap under
+            // the stats on routes without waypoints — and gave the user no
+            // idea WHERE this route came from or how complete it is.
+            Spacer(Modifier.height(20.dp))
+            Text(
+                stringResource(R.string.route_detail_file_section),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            DetailRow(
+                stringResource(R.string.route_detail_imported),
+                formatImportedAt(state.importedAtEpochMs)
+            )
+            DetailRow(
+                stringResource(R.string.route_detail_point_count),
+                "${state.track.size}"
+            )
+            DetailRow(stringResource(R.string.route_detail_format), "GPX")
+
             Spacer(Modifier.height(12.dp))
-            TextButton(onClick = { onDownloadOfflineMap(routeId) }) {
-                Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.prepare_offline))
+            // Offline: ONE state-aware entry. The map pill and this text
+            // button used to do the exact same thing; now the row tells the
+            // truth — when the route's bounding box is already inside a
+            // completed download, there is nothing left to prepare.
+            if (offlineCoverageReady) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        stringResource(R.string.route_detail_offline_ready),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else {
+                TextButton(onClick = { onDownloadOfflineMap(routeId) }) {
+                    Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.prepare_offline))
+                }
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -603,6 +767,9 @@ fun RoutePreviewScreen(
                 activeRouteId = routeId,
                 track = state.track,
                 trackColorOverride = "#42A5F5",
+                // Start/finish dots (the static browse preview has them, this
+                // live map didn't — so the blue line had no direction).
+                showTrackEndpoints = true,
                 waypoints = gpxWaypointsForMap,
                 userWaypoints = allDbWaypoints,
                 waypointsVisible = waypointsVisible,
@@ -749,64 +916,27 @@ fun RoutePreviewScreen(
         )
     }
 
-    // Edit-published sheet — prefilled from the cloud row; saving patches
-    // metadata + visibility on that same row (never a second publish) and
-    // renames the local route.
-    if (showEditSheet) {
+    // THE edit form (single copy — see showEditForm's declaration). Name +
+    // difficulty + trail type + description + visibility, prefilled from the
+    // published row when there is one; saving patches that row (never a second
+    // publish) and renames the local route, so the title/chips/badge update in
+    // place without re-entering the screen.
+    if (showEditForm) {
         val meta = state.publishedMeta
         com.nyasar.app.ui.publish.EditPublicationPage(
             title = stringResource(R.string.edit_route_page_title),
             initialName = state.name.orEmpty(),
             meta = com.nyasar.app.ui.publish.PublishRepositoryMeta(
                 isPublic = meta?.isPublic
-                    ?: (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.PUBLIC),
+                    ?: (state.publishStatus == PublishStatus.PUBLIC),
                 difficulty = meta?.difficulty,
                 difficultyDescription = meta?.difficultyDescription,
                 trailType = meta?.trailType,
                 description = meta?.description
             ),
-            onDismiss = { showEditSheet = false },
+            onDismiss = { showEditForm = false },
             onSave = { title, _, difficulty, diffDesc, trailType, desc, isPublic ->
-                showEditSheet = false
-                editScope.launch {
-                    publishEditViewModel.editPublished(
-                        sourceId = routeId,
-                        isActivity = false,
-                        title = title,
-                        difficulty = difficulty,
-                        difficultyDescription = diffDesc,
-                        trailType = trailType,
-                        description = desc,
-                                                isPublic = isPublic
-                    )
-                    // load() = live refresh lengkap: nama dari Room + badge
-                    // status + meta terbaru (dequeue-on-success di VM sudah
-                    // membersihkan antrian, jadi QUEUED hilang seketika).
-                    viewModel.load(routeId)
-                }
-            }
-        )
-    }
-
-    // Edit-Route (2026-09-20): form lengkap ala Edit Activity — nama +
-    // difficulty + trail type + deskripsi + visibility via EditPublicationPage.
-    // Nggak cuma rename lagi; data prefilled dari published meta (kalau
-    // sudah publish) atau dari row antrian (kalau queued/belum).
-    if (showEditRouteDialog) {
-        com.nyasar.app.ui.publish.EditPublicationPage(
-            title = stringResource(R.string.edit_route_page_title),
-            initialName = state.name.orEmpty(),
-            meta = com.nyasar.app.ui.publish.PublishRepositoryMeta(
-                isPublic = state.publishedMeta?.isPublic
-                    ?: (state.publishStatus == com.nyasar.app.ui.preview.PublishStatus.PUBLIC),
-                difficulty = state.publishedMeta?.difficulty,
-                difficultyDescription = state.publishedMeta?.difficultyDescription,
-                trailType = state.publishedMeta?.trailType,
-                description = state.publishedMeta?.description
-            ),
-            onDismiss = { showEditRouteDialog = false },
-            onSave = { title, _, difficulty, diffDesc, trailType, desc, isPublic ->
-                showEditRouteDialog = false
+                showEditForm = false
                 editScope.launch {
                     publishEditViewModel.editPublished(
                         sourceId = routeId,
@@ -818,10 +948,40 @@ fun RoutePreviewScreen(
                         description = desc,
                         isPublic = isPublic
                     )
-                    // load() re-reads Room + publish status — the badge,
-                    // the map header stats and the title all update in place
-                    // (live, no app restart, no re-entry needed).
+                    // load() = full live refresh: Room name + publish badge +
+                    // latest metadata (dequeue-on-success already cleared the
+                    // queue, so QUEUED disappears immediately).
                     viewModel.load(routeId)
+                }
+            }
+        )
+    }
+
+    // Delete (library routes are the user's own data — mirrors the Library
+    // list's confirmation dialog, same strings).
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.delete_route)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.delete_route_message,
+                        displayRouteName(state.name).ifBlank {
+                            stringResource(R.string.default_route_name)
+                        }
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    viewModel.deleteRoute(routeId) { onBack() }
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -1092,6 +1252,22 @@ private fun DetailRow(label: String, value: String) {
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+/** Display form of a library route's name. The stored value is the imported
+ *  FILE name ("PUNCAK ARGOKLONO.gpx"), which reads as a filename, not a route.
+ *  Only the extension is stripped — the name itself is the user's, so it is
+ *  never title-cased behind their back. Blank/null falls back to the
+ *  localized default at the call site. */
+private fun displayRouteName(name: String?): String =
+    name.orEmpty().trim().replace(Regex("(?i)\\.gpx$"), "").trim()
+
+/** "Diimpor" value — locale date, no time (the exact minute never matters and
+ *  a full timestamp just wraps in this row). */
+private fun formatImportedAt(epochMs: Long): String {
+    if (epochMs <= 0L) return "—"
+    return java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault())
+        .format(java.util.Date(epochMs))
 }
 
 /** Spec: "Export GPX" / "Share route" — the route's original GPX already

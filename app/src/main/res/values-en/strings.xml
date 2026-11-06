@@ -939,7 +939,7 @@
     <string name="auth_login_with_code">Sign in with an email code</string>
     <string name="auth_otp_title">Sign in with a code</string>
     <string name="auth_otp_step1_sub">Enter your email and we send a 6-digit code. No password, no phone number.</string>
-    <string name="auth_otp_step2_sub">Code sent to %1$s. Type the 6 digits from that email.</string>
+    <string name="auth_otp_step2_sub">Code sent to %1$s. Type the 6 digits from that email — or, if the email only has a link, open that link on this phone.</string>
     <string name="auth_otp_code">6-digit code</string>
     <string name="auth_otp_send_cta">Send code</string>
     <string name="auth_otp_verify_cta">Sign in</string>

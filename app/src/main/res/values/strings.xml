@@ -939,7 +939,7 @@
     <string name="auth_login_with_code">Masuk dengan kode email</string>
     <string name="auth_otp_title">Masuk dengan kode</string>
     <string name="auth_otp_step1_sub">Ketik email kamu, kami kirim kode 6 digit. Tanpa kata sandi, tanpa nomor HP.</string>
-    <string name="auth_otp_step2_sub">Kode dikirim ke %1$s. Masukkan 6 digit dari email itu.</string>
+    <string name="auth_otp_step2_sub">Kode dikirim ke %1$s. Masukkan 6 digit dari email itu — atau, kalau emailnya cuma berisi tautan, buka tautan itu dari HP ini.</string>
     <string name="auth_otp_code">Kode 6 digit</string>
     <string name="auth_otp_send_cta">Kirim kode</string>
     <string name="auth_otp_verify_cta">Masuk</string>

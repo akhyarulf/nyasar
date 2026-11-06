@@ -218,6 +218,18 @@ class AuthRepository {
      *    capped at 2 mails/hour and refuses addresses outside the project
      *    team, so OTP is unusable there (see supabase/README.md).
      *
+     * The React-style default templates ship WITHOUT `{{ .Token }}`, so on a
+     * fresh project every mail is just a link. That used to be a dead end for
+     * this screen (the link pointed at the bare Site URL, the browser showed
+     * the web landing and nothing signed in). Passing `redirectUrl` here makes
+     * the same mail a working fallback: Supabase sends the link back to
+     * [AppLinks.AUTH_CALLBACK], the Android App Link opens the app and
+     * gotrue-kt imports the session — identical to the confirmation link in
+     * [signUp]. Tapping beats typing when the code is missing, and costs one
+     * query parameter to support. (Requires that URL in Auth → URL
+     * Configuration → Redirect URLs; without it Supabase silently falls back
+     * to the Site URL and the typed-code path still works.)
+     *
      * Like [sendPasswordReset] this reports Success for any well-formed
      * request — Supabase deliberately does not reveal whether an address is
      * registered, and `signInWith(OTP)` creates the account when it is not.
@@ -225,7 +237,10 @@ class AuthRepository {
     suspend fun sendEmailOtp(email: String): Outcome {
         if (!SupabaseClientProvider.isConfigured) return Outcome.Failure(AuthError.NOT_CONFIGURED)
         return try {
-            SupabaseClientProvider.client.auth.signInWith(OTP) {
+            SupabaseClientProvider.client.auth.signInWith(
+                OTP,
+                redirectUrl = AppLinks.AUTH_CALLBACK
+            ) {
                 this.email = email.trim()
             }
             Outcome.Success

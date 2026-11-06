@@ -178,9 +178,22 @@ Untuk fitur **“Masuk dengan kode email”** (kode 6 digit, tanpa sandi, tanpa
 nomor HP):
 
 1. Custom SMTP aktif (lihat di atas) — tanpa itu kode tidak pernah tiba.
-2. Template **Magic Link** di Authentication → Emails harus memuat
-   `{{ .Token }}`; kalau tidak, email hanya berisi tautan tanpa kode untuk
-   diketik.
+2. Template di Authentication → Emails harus memuat `{{ .Token }}`; kalau
+   tidak, email hanya berisi tautan tanpa kode untuk diketik. Untuk
+   email yang **belum pernah terdaftar**, template yang dipakai adalah
+   **Confirm signup** (karena *Confirm email* aktif), bukan Magic Link —
+   jadi tambahkan `{{ .Token }}` di **kedua** template. Contoh isi:
+
+   ```html
+   <p>Kode masuk Nyasar kamu: <b>{{ .Token }}</b> (berlaku 1 jam).</p>
+   ```
+
+   Kalau template-nya hanya berisi tautan, app tetap bisa dipakai: tombol
+   kirim kode mengirim `redirect_to=https://app.nyasarnyaman.my.id/auth/callback`,
+   sehingga tautan di email membuka app langsung dan login selesai tanpa
+   mengetik kode. Syaratnya URL itu terdaftar di Authentication → URL
+   Configuration → **Redirect URLs** (kalau tidak, Supabase diam-diam
+   memakai Site URL dan tautannya mendarat di web).
 3. Kode kedaluwarsa 1 jam (`auth.email.otp_expiry`, default 3600 dtk) dan
    kirim ulang dibatasi 60 detik per user — layar OTP sudah mengikuti
    jendela ini.

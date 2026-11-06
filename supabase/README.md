@@ -182,11 +182,9 @@ nomor HP):
    tidak, email hanya berisi tautan tanpa kode untuk diketik. Untuk
    email yang **belum pernah terdaftar**, template yang dipakai adalah
    **Confirm signup** (karena *Confirm email* aktif), bukan Magic Link —
-   jadi tambahkan `{{ .Token }}` di **kedua** template. Contoh isi:
-
-   ```html
-   <p>Kode masuk Nyasar kamu: <b>{{ .Token }}</b> (berlaku 1 jam).</p>
-   ```
+   jadi tambahkan `{{ .Token }}` di **kedua** template. Template HTML
+   lengkapnya (kode 6 digit + tombol masuk + teks cadangan) ada di
+   [`email-templates/`](email-templates/README.md) — tinggal salin-tempel.
 
    Kalau template-nya hanya berisi tautan, app tetap bisa dipakai: tombol
    kirim kode mengirim `redirect_to=https://app.nyasarnyaman.my.id/auth/callback`,

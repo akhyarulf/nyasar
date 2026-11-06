@@ -91,9 +91,15 @@ class BrowseRepository {
         @SerialName("comments_count") val commentsCount: Int = 0,
         @SerialName("created_at") val createdAt: String,
         /** Wikiloc 2-level visibility. detail() selects it so the owner's
-         *  Route Detail can render + toggle it; the browse LIST omits the
+         *  Route Detail can render + toggles it; the browse LIST omits the
          *  column (RLS guarantees every listed row is public anyway). */
         val isPublic: Boolean = true,
+        /** Local source of this publication (exactly one is set): a recorded
+         *  activity, or a Library route. Only the owner can act on it, and
+         *  it is ONLY read to rebuild a missing storage object — see
+         *  PublicRouteDetailViewModel.healMissingGpx (migration 0009). */
+        @SerialName("source_activity_id") val sourceActivityId: String? = null,
+        @SerialName("source_route_id") val sourceRouteId: String? = null,
         val profiles: PublicProfile? = null
     )
 
@@ -384,6 +390,9 @@ class BrowseRepository {
                     "trail_type", "sport_type", "distance_meters", "elevation_gain_m",
                     "elevation_loss_m", "max_elevation_m", "min_elevation_m", "moving_time_ms",
                     "description", "track_polyline", "gpx_file_url",
+                    // Local source ids — read only by the owner's own detail
+                    // to re-upload a GPX that the 0008 sweep deleted.
+                    "source_activity_id", "source_route_id",
                     "likes_count", "comments_count", "created_at",
                     // Visibility — the owner's detail screen renders and
                     // toggles it; RLS makes non-public rows invisible to
@@ -446,22 +455,41 @@ class BrowseRepository {
         return try {
             val storage = client.pluginManager.getPlugin(io.github.jan.supabase.storage.Storage)
             val path = storagePathFor(route.userId, route.id)
-            // Read routing:
-            //  - "private:<path>" marker → owner-only bucket;
-            //  - a public URL (or any other value) → public bucket;
-            //  - EMPTY gpx_file_url → try BOTH buckets.
-            // gpx_file_url is written by a best-effort backfill AFTER the
-            // upload (uploadPipeline step 4), so a blank value only means the
-            // backfill never landed — the object itself is still at its
-            // deterministic path. Bailing out here made the elevation chart,
-            // Save-to-Library and Export all fail on exactly those rows
-            // (the "elevation profile unavailable" report on older routes).
-            val bytes = when {
-                isPrivate -> storage["route-gpx-private"].downloadAuthenticated(path)
-                marker.isNotBlank() -> storage["route-gpx"].downloadPublic(path)
-                else -> runCatching { storage["route-gpx"].downloadPublic(path) }
-                    .recoverCatching { storage["route-gpx-private"].downloadAuthenticated(path) }
-                    .getOrThrow()
+            // Read routing: the marker decides which bucket is tried FIRST
+            // ("private:<path>" → owner-only, a public URL → public), then
+            // the other bucket is the fallback:
+            //  - EMPTY gpx_file_url (the backfill in uploadPipeline step 4 is
+            //    best-effort, so it may never have landed) — the object is
+            //    still at its deterministic path;
+            //  - a visibility toggle moves the file between buckets
+            //    best-effort, so the marker and the object can disagree.
+            // The common case still costs a single request.
+            val attempts: List<suspend () -> ByteArray> = if (isPrivate) {
+                listOf(
+                    { storage["route-gpx-private"].downloadAuthenticated(path) },
+                    { storage["route-gpx"].downloadPublic(path) }
+                )
+            } else {
+                listOf(
+                    { storage["route-gpx"].downloadPublic(path) },
+                    { storage["route-gpx-private"].downloadAuthenticated(path) }
+                )
+            }
+            var lastError: Exception? = null
+            var bytes: ByteArray? = null
+            for (attempt in attempts) {
+                try {
+                    bytes = attempt()
+                    break
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    lastError = e
+                    Log.w(TAG, "downloadGpx attempt failed for $path: ${e.message}")
+                }
+            }
+            if (bytes == null) {
+                throw lastError ?: IllegalStateException("downloadGpx: no attempt made")
             }
             GpxOutcome.Success(decompressGpx(bytes), gpxFileNameFor(route))
         } catch (e: RestException) {

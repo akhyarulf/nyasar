@@ -14,7 +14,21 @@ dengan migration `username_is_set` sebelumnya).
 | `migrations/0006_private_gpx_bucket.sql` | Bucket privat `route-gpx-private` untuk rute visibilitas "Hanya saya" | ✅ LIVE |
 | `migrations/0007_realtime_replication.sql` | Masukkan `routes`, `route_likes`, `saved_routes`, `route_comments` ke publication `supabase_realtime` + replica identity FULL — WAJIB untuk auto-refresh realtime (tanpa ini channel connect tapi diam) | ⏳ **Perlu dijalankan manual oleh user** |
 
-| `migrations/0008_storage_hygiene.sql` | Sinyal `profiles.last_seen_at` (trigger dari `auth.refresh_tokens` — app-version-proof) + RPC helper `list_orphan_gpx_objects()` / `list_inactive_user_ids()` untuk sweep kuota Storage | ✅ **LIVE (diverifikasi 2026-09-28, dari HP: backfill 0 null + 12 orphan tersapu 200 OK)** |
+| `migrations/0008_storage_hygiene.sql` | Sinyal `profiles.last_seen_at` (trigger dari `auth.refresh_tokens` — app-version-proof) + RPC helper `list_orphan_gpx_objects()` / `list_inactive_user_ids()` untuk sweep kuota Storage | ✅ LIVE — ⚠️ **isi fungsinya BUG, digantikan 0009** |
+| `migrations/0009_fix_orphan_gpx_sweep.sql` | Perbaikan `list_orphan_gpx_objects()`: deteksi orphan sekarang mengurai NAMA objek (`{uid}/{routeId}.gpx.gz`), bukan `storage.foldername()[2]` yang selalu NULL | ⏳ **WAJIB dijalankan manual — tanpa ini sweep harian menghapus SEMUA file GPX** |
+
+> ⚠️ **0009 penting.** `storage.foldername()` hanya mengembalikan segmen
+> FOLDER (nama file dibuang — [docs](https://supabase.com/docs/guides/storage/schema/helper-functions)),
+> jadi untuk `{uid}/{routeId}.gpx.gz` elemen `[2]` selalu NULL. Akibatnya
+> `list_orphan_gpx_objects()` menganggap **setiap** file sebagai orphan dan
+> sweep harian menghapus seluruh isi `route-gpx` + `route-gpx-private`.
+> Gejalanya di app: peta & statistik rute tetap tampil (dari
+> `track_polyline`), tapi **profil elevasi dan “Export GPX” bilang file tidak
+> bisa dibaca**. Setelah 0009 dijalankan sweep berhenti menghapus file hidup;
+> file yang sudah terlanjur terhapus TIDAK bisa dipulihkan dari database
+> (polyline tanpa elevasi), tapi app memulihkannya sendiri: Route Detail
+> mengekspor ulang GPX dari data lokal pemilik (file Library atau aktivitas
+> rekaman) lalu meng-upload-nya kembali saat layar dibuka.
 
 ## Storage sweep (0008 + Edge Function) — pembersihan kuota otomatis
 

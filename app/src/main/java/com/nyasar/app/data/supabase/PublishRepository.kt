@@ -492,6 +492,47 @@ class PublishRepository {
         return PublishOutcome.Success(routeId = inserted.id, gpxUrl = gpxUrl)
     }
 
+    /** Restore a route's GPX object after it went missing from Storage (the
+     *  migration-0008 orphan sweep deleted EVERY file — see 0009). The caller
+     *  supplies the ORIGINAL XML rebuilt from the owner's local data; gzip,
+     *  object path, bucket choice and the gpx_file_url backfill are identical
+     *  to [uploadPipeline], so the restored file is indistinguishable from a
+     *  freshly published one.
+     *
+     *  Owner-only in practice: the local data it is rebuilt from never leaves
+     *  the device, and the bucket policies only allow writes inside the
+     *  caller's own `{uid}/` folder. Returns true when the object is back. */
+    suspend fun reuploadGpx(
+        client: io.github.jan.supabase.SupabaseClient,
+        routeId: String,
+        userId: String,
+        isPublic: Boolean,
+        gpxXml: ByteArray
+    ): Boolean {
+        val path = "$userId/$routeId.gpx.gz"
+        val bucketName = if (isPublic) "route-gpx" else "route-gpx-private"
+        return try {
+            val storage = client.pluginManager.getPlugin(Storage)
+            val marker = withContext(Dispatchers.IO) {
+                uploadFresh(storage, bucketName, path, gzip(gpxXml))
+                if (isPublic) storage["route-gpx"].publicUrl(path)
+                else PRIVATE_PATH_PREFIX + path
+            }
+            client.postgrest["routes"].update(
+                update = { set("gpx_file_url", marker) }
+            ) {
+                filter { eq("id", routeId) }
+            }
+            Log.i(TAG, "restored missing gpx object for routes/$routeId")
+            true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "gpx restore failed for routes/$routeId", e)
+            false
+        }
+    }
+
     private fun gzip(bytes: ByteArray): ByteArray {
         val out = ByteArrayOutputStream()
         GZIPOutputStream(out).use { gz -> gz.write(bytes) }

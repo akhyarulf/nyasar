@@ -442,6 +442,88 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
         }
     }
 
+    /**
+     * Download a route's GPX, healing a missing storage object first.
+     *
+     *  Background: migration 0008's orphan sweep mis-parsed the object name
+     *  (storage.foldername() drops the file name, so index [2] was always
+     *  NULL) and deleted EVERY GPX file in both buckets. 0009 stops that, but
+     *  the rows it already emptied have no file left — the elevation chart and
+     *  "Export GPX" then report "the GPX file could not be read" forever.
+     *
+     *  Only the OWNER can heal this, and only from local data: the original
+     *  GPX still exists on their device (the Library file it was imported
+     *  from, or the recorded activity), so it is re-exported and re-uploaded
+     *  once, then read back. Other people's files have to be restored
+     *  server-side; for them this is a plain download.
+     */
+    private suspend fun fetchGpx(route: BrowseRepository.RouteDetail): BrowseRepository.GpxOutcome {
+        val client = SupabaseClientProvider.client
+        val first = repository.downloadGpx(client, route)
+        if (first !is BrowseRepository.GpxOutcome.Failure ||
+            first.error != BrowseRepository.BrowseError.NO_GPX_FILE
+        ) {
+            return first
+        }
+        if (!healMissingGpx(route)) return first
+        return repository.downloadGpx(client, route)
+    }
+
+    /** Re-upload this route's GPX from local data when the owner is looking at
+     *  it and Storage no longer has the object. Runs at most once per load;
+     *  any failure just falls through to the normal "could not be read"
+     *  message. */
+    private suspend fun healMissingGpx(route: BrowseRepository.RouteDetail): Boolean {
+        return try {
+            val client = SupabaseClientProvider.client
+            val uid = client.auth.currentUserOrNull()?.id ?: return false
+            if (uid != route.userId) return false
+            val xml = withContext(Dispatchers.IO) { localGpxXml(route) } ?: return false
+            val restored = publishRepository.reuploadGpx(
+                client = client,
+                routeId = route.id,
+                userId = uid,
+                isPublic = route.isPublic,
+                gpxXml = xml
+            )
+            Log.i(TAG, "healMissingGpx(${route.id}): restored=$restored")
+            restored
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "healMissingGpx(${route.id}) failed", e)
+            false
+        }
+    }
+
+    /** The original GPX bytes rebuildable on THIS device for a published row:
+     *  a Library route's imported file, or a re-export of the recorded
+     *  activity. Null when neither exists (published on another phone). */
+    private suspend fun localGpxXml(route: BrowseRepository.RouteDetail): ByteArray? {
+        route.sourceRouteId?.let { id ->
+            routeRepository.getRoute(id)?.let { entity ->
+                val file = java.io.File(entity.localGpxFilePath)
+                if (file.exists()) return file.readBytes()
+            }
+        }
+        route.sourceActivityId?.let { id ->
+            val db = com.nyasar.app.data.db.AppDatabase.get(getApplication<Application>())
+            val activity = db.activityDao().getById(id) ?: return@let
+            val points = db.activityDao().getPoints(id)
+            if (points.isEmpty()) return@let
+            val waypoints = db.waypointDao().getForActivity(id)
+            val file = com.nyasar.app.gpx.GpxExporter.exportActivity(
+                getApplication<Application>(), activity, points, waypoints
+            )
+            try {
+                return file.readBytes()
+            } finally {
+                file.delete()
+            }
+        }
+        return null
+    }
+
     /** Fired once from the Ready screen — NOT inside load(), so the detail
      *  renders immediately and the chart streams in when the GPX arrives
      *  (same progressive pattern as the browse cards' tile previews). */
@@ -451,7 +533,7 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
             _elevation.value = ElevationState.Loading
             _elevation.value = withContext(Dispatchers.IO) {
                 try {
-                    when (val outcome = repository.downloadGpx(SupabaseClientProvider.client, route)) {
+                    when (val outcome = fetchGpx(route)) {
                         is BrowseRepository.GpxOutcome.Success -> {
                             val points = GpxParser()
                                 .parse(outcome.gpxXml.byteInputStream(), route.name)
@@ -551,7 +633,7 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
         if (_download.value is DownloadState.InProgress) return
         viewModelScope.launch {
             _download.value = DownloadState.InProgress
-            when (val outcome = repository.downloadGpx(SupabaseClientProvider.client, route)) {
+            when (val outcome = fetchGpx(route)) {
                 is BrowseRepository.GpxOutcome.Success ->
                     _download.value = DownloadState.Ready(outcome.gpxXml, outcome.fileName)
                 is BrowseRepository.GpxOutcome.Failure ->
@@ -574,7 +656,7 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
         if (_save.value is SaveState.Saving) return
         viewModelScope.launch {
             _save.value = SaveState.Saving
-            when (val outcome = repository.downloadGpx(SupabaseClientProvider.client, route)) {
+            when (val outcome = fetchGpx(route)) {
                 is BrowseRepository.GpxOutcome.Success -> {
                     _save.value = try {
                         val entity = routeRepository.importFromGpxXml(

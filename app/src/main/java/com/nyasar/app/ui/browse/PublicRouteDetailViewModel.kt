@@ -143,6 +143,23 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
     private val _save = MutableStateFlow<SaveState>(SaveState.Idle)
     val save: StateFlow<SaveState> = _save.asStateFlow()
 
+    /** Local library id of this cloud route, or null when it was never
+     *  saved. Saves are idempotent (the import id is derived from the cloud
+     *  row), so a second save can never create a duplicate copy — the screen
+     *  uses this to swap "Save & navigate" for "Open route". */
+    private val _libraryRouteId = MutableStateFlow<String?>(null)
+    val libraryRouteId: StateFlow<String?> = _libraryRouteId.asStateFlow()
+
+    /** Deterministic local id for a cloud route — same prefix the import
+     *  uses, so "is it saved?" is a single primary-key lookup. */
+    private fun libraryIdFor(routeId: String) = "public-$routeId"
+
+    fun resolveLibrary(routeId: String) {
+        viewModelScope.launch {
+            _libraryRouteId.value = routeRepository.findRoute(libraryIdFor(routeId))?.id
+        }
+    }
+
     /** Elevation-profile lifecycle for the detail chart (Strava-style
      *  "Elevation" section). track_polyline is LOSSY — lat/lon only, no
      *  elevation — so the honest source is the ORIGINAL GPX: downloaded
@@ -263,6 +280,7 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
     fun loadSocial(routeId: String) {
         _liked.value = routeId in SharedSocialState.likedIds.value
         _saved.value = routeId in SharedSocialState.savedIds.value
+        resolveLibrary(routeId)
         if (!SupabaseClientProvider.isConfigured) return
         // AUTO-REFRESH (realtime requirement): a like/unlike by ANOTHER user
         // (likes_count arrives via the routes UPDATE event), a new comment
@@ -527,8 +545,13 @@ class PublicRouteDetailViewModel(application: Application) : AndroidViewModel(ap
                     _save.value = try {
                         val entity = routeRepository.importFromGpxXml(
                             xml = outcome.gpxXml,
-                            displayName = route.name
+                            displayName = route.name,
+                            // Idempotent: re-saving the same cloud route
+                            // returns the existing library row instead of
+                            // importing a second copy.
+                            preferredId = libraryIdFor(route.id)
                         )
+                        _libraryRouteId.value = entity.id
                         // Konsep backup tanpa tombol: rute tersimpan ke library
                         // langsung di-upsert ke backup pribadi.
                         com.nyasar.app.backup.BackupManager.scheduleRouteBackup(

@@ -1,4 +1,10 @@
-@file:OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
+// ExperimentalFoundationApi: bringIntoViewRequester (comments jump target) is
+// still flagged experimental in this Compose version; opting in here keeps the
+// call site clean and is harmless on versions where it is already stable.
+@file:OptIn(
+    androidx.compose.material.ExperimentalMaterialApi::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class
+)
 
 package com.nyasar.app.ui.browse
 
@@ -19,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +60,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -73,6 +83,7 @@ import com.nyasar.app.ui.components.TrailTypeChip
 import com.nyasar.app.ui.theme.NyasarRadius
 import com.nyasar.app.ui.theme.NyasarStatValue
 import io.github.jan.supabase.gotrue.auth
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
@@ -92,8 +103,13 @@ private sealed interface ReportTarget {
  *  - centered 2-column stats grid (3 columns on wide screens), Strava-style,
  *  - elevation profile section streamed from the ORIGINAL GPX (track_polyline
  *    is lossy lat/lon-only) via the same chart the activity detail uses;
- *    section silently absent when no GPX/elevation exists,
- *  - the "full open" actions unchanged: Save-to-Library + Download GPX.
+ *    when the GPX cannot be read the section explains itself and offers a
+ *    retry instead of leaving an unexplained gap,
+ *  - owner controls (visibility, share) in a top-bar overflow menu — the
+ *    report flag only exists for OTHER people's routes,
+ *  - a pinned bottom bar with the real intent (save to Library, which lands
+ *    on Route Preview where navigation starts) plus GPX export, so the
+ *    primary action never scrolls away under a long comment thread.
  *
  * Content is capped at 640dp and centered on large screens; every label is
  * stringResource'd (ID/EN).
@@ -193,25 +209,115 @@ fun PublicRouteDetailScreen(
                     }
                 },
                 actions = {
-                    // Report route — only when a route is actually loaded.
-                    // Same guard as like/save/comment: anonymous users go to
-                    // sign-in instead of a guaranteed-to-fail dialog.
-                    val readyForReport = state as? PublicRouteDetailViewModel.State.Ready
-                    if (readyForReport != null) {
-                        IconButton(
-                            onClick = {
-                                if (signedInNow) {
-                                    reportTarget = ReportTarget.Route(readyForReport.route.id)
-                                } else {
-                                    onRequireSignIn()
+                    val readyForActions = state as? PublicRouteDetailViewModel.State.Ready
+                    if (readyForActions != null) {
+                        val ownerId = com.nyasar.app.data.supabase.SupabaseClientProvider
+                            .client.auth.currentUserOrNull()?.id
+                        val isOwner = ownerId != null && readyForActions.route.userId == ownerId
+                        if (isOwner) {
+                            // OWNER: the report flag was wrong here — you cannot
+                            // report your own route, and the visibility card
+                            // used to eat the space directly above the stats.
+                            // Both moved into this overflow menu.
+                            var menuOpen by remember { mutableStateOf(false) }
+                            val visibilityPending by viewModel.visibilityPending.collectAsState()
+                            val isPublic = readyForActions.route.isPublic
+                            Box {
+                                IconButton(onClick = { menuOpen = true }) {
+                                    Icon(
+                                        Icons.Default.MoreVert,
+                                        contentDescription = stringResource(R.string.route_detail_more)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = menuOpen,
+                                    onDismissRequest = { menuOpen = false }
+                                ) {
+                                    // Wikiloc-style Everyone⇄Only-you. The switch
+                                    // is display-only (onCheckedChange = null) so
+                                    // the whole row is the tap target.
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                stringResource(
+                                                    if (isPublic) R.string.route_visibility_public
+                                                    else R.string.route_visibility_private
+                                                )
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (isPublic) Icons.Default.Public else Icons.Default.Lock,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
+                                        trailingIcon = {
+                                            Switch(
+                                                checked = isPublic,
+                                                onCheckedChange = null,
+                                                enabled = !visibilityPending
+                                            )
+                                        },
+                                        enabled = !visibilityPending,
+                                        onClick = { viewModel.setVisibility(readyForActions.route, !isPublic) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.browse_share_route)) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Share,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
+                                        onClick = {
+                                            menuOpen = false
+                                            onShare()
+                                        }
+                                    )
                                 }
                             }
-                        ) {
-                            Icon(Icons.Default.Flag, contentDescription = stringResource(R.string.report_action))
+                        } else {
+                            // Report route — someone else's route only. Same
+                            // sign-in guard as like/save/comment: anonymous
+                            // users go to sign-in instead of a dialog that can
+                            // only fail under RLS.
+                            IconButton(
+                                onClick = {
+                                    if (signedInNow) {
+                                        reportTarget = ReportTarget.Route(readyForActions.route.id)
+                                    } else {
+                                        onRequireSignIn()
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Flag, contentDescription = stringResource(R.string.report_action))
+                            }
                         }
                     }
                 }
             )
+        },
+        // Pinned primary actions: with a long comment thread the old inline
+        // buttons lived at the very bottom of the scroll and disappeared.
+        bottomBar = {
+            val readyNow = state as? PublicRouteDetailViewModel.State.Ready
+            if (readyNow != null) {
+                val inLibrary by viewModel.libraryRouteId.collectAsState()
+                RouteDetailActionBar(
+                    inLibraryRouteId = inLibrary,
+                    saving = save is PublicRouteDetailViewModel.SaveState.Saving,
+                    exporting = download is PublicRouteDetailViewModel.DownloadState.InProgress,
+                    errorRes = (save as? PublicRouteDetailViewModel.SaveState.Error)?.messageRes,
+                    onPrimary = {
+                        val local = inLibrary
+                        if (local != null) onOpenRoutePreview(local)
+                        else viewModel.saveToLibrary(readyNow.route)
+                    },
+                    onExport = { viewModel.downloadGpx(readyNow.route) }
+                )
+            }
         }
     ) { padding ->
         // Pull-to-refresh (M2 pullRefresh — lihat catatan import): re-fetch
@@ -250,6 +356,13 @@ fun PublicRouteDetailScreen(
             }
             is PublicRouteDetailViewModel.State.Ready -> {
                 val route = s.route
+                // Chat → comments navigation: the action row's comment button
+                // scrolls the thread into view and puts the cursor in the
+                // input. Both requesters live in the Ready scope so the
+                // comments block can attach to them.
+                val commentsRequester = remember { BringIntoViewRequester() }
+                val commentInputFocus = remember { FocusRequester() }
+                val scope = rememberCoroutineScope()
 
                 // Kick the elevation-profile load once the route is here —
                 // chart streams in when the GPX has been parsed (progressive,
@@ -296,7 +409,7 @@ fun PublicRouteDetailScreen(
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
                                     .padding(12.dp)
-                                    .size(44.dp)
+                                    .size(48.dp)
                             ) {
                                 IconButton(onClick = { mapExpanded = true }) {
                                     Icon(
@@ -383,59 +496,10 @@ fun PublicRouteDetailScreen(
                             }
                             Spacer(Modifier.height(12.dp))
 
-                            // (2b) Visibility row — ONLY on one's own route:
-                            // Wikiloc-style Everyone⇄Only-you switch. RLS hides
-                            // private rows from everyone but the owner, so a
-                            // viewer never sees this row at all on their routes.
-                            val myUserId = com.nyasar.app.data.supabase.SupabaseClientProvider
-                                .client.auth.currentUserOrNull()?.id
-                            if (myUserId != null && route.userId == myUserId) {
-                                val visibilityPending by viewModel.visibilityPending.collectAsState()
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            if (route.isPublic) Icons.Default.Public else Icons.Default.Lock,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(Modifier.width(10.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Text(
-                                                stringResource(
-                                                    if (route.isPublic) R.string.route_visibility_public
-                                                    else R.string.route_visibility_private
-                                                ),
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                stringResource(
-                                                    if (route.isPublic) R.string.route_visibility_public_hint
-                                                    else R.string.route_visibility_private_hint
-                                                ),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Switch(
-                                            checked = route.isPublic,
-                                            enabled = !visibilityPending,
-                                            onCheckedChange = { checked ->
-                                                viewModel.setVisibility(route, checked)
-                                            }
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.height(12.dp))
-                            }
+                            // (2b) Visibility moved into the top-bar overflow
+                            // menu (owner only): as a big card here it sat
+                            // between the description and the stats, pushing
+                            // the numbers that matter below the fold.
 
                             // (3) Stats — Strava row format (label above, bold
                             // value below): Distance / Elev Gain / Time. Same
@@ -465,10 +529,27 @@ fun PublicRouteDetailScreen(
                                         route.elevationGainM?.let { "+${it.roundToInt()} m" } ?: "—",
                                         style = NyasarStatValue
                                     )
+                                    // Average gradient — derived on the spot from
+                                    // the two numbers already on screen (gain ÷
+                                    // distance), so no extra data source is
+                                    // claimed.
+                                    route.elevationGainM?.takeIf { route.distanceMeters > 0 }?.let { gainM ->
+                                        Text(
+                                            stringResource(
+                                                R.string.route_detail_avg_grade,
+                                                "%.0f%%".format(gainM / route.distanceMeters * 100.0)
+                                            ),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                                 Column(Modifier.weight(1f)) {
+                                    // "Time" alone was ambiguous (moving time?
+                                    // total? estimate?) — the value IS the
+                                    // recorded moving time, so the label says so.
                                     Text(
-                                        stringResource(R.string.browse_stat_time),
+                                        stringResource(R.string.route_detail_stat_time),
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -510,13 +591,37 @@ fun PublicRouteDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            IconButton(onClick = { /* comments section is right below */ }) {
+                            // Chat button: used to be a no-op icon with the
+                            // count rendered as a loose Text after the bookmark
+                            // (so it read as the bookmark's count, and the icon
+                            // itself looked broken). Now the count lives inside
+                            // the button and tapping jumps to the thread.
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        // Both requesters are only attached once
+                                        // the comments section is rendered — a tap
+                                        // while the thread is still loading must
+                                        // not crash.
+                                        runCatching { commentsRequester.bringIntoView() }
+                                        runCatching { commentInputFocus.requestFocus() }
+                                    }
+                                }
+                            ) {
                                 Icon(
                                     Icons.AutoMirrored.Outlined.Chat,
-                                    contentDescription = stringResource(R.string.browse_comment),
+                                    contentDescription = stringResource(R.string.browse_comments_jump),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(22.dp)
                                 )
+                                if (route.commentsCount > 0) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        route.commentsCount.toString(),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                             // Save (bookmark) — private Wikiloc-style list,
                             // next to the public like (Strava shows both too).
@@ -534,11 +639,6 @@ fun PublicRouteDetailScreen(
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
-                            Text(
-                                if (route.commentsCount > 0) route.commentsCount.toString() else "",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                             Spacer(Modifier.weight(1f))
                             IconButton(onClick = onShare) {
                                 Icon(
@@ -554,8 +654,9 @@ fun PublicRouteDetailScreen(
                             Spacer(Modifier.height(12.dp))
 
                             // ── Elevation profile (from the ORIGINAL GPX —
-                            // track_polyline has no elevation). Hidden entirely
-                            // when unavailable; placeholder while streaming.
+                            // track_polyline has no elevation). Spinner while
+                            // streaming, an explained + retryable line when the
+                            // GPX could not be read.
                             when (val e = elevation) {
                                 PublicRouteDetailViewModel.ElevationState.Loading -> {
                                     Box(
@@ -585,29 +686,53 @@ fun PublicRouteDetailScreen(
                                     // use the same 2m noise threshold as
                                     // ElevationStats.summarize so the numbers agree
                                     // with the rest of the app.
+                                    // Gain is already the middle stat above —
+                                    // repeating it here just made the same number
+                                    // appear twice on one screen. These tiles add
+                                    // the things the header does not show.
                                     val elevs = e.profile.map { it.elevationM }
-                                    var gain = 0.0
                                     var loss = 0.0
                                     var pending = 0.0
                                     var last = elevs.first()
                                     for (cur in elevs.drop(1)) {
                                         pending += cur - last
                                         if (kotlin.math.abs(pending) >= 2.0) {
-                                            if (pending > 0) gain += pending else loss -= pending
+                                            if (pending < 0) loss -= pending
                                             pending = 0.0
                                         }
                                         last = cur
                                     }
                                     StatGrid(
                                         listOf(
-                                            "+${gain.roundToInt()} m" to stringResource(R.string.elev_gain),
                                             "−${loss.roundToInt()} m" to stringResource(R.string.route_detail_elev_loss),
                                             "${elevs.max().roundToInt()} m" to stringResource(R.string.route_detail_elev_max),
                                             "${elevs.min().roundToInt()} m" to stringResource(R.string.route_detail_elev_min)
                                         )
                                     )
                                 }
-                                else -> {}
+                                // The profile comes from the ORIGINAL GPX; when
+                                // that download/parse fails the section used to
+                                // vanish, leaving a blank gap under the stats
+                                // with no explanation (the header still claims an
+                                // elevation gain). Say so and offer a retry.
+                                PublicRouteDetailViewModel.ElevationState.Unavailable -> {
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.route_detail_elev_unavailable),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        TextButton(onClick = { viewModel.loadElevation(route) }) {
+                                            Text(stringResource(R.string.retry))
+                                        }
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                }
+                                PublicRouteDetailViewModel.ElevationState.Idle -> {}
                             }
 
                             // ── Comments section (Strava-style thread).
@@ -618,7 +743,10 @@ fun PublicRouteDetailScreen(
                                     Text(
                                         stringResource(R.string.route_detail_comments_section, cs.comments.size),
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        // Scroll target for the action row's
+                                        // chat button.
+                                        modifier = Modifier.bringIntoViewRequester(commentsRequester)
                                     )
                                     Spacer(Modifier.height(10.dp))
                                     if (cs.comments.isEmpty()) {
@@ -731,7 +859,9 @@ fun PublicRouteDetailScreen(
                                             enabled = signedInForComment && !cs.posting,
                                             singleLine = true,
                                             shape = RoundedCornerShape(NyasarRadius.pill),
-                                            modifier = Modifier.weight(1f)
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .focusRequester(commentInputFocus)
                                         )
                                         Spacer(Modifier.width(8.dp))
                                         if (cs.posting) {
@@ -762,55 +892,10 @@ fun PublicRouteDetailScreen(
 
                             Spacer(Modifier.height(20.dp))
 
-                            // ── Actions — unchanged behavior: Save-to-Library
-                            // imports the original GPX locally; Download GPX
-                            // shares the lossless file.
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedButton(
-                                    onClick = { viewModel.saveToLibrary(route) },
-                                    enabled = save !is PublicRouteDetailViewModel.SaveState.Saving &&
-                                        download !is PublicRouteDetailViewModel.DownloadState.InProgress,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    if (save is PublicRouteDetailViewModel.SaveState.Saving) {
-                                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(stringResource(R.string.browse_saving), maxLines = 1)
-                                    } else {
-                                        Icon(Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(stringResource(R.string.browse_save_library), maxLines = 1)
-                                    }
-                                }
-                                Button(
-                                    onClick = { viewModel.downloadGpx(route) },
-                                    enabled = download !is PublicRouteDetailViewModel.DownloadState.InProgress &&
-                                        save !is PublicRouteDetailViewModel.SaveState.Saving,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    if (download is PublicRouteDetailViewModel.DownloadState.InProgress) {
-                                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(stringResource(R.string.browse_downloading), maxLines = 1)
-                                    } else {
-                                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(stringResource(R.string.browse_download_gpx), maxLines = 1)
-                                    }
-                                }
-                            }
-                            val saveError = save as? PublicRouteDetailViewModel.SaveState.Error
-                            if (saveError != null) {
-                                Spacer(Modifier.height(10.dp))
-                                Text(
-                                    stringResource(saveError.messageRes),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                            Spacer(Modifier.height(24.dp))
+                            // Actions live in the Scaffold's pinned bottomBar
+                            // (RouteDetailActionBar) — they no longer scroll
+                            // away under the comment thread.
+                            Spacer(Modifier.height(32.dp))
                         }
                     }
                 }
@@ -979,6 +1064,89 @@ fun PublicRouteDetailScreen(
             },
             onDismiss = { if (!reportPending) reportTarget = null }
         )
+    }
+}
+
+/**
+ * Pinned bottom action bar. The primary action is what this screen exists
+ * for — get the route onto the device and start navigating — not a share
+ * sheet: saving imports the GPX into the Library and lands on Route Preview,
+ * where "MULAI NAVIGASI" lives. Exporting just shares the lossless GPX.
+ * Saving is idempotent ([com.nyasar.app.data.repository.RouteRepository.importFromGpxXml]
+ * keys the import on the cloud row), so once the route is in the Library the
+ * primary button becomes "Open route" instead of writing a second copy.
+ */
+@Composable
+private fun RouteDetailActionBar(
+    inLibraryRouteId: String?,
+    saving: Boolean,
+    exporting: Boolean,
+    errorRes: Int?,
+    onPrimary: () -> Unit,
+    onExport: () -> Unit
+) {
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            if (errorRes != null) {
+                Text(
+                    stringResource(errorRes),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = onPrimary,
+                    enabled = !saving && !exporting,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (saving) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.browse_saving), maxLines = 1)
+                    } else {
+                        Icon(
+                            if (inLibraryRouteId != null) Icons.Default.OpenInFull else Icons.Default.BookmarkAdd,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(
+                                if (inLibraryRouteId != null) R.string.route_detail_open_route
+                                else R.string.route_detail_save_navigate
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                OutlinedButton(
+                    onClick = onExport,
+                    enabled = !exporting && !saving
+                ) {
+                    if (exporting) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.route_detail_export_gpx), maxLines = 1)
+                    }
+                }
+            }
+        }
     }
 }
 

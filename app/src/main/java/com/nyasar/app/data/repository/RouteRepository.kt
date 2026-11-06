@@ -117,12 +117,32 @@ class RouteRepository(private val context: Context) {
      * path as [importFromUri], so a saved public route is indistinguishable
      * from an imported one everywhere else in the app (preview, offline
      * download, navigation all read RouteEntity + the GPX file on disk).
+     *
+     * [preferredId] makes the import IDEMPOTENT: callers that import a
+     * published route pass a deterministic id derived from the cloud row
+     * (`public-<routeId>`), so saving the same route twice returns the
+     * existing library row instead of writing a second copy (and the file is
+     * overwritten in place, never duplicated).
      */
-    suspend fun importFromGpxXml(xml: String, displayName: String?): RouteEntity = withContext(Dispatchers.IO) {
-        val id = UUID.randomUUID().toString()
+    suspend fun importFromGpxXml(
+        xml: String,
+        displayName: String?,
+        preferredId: String? = null
+    ): RouteEntity = withContext(Dispatchers.IO) {
+        if (preferredId != null) {
+            dao.getById(preferredId)?.let { return@withContext it }
+        }
+        val id = preferredId ?: UUID.randomUUID().toString()
         val destFile = File(routesDir, "$id.gpx")
         destFile.writeText(xml)
         importLocalGpxFile(destFile, displayName)
+    }
+
+    /** Library row for [id], or null when the route was never imported —
+     *  used by the browse detail to show "already saved" instead of a second
+     *  Save button. */
+    suspend fun findRoute(id: String): RouteEntity? = withContext(Dispatchers.IO) {
+        dao.getById(id)
     }
 
     /** Shared tail of both import paths: parse the stored file, compute

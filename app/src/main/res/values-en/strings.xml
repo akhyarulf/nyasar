@@ -890,6 +890,14 @@
     <string name="route_detail_description">Description</string>
     <string name="route_detail_no_description">The publisher hasn\'t written a description yet.</string>
     <string name="route_detail_elevation_title">Elevation Profile</string>
+    <string name="route_detail_elev_unavailable">Elevation profile unavailable (the GPX file could not be read).</string>
+    <string name="route_detail_stat_time">Moving time</string>
+    <string name="route_detail_avg_grade">%1$s avg</string>
+    <string name="route_detail_save_navigate">Save &amp; navigate</string>
+    <string name="route_detail_open_route">Open route</string>
+    <string name="route_detail_export_gpx">Export GPX</string>
+    <string name="route_detail_more">More options</string>
+    <string name="browse_comments_jump">See comments</string>
     <string name="comment_delete_cd">Delete comment</string>
     <string name="comment_delete_confirm_title">Delete this comment?</string>
     <string name="comment_delete_confirm_body">The comment will be permanently removed.</string>

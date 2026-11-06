@@ -1,0 +1,31 @@
+<!--
+  Supabase → Authentication → Emails → Confirm sign up
+  Subject: Confirm your Nyasar email
+  Sent when a new address signs up while "Confirm email" is enabled.
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f1ea;padding:28px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<tr><td align="center">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background:#ffffff;border:1px solid #e3decf;border-radius:16px;">
+    <tr><td style="padding:26px 26px 0 26px;font-size:11px;letter-spacing:3px;font-weight:700;color:#5a7562;text-transform:uppercase;">Nyasar</td></tr>
+    <tr><td style="padding:10px 26px 0 26px;">
+      <h1 style="margin:0;font-size:22px;line-height:1.35;color:#1f2a22;">Confirm your email</h1>
+      <p style="margin:10px 0 0 0;font-size:15px;line-height:1.6;color:#4a544c;">One step left. Confirm <strong style="color:#1f2a22;">{{ .Email }}</strong> to activate your Nyasar account and keep your trails in sync.</p>
+    </td></tr>
+    <tr><td style="padding:20px 26px 0 26px;">
+      <div style="background:#edf2ee;border:1px solid #d8e5dc;border-radius:12px;padding:16px 12px;text-align:center;">
+        <div style="font-size:11px;letter-spacing:1.5px;color:#7c877e;text-transform:uppercase;">Your code</div>
+        <div style="margin-top:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace;font-size:30px;letter-spacing:9px;font-weight:700;color:#2e5339;">{{ .Token }}</div>
+      </div>
+      <p style="margin:10px 0 0 0;font-size:13px;line-height:1.55;color:#7c877e;text-align:center;">Type it into the app, or tap the button below on the phone where Nyasar is installed.</p>
+    </td></tr>
+    <tr><td style="padding:20px 26px 0 26px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#2e5339;border-radius:999px;"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">Confirm email</a></td></tr></table>
+    </td></tr>
+    <tr><td style="padding:20px 26px 0 26px;">
+      <div style="border-top:1px solid #eee9dc;padding-top:14px;font-size:12px;line-height:1.6;color:#7c877e;">Button not working? Paste this into your browser:<br><a href="{{ .ConfirmationURL }}" style="color:#5a7562;word-break:break-all;">{{ .ConfirmationURL }}</a></div>
+    </td></tr>
+    <tr><td style="padding:16px 26px 26px 26px;font-size:12px;line-height:1.6;color:#7c877e;">The code and the link expire in 1 hour and work once. Didn't sign up? Ignore this email — no account is created without that code.</td></tr>
+  </table>
+  <div style="max-width:480px;padding:16px 8px 0 8px;font-size:11px;line-height:1.6;color:#9aa39c;text-align:center;">Nyasar · offline hiking navigation · app.nyasarnyaman.my.id</div>
+</td></tr>
+</table>

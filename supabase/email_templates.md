@@ -1,4 +1,9 @@
 <!--
+  DEPRECATED (2026-11): digantikan oleh set Inggris yang lengkap di
+  `supabase/email-templates/` (13 template: 6 autentikasi + 7 notifikasi
+  keamanan, semuanya memuat {{ .Token }}). File ini disimpan sebagai
+  catatan versi bilingual lama; jangan dipakai untuk pemasangan baru.
+
   Template email Supabase — Nyasar (bilingual dalam SATU email).
 
   KENAPA GINI: Supabase cuma menyimpan SATU template per event (bukan satu

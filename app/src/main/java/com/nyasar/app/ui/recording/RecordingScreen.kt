@@ -16,8 +16,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.MyLocation
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.outlined.LocationSearching
@@ -54,6 +57,7 @@ import com.nyasar.app.ui.components.AnimatedAppear
 import com.nyasar.app.ui.components.AnimatedStatText
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -1110,21 +1114,33 @@ fun RecordingScreen(
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
-                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
-                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
-                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
+                    // Selebar kartu (margin 16dp simetris, bukan lagi inset
+                    // 72dp yang bikin tepi kanannya patah di samping tombol
+                    // peta): kolom tombol peta justru naik otomatis saat lane
+                    // ini aktif (lihat mapButtonsBottom), jadi tidak menimpa.
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
                     tonalElevation = 3.dp,
                     shadowElevation = 2.dp
                 ) {
-                    Text(
-                        stringResource(R.string.battery_low_banner, lowBatteryPct),
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.BatteryAlert,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            stringResource(R.string.battery_low_banner, lowBatteryPct),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             }
         }
@@ -1157,12 +1173,13 @@ fun RecordingScreen(
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
-                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
-                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
-                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
+                    // Selebar kartu (margin 16dp simetris, bukan lagi inset
+                    // 72dp yang bikin tepi kanannya patah di samping tombol
+                    // peta): kolom tombol peta justru naik otomatis saat lane
+                    // ini aktif (lihat mapButtonsBottom), jadi tidak menimpa.
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.tertiaryContainer,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
                     tonalElevation = 3.dp,
                     shadowElevation = 2.dp
                 ) {
@@ -1205,21 +1222,33 @@ fun RecordingScreen(
                     // berebut ruang dengan tombol back / chip status di atas.
                     // Tingginya mengikuti statBarHeight, jadi saat kartu
                     // berubah tinggi bannernya ikut menyesuaikan.
-                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
-                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
-                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
-                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
+                    // Selebar kartu (margin 16dp simetris, bukan lagi inset
+                    // 72dp yang bikin tepi kanannya patah di samping tombol
+                    // peta): kolom tombol peta justru naik otomatis saat lane
+                    // ini aktif (lihat mapButtonsBottom), jadi tidak menimpa.
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
                     tonalElevation = 3.dp,
                     shadowElevation = 2.dp
                 ) {
-                    Text(
-                        stringResource(R.string.storage_error),
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            stringResource(R.string.storage_error),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             }
         }
@@ -1237,9 +1266,10 @@ fun RecordingScreen(
             ) {
                 Surface(
                     modifier = Modifier
-                        .padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
                     tonalElevation = 3.dp,
                     shadowElevation = 2.dp
                 ) {
@@ -1285,31 +1315,49 @@ fun RecordingScreen(
                 Surface(
                     // Lane banner bawah yang sama dengan banner lain — lihat
                     // komentar di banner storage-error untuk riwayat lane-nya.
-                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
-                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
-                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
-                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
+                    // Selebar kartu (margin 16dp simetris, bukan lagi inset
+                    // 72dp yang bikin tepi kanannya patah di samping tombol
+                    // peta): kolom tombol peta justru naik otomatis saat lane
+                    // ini aktif (lihat mapButtonsBottom), jadi tidak menimpa.
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
                     tonalElevation = 3.dp,
                     shadowElevation = 2.dp
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                        modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp)
                     ) {
+                        Icon(
+                            Icons.Default.LocationOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
                         Text(
                             stringResource(R.string.location_services_off_banner),
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.weight(1f, fill = false)
+                            modifier = Modifier.weight(1f)
                         )
-                        TextButton(onClick = {
-                            gateContext.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                        // Warna tombol disamakan dengan isi banner (sebelumnya
+                        // ikut warna primary, jadi tombol ini tampak paling
+                        // redup di atas latar merah).
+                        TextButton(
+                            onClick = {
+                                gateContext.startActivity(
+                                    android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                stringResource(R.string.location_services_off_open),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
                             )
-                        }) {
-                            Text(stringResource(R.string.location_services_off_open), style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -1323,38 +1371,69 @@ fun RecordingScreen(
                 Surface(
                     // Lane banner bawah yang sama dengan banner lain — lihat
                     // komentar di banner storage-error.
-                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
-                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
-                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
-                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
+                    // Selebar kartu (margin 16dp simetris, bukan lagi inset
+                    // 72dp yang bikin tepi kanannya patah di samping tombol
+                    // peta): kolom tombol peta justru naik otomatis saat lane
+                    // ini aktif (lihat mapButtonsBottom), jadi tidak menimpa.
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
                     tonalElevation = 3.dp,
                     shadowElevation = 2.dp
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
-                    ) {
-                        Text(
-                            stringResource(R.string.location_denied_banner),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        TextButton(onClick = {
-                            showLocationDeniedBanner = false
-                            showLocationOnboarding = true
-                        }) {
-                            Text(stringResource(R.string.location_denied_grant), style = MaterialTheme.typography.labelMedium)
-                        }
-                        TextButton(onClick = {
-                            gateContext.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                                    .setData(android.net.Uri.parse("package:${gateContext.packageName}"))
+                    // Dua aksi tidak muat sebaris dengan teks dua baris di
+                    // layar sempit: pesan naik ke atas (dengan ikon), tombol
+                    // turun ke baris sendiri rata kanan — pola alert card,
+                    // bukan teks yang terjepit.
+                    Column(modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.LocationOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(18.dp)
                             )
-                        }) {
-                            Text(stringResource(R.string.location_denied_settings), style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                stringResource(R.string.location_denied_banner),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    showLocationDeniedBanner = false
+                                    showLocationOnboarding = true
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    stringResource(R.string.location_denied_grant),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                            TextButton(
+                                onClick = {
+                                    gateContext.startActivity(
+                                        android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                            .setData(android.net.Uri.parse("package:${gateContext.packageName}"))
+                                    )
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    stringResource(R.string.location_denied_settings),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
                         }
                     }
                 }
@@ -1429,14 +1508,15 @@ fun RecordingScreen(
                     // Lane banner bawah yang sama dengan banner error
                     // (melayang di atas kartu statistik) — dijaga di atas
                     // supaya tidak menimpa banner lain.
-                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
-                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
-                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
-                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
+                    // Selebar kartu (margin 16dp simetris, bukan lagi inset
+                    // 72dp yang bikin tepi kanannya patah di samping tombol
+                    // peta): kolom tombol peta justru naik otomatis saat lane
+                    // ini aktif (lihat mapButtonsBottom), jadi tidak menimpa.
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = bottomClearance + 8.dp),
                     // tertiaryContainer, not errorContainer: straying from a
                     // route is advice, not a failure — errors stay red.
                     color = MaterialTheme.colorScheme.tertiaryContainer,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.md),
                     tonalElevation = 3.dp,
                     shadowElevation = 2.dp
                 ) {
@@ -1471,6 +1551,24 @@ fun RecordingScreen(
             }
         }
 
+        // Lane banner bawah: saat salah satu banner tampil, kolom tombol
+        // peta ikut naik supaya banner bisa memakai lebar penuh (margin 16dp
+        // simetris) tanpa bertabrakan. 96dp sedikit lebih longgar dari banner
+        // tertinggi (dua baris teks + tombol aksi) supaya tidak pernah
+        // bersentuhan; bergerak dengan animasi dp yang sama dengan bahasa
+        // gerak layar ini.
+        val bannerLaneActive = state.storageError ||
+            showLocationDeniedBanner ||
+            !viewModel.hasLocationServicesEnabled() ||
+            (batterySaverActive && recordingInProgress) ||
+            routeStartUncovered ||
+            showOffRouteHint ||
+            (state.status == RecordingStatus.IDLE && lowBatteryPct != null && !phonePluggedIn)
+        val mapButtonsBottom by animateDpAsState(
+            targetValue = if (bannerLaneActive) bottomClearance + 96.dp else bottomClearance,
+            label = "mapButtonsLift"
+        )
+
         // v7: crosshair waypoint picker — saved pin links to the live
         // activity (context set above), user can switch to independent
         // in-form. IDLE: falls back to the attached route via context.
@@ -1481,7 +1579,7 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
-                .padding(end = 12.dp, bottom = bottomClearance + 120.dp)
+                .padding(end = 12.dp, bottom = mapButtonsBottom + 120.dp)
         ) {
             Surface(
                 onClick = { showCrosshair = true },
@@ -1510,7 +1608,7 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
-                .padding(end = 12.dp, bottom = bottomClearance + 60.dp)
+                .padding(end = 12.dp, bottom = mapButtonsBottom + 60.dp)
         ) {
             Surface(
                 onClick = { showBasemapSheet = true },
@@ -1544,7 +1642,7 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
-                .padding(end = 12.dp, bottom = bottomClearance)
+                .padding(end = 12.dp, bottom = mapButtonsBottom)
                 .size(48.dp)
         ) {
             Icon(
@@ -1561,27 +1659,10 @@ fun RecordingScreen(
             )
         }
 
-        // "Searching for GPS" banner fades+rises in while searching and
-        // fades out on lock, instead of hard-popping in/out.
-        AnimatedVisibility(
-            visible = userLatLng == null && !startStuck,
-            enter = fadeIn(animationSpec = NyasarMotion.enter()) +
-                slideInVertically(initialOffsetY = { it / 4 }, animationSpec = NyasarMotion.enter()),
-            exit = fadeOut(animationSpec = NyasarMotion.exit()),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            Surface(
-                modifier = Modifier.padding(24.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(NyasarRadius.md)
-            ) {
-                Text(
-                    stringResource(R.string.gps_searching),
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
+        // Catatan: pill "Mencari sinyal GPS…" DIHAPUS dari tengah peta.
+        // Status itu kini hidup sebagai pita berwarna di kepala kartu
+        // statistik (lihat acquiringGps), jadi peta tidak lagi tertutup
+        // kotak melayang yang tidak bisa ditutup user.
 
         // Bug fix: replaces an infinite "MEMULAI..." with an actual
         // explanation + a way out once the retry above has also failed.
@@ -1665,30 +1746,56 @@ fun RecordingScreen(
                 tonalElevation = 4.dp,
                 shadowElevation = 6.dp
             ) {
-            Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 14.dp)) {
-                // Expand affordance: compact 36dp button (was a full-height
-                // icon row that wasted vertical space) with press feedback,
-                // and the icon itself crossfade+zooms on toggle so the
-                // state change is felt, not hard-swapped.
+            Column {
+                // ── Header band ──
+                // Anatomi kartu Strava: pita tipis selebar kartu di bagian
+                // atas. Selama belum ada fix, pita itu berbunyi "Mencari
+                // sinyal GPS…" (pill yang dulu melayang di tengah peta sudah
+                // dihapus); setelah fix ia jadi status sesi. Tombol expand
+                // duduk di ujung kanan pita, bukan baris terpisah — jadi
+                // tidak ada lagi teks kecil menggantung sendirian.
+                val acquiringGps = userLatLng == null && !startStuck
+                val bandColor = if (acquiringGps) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerHighest
+                val bandContent = if (acquiringGps) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurface
                 Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    Modifier
+                        .fillMaxWidth()
+                        .background(bandColor)
+                        .heightIn(min = 44.dp)
+                        .padding(start = 16.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Header kartu = status sesi, meniru header "Acquiring GPS"
-                    // Strava: status menempel pada statistik yang sedang dibaca
-                    // alih-alih jadi chip terpisah di langit-langit layar.
-                    // weight(1f): label status bisa panjang ("MEREKAM · ±12 m ·
-                    // GPS") — tanpa bobot, teks itu bisa mendesak tombol
-                    // expand keluar baris.
-                    Box(Modifier.weight(1f)) {
-                        RecordingStatusText(
-                            effectiveStatus,
-                            state.isAutoPaused,
-                            state.gpsHealth,
-                            state.gpsAccuracyMeters,
-                            state.gpsProvider
+                    if (acquiringGps) {
+                        Icon(
+                            Icons.Outlined.LocationSearching,
+                            contentDescription = null,
+                            tint = bandContent,
+                            modifier = Modifier.size(18.dp)
                         )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(R.string.gps_searching),
+                            color = bandContent,
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        // weight(1f): label status bisa panjang ("MEREKAM ·
+                        // ±12 m · GPS") — tanpa bobot, teks itu bisa
+                        // mendesak tombol expand keluar baris.
+                        Box(Modifier.weight(1f)) {
+                            RecordingStatusText(
+                                effectiveStatus,
+                                state.isAutoPaused,
+                                state.gpsHealth,
+                                state.gpsAccuracyMeters,
+                                state.gpsProvider
+                            )
+                        }
                     }
                     val expandInteraction = remember { MutableInteractionSource() }
                     IconButton(
@@ -1699,15 +1806,16 @@ fun RecordingScreen(
                         Icon(
                             Icons.Default.OpenInFull,
                             contentDescription = stringResource(R.string.expand_stats_cd),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = bandContent,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                 }
-                Spacer(Modifier.height(2.dp))
                 // Strava-style: Distance as hero metric (center), Time left, Elevation right
                 Row(
-                    Modifier.fillMaxWidth(),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BigStatBlock(
@@ -1737,14 +1845,25 @@ fun RecordingScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(topStart = NyasarRadius.xl, topEnd = NyasarRadius.xl),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {
                 Column(
                     Modifier
                         .navigationBarsPadding()
-                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp)
+                        .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp)
                 ) {
+                // Handle geser ala bottom sheet Strava — penanda visual bahwa
+                // panel ini adalah lapisan terpisah dari kartu di atasnya.
+                Box(
+                    Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
+                )
+                Spacer(Modifier.height(12.dp))
                 RecordingControls(
                     status = effectiveStatus,
                     routeName = previewRouteName,
@@ -2443,7 +2562,12 @@ private fun RecordingControls(
                             label = "sportIcon"
                         ) { animatedSport ->
                             Icon(
-                                animatedSport.icon,
+                                // "?" terasa seperti tombol bantuan; plus
+                                // netral membaca "belum dipilih, tap untuk
+                                // memilih" — labelnya tetap "Tidak
+                                // ditentukan" sampai user memilih jenis.
+                                if (animatedSport == com.nyasar.app.recording.SportType.UNSPECIFIED) Icons.Default.Add
+                                else animatedSport.icon,
                                 contentDescription = stringResource(R.string.select_sport_cd),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(26.dp)

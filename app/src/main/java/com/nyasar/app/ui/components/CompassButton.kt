@@ -76,7 +76,7 @@ fun CompassButton(
         text = "N",
         style = TextStyle(
             color = labelColor,
-            fontSize = 9.sp,
+            fontSize = 8.sp,
             fontWeight = FontWeight.Bold
         )
     )
@@ -95,46 +95,50 @@ fun CompassButton(
             Canvas(Modifier.fillMaxSize()) {
                 val cx = size.width / 2f
                 val cy = size.height / 2f
-                val ringRadius = size.minDimension * 0.36f
+                val ringRadius = size.minDimension * 0.42f
 
                 drawCircle(
-                    color = ringColor.copy(alpha = 0.75f),
+                    color = ringColor.copy(alpha = 0.7f),
                     radius = ringRadius,
                     center = Offset(cx, cy),
                     style = Stroke(width = 1.dp.toPx())
                 )
 
                 rotate(degrees = -normalized, pivot = Offset(cx, cy)) {
-                    // Jarum utara — segitiga ramping menempel di cincin.
+                    // Jarum pendek berpangkal di PUSAT (bukan segitiga yang
+                    // melayang dekat cincin): bentuknya jadi terbaca sebagai
+                    // penunjuk arah, dan ujungnya berhenti di 0.55r supaya
+                    // tidak menabrak huruf N di bagian atas dial.
                     drawPath(
                         path = Path().apply {
-                            moveTo(cx, cy - ringRadius * 0.98f)
-                            lineTo(cx - ringRadius * 0.30f, cy - ringRadius * 0.54f)
-                            lineTo(cx + ringRadius * 0.30f, cy - ringRadius * 0.54f)
+                            moveTo(cx, cy - ringRadius * 0.55f)
+                            lineTo(cx - ringRadius * 0.18f, cy)
+                            lineTo(cx + ringRadius * 0.18f, cy)
                             close()
                         },
                         color = northColor,
                         style = Fill
                     )
-                    // Ekor selatan — sengaja lebih tipis dan pudar: yang dicari
-                    // user adalah utara, sisanya hanya penyeimbang visual.
+                    // Ekor selatan — lebih tipis dan pudar: yang dicari user
+                    // adalah utara, sisanya hanya penyeimbang visual.
                     drawPath(
                         path = Path().apply {
-                            moveTo(cx, cy + ringRadius * 0.70f)
-                            lineTo(cx - ringRadius * 0.20f, cy + ringRadius * 0.44f)
-                            lineTo(cx + ringRadius * 0.20f, cy + ringRadius * 0.44f)
+                            moveTo(cx, cy + ringRadius * 0.48f)
+                            lineTo(cx - ringRadius * 0.14f, cy)
+                            lineTo(cx + ringRadius * 0.14f, cy)
                             close()
                         },
-                        color = southColor.copy(alpha = 0.5f),
+                        color = southColor.copy(alpha = 0.45f),
                         style = Fill
                     )
                 }
 
+                // Huruf N di bibir atas dial, tegak (tidak ikut rotasi jarum).
                 drawText(
                     textLayoutResult = northLabel,
                     topLeft = Offset(
                         cx - northLabel.size.width / 2f,
-                        cy - northLabel.size.height / 2f
+                        cy - ringRadius * 0.86f - northLabel.size.height / 2f
                     )
                 )
             }

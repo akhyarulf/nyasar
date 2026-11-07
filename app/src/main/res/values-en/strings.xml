@@ -31,7 +31,7 @@
     <string name="recording_elevation_gain">Elevation gain (m)</string>
     <string name="gps_weak">⚠ WEAK GPS</string>
     <string name="gps_lost">⚠ GPS LOST</string>
-    <string name="storage_error">⚠ Failed to save data — storage full?</string>
+    <string name="storage_error">Failed to save data — storage full?</string>
     <string name="recording_not_started">Could not start recording</string>
     <string name="check_gps">Check location permission and ensure GPS is enabled, then try again.</string>
 

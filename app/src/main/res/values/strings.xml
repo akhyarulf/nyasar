@@ -31,7 +31,7 @@
     <string name="recording_elevation_gain">Naik (m)</string>
     <string name="gps_weak">⚠ GPS LEMAH</string>
     <string name="gps_lost">⚠ GPS HILANG</string>
-    <string name="storage_error">⚠ Gagal menyimpan data — storage penuh?</string>
+    <string name="storage_error">Gagal menyimpan data — storage penuh?</string>
     <string name="recording_not_started">Gagal memulai recording</string>
     <string name="check_gps">Periksa izin lokasi dan pastikan GPS aktif, lalu coba lagi.</string>
 

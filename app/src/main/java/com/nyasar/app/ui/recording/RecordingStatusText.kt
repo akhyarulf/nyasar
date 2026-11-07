@@ -57,7 +57,10 @@ fun RecordingStatusText(
         gpsHealth == GpsHealth.WEAK -> WarningAmber to stringResource(R.string.gps_weak)
         // "MEMULAI…" dulu menyiratkan recording sudah berjalan padahal
         // pengguna masih di layar IDLE — "SIAP/READY" yang benar.
-        status == RecordingStatus.IDLE -> MaterialTheme.colorScheme.outline to stringResource(R.string.recording_status_ready)
+        // onSurfaceVariant, bukan outline: pita di kepala kartu berlatar
+        // surfaceContainerHighest, dan outline terlalu pudar di atasnya —
+        // "READY" terbaca abu-abu mati di screenshot perangkat.
+        status == RecordingStatus.IDLE -> MaterialTheme.colorScheme.onSurfaceVariant to stringResource(R.string.recording_status_ready)
         // Theme primary (not a hardcoded dark green): this Text sits on a tonal
         // Surface, so light mode gets the dark primary and dark mode the light
         // primary — 0xFF2E7D32 was near-invisible against the dark theme.

@@ -40,11 +40,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.recording.RecordingService
@@ -2334,18 +2336,29 @@ private fun BigStatBlock(
             // than flashing — same animation family as the Home pill.
             AnimatedStatText(
                 value = value,
+                // Angka tegas ala referensi: tabular figures (lebar digit
+                // sama, jadi "00:59" tidak bergeser saat detik naik dan kolom
+                // statistik tetap rata), tracking lebih rapat, dan metrik
+                // utama satu tingkat lebih besar. Ukuran metrik samping
+                // sengaja tidak dinaikkan: kolom waktu hanya selebar ~100dp,
+                // "00:00:00" di atas headlineMedium sudah mentok di sana.
                 style = when {
                     isHero -> MaterialTheme.typography.headlineLarge
                     compact -> MaterialTheme.typography.titleLarge
                     else -> MaterialTheme.typography.headlineMedium
-                },
+                }.copy(
+                    fontFeatureSettings = "tnum",
+                    letterSpacing = if (isHero) (-0.7).sp else (-0.4).sp
+                ),
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
+            // Label huruf kapital + tracking lebar: baris label jadi tipis dan
+            // seragam, jadi bobot visual hanya dimiliki angka.
+            label.uppercase(),
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.9.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -2432,11 +2445,17 @@ private fun HeroControl(
             onClick = onClick,
             modifier = Modifier
                 .size(88.dp)
+                // Bayangan dilepas dari tombol lain: aksen oranye ini harus
+                // terbaca "melayang" di atas sheet, bukan menempel rata.
+                .shadow(elevation = 10.dp, shape = CircleShape)
                 .scale(pulseScale)
                 .pressScale(interaction, pressedScale = 0.92f),
             interactionSource = interaction,
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.primary
+                // Aksen rekam, bukan `primary`: sage di atas kartu gelap
+                // terbaca sebagai tombol nonaktif (lihat RecordAccent).
+                containerColor = com.nyasar.app.ui.theme.RecordAccent,
+                contentColor = com.nyasar.app.ui.theme.OnRecordAccent
             )
         ) {
             Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(38.dp))

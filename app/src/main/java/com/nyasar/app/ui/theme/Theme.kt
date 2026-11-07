@@ -32,6 +32,17 @@ val SuccessGreen = Color(0xFF5A7562) // Actual track/recorded line — matches p
 val NyasarTrackGreen = Color(0xFF2E8B57)
 val AccentBlue = Color(0xFF2979FF) // GPS/location markers
 
+// Aksen "mulai rekam" — satu-satunya warna hangat di layar rekam.
+// Tombol hero dulu memakai `primary` (sage), yang di atas kartu gelap terbaca
+// seperti tombol nonaktif: pengguna harus membaca ikonnya untuk tahu ini aksi
+// utama. Oranye menyala memberi sinyal "tekan saya" dari jarak pandang, sama
+// seperti tombol rekam di aplikasi referensi. Sengaja TIDAK dipakai di tempat
+// lain (navigasi, banner, FAB) supaya maknanya tetap tunggal: mulai/lanjutkan
+// sesi rekam. #FF6B2C dipilih agar berbeda jelas dari WarningAmber (#F2A900)
+// yang di app ini berarti peringatan, bukan ajakan.
+val RecordAccent = Color(0xFFFF6B2C)
+val OnRecordAccent = Color(0xFF1C1006)
+
 private val LightColors = lightColorScheme(
     primary = NyasarGreen,
     onPrimary = Color.White,

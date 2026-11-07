@@ -65,12 +65,14 @@ jobs:
       - name: Unit tests (JVM)
         run: gradle testDebugUnitTest --no-daemon --stacktrace
 
-      # Lint dijalankan sebagai laporan, bukan gerbang: codebase ini belum
-      # punya baseline lint, jadi langkah pertama hanya mengumpulkan temuan
-      # (unused resource, API level, dsb). Setelah laporannya bersih, hapus
-      # continue-on-error agar temuan baru memblokir rilis.
-      - name: Android lint (laporan, tidak memblokir)
-        continue-on-error: true
+      # Lint adalah GERBANG (2026-11). Sebelumnya langkah ini memakai
+      # continue-on-error karena 11 error bawaan belum dibereskan; semuanya
+      # sudah diperbaiki (4 NewApi splash -> values-v31/values-night-v31,
+      # 6 FlowOperatorInvokedInComposition -> operator dipindah ke remember,
+      # 1 UnusedBoxWithConstraintsScope -> Box biasa), jadi error baru
+      # sekarang harus memblokir build. Warning tetap tidak memblokir
+      # (lintDebug hanya gagal pada severity Error).
+      - name: Android lint (gerbang)
         run: gradle lintDebug --no-daemon --stacktrace
 
       - name: Upload lint report

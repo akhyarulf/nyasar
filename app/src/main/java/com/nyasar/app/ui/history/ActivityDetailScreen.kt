@@ -5,7 +5,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -176,21 +175,27 @@ fun ActivityDetailScreen(
         72.dp.toPx()
     }.toInt()
 
-    // Speed unit setting
+    // Speed unit setting. `.map {}` is wrapped in `remember`: chaining a Flow
+    // operator directly in composition builds a NEW Flow on every
+    // recomposition — a wasted allocation, and the reason lint flagged this
+    // as FlowOperatorInvokedInComposition. Same shape as
+    // rememberDefaultPublishVisibility().
     val settingsRepository = remember {
         com.nyasar.app.data.settings.SettingsRepository(context)
     }
-    val speedUnit by settingsRepository.settings
-        .map { it.speedUnit }
-        .collectAsState(initial = "kmh")
+    val speedUnitFlow = remember(settingsRepository) {
+        settingsRepository.settings.map { it.speedUnit }
+    }
+    val speedUnit by speedUnitFlow.collectAsState(initial = "kmh")
 
     // Data-section "Waypoint" toggle (picker sheet) — local read-only
     // collect (no VM changes); this screen is a private-instance viewer, so
     // a local flow can't fight a shared map. Waypoints during THIS activity
     // are part of the activity record being reviewed.
-    val waypointsVisible by settingsRepository.settings
-        .map { it.waypointsVisible }
-        .collectAsState(initial = true)
+    val waypointsVisibleFlow = remember(settingsRepository) {
+        settingsRepository.settings.map { it.waypointsVisible }
+    }
+    val waypointsVisible by waypointsVisibleFlow.collectAsState(initial = true)
 
     // Layer-picker state for the fullscreen map (2026-09 user request):
     // basemap/overlay toggles live in the same app-wide DataStore the other
@@ -355,7 +360,11 @@ fun ActivityDetailScreen(
                         // overlay shape as browse Route Detail / RoutePreview):
                         // tap the hero or its expand button, back closes.
                         if (activityMapExpanded) {
-                            BoxWithConstraints(
+                            // Plain Box, not BoxWithConstraints: nothing inside
+                            // this overlay reads maxWidth/maxHeight, so the
+                            // constraint scope only cost a SubcomposeLayout
+                            // pass (lint: UnusedBoxWithConstraintsScope).
+                            Box(
                                 Modifier
                                     .fillMaxSize()
                                     .background(MaterialTheme.colorScheme.background)

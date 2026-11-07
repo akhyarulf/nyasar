@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- API 31+ only: the platform reads its OWN splash attributes to paint
+         the very first frame, before the app process exists, so the AndroidX
+         compat attributes alone would let that first frame fall back to the
+         theme's windowBackground/app icon and then visibly swap. These two
+         items therefore duplicate the compat values above — on purpose.
+
+         They can't live in values/themes.xml: android:windowSplashScreen*
+         don't exist before API 31 and minSdk is 26 (lint NewApi). Keeping
+         them version-qualified is the real fix rather than a suppression. -->
+    <style name="Theme.Nyasar.Splash" parent="Theme.Nyasar.Splash.Base">
+        <item name="android:windowSplashScreenBackground">@color/splash_window_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+    </style>
+</resources>

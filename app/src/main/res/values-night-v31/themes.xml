@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Night + API 31+. This file exists because the night qualifier has
+         higher precedence than the version qualifier: in dark mode
+         values-night/themes.xml wins over values-v31/themes.xml, which would
+         drop the platform splash attributes and make the first frame flash
+         the wrong background. So the v31 items are repeated here together
+         with the night status-bar flip. Same two attributes, same values. -->
+    <style name="Theme.Nyasar.Splash" parent="Theme.Nyasar.Splash.Base">
+        <item name="android:windowSplashScreenBackground">@color/splash_window_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

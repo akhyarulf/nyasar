@@ -12,14 +12,10 @@
     </style>
 
     <!-- Same flip for the splash: dark mode keeps its dark splash background
-         (values-night colors) and needs light status-bar icons over it. -->
-    <style name="Theme.Nyasar.Splash" parent="Theme.SplashScreen">
-        <item name="android:windowSplashScreenBackground">@color/splash_window_background</item>
-        <item name="windowSplashScreenBackground">@color/splash_window_background</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
-        <item name="windowSplashScreenAnimationDuration">400</item>
-        <item name="postSplashScreenTheme">@style/Theme.Nyasar</item>
+         (values-night colors) and needs light status-bar icons over it. Only
+         the flip lives here — background, icon and hand-over theme come from
+         Theme.Nyasar.Splash.Base in values/themes.xml. -->
+    <style name="Theme.Nyasar.Splash" parent="Theme.Nyasar.Splash.Base">
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

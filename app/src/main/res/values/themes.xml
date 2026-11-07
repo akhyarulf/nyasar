@@ -33,12 +33,19 @@
            - postSplashScreenTheme hands over to Theme.Nyasar so zero
              app styling changes after the splash exits.
 
+         Split in two styles because the platform's own
+         android:windowSplashScreen* attributes only exist from API 31, and
+         minSdk is 26: declaring them here is a lint NewApi error, so they
+         live in values-v31/ + values-night-v31/ instead. Everything that
+         must apply on every API level (the compat attributes the AndroidX
+         library reads, the hand-over theme, the status-bar icons) stays in
+         the Base style, and the three variants inherit it — no duplicated
+         item list to drift out of sync.
+
          MainActivity must call SplashScreen.installSplashScreen(this)
          BEFORE super.onCreate() for the theme swap to take effect. -->
-    <style name="Theme.Nyasar.Splash" parent="Theme.SplashScreen">
-        <item name="android:windowSplashScreenBackground">@color/splash_window_background</item>
+    <style name="Theme.Nyasar.Splash.Base" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_window_background</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
         <item name="windowSplashScreenAnimationDuration">400</item>
         <item name="postSplashScreenTheme">@style/Theme.Nyasar</item>
@@ -46,4 +53,9 @@
              values-night override flips this for dark mode. -->
         <item name="android:windowLightStatusBar">true</item>
     </style>
+
+    <!-- What the manifest points at. The API 31 platform splash attributes
+         are added by values-v31/ (day) and values-night-v31/ (night, same
+         items plus the status-bar flip). -->
+    <style name="Theme.Nyasar.Splash" parent="Theme.Nyasar.Splash.Base" />
 </resources>

@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [RouteEntity::class, ActivityEntity::class, ActivityPointEntity::class, WaypointEntity::class, PendingPublishEntity::class],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -119,6 +119,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v10 -> v11 (backtrack pulih penuh): menambah satu kolom nullable
+         * backtrackOf ke activities — id aktivitas lama yang jejaknya dipakai
+         * sebagai garis pemandu sesi rekam ini. Pure additive ALTER TABLE,
+         * jadi nontransaksional tetap aman; baris lama otomatis NULL (bukan
+         * backtrack), sesuai perilaku sebelumnya.
+         */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE activities ADD COLUMN backtrackOf TEXT DEFAULT NULL")
+            }
+        }
+
         /** One-time cleanup of pre-removal photo files. Idempotent and
          *  cheap when the directory doesn't exist (deleteRecursively on a
          *  missing File is a no-op returning false). Runs on the first
@@ -162,9 +175,10 @@ abstract class AppDatabase : RoomDatabase() {
                     // — also non-destructive to the rest of the data.
                     // v8 -> v9 adds pending_publishes (explicit, see above);
                     // v9 -> v10 re-keys it for library-route queuing
-                    // (explicit, see MIGRATION_9_10).
+                    // (explicit, see MIGRATION_9_10); v10 -> v11 adds
+                    // activities.backtrackOf (explicit, see MIGRATION_10_11).
                     .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
-                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .build().also {
                         instance = it
                         cleanupLegacyPhotoFiles(context)

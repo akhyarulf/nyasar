@@ -35,8 +35,8 @@ import kotlinx.coroutines.launch
  * Location collection here is a plain LocationRepository subscription, not
  * shared with RecordingService -- Home isn't recording anything, it's just
  * showing "where am I" on the map, so there is no second-GPS-source concern
- * (that rule is specifically about recording+navigation sharing one stream,
- * see NavigationViewModel).
+ * (aturan satu-sumber GPS itu hanya berlaku untuk sesi rekam, yang pemilik
+ * stream-nya RecordingService).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
@@ -172,9 +172,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Called once from HomeScreen after permission is confirmed granted --
-     *  mirrors how NavigationViewModel/RecordingService each check
-     *  hasLocationPermission() before subscribing, so Home never starts a
-     *  FusedLocationProviderClient request without permission. */
+     *  sama seperti RecordingService yang juga mengecek hasLocationPermission()
+     *  sebelum berlangganan, supaya Home tidak pernah memulai request
+     *  FusedLocationProviderClient tanpa izin. */
     fun startLocationUpdatesIfPermitted() {
         if (locationStarted) return
         if (!locationRepository.hasLocationPermission()) return

@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
  *   pure clutter while already facing north. Handled here once so every
  *   screen using this component gets it for free.
  *
- * onLongClick toggles heading-up follow mode (see NavigationScreen).
+ * onLongClick toggles heading-up follow mode (lihat RecordingScreen).
  *
  * bearingDeg is the CAMERA's bearing (degrees clockwise from north the map
  * is currently rotated), not the user's GPS heading.

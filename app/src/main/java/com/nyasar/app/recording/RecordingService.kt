@@ -10,6 +10,9 @@ import android.content.Intent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import com.nyasar.app.MainActivity
 import com.nyasar.app.R
@@ -18,10 +21,15 @@ import com.nyasar.app.data.db.ActivityEntity
 import com.nyasar.app.data.db.ActivityPointEntity
 import com.nyasar.app.data.db.ActivityStatus
 import com.nyasar.app.data.db.AppDatabase
+import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.settings.SettingsRepository
 import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.navigation.GpsFix
+import com.nyasar.app.navigation.LatLng
+import com.nyasar.app.navigation.OffRouteDetector
+import com.nyasar.app.navigation.RouteStatus
+import com.nyasar.app.navigation.TrackMatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,10 +43,10 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
- * Real foreground service for recording (replaces the previous
- * NavigationService, which only showed a notification and never actually
- * collected location — see audit). This is the piece that makes recording
- * survive screen-off / app-minimized, per spec's Background GPS section.
+ * Real foreground service for recording — the only location owner in the
+ * app, including backtrack sessions (which now record too). This is the
+ * piece that makes recording survive screen-off / app-minimized, per spec's
+ * Background GPS section.
  *
  * Design: bound + started service. Started so it's independent of any
  * Activity/ViewModel lifecycle (keeps running if the UI unbinds while the
@@ -46,10 +54,9 @@ import java.util.UUID
  * [state] directly without going through a broadcast/DB-polling roundtrip.
  *
  * GpsFix collection lives here now, not in a ViewModel's viewModelScope —
- * that was the actual reason background recording/navigation didn't work
- * before. NavigationEngine (route-matching) can subscribe to the same fix
- * stream via [addFixListener] so navigation + recording run simultaneously
- * off one GPS source, per spec (they are not mutually exclusive).
+ * that was the actual reason background recording didn't work before. Satu
+ * sesi rekam = satu pemilik GPS: layar hanya mengamati [state], tidak pernah
+ * membuka GPS sendiri.
  */
 class RecordingService : Service() {
 
@@ -63,8 +70,16 @@ class RecordingService : Service() {
         const val ACTION_STOP = "com.nyasar.app.recording.STOP"
         const val ACTION_RESUME_EXISTING = "com.nyasar.app.recording.RESUME_EXISTING"
         const val ACTION_DISMISS_NOT_MOVING = "com.nyasar.app.recording.DISMISS_NOT_MOVING"
+
+        /** Satu-satunya aksi yang boleh datang dari tombol notifikasi —
+         *  dipakai guard"sesi sudah berakhir" di onStartCommand. */
+        private val NOTIFICATION_ACTIONS = setOf(ACTION_PAUSE, ACTION_RESUME, ACTION_STOP)
         const val EXTRA_ROUTE_ID = "routeId"
         const val EXTRA_ACTIVITY_ID = "activityId"
+        /** Sesi backtrack: garis pemandunya adalah jejak aktivitas lama yang
+         *  dibalik, bukan rute GPX. Dikirim terpisah dari EXTRA_ROUTE_ID supaya
+         *  rute tetap menang kalau user memilih rute di tengah sesi. */
+        const val EXTRA_BACKTRACK_ACTIVITY_ID = "backtrackActivityId"
 
         /** Distance threshold for the "Belum bergerak?" prompt: if total
          *  distance is under this when auto-pause fires OR when the user
@@ -74,10 +89,15 @@ class RecordingService : Service() {
          *  filters drift for the distance counter). */
         const val NOT_MOVING_DISTANCE_THRESHOLD_METERS = 5.0
 
-        fun startIntent(context: Context, routeId: String? = null) =
+        fun startIntent(
+            context: Context,
+            routeId: String? = null,
+            backtrackActivityId: String? = null
+        ) =
             Intent(context, RecordingService::class.java).apply {
                 action = ACTION_START
                 routeId?.let { putExtra(EXTRA_ROUTE_ID, it) }
+                backtrackActivityId?.let { putExtra(EXTRA_BACKTRACK_ACTIVITY_ID, it) }
             }
 
         /**
@@ -108,6 +128,10 @@ class RecordingService : Service() {
 
     private lateinit var locationRepository: LocationRepository
     private lateinit var dao: ActivityDao
+    /** Only used for the pocket off-route alarm below: it needs the attached
+     *  route's polyline, and the service (unlike the UI) keeps running with
+     *  the screen off. Read once per session, not per fix. */
+    private lateinit var routeRepository: RouteRepository
     // Part 2 fix (BUG #9 "RecordingEngine lama tidak digunakan untuk
     // session baru"): was `private val engine = RecordingEngine()`, one
     // instance for this Service's entire lifetime. RecordingEngine.start()
@@ -125,6 +149,8 @@ class RecordingService : Service() {
 
     private var activityId: String? = null
     private var routeId: String? = null
+    /** Hanya terisi untuk sesi backtrack (lihat [EXTRA_BACKTRACK_ACTIVITY_ID]). */
+    private var backtrackActivityId: String? = null
     private var startedAtEpochMs: Long = 0L
     private var pointSequence: Int = 0
     // P3I audit: tracks whether THIS service instance has called
@@ -181,8 +207,6 @@ class RecordingService : Service() {
     private var baselineElevationGainM = 0.0
     private var baselineElevationLossM = 0.0
 
-    private val fixListeners = mutableListOf<(GpsFix) -> Unit>()
-
     /** Every accepted GPS fix this session, in order — this is what
      *  [NyasarMapView] draws as the live "actual track" (spec section 3).
      *  Seeded from Room on [handleResumeExisting] so the drawn track doesn't
@@ -192,21 +216,11 @@ class RecordingService : Service() {
     private val _state = MutableStateFlow(RecordingUiState())
     val state: StateFlow<RecordingUiState> = _state.asStateFlow()
 
-    /** Dipanggil NavigationViewModel supaya navigation engine ikut menerima
-     *  fix yang sama dengan yang dipakai recording — satu sumber GPS untuk
-     *  keduanya, sesuai spec (recording + navigation tidak saling meniadakan). */
-    fun addFixListener(listener: (GpsFix) -> Unit) {
-        fixListeners.add(listener)
-    }
-
-    fun removeFixListener(listener: (GpsFix) -> Unit) {
-        fixListeners.remove(listener)
-    }
-
     override fun onCreate() {
         super.onCreate()
         locationRepository = LocationRepository(this)
         dao = AppDatabase.get(this).activityDao()
+        routeRepository = RouteRepository(this)
         createChannelIfNeeded()
     }
 
@@ -244,8 +258,27 @@ class RecordingService : Service() {
             return START_STICKY
         }
 
-        when (intent.action) {
-            ACTION_START -> handleStart(intent.getStringExtra(EXTRA_ROUTE_ID))
+        // Aksi dari tombol notifikasi (Jeda/Lanjut/Selesai) bisa datang
+        // SETELAH sesi berakhir — notifikasi lama yang belum sempat hilang,
+        // atau tap yang tertunda. Engine IDLE berarti tidak ada sesi aktif:
+        // abaikan dan matikan service. Tanpa guard ini, ACTION_STOP pada
+        // engine IDLE tetap sampai ke handleStop() → persistSummary(), yang
+        // punya jalur "buat baris kalau belum ada" — hasilnya satu aktivitas
+        // kosong di Room gara-gara tap notifikasi basi.
+        val action = intent.action
+        if (action != null && action in NOTIFICATION_ACTIONS &&
+            engine.currentState().status == RecordingStatus.IDLE
+        ) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        when (action) {
+            ACTION_START -> handleStart(
+                intent.getStringExtra(EXTRA_ROUTE_ID),
+                intent.getStringExtra(EXTRA_BACKTRACK_ACTIVITY_ID)
+            )
             ACTION_RESUME_EXISTING -> handleResumeExisting(
                 intent.getStringExtra(EXTRA_ACTIVITY_ID),
                 intent.getStringExtra(EXTRA_ROUTE_ID)
@@ -322,6 +355,10 @@ class RecordingService : Service() {
     private suspend fun restoreExistingActivity(existing: ActivityEntity, routeIdArg: String?) {
         activityId = existing.id
         routeId = routeIdArg ?: existing.routeId
+        // Sumber garis backtrack ikut tersimpan di baris aktivitas, jadi sesi
+        // yang dipulihkan setelah proses mati tetap punya panduan dan alarm
+        // menyimpang — bukan hanya garis yang digambar layar dari Room.
+        backtrackActivityId = existing.backtrackOf
         startedAtEpochMs = existing.startedAtEpochMs
         pointSequence = dao.getPointCount(existing.id)
 
@@ -353,7 +390,8 @@ class RecordingService : Service() {
         )
 
         resetAutoPauseAndGpsWatchdogState()
-        loadAutoPauseSetting()
+        loadRecordingSettings()
+        refreshOffRouteTrack()
         startLocationCollection()
         startLocationRecoveryMonitor()
         startGpsWatchdog()
@@ -361,7 +399,7 @@ class RecordingService : Service() {
         publishState()
     }
 
-    private fun handleStart(routeIdArg: String?) {
+    private fun handleStart(routeIdArg: String?, backtrackActivityIdArg: String? = null) {
         // Part 2 fix (BUG #1/#9/#11/#12): guard was RECORDING-only, so a
         // START arriving while PAUSED (state machine says PAUSED only
         // allows Lanjutkan/Selesaikan, spec §"ATURAN STATE") would have
@@ -373,6 +411,10 @@ class RecordingService : Service() {
         if (currentStatus == RecordingStatus.RECORDING || currentStatus == RecordingStatus.PAUSED) return
 
         routeId = routeIdArg
+        backtrackActivityId = backtrackActivityIdArg
+        // Jalur yang baru dipasang (rute atau jejak backtrack): muat polyline
+        // untuk alarm menyimpang.
+        refreshOffRouteTrack()
         val id = UUID.randomUUID().toString()
         activityId = id
         startedAtEpochMs = System.currentTimeMillis()
@@ -403,7 +445,7 @@ class RecordingService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notif_started), "0.0 km"))
 
         resetAutoPauseAndGpsWatchdogState()
-        loadAutoPauseSetting()
+        loadRecordingSettings()
 
         serviceScope.launch {
             // P3I §20/26: if this insert fails (storage full, disk error),
@@ -431,7 +473,11 @@ class RecordingService : Service() {
                         maxSpeedKmh = null,
                         elevationGainM = null,
                         elevationLossM = null,
-                        sportType = _state.value.sportType
+                        sportType = _state.value.sportType,
+                        // Baris ini yang membuat panduan backtrack bisa
+                        // dibangun ulang setelah proses mati (lihat
+                        // restoreExistingActivity).
+                        backtrackOf = backtrackActivityId
                     )
                 )
                 true
@@ -470,9 +516,101 @@ class RecordingService : Service() {
         }
     }
 
-    private fun loadAutoPauseSetting() {
+    /** Satu pembacaan DataStore untuk semua preferensi recording yang
+     *  dibutuhkan service (auto-pause + peringatan menyimpang). */
+    private fun loadRecordingSettings() {
         serviceScope.launch {
-            autoPauseEnabled = SettingsRepository(this@RecordingService).settings.first().autoPauseEnabled
+            val settings = SettingsRepository(this@RecordingService).settings.first()
+            autoPauseEnabled = settings.autoPauseEnabled
+            offRouteAlertsEnabled = settings.offRouteAlertsEnabled
+        }
+    }
+
+    // --- Peringatan menyimpang dari kantong (2026-11) ---
+    // Layar recording sudah punya banner 60 m, tetapi banner itu hanya hidup
+    // selama layar menyala. Justru saat layar mati getaran dibutuhkan, jadi
+    // jalurnya di sini: polyline rute yang terpasang dimuat sekali per sesi,
+    // lalu tiap fix yang diterima engine diteruskan ke OffRouteDetector
+    // (kelas yang sudah ada di paket navigation, sebelumnya belum dipakai).
+    // Detector menuntut 3 bacaan berturut-turut dan melonggarkan ambang saat
+    // akurasi GPS buruk, jadi satu fix melompat di lembah/kanopi tidak akan
+    // memicu getaran.
+    private var offRouteAlertsEnabled = false
+    private var routeMatcher: TrackMatcher? = null
+    private val offRouteDetector = OffRouteDetector()
+    /** Rising-edge latch: satu sesi menyimpang = satu kali getar. Kembali
+     *  ke jalur (ON_ROUTE) mengisi ulang, jadi menyimpang lagi nanti tetap
+     *  diperingatkan — tetapi tidak bergetar tiap fix selama di luar jalur. */
+    private var offRouteAlertFired = false
+
+    private fun refreshOffRouteTrack() {
+        val id = routeId
+        val backtrackId = backtrackActivityId
+        if (id == null && backtrackId == null) {
+            routeMatcher = null
+            return
+        }
+        serviceScope.launch {
+            val matcher = try {
+                val points = when {
+                    // Rute menang kalau user memilih rute di tengah sesi
+                    // backtrack: yang dipandu adalah rute itu, bukan jejak lama.
+                    id != null -> {
+                        val route = routeRepository.findRoute(id)
+                        route?.let { routeRepository.loadDocument(it).allTrackPoints }.orEmpty()
+                    }
+                    backtrackId != null -> dao.getPoints(backtrackId)
+                        .map { TrackPoint(it.lat, it.lon, it.elevationM, it.timestampMs) }
+                        .reversed()
+                    else -> emptyList()
+                }
+                // Kurang dari 2 titik bukan jalur — jangan mengarang garis dari
+                // satu titik GPS.
+                if (points.size >= 2) TrackMatcher(points) else null
+            } catch (e: Exception) {
+                android.util.Log.e("RecordingService", "Off-route track unavailable", e)
+                null
+            }
+            routeMatcher = matcher
+            offRouteDetector.reset()
+            offRouteAlertFired = false
+        }
+    }
+
+    private fun evaluateOffRouteAlert(lat: Double, lon: Double, accuracyMeters: Float) {
+        if (!offRouteAlertsEnabled) return
+        val matcher = routeMatcher ?: return
+        // Tidak ada hasil match = posisi di luar jangkauan track (mis. fix
+        // pertama sebelum bergerak); bukan alasan untuk bergetar.
+        val distanceFromTrack = matcher.match(LatLng(lat, lon))?.distanceFromTrackMeters ?: return
+        when (offRouteDetector.update(distanceFromTrack, accuracyMeters)) {
+            RouteStatus.ON_ROUTE -> offRouteAlertFired = false
+            RouteStatus.WARNING -> Unit // sudah dekat batas, tunggu konfirmasi fix berikutnya
+            RouteStatus.OFF_ROUTE -> if (!offRouteAlertFired) {
+                offRouteAlertFired = true
+                vibrateOffRoute()
+            }
+        }
+    }
+
+    // DEPRECATION: getSystemService(Vibrator::class.java) hanya dipakai di
+    // bawah API 31; jalur baru (VibratorManager) sudah dipakai di atasnya.
+    @Suppress("DEPRECATION")
+    private fun vibrateOffRoute() {
+        // Sama seperti updateNotification: kegagalan getaran TIDAK BOLEH
+        // menjatuhkan coroutine GPS. Sesi tetap jalan tanpa getar kalau
+        // perangkat tidak punya vibrator atau izinnya dicabut.
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                getSystemService(VibratorManager::class.java)?.defaultVibrator
+            } else {
+                getSystemService(Vibrator::class.java)
+            }
+            if (vibrator?.hasVibrator() == true) {
+                vibrator.vibrate(VibrationEffect.createOneShot(350, VibrationEffect.DEFAULT_AMPLITUDE))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RecordingService", "Off-route vibration failed", e)
         }
     }
 
@@ -742,7 +880,6 @@ class RecordingService : Service() {
                     "GPS + NETWORK" -> LocationProvider.FUSED
                     else -> LocationProvider.FUSED
                 }
-                fixListeners.forEach { it(fix) }
 
                 evaluateAutoPause(fix)
 
@@ -750,6 +887,9 @@ class RecordingService : Service() {
                 recordedPoints.add(
                     TrackPoint(lat = fix.lat, lon = fix.lon, elevationM = fix.elevationM, timestampEpochMs = fix.timestampMs)
                 )
+                // Hanya fix yang DITERIMA engine (bukan drift akurasi buruk)
+                // yang dipakai menilai menyimpang — sama seperti jarak.
+                evaluateOffRouteAlert(fix.lat, fix.lon, fix.accuracyMeters)
                 publishState()
 
                 val id = activityId ?: return@collect
@@ -849,7 +989,8 @@ class RecordingService : Service() {
                             avgSpeedKmh = avgSpeedKmh,
                             maxSpeedKmh = maxSpeedKmh,
                             elevationGainM = baselineElevationGainM + s.elevationGainM,
-                            elevationLossM = baselineElevationLossM + s.elevationLossM
+                            elevationLossM = baselineElevationLossM + s.elevationLossM,
+                            backtrackOf = backtrackActivityId
                         )
                     )
                     if (status == ActivityStatus.COMPLETED) {
@@ -957,14 +1098,58 @@ class RecordingService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_navigation)
             .setOngoing(true)
+            // Teks diperbarui tiap ~10 fix. Tanpa ini sebagian OEM
+            // membunyikan/getarkan shade di SETIAP update notifikasi lama.
+            .setOnlyAlertOnce(true)
             .setContentIntent(contentIntent)
-            .build()
+
+        // Tombol aksi (2026-11): sebelumnya notifikasi cuma menampilkan
+        // status, jadi jeda/selesai menuntut app dibuka dulu — persis saat
+        // tangan tidak bebas (HP di kantong, pakai sarung tangan). Keduanya
+        // memakai ACTION_* yang sudah ada, bukan jalur baru; handler-nya
+        // sudah ber-guard status, jadi tap yang telat tidak menghidupkan
+        // ulang sesi. Status IDLE (mis. notifikasi "memulihkan…") sengaja
+        // tanpa tombol: belum ada sesi untuk dijeda atau diselesaikan.
+        // Engine, bukan _state: notifikasi pertama dibangun sesaat setelah
+        // engine.start()/pause() tetapi SEBELUM publishState(), jadi _state
+        // masih IDLE di sana dan tombolnya akan hilang ~10 fix pertama.
+        val status = engine.currentState().status
+        if (status == RecordingStatus.RECORDING || status == RecordingStatus.PAUSED) {
+            val paused = status == RecordingStatus.PAUSED
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    0,
+                    getString(if (paused) R.string.notif_action_resume else R.string.notif_action_pause),
+                    serviceAction(if (paused) ACTION_RESUME else ACTION_PAUSE, 2)
+                ).build()
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    0,
+                    getString(R.string.notif_action_stop),
+                    serviceAction(ACTION_STOP, 3)
+                ).build()
+            )
+        }
+        return builder.build()
     }
+
+    /** PendingIntent ke service yang SAMA (bukan ke Activity): tap di shade
+     *  tidak membuka app, jadi rekaman tetap di background. Request code
+     *  berbeda per aksi supaya PendingIntent jeda/lanjut tidak saling
+     *  menimpa ekstra yang tidak ada di sini. */
+    private fun serviceAction(action: String, requestCode: Int): PendingIntent =
+        PendingIntent.getService(
+            this,
+            requestCode,
+            Intent(this, RecordingService::class.java).setAction(action),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
     private fun updateNotification(title: String, text: String) {
         // P3I audit fix (§19): "pastikan notification tidak menyebabkan

@@ -22,15 +22,13 @@ data class RecordingState(
 
 /**
  * Owns per-session state for one recording. Pure Kotlin, no Android/DB
- * dependency — mirrors NavigationEngine's design (same reasoning: runs
- * identically on a live device or a replayed fixture in a unit test).
+ * dependency — supaya perilakunya sama persis di perangkat maupun di
+ * fixture hasil replay dalam unit test.
  *
- * Deliberately separate from NavigationEngine rather than reusing it:
- * NavigationEngine matches incoming fixes against an *existing* track
- * (TrackMatcher needs points up front). RecordingEngine does the opposite —
- * it has no track yet, it's the thing producing one. The two are designed
- * to run side by side off the same GpsFix stream (recording + navigation
- * simultaneously, per spec), not to replace each other.
+ * Sengaja terpisah dari TrackMatcher/OffRouteDetector yang mencocokkan fix
+ * ke jalur yang SUDAH ada. RecordingEngine justru sebaliknya: belum ada
+ * jalur, dialah yang menghasilkan jalur itu. Keduanya memakai stream GpsFix
+ * yang sama dari RecordingService.
  */
 class RecordingEngine {
 
@@ -178,7 +176,7 @@ class RecordingEngine {
 
         fix.elevationM?.let { e ->
             lastElevation?.let { prev ->
-                // Noise floor 2m sama seperti ElevationStats/NavigationEngine,
+                // Noise floor 2m sama seperti ElevationStats,
                 // dan pakai model baseline-hysteresis yang sama dengan
                 // ElevationStats.summarize: tick di bawah 2m terakumulasi
                 // sebagai pending delta terhadap baseline terakhir yang

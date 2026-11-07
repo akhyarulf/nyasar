@@ -101,11 +101,15 @@ import kotlin.math.roundToInt
 @Composable
 fun RecordingScreen(
     routeId: String? = null,
+    /** Sesi backtrack: garis pemandu = jejak aktivitas ini, dibalik. Rute
+     *  (routeId) tetap menang kalau user memilih rute di tengah sesi; sesi
+     *  tetap direkam seperti sesi lain, jadi tidak ada layar navigasi khusus. */
+    backtrackActivityId: String? = null,
     autoStart: Boolean = true,
     viewModel: RecordingViewModel = viewModel(),
-    // Same gap fix as NavigationScreen (P3E3): route-less recording had no
-    // path to drop a waypoint either, only Home did. Same WaypointViewModel,
-    // waypoints are process-wide and not tied to any route/activity.
+    // Recording tanpa rute dulu tidak punya jalan untuk menaruh waypoint,
+    // hanya Home. WaypointViewModel yang sama, waypoint berlaku global dan
+    // tidak terikat rute/aktivitas mana pun.
     waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel(),
     onExit: () -> Unit,
     // Only shown before the user taps Play (RecordingStatus.IDLE) — see
@@ -178,6 +182,10 @@ fun RecordingScreen(
     // can pass previewRouteId ?: routeId), so the dialog's own buttons
     // reproduce the exact call the gate intercepted.
     var pendingNotifGateStartRoute by remember { mutableStateOf<String?>(null) }
+    // Backtrack: user menutup garis jejak lama (X) sebelum mulai. Sesi yang
+    // dimulai setelahnya harus merekam bebas — tanpa garis, dan tanpa alarm
+    // menyimpang dari jalur yang sudah dilepas. Reset saat garis dimuat ulang.
+    var backtrackGuideCleared by remember { mutableStateOf(false) }
     // ------------------------------------------------------------------
     // Start-flow gate chain: notifikasi -> lokasi -> battery.
     //
@@ -214,7 +222,13 @@ fun RecordingScreen(
             pendingBatteryGateStartRoute = startRouteId
             showBatteryOnboarding = true
         } else {
-            viewModel.startRecording(startRouteId)
+            // Backtrack: activity id ditangkap langsung dari composable (bukan
+            // lewat gate chain) karena layar ini memang milik satu aktivitas —
+            // beda dengan routeId yang bisa berubah karena "Pilih Jalur".
+            viewModel.startRecording(
+                startRouteId,
+                if (backtrackGuideCleared) null else backtrackActivityId
+            )
         }
     }
 
@@ -264,7 +278,10 @@ fun RecordingScreen(
         // optional. This is the last gate: continue the held attempt now.
         pendingBatteryGateStartRoute?.let { heldRouteId ->
             pendingBatteryGateStartRoute = null
-            viewModel.startRecording(heldRouteId)
+            viewModel.startRecording(
+                heldRouteId,
+                if (backtrackGuideCleared) null else backtrackActivityId
+            )
         }
     }
     fun launchBatterySheet(): Boolean {
@@ -289,7 +306,10 @@ fun RecordingScreen(
         if (allow && launchBatterySheet()) return // continues from the sheet's result callback
         pendingBatteryGateStartRoute?.let { heldRouteId ->
             pendingBatteryGateStartRoute = null
-            viewModel.startRecording(heldRouteId)
+            viewModel.startRecording(
+                heldRouteId,
+                if (backtrackGuideCleared) null else backtrackActivityId
+            )
         }
     }
 
@@ -497,6 +517,27 @@ fun RecordingScreen(
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    // Backtrack: garis pemandu dari jejak aktivitas lama, dibalik — titik awal
+    // aktivitas lama jadi tujuan, titik akhirnya jadi start. Sesi ini tetap
+    // sesi rekam biasa (lihat backtrackActivityId), jadi tidak ada layar
+    // navigasi terpisah: peta, kartu statistik, dan tombol Start sama persis
+    // dengan navigasi dari Library/Explore. Kurang dari 2 titik bukan jalur,
+    // jadi jangan menggambar garis dari satu titik GPS.
+    LaunchedEffect(backtrackActivityId) {
+        val id = backtrackActivityId ?: return@LaunchedEffect
+        val points = try {
+            com.nyasar.app.data.db.AppDatabase.get(pickerContext).activityDao().getPoints(id)
+        } catch (e: Exception) {
+            emptyList()
+        }
+        if (points.size < 2) return@LaunchedEffect
+        backtrackGuideCleared = false
+        previewRouteName = pickerContext.getString(R.string.backtrack_active_label)
+        previewTrack = points
+            .map { com.nyasar.app.gpx.model.TrackPoint(it.lat, it.lon, it.elevationM, it.timestampMs) }
+            .reversed()
     }
 
     // --- PART 3: Summary screen, shown after Stop is confirmed instead of
@@ -795,10 +836,10 @@ fun RecordingScreen(
         LatLng(state.currentLat!!, state.currentLon!!)
     } else previewLocation?.let { LatLng(it.lat, it.lon) }
 
-    // Off-route distance (optional safety hint, Paket D): TrackMatcher already
-    // owns the segment math NavigationService uses, so this reuses it instead
-    // of open-coding a second polyline walk. Built once per attached route
-    // (O(n)), queried once per GPS fix (O(n) — same cost navigation pays).
+    // Jarak menyimpang dari jalur (petunjuk keamanan opsional, Paket D):
+    // TrackMatcher sudah memiliki matematika segmennya, jadi dipakai ulang di
+    // sini alih-alih menulis polyline walk kedua. Dibangun sekali per jalur
+    // (O(n)), ditanyakan sekali per fix GPS.
     val routeMatcher = remember(previewTrack) {
         if (previewTrack.size >= 2) com.nyasar.app.navigation.TrackMatcher(previewTrack) else null
     }
@@ -824,8 +865,8 @@ fun RecordingScreen(
     val displayHeadingDeg by viewModel.displayHeadingDeg.collectAsState()
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }
-    // Same fix as NavigationScreen: measure the stat bar's real height
-    // instead of guessing a fixed dp offset for the buttons above it.
+    // Ukur tinggi asli stat bar, bukan menebak offset dp tetap untuk tombol
+    // di atasnya.
     val density = androidx.compose.ui.platform.LocalDensity.current
     var statBarHeight by remember { mutableStateOf(180.dp) }
     val bottomClearance = statBarHeight + 12.dp
@@ -1155,9 +1196,8 @@ fun RecordingScreen(
             }
         }
 
-        // Compass: pure "reset to north" — same split of responsibility as
-        // NavigationScreen. Heading-up is now only reachable through the
-        // recenter button's 3-state cycle below.
+        // Kompas: murni "kembali ke utara". Heading-up hanya bisa dicapai
+        // lewat siklus 3-status tombol recenter di bawah.
         CompassButton(
             bearingDeg = mapBearing,
             onClick = {
@@ -1320,8 +1360,8 @@ fun RecordingScreen(
             }
         }
 
-        // Recenter — 3-state cycle, same as NavigationScreen: lepas dari
-        // GPS -> ikut posisi (utara di atas) -> ikut posisi + arah hadap.
+        // Recenter — siklus 3 status: lepas dari GPS -> ikut posisi (utara
+        // di atas) -> ikut posisi + arah hadap.
         FilledIconButton(
             onClick = viewModel::recenter,
             colors = IconButtonDefaults.filledIconButtonColors(
@@ -1496,7 +1536,16 @@ fun RecordingScreen(
                     onResume = viewModel::resumeRecording,
                     onStop = { showStopConfirm = true },
                     onAddRoute = onAddRoute,
-                    onClearRoute = { previewRouteId = null },
+                    // Backtrack tidak punya baris rute: menutup nama berarti
+                    // melepas garis jejak lama supaya bisa merekam bebas.
+                    onClearRoute = {
+                        previewRouteId = null
+                        if (backtrackActivityId != null) {
+                            backtrackGuideCleared = true
+                            previewTrack = emptyList()
+                            previewRouteName = null
+                        }
+                    },
                 selectedSportType = state.sportType,
                 onSportSelected = { type -> viewModel.selectSportType(type) },
                 onShowSportFilter = { showSportFilterSheet = true }
@@ -1829,9 +1878,9 @@ fun RecordingScreen(
         )
     }
 
-    // Same waypoint sheets as NavigationScreen (P3E3) — Add on long-press,
-    // Detail on marker tap, Edit from Detail. Reused verbatim, no second
-    // form/detail implementation.
+    // Sheet waypoint yang sama seperti sebelumnya — Add lewat long-press,
+    // Detail saat marker disentuh, Edit dari Detail. Tidak ada implementasi
+    // form/detail kedua.
     pendingWaypointTap?.let { tap ->
         val ctx = waypointContext
         com.nyasar.app.ui.waypoint.WaypointFormSheet(
@@ -1919,60 +1968,6 @@ fun RecoveryDialog(
             }
         }
     )
-}
-
-@Composable
-private fun StatusChip(
-    status: RecordingStatus,
-    isAutoPaused: Boolean = false,
-    gpsHealth: com.nyasar.app.recording.GpsHealth = com.nyasar.app.recording.GpsHealth.OK,
-    gpsAccuracyMeters: Float? = null,
-    gpsProvider: com.nyasar.app.recording.LocationProvider? = null
-) {
-    // GPS health takes priority when it's actually degraded — spec P3C:
-    // "RECORDING STATUS harus jelas: ... GPS WEAK, GPS LOST", and a weak/
-    // lost signal is the more urgent thing for the user to notice, since
-    // it affects whether new points are even being recorded accurately.
-    val gpsDetail = listOfNotNull(
-        gpsAccuracyMeters?.let { "±${it.roundToInt()} m" },
-        gpsProvider?.name
-    ).joinToString(" · ")
-    val (color, baseLabel) = when {
-        gpsHealth == com.nyasar.app.recording.GpsHealth.LOST -> MaterialTheme.colorScheme.error to "⚠ GPS HILANG"
-        gpsHealth == com.nyasar.app.recording.GpsHealth.WEAK -> Color(0xFFF9A825) to "⚠ GPS LEMAH"
-        // Part 5 cosmetic fix: "MEMULAI…" implied recording was already in
-        // progress/starting up, even while the user was still sitting on
-        // the two-button IDLE screen having tapped nothing yet — genuinely
-        // misleading, not just imprecise wording. "SIAP" matches what's
-        // actually true at this point: idle and ready for the user's next
-        // action, no process running behind the scenes.
-        status == RecordingStatus.IDLE -> MaterialTheme.colorScheme.outline to "SIAP"
-        status == RecordingStatus.RECORDING -> Color(0xFF2E7D32) to "● RECORDING"
-        status == RecordingStatus.PAUSED && isAutoPaused -> Color(0xFFF9A825) to "❚❚ DIJEDA OTOMATIS"
-        status == RecordingStatus.PAUSED -> Color(0xFFF9A825) to "❚❚ DIJEDA"
-        else -> MaterialTheme.colorScheme.outline to "SELESAI"
-    }
-    val label = if (gpsDetail.isBlank() || status == RecordingStatus.IDLE) baseLabel else "$baseLabel · $gpsDetail"
-    // Status transitions (SIAP -> RECORDING -> DIJEDA -> ...) animate with
-    // the shared fast tween instead of hard-swapping text, matching every
-    // other animated state change in the app.
-    androidx.compose.animation.AnimatedContent(
-        targetState = label,
-        transitionSpec = {
-            (androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(com.nyasar.app.ui.theme.NyasarMotion.FAST_MS)))
-                .togetherWith(
-                    androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(com.nyasar.app.ui.theme.NyasarMotion.FAST_MS))
-                )
-        },
-        label = "statusChip"
-    ) { animatedLabel ->
-        Text(
-            animatedLabel,
-            color = color,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelLarge
-        )
-    }
 }
 
 @Composable

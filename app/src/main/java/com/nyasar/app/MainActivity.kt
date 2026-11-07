@@ -68,13 +68,11 @@ import com.nyasar.app.data.repository.WaypointRepository
 import kotlinx.coroutines.launch
 import com.nyasar.app.ui.history.ActivityHistoryScreen
 import com.nyasar.app.ui.home.HomeScreen
-import com.nyasar.app.ui.navigation.NavigationScreen
 import com.nyasar.app.ui.offline.OfflineMapsScreen
 import com.nyasar.app.ui.preview.OfflineDownloadScreen
 import com.nyasar.app.ui.preview.RoutePreviewScreen
 import com.nyasar.app.ui.recording.RecordingScreen
 import com.nyasar.app.ui.settings.SettingsScreen
-import com.nyasar.app.ui.startactivity.StartActivityScreen
 import com.nyasar.app.ui.theme.NyasarTheme
 import com.nyasar.app.ui.trackmaps.TrackAndMapsScreen
 
@@ -421,7 +419,14 @@ private fun NyasarNavHost(
     // through this one boolean instead of restructuring navigation or
     // hoisting recording state to this level.
     var recordingActive by remember { mutableStateOf(false) }
-    val isRecordingRoute = currentRoute?.startsWith("recording?") == true
+    // Satu jenis sesi, satu jenis rute: "recording?..." untuk rekam/pandu
+    // dari rute, dan "backtrack/{id}" yang merender layar yang sama dengan
+    // jejak aktivitas lama dibalik. Keduanya harus diperlakukan identik di
+    // sini — bottom bar disembunyikan dan recordingActive di-reset saat
+    // keluar dari keduanya.
+    val isRecordingRoute = currentRoute?.let {
+        it.startsWith("recording?") || it.startsWith("backtrack/")
+    } == true
     // Fix ("keluar dari Record selalu balik ke Home, meski masuknya dari
     // Library/History/dst"): Record's own onExit just does a plain
     // popBackStack(), which pops to whatever's still on the stack — and
@@ -866,7 +871,9 @@ private fun NyasarNavHost(
                 onFocusBoundsConsumed = { pendingHomeFocusBounds = null },
                 onOpenRoute = { routeId -> navController.navigate("preview/$routeId") },
                 onOpenSettings = { navController.navigate("settings") },
-                onStartRecording = { navController.navigate("start-activity") },
+                // Home FAB langsung membuka sesi rekam (mode satu-satunya) dan
+                // mulai otomatis, sama seperti dulu setelah layar konfirmasi.
+                onStartRecording = { navController.navigate("recording?autoStart=true") },
                 onResumeRecording = { navController.navigate("recording?autoStart=false") },
                 onOpenHistory = { navController.navigate("profile?tab=history") },
                 onOpenDrawRoute = { navController.navigate("draw-route") }
@@ -944,68 +951,8 @@ private fun NyasarNavHost(
             val activityId = backStackEntry.arguments?.getString("activityId") ?: return@composable
             ActivityDetailScreen(
                 activityId = activityId,
-                onStartBacktrack = { id -> navController.navigate("navigate-backtrack/$id") },
+                onStartBacktrack = { id -> navController.navigate("backtrack/$id") },
                 onBack = { navController.popBackStack() }
-            )
-        }
-        // Route-less Start Activity: Home's "Mulai Recording" FAB. No route
-        // to pick, so Navigation is never offered here — only the Recording
-        // toggle (spec Task 7: "Jika tidak ada route: Recording = ON,
-        // Navigation = unavailable").
-        composable("start-activity") {
-            StartActivityScreen(
-                routeName = null,
-                onBack = { navController.popBackStack() },
-                onStart = { recordingEnabled, _ ->
-                    if (recordingEnabled) {
-                        navController.navigate("recording?autoStart=true") {
-                            popUpTo("start-activity") { inclusive = true }
-                        }
-                    }
-                }
-            )
-        }
-        // Route-based Start Activity: reached from Route Preview's "MULAI
-        // AKTIVITAS" button. Both Recording and Navigation toggles shown,
-        // both default on, neither forces the other off (Task 7).
-        composable("start-activity/{routeId}") { backStackEntry ->
-            val routeId = backStackEntry.arguments?.getString("routeId") ?: return@composable
-            val previewViewModel: com.nyasar.app.ui.preview.RoutePreviewViewModel = viewModel()
-            LaunchedEffect(routeId) { previewViewModel.load(routeId) }
-            val previewState by previewViewModel.uiState.collectAsState()
-
-            StartActivityScreen(
-                routeName = previewState.name ?: routeId,
-                onBack = { navController.popBackStack() },
-                onStart = { recordingEnabled, navigationEnabled ->
-                    val destination = when {
-                        navigationEnabled && recordingEnabled ->
-                            "navigate/$routeId?withRecording=true"
-                        navigationEnabled ->
-                            "navigate/$routeId?withRecording=false"
-                        recordingEnabled ->
-                            "recording?routeId=$routeId&autoStart=true"
-                        else -> null
-                    }
-                    if (destination != null) {
-                        // If recording is part of this session, start the
-                        // service *before* navigating to Navigation, so
-                        // NavigationViewModel's "is RecordingService already
-                        // running" check (Task 6) finds it immediately
-                        // instead of racing it.
-                        if (recordingEnabled && navigationEnabled) {
-                            val intent = com.nyasar.app.recording.RecordingService.startIntent(
-                                navController.context, routeId
-                            )
-                            androidx.core.content.ContextCompat.startForegroundService(
-                                navController.context, intent
-                            )
-                        }
-                        navController.navigate(destination) {
-                            popUpTo("start-activity/$routeId") { inclusive = true }
-                        }
-                    }
-                }
             )
         }
         composable(
@@ -1059,29 +1006,29 @@ private fun NyasarNavHost(
                 onBack = { navController.popBackStack() }
             )
         }
-        composable(
-            "navigate/{routeId}?withRecording={withRecording}",
-            arguments = listOf(navArgument("withRecording") { type = NavType.BoolType; defaultValue = false })
-        ) { backStackEntry ->
-            val routeId = backStackEntry.arguments?.getString("routeId") ?: return@composable
-            val withRecording = backStackEntry.arguments?.getBoolean("withRecording") ?: false
-            NavigationScreen(
-                routeId = routeId,
-                withRecording = withRecording,
-                onExit = { navController.popBackStack() }
-            )
-        }
-        // 2026-11 Backtrack (opt-in, Settings › Navigasi): navigate back along
-        // an activity's OWN recorded track. There is no route row or GPX file
-        // for an activity, hence a separate route with no {routeId} —
-        // NavigationViewModel.startBacktrack reads the points from Room and
-        // feeds them in reversed.
-        composable("navigate-backtrack/{activityId}") { backStackEntry ->
+        // 2026-11 Backtrack (opt-in, Settings › Navigasi): kembali menyusuri
+        // jejak aktivitas sendiri. Konsepnya SAMA dengan navigasi dari
+        // Explore/Library — satu sesi rekam dengan garis pemandu terpasang;
+        // bedanya cuma sumber garisnya: jejak aktivitas lama yang dibalik
+        // (titik awal lama jadi tujuan), bukan rute GPX. Karena itu layarnya
+        // pun layar rekam yang sama, bukan layar navigasi terpisah.
+        composable("backtrack/{activityId}") { backStackEntry ->
             val activityId = backStackEntry.arguments?.getString("activityId") ?: return@composable
-            NavigationScreen(
+            RecordingScreen(
                 routeId = null,
                 backtrackActivityId = activityId,
-                onExit = { navController.popBackStack() }
+                // Sama seperti alur rute: sesi mulai hanya dari tombol Play
+                // milik user, bukan otomatis saat layar dibuka.
+                autoStart = false,
+                onExit = { navController.popBackStack() },
+                // Sama persis dengan layar rekam lain: "Add Route" membuka
+                // route picker yang sama, dan pilihan jalurnya kembali ke sini
+                // lewat state yang sudah di-hoist di MainActivity.
+                onAddRoute = { navController.navigate("route-picker") },
+                pendingSelectedRouteId = pendingSelectedRouteId,
+                onSelectedRouteConsumed = { pendingSelectedRouteId = null },
+                onOpenOfflineMaps = { navController.navigate("offline-maps") },
+                onRecordingActiveChanged = { recordingActive = it }
             )
         }
         composable("offline-download/{routeId}") { backStackEntry ->
@@ -1237,9 +1184,9 @@ private fun NyasarNavHost(
         // Draw-route feature: manual point-by-point route creation ("belum
         // ada GPX, mau gambar dulu di map"). Saving produces a real
         // RouteEntity via RouteRepository.importFromDrawnPoints — same
-        // artifact an imported GPX produces — so "preview/{routeId}" and
-        // "start-activity/{routeId}" both already work for it unmodified;
-        // no new screens needed beyond this one and the two exit callbacks.
+        // artifact an imported GPX produces — sehingga "preview/{routeId}"
+        // dan sesi rekam dengan "routeId" langsung bekerja untuknya tanpa
+        // layar tambahan; cukup satu layar ini plus dua callback keluar.
         composable("draw-route") {
             DrawRouteScreen(
                 onBack = { navController.popBackStack() },
@@ -1269,17 +1216,22 @@ private fun NyasarNavHost(
                         }
                     }
                 },
+                // "Mulai" dari layar gambar rute: langsung ke sesi rekam
+                // dengan rute terpasang. Tidak ada lagi layar konfirmasi
+                // terpisah — RecordingScreen adalah satu-satunya tempat sesi
+                // dimulai, dan autoStart di sini setara dengan menekan tombol
+                // mulai di layar konfirmasi lama.
                 onNavigateToStart = { routeId ->
                     if (navController.popBackStack("route-picker", false)) {
                         navController.navigate("recording?routeId=$routeId&autoStart=false") {
                             popUpTo(0) { inclusive = true }
                         }
                     } else if (navController.popBackStack("track-and-maps", false)) {
-                        navController.navigate("start-activity/$routeId")
+                        navController.navigate("recording?routeId=$routeId&autoStart=true")
                     } else {
                         // Same popUpTo rule as onRouteSaved's Home branch:
                         // never leave the finished draw screen on the stack.
-                        navController.navigate("start-activity/$routeId") {
+                        navController.navigate("recording?routeId=$routeId&autoStart=true") {
                             popUpTo("draw-route") { inclusive = true }
                         }
                     }

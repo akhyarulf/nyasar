@@ -65,6 +65,22 @@ jobs:
       - name: Unit tests (JVM)
         run: gradle testDebugUnitTest --no-daemon --stacktrace
 
+      # Lint dijalankan sebagai laporan, bukan gerbang: codebase ini belum
+      # punya baseline lint, jadi langkah pertama hanya mengumpulkan temuan
+      # (unused resource, API level, dsb). Setelah laporannya bersih, hapus
+      # continue-on-error agar temuan baru memblokir rilis.
+      - name: Android lint (laporan, tidak memblokir)
+        continue-on-error: true
+        run: gradle lintDebug --no-daemon --stacktrace
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nyasar-lint-report
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: warn
+
       - name: Re-sign debug APK with the release keystore (fixed SHA-1)
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}

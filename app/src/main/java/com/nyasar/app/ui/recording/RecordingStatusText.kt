@@ -10,7 +10,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nyasar.app.R
 import com.nyasar.app.recording.GpsHealth
 import com.nyasar.app.recording.LocationProvider
 import com.nyasar.app.recording.RecordingStatus
@@ -28,6 +30,11 @@ import kotlin.math.roundToInt
  * fixed for dark mode: the original hardcoded dark green (0xFF2E7D32) was
  * nearly invisible on the dark theme's tonal Surface, and the amber
  * (0xFFF9A825) duplicated the [WarningAmber] token instead of using it.
+ *
+ * That duplicate StatusChip has since been deleted (2026-11) — it had no
+ * callers left and had drifted from this composable. Labels now come from
+ * string resources so the English build no longer shows Indonesian status
+ * text.
  */
 @Composable
 fun RecordingStatusText(
@@ -41,20 +48,23 @@ fun RecordingStatusText(
         gpsAccuracyMeters?.let { "±${it.roundToInt()} m" },
         gpsProvider?.name
     ).joinToString(" · ")
+    // Label diambil dari resources, bukan literal: sebelumnya semua teks di
+    // sini hardcoded Bahasa Indonesia, jadi pengguna EN melihat "❚❚ DIJEDA"
+    // di layar utama recording meski resources EN-nya sudah ada. Tren warna
+    // tetap di sini (tema-aware) karena itu keputusan visual, bukan bahasa.
     val (color, baseLabel) = when {
-        gpsHealth == GpsHealth.LOST -> MaterialTheme.colorScheme.error to "⚠ GPS HILANG"
-        gpsHealth == GpsHealth.WEAK -> WarningAmber to "⚠ GPS LEMAH"
-        // Part 5 cosmetic fix (carried over): "MEMULAI…" implied recording was
-        // already in progress while the user was still on the IDLE screen.
-        // "SIAP" matches what's actually true at this point.
-        status == RecordingStatus.IDLE -> MaterialTheme.colorScheme.outline to "SIAP"
+        gpsHealth == GpsHealth.LOST -> MaterialTheme.colorScheme.error to stringResource(R.string.gps_lost)
+        gpsHealth == GpsHealth.WEAK -> WarningAmber to stringResource(R.string.gps_weak)
+        // "MEMULAI…" dulu menyiratkan recording sudah berjalan padahal
+        // pengguna masih di layar IDLE — "SIAP/READY" yang benar.
+        status == RecordingStatus.IDLE -> MaterialTheme.colorScheme.outline to stringResource(R.string.recording_status_ready)
         // Theme primary (not a hardcoded dark green): this Text sits on a tonal
         // Surface, so light mode gets the dark primary and dark mode the light
         // primary — 0xFF2E7D32 was near-invisible against the dark theme.
-        status == RecordingStatus.RECORDING -> MaterialTheme.colorScheme.primary to "● RECORDING"
-        status == RecordingStatus.PAUSED && isAutoPaused -> WarningAmber to "❚❚ DIJEDA OTOMATIS"
-        status == RecordingStatus.PAUSED -> WarningAmber to "❚❚ DIJEDA"
-        else -> MaterialTheme.colorScheme.outline to "SELESAI"
+        status == RecordingStatus.RECORDING -> MaterialTheme.colorScheme.primary to stringResource(R.string.recording_status_recording)
+        status == RecordingStatus.PAUSED && isAutoPaused -> WarningAmber to stringResource(R.string.recording_status_auto_paused)
+        status == RecordingStatus.PAUSED -> WarningAmber to stringResource(R.string.recording_status_paused)
+        else -> MaterialTheme.colorScheme.outline to stringResource(R.string.recording_status_finished)
     }
     val label = if (gpsDetail.isBlank() || status == RecordingStatus.IDLE) baseLabel else "$baseLabel · $gpsDetail"
     // Status transitions (SIAP -> RECORDING -> DIJEDA -> ...) animate with

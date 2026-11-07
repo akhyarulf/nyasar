@@ -5,12 +5,10 @@
     <!-- Navigation -->
     <string name="nav_library">Library</string>
     <string name="nav_record">Record</string>
-    <string name="nav_navigation">Navigasi</string>
 
     <!-- Home Screen -->
     <string name="search_route">Cari route…</string>
     <string name="no_routes">Belum ada route.\nImport file GPX untuk mulai.</string>
-    <string name="start_activity">MULAI AKTIVITAS</string>
     <string name="continue_recording">LANJUTKAN</string>
     <string name="recording_active">Recording sedang berjalan</string>
     <string name="recording_paused">Recording dijeda</string>
@@ -65,7 +63,6 @@
     <string name="route">Route</string>
     <string name="waypoints">%d waypoint</string>
     <string name="prepare_offline">Siapkan peta offline untuk area ini</string>
-    <string name="start_activity_btn">MULAI AKTIVITAS</string>
     <string name="share_gpx">Ekspor/Bagikan GPX</string>
     <string name="coordinate">Koordinat</string>
     <string name="elevation">Elevasi</string>
@@ -266,7 +263,7 @@
     <string name="rec_options_off_route">Peringatan menyimpang</string>
     <string name="rec_options_off_route_desc">Ingatkan saat menjauh dari jalur</string>
     <string name="filter_all_months">Semua bulan</string>
-    <string name="rec_options_off_route_footnote">Peringatan muncul saat kamu lebih dari 60 m dari jalur terpasang — tidak pernah saat tanpa rute.</string>
+    <string name="rec_options_off_route_footnote">Peringatan muncul saat kamu lebih dari 60 m dari jalur terpasang, dan HP bergetar sekali saat pertama menyimpang — tidak pernah saat tanpa rute.</string>
     <string name="off_route_hint">Menyimpang %1$s dari jalur</string>
     <string name="off_route_mute">Diamkan</string>
     <string name="try_again">COBA LAGI</string>
@@ -409,7 +406,7 @@
     <string name="gpx_save_failed">Gagal menyimpan GPX</string>
     <string name="gpx_create_failed">Gagal membuat file GPX</string>
 
-    <!-- Notifications (RecordingService / NavigationService) -->
+    <!-- Notifications (RecordingService) -->
     <string name="notif_starting">Memulai recording…</string>
     <string name="notif_restoring">Memulihkan recording…</string>
     <string name="notif_restoring_body">Memuat data aktivitas</string>
@@ -418,9 +415,13 @@
     <string name="notif_paused">Recording dijeda</string>
     <string name="notif_active">Recording aktif</string>
     <string name="notif_auto_paused">Recording dijeda otomatis</string>
-    <string name="notif_navigation_active">Navigasi aktif</string>
     <string name="notif_channel_recording">Recording</string>
-    <string name="notif_channel_navigation">Navigasi</string>
+    <!-- Aksi langsung dari notifikasi recording (2026-11). Label sengaja
+         satu kata: ruang tombol aksi di shade sempit, dan tombol ini
+         dipakai justru saat tangan tidak bebas membuka app. -->
+    <string name="notif_action_pause">Jeda</string>
+    <string name="notif_action_resume">Lanjut</string>
+    <string name="notif_action_stop">Selesai</string>
 
     <!-- Offline maps -->
     <string name="offline_tile_limit">Batas jumlah tile offline terlampaui (%1$d)</string>
@@ -570,7 +571,6 @@
     <string name="route_selected">Route dipilih</string>
     <string name="free_recording_desc">Recording bebas, tidak mengikuti track manapun.</string>
     <string name="start_cd">Mulai</string>
-    <string name="enable_record_or_nav">Aktifkan Record atau Navigation untuk mulai.</string>
 
     <!-- Recording additional -->
     <string name="expand_stats_cd">Perluas statistik</string>

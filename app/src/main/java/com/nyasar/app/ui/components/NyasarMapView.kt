@@ -557,8 +557,8 @@ fun NyasarMapView(
         val styleAlreadyLoaded = shared && SharedMapHolder.isStyleLoaded(styleKey)
         mapView.getMapAsync { map ->
             // MapLibre's own built-in compass widget is separate from our
-            // Compose CompassButton (NavigationScreen/RecordingScreen) and
-            // Home's recenter-button heading toggle. Left at its default it
+            // Compose CompassButton (RecordingScreen) dan tombol heading
+            // di Home. Left at its default it
             // renders at a fixed small margin with no awareness of the
             // status bar/edge-to-edge insets this app draws under, so it
             // ends up half-hidden behind the status bar on real devices

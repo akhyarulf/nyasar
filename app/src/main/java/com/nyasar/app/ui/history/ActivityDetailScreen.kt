@@ -76,7 +76,7 @@ fun ActivityDetailScreen(
     waypointViewModel: com.nyasar.app.ui.waypoint.WaypointViewModel = viewModel(),
     /** Opt-in (Settings › Navigasi, default OFF): open a navigation session
      *  that follows THIS activity's recorded track in reverse. Host wires
-     *  this to the "navigate-backtrack/{activityId}" route. */
+     *  this to the "backtrack/{activityId}" route. */
     onStartBacktrack: (String) -> Unit = {},
     onBack: () -> Unit
 ) {

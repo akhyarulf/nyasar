@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Getaran peringatan menyimpang (2026-11): manifest-group only, tidak
+         ada dialog runtime. Dipakai RecordingService, bukan UI, supaya bunyi
+         getar tetap sampai saat layar mati / app di background. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Battery-optimization exemption request: lets the user allow Nyasar
          to keep GPS recording alive through vendor battery savers (MIUI,
          Samsung, etc.). The permission only enables the dialog intent —

@@ -33,7 +33,14 @@ data class ActivityEntity(
     val elevationGainM: Double?,
     val elevationLossM: Double?,
     /** Jenis olahraga saat recording dimulai — lihat [com.nyasar.app.recording.SportType]. */
-    val sportType: String = "UNSPECIFIED"
+    val sportType: String = "UNSPECIFIED",
+
+    /** Kalau sesi ini adalah backtrack, id aktivitas yang jejaknya dipakai
+     *  sebagai garis pemandu (titik-titiknya dibalik). Disimpan supaya
+     *  panduan bisa dibangun ulang setelah proses app dimatikan di tengah
+     *  sesi, di mana service lahir kembali tanpa Intent pembuka. Null untuk
+     *  sesi rekam biasa. */
+    val backtrackOf: String? = null
 )
 
 /** Nilai valid untuk [ActivityEntity.status].

@@ -128,8 +128,8 @@ fun DrawRouteScreen(
 
     // Two different outcomes need two different exits: "just save" goes
     // back to wherever the user came from (Track & Peta, where the new
-    // route now appears); "save and navigate" goes straight into
-    // start-activity for it instead. Both only fire once (LaunchedEffect
+    // route now appears); "save and navigate" langsung membuka sesi rekam
+    // dengan rute itu. Keduanya hanya sekali jalan (LaunchedEffect
     // keyed on the id, which only ever transitions null -> a real id
     // once), so neither can double-navigate on recomposition.
     //

@@ -27,7 +27,7 @@ import kotlin.math.PI
  *  2. Fallback: TYPE_ACCELEROMETER + TYPE_MAGNETIC_FIELD via
  *     getRotationMatrix, for devices without a rotation vector sensor.
  *  3. If neither sensor is present at all, this flow simply emits nothing
- *     — callers (NavigationViewModel/RecordingViewModel) already fall back
+ *     — pemanggil (RecordingViewModel) sudah jatuh ke bearing GPS
  *     to GPS bearing when device heading is null, only while the GPS
  *     speed indicates actual movement (see HeadingSource in each ViewModel).
  *

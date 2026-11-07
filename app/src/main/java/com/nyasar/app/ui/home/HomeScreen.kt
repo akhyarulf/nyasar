@@ -346,7 +346,7 @@ fun HomeScreen(
         } else {
             // Real accuracy from the last fix (spec P3A GPS UX: "GPS
             // accuracy") — no synthetic/estimated number, straight from
-            // GpsFix.accuracyMeters same as NavigationScreen's stat bar.
+            // GpsFix.accuracyMeters, sumber yang sama dengan stat bar rekam.
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)

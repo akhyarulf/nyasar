@@ -57,8 +57,8 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     // preview (see its class doc) — independent LocationRepository
     // subscription, active only while IDLE. previewLocationJob is
     // cancelled the moment recording actually starts, so this never runs
-    // as a second GPS source alongside RecordingService's own stream (the
-    // same one-source rule NavigationViewModel's class doc describes).
+    // as a second GPS source alongside RecordingService's own stream — satu
+    // sesi rekam hanya punya satu pemilik GPS.
     private val locationRepository = LocationRepository(app)
     private var previewLocationJob: Job? = null
     private val _previewLocation = MutableStateFlow<GpsFix?>(null)
@@ -88,9 +88,9 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     private var lastSensorHeadingDeg: Float? = null
     private var lastFix: GpsFix? = null
 
-    // Same 3-state cycle as NavigationViewModel (FREE -> FOLLOW_NORTH_UP ->
-    // FOLLOW_HEADING -> FREE), replacing the followMode + headingUp Boolean
-    // pair which allowed the same meaningless 4th combination.
+    // Siklus 3 status (FREE -> FOLLOW_NORTH_UP -> FOLLOW_HEADING -> FREE),
+    // menggantikan pasangan boolean followMode + headingUp yang dulu
+    // memungkinkan kombinasi ke-4 yang tidak bermakna.
     // Bug fix: this used to default to FREE, directly contradicting the
     // spec comment right above ("Recording defaults to Follow ON") and
     // HomeViewModel's already-correct default (_followMode = true there).
@@ -208,15 +208,14 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
     private val _displayHeadingDeg = MutableStateFlow<Float?>(null)
     val displayHeadingDeg: StateFlow<Float?> = _displayHeadingDeg.asStateFlow()
 
-    /** Called by RecordingScreen when the user manually drags the map —
-     *  same contract as NavigationScreen: manual pan drops all the way to
-     *  FREE (spec §10/§16). */
+    /** Dipanggil RecordingScreen saat user menggeser peta manual: pan
+     *  langsung menjatuhkan mode ke FREE (spec §10/§16). */
     fun onUserPanned() {
         _cameraMode.value = CameraFollowMode.FREE
     }
 
-    /** Tapping the recenter button advances the cycle, same order and
-     *  reasoning as NavigationViewModel.recenter(). */
+    /** Tap tombol recenter memajukan siklus: FREE ke utara-di-atas, lalu
+     *  ikut arah hadap, lalu lepas lagi. */
     fun recenter() {
         _cameraMode.value = when (_cameraMode.value) {
             CameraFollowMode.FREE -> CameraFollowMode.FOLLOW_NORTH_UP
@@ -225,7 +224,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Tap-compass-to-north convenience, matching NavigationScreen/spec §13.
+    /** Tap kompas untuk kembali ke utara (spec §13).
      *  One step back from FOLLOW_HEADING, not a drop to FREE — a compass
      *  tap was never meant to also stop centering on the user. */
     fun resetToNorthUp() {
@@ -366,8 +365,7 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         ContextCompat.startForegroundService(getApplication(), intent)
     }
 
-    @Suppress("DEPRECATION") // querying our own process's own service — see
-    // NavigationViewModel.isRecordingServiceRunning for the same pattern/rationale.
+    @Suppress("DEPRECATION") // querying our own process's own service
     private fun isRecordingServiceRunning(): Boolean {
         val manager = getApplication<Application>()
             .getSystemService(android.app.ActivityManager::class.java) ?: return false
@@ -420,8 +418,13 @@ class RecordingViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun startRecording(routeId: String? = null) {
-        val intent = RecordingService.startIntent(getApplication(), routeId)
+    /**
+     * Mulai sesi rekam. [backtrackActivityId] dipakai sesi backtrack: garis
+     * pemandu diambil dari jejak aktivitas lama yang dibalik, bukan dari rute
+     * GPX — service memuatnya sendiri untuk alarm menyimpang.
+     */
+    fun startRecording(routeId: String? = null, backtrackActivityId: String? = null) {
+        val intent = RecordingService.startIntent(getApplication(), routeId, backtrackActivityId)
         ContextCompat.startForegroundService(getApplication(), intent)
     }
 

@@ -17,9 +17,9 @@ import kotlin.coroutines.resume
  * by style URL, so nothing here special-cases MapTiler vs. OpenFreeMap.
  *
  * Downloaded regions live in MapLibre's own local database (ambient +
- * offline tile cache) — no separate storage system to maintain, and
- * navigation reads from it automatically once offline, no code change
- * needed in NavigationEngine/TrackMatcher.
+ * offline tile cache) — tidak ada sistem penyimpanan kedua yang harus
+ * dirawat, dan peta/sesi rekam otomatis membacanya saat offline tanpa
+ * perubahan kode di TrackMatcher.
  */
 class OfflineMapManager(context: Context) {
 

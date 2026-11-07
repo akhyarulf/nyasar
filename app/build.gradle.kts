@@ -248,6 +248,10 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
     testImplementation("junit:junit:4.13.2")
+    // SQLite asli untuk unit test migrasi Room (MigrationSqlTest): migrasi
+    // dijalankan lewat JDBC di JVM, tanpa emulator dan tanpa Robolectric.
+    // Test-scope saja — tidak ikut ke APK.
+    testImplementation("org.xerial:sqlite-jdbc:3.46.0.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 
     // Firebase Crashlytics — automatic crash reporting. Analytics is a

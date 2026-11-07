@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -2169,6 +2171,105 @@ private fun BigStatBlock(
     }
 }
 
+/**
+ * Tombol sisi kontrol rekam — lingkaran berwarna tipis (bukan solid) dengan
+ * label kecil di bawahnya, mengikuti anatomi kontrol bawah Strava. Dipakai
+ * untuk tombol sekunder di state JEDA; state IDLE memakai ukuran, warna, dan
+ * jarak label yang sama persis supaya ketiganya terbaca sebagai satu keluarga
+ * tombol (sebelumnya state IDLE pakai lingkaran solid, state JEDA pakai pill
+ * selebar layar — tombol yang fungsinya sama terlihat seperti dua aplikasi).
+ */
+@Composable
+private fun ControlCircle(
+    onClick: () -> Unit,
+    containerColor: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 64.dp,
+    label: String? = null,
+    content: @Composable () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .pressScale(interaction)
+                .clip(CircleShape)
+                .background(containerColor)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    onClick = onClick
+                ),
+            contentAlignment = Alignment.Center
+        ) { content() }
+        if (label != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Tombol utama (Start / Jeda / Lanjutkan) — 88dp, warna primary, ikon besar.
+ * Satu komponen untuk ketiga state supaya perpindahan Start→Jeda→Lanjutkan
+ * terasa sebagai perubahan state pada tombol yang sama, bukan tiga tombol
+ * berbeda. `pulse` hanya menambah denyut napas saat idle/jeda.
+ */
+@Composable
+private fun HeroControl(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    pulse: Boolean = false
+) {
+    val interaction = remember { MutableInteractionSource() }
+    // Transisi dibuat tanpa syarat (bukan `if (pulse)`) supaya urutan
+    // komposisi tetap stabil saat flag berubah; saat pulse=false target
+    // sama dengan nilai awal sehingga tidak ada gerak.
+    val pulseScale by androidx.compose.animation.core.rememberInfiniteTransition(label = "heroPulse").animateFloat(
+        initialValue = 1f,
+        targetValue = if (pulse) 1.03f else 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(
+                900,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing
+            ),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "heroPulseScale"
+    )
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        FilledIconButton(
+            onClick = onClick,
+            modifier = Modifier
+                .size(88.dp)
+                .scale(pulseScale)
+                .pressScale(interaction, pressedScale = 0.92f),
+            interactionSource = interaction,
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(38.dp))
+        }
+        if (label != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 @Composable
 private fun RecordingControls(
     status: RecordingStatus,
@@ -2207,7 +2308,37 @@ private fun RecordingControls(
         // Jalur" is how you attach one, not something that disappears
         // once you have. No Stop/Pause/Resume/third button here at all.
         RecordingStatus.IDLE -> {
-            // Three-column layout: Sport button | Start | Add Route
+            // Nama rute di ATAS baris kontrol: sebelumnya ia menumpuk di
+            // kolom tengah dan mendorong tombol Start turun, sehingga ketiga
+            // lingkaran tidak duduk sebaris.
+            routeName?.let { name ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (onClearRoute != null) {
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(onClick = onClearRoute, modifier = Modifier.size(20.dp)) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = stringResource(R.string.delete_route_cd),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+            // Tiga kolom: jenis olahraga | Start | tambah rute.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -2227,10 +2358,13 @@ private fun RecordingControls(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(64.dp)
                             .pressScale(sportInteraction)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)),
+                            // Tint tipis, bukan solid 80%: bobotnya jadi
+                            // setara tombol sisi kanan dan tidak bersaing
+                            // dengan tombol utama di tengah.
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
                         contentAlignment = Alignment.Center
                     ) {
                         AnimatedContent(
@@ -2248,12 +2382,12 @@ private fun RecordingControls(
                             Icon(
                                 animatedSport.icon,
                                 contentDescription = stringResource(R.string.select_sport_cd),
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(28.dp)
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(26.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     AnimatedContent(
                         targetState = sportType,
                         transitionSpec = {
@@ -2274,62 +2408,15 @@ private fun RecordingControls(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    routeName?.let {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (onClearRoute != null) {
-                                Spacer(Modifier.width(8.dp))
-                                IconButton(
-                                    onClick = onClearRoute,
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = stringResource(R.string.delete_route_cd),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    // Hero button: a gentle breathing pulse (2% scale, slow
-                    // cycle) invites the tap while idle, and the shared
-                    // press-scale gives tactile feedback on touch.
-                    val startInteraction = remember { MutableInteractionSource() }
-                    val pulseScale by androidx.compose.animation.core.rememberInfiniteTransition(label = "startPulse").animateFloat(
-                        initialValue = 1f,
-                        targetValue = 1.03f,
-                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                            animation = androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-                        ),
-                        label = "startPulseScale"
-                    )
-                    FilledIconButton(
+                    // Tombol utama: denyut napas halus mengundang tap saat
+                    // idle — detail gerak yang sama dengan referensi, tanpa
+                    // mengubah ukuran tombolnya sendiri.
+                    HeroControl(
+                        icon = Icons.Default.PlayArrow,
+                        contentDescription = stringResource(R.string.start_recording),
                         onClick = onStart,
-                        modifier = Modifier
-                            .size(80.dp)
-                            .scale(pulseScale)
-                            .pressScale(startInteraction, pressedScale = 0.92f),
-                        interactionSource = startInteraction,
-                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Icon(
-                            Icons.Default.PlayArrow,
-                            contentDescription = stringResource(R.string.start_recording),
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
+                        pulse = true
+                    )
                 }
                 
                 // Add Route button (bottom-right) — same press feedback as
@@ -2345,20 +2432,20 @@ private fun RecordingControls(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(64.dp)
                             .pressScale(addRouteInteraction)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Route,
                             contentDescription = stringResource(R.string.pick_route_cd),
                             tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         stringResource(R.string.add_route_label),
                         style = MaterialTheme.typography.labelSmall,
@@ -2372,51 +2459,48 @@ private fun RecordingControls(
         // "gampang salah pencet Stop sambil jalan" risk the spec calls
         // out. Selesaikan only becomes reachable from PAUSED below.
         RecordingStatus.RECORDING -> {
-            // Centered full-width so the pause button sits mid-panel like the
-            // Start button does (it used to hang on the panel's left edge).
-            val pauseInteraction = remember { MutableInteractionSource() }
+            // Tombol primary yang sama dengan Start (88dp, warna primary),
+            // hanya ikonnya berganti — transisi Start→Jeda terbaca sebagai
+            // perubahan state, bukan tombol lain yang muncul.
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
             ) {
-                FilledIconButton(
-                    onClick = onPause,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .pressScale(pauseInteraction, pressedScale = 0.92f),
-                    interactionSource = pauseInteraction,
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Icon(Icons.Default.Pause, contentDescription = stringResource(R.string.pause_recording), modifier = Modifier.size(36.dp))
-                }
+                HeroControl(
+                    icon = Icons.Default.Pause,
+                    contentDescription = stringResource(R.string.pause_recording),
+                    onClick = onPause
+                )
             }
         }
         // Spec PART 3 STATE 3: Lanjutkan + Selesaikan, side by side.
         RecordingStatus.PAUSED -> {
+            // Dua lingkaran berlabel, gaya yang sama persis dengan IDLE:
+            // lanjutkan tetap tombol utama 88dp, selesai jadi lingkaran
+            // sekunder 64dp bernada error. Sebelumnya state ini memakai dua
+            // pill selebar layar — tombol yang sama terlihat beda fungsi.
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(40.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
+                HeroControl(
+                    icon = Icons.Default.PlayArrow,
+                    contentDescription = stringResource(R.string.continue_recording),
                     onClick = onResume,
-                    modifier = Modifier.weight(1f).height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.continue_recording))
-                }
-                Button(
+                    label = stringResource(R.string.continue_recording)
+                )
+                ControlCircle(
                     onClick = onStop,
-                    modifier = Modifier.weight(1f).height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    label = stringResource(R.string.finish_recording)
                 ) {
-                    Icon(Icons.Default.Stop, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.finish_recording))
+                    Icon(
+                        Icons.Default.Stop,
+                        contentDescription = stringResource(R.string.finish_recording),
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(26.dp)
+                    )
                 }
             }
         }

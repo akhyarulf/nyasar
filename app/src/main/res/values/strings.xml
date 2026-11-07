@@ -662,6 +662,12 @@
     <string name="battery_gate_body">Supaya recording GPS tetap akurat saat layar mati atau HP di kantong, Nyasar perlu pengecualian dari penghemat baterai:\n• Beberapa HP (Xiaomi, Samsung, dll.) mematikan GPS di background secara agresif\n• Rekomendasi HP akan tetap berjalan tanpa ini — hanya lebih rawan terputus\n\nKamu bisa mengubahnya kapan saja di Pengaturan → GPS.</string>
     <string name="battery_gate_allow">Izinkan</string>
 
+    <!-- Battery saver (mode hemat daya HP) — gate saat menekan Start -->
+    <string name="battery_saver_dialog_title">Mode Hemat Baterai</string>
+    <string name="battery_saver_dialog_body">Untuk mencatat jarak lewat GPS dengan akurat, mode hemat baterai sebaiknya dimatikan. Android membatasi pembaruan lokasi selama mode ini aktif, jadi garis jejak bisa bolong atau jarak terhitung kurang.</string>
+    <string name="battery_saver_dialog_open">Buka Pengaturan</string>
+    <string name="battery_saver_banner">Mode hemat baterai aktif — GPS bisa lebih jarang diperbarui</string>
+
     <!-- Settings > GPS > battery row -->
     <string name="battery_optimization_title">Pengecualian Baterai</string>
     <string name="battery_optimization_hint">Ketuk untuk minta pengecualian baterai — supaya recording tidak dimatikan oleh penghemat baterai HP</string>

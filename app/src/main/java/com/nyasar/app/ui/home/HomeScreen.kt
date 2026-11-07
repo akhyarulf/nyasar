@@ -9,7 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.data.db.RouteEntity
@@ -49,6 +51,9 @@ import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.recording.RecordingViewModel
 import com.nyasar.app.ui.recording.RecoveryDialog
 import com.nyasar.app.ui.theme.NyasarRadius
+import com.nyasar.app.ui.theme.NyasarSpacing
+import com.nyasar.app.ui.components.AnimatedAppear
+import com.nyasar.app.ui.components.Stagger
 import kotlin.math.roundToInt
 
 /**
@@ -669,24 +674,67 @@ private fun RoutesBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
-        Column(Modifier.widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth).fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 16.dp)) {
+        Column(
+            Modifier
+                .widthIn(max = com.nyasar.app.ui.theme.NyasarContentWidth.sheetMaxWidth)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 16.dp)
+        ) {
+            // Judul sheet: sebelumnya sheet langsung terbuka dengan kotak input
+            // lalu deretan baris, tanpa apa pun yang menjawab "ini daftar
+            // apa". Memakai string "Library" yang sudah ada — di aplikasi ini
+            // arti istilah itu memang pustaka rute.
+            Text(
+                stringResource(R.string.library),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Kolom pencarian bergaya pill di atas surface lembut: input
+                // ber-outline tebal adalah satu-satunya kontrol di sheet ini
+                // yang belum mengikuti bahasa desain layar lain (field di
+                // header Library/History juga sudah begini bentuknya).
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChange,
                     modifier = Modifier.weight(1f),
                     placeholder = { Text(stringResource(R.string.route_search_hint)) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    singleLine = true
+                    singleLine = true,
+                    shape = RoundedCornerShape(NyasarRadius.pill),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    )
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(NyasarSpacing.sm))
                 // Import GPX access -- spec Section 14: "Home Map harus tetap
                 // menyediakan cara [Import GPX]". Same picker/parser as before.
-                FilledTonalIconButton(onClick = onImportClick) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.import_gpx))
+                // Surface + IconButton (bukan FilledTonalIconButton) supaya
+                // radius-nya bisa memakai token yang sama dengan field di
+                // sebelahnya tanpa bergantung pada parameter `shape` bawaan
+                // komponen ikon M3.
+                Surface(
+                    shape = RoundedCornerShape(NyasarRadius.md),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    IconButton(onClick = onImportClick) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = stringResource(R.string.import_gpx),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(NyasarSpacing.md))
 
             if (filtered.isEmpty()) {
                 EmptyState(
@@ -695,21 +743,32 @@ private fun RoutesBottomSheet(
                     else stringResource(R.string.empty_search_title),
                     description = if (routes.isEmpty()) stringResource(R.string.empty_routes_desc)
                     else stringResource(R.string.empty_search_desc),
+                    // Pustaka yang benar-benar kosong: beri jalan keluar di
+                    // tempat (aksi yang sama dengan tombol import di atas),
+                    // bukan sekadar menyuruh "import file GPX" tanpa tombol.
+                    ctaText = if (routes.isEmpty()) stringResource(R.string.import_gpx) else null,
+                    onCtaClick = if (routes.isEmpty()) onImportClick else null,
                     modifier = Modifier.padding(vertical = 24.dp)
                 )
             } else {
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
-                    items(filtered, key = { it.id }) { route ->
-                        RouteRow(
-                            route = route,
-                            onClick = { onOpenRoute(route.id) },
-                            onDeleteClick = { pendingDelete = route }
-                        )
-                        HorizontalDivider()
+                LazyColumn(
+                    Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(NyasarSpacing.sm)
+                ) {
+                    itemsIndexed(filtered, key = { _, route -> route.id }) { index, route ->
+                        // Entrance bertahap yang sama dengan kartu History,
+                        // supaya daftar yang dibuka terasa satu keluarga.
+                        AnimatedAppear(delayMs = Stagger.forIndex(index)) {
+                            RouteRow(
+                                route = route,
+                                onClick = { onOpenRoute(route.id) },
+                                onDeleteClick = { pendingDelete = route }
+                            )
+                        }
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(NyasarSpacing.lg))
         }
     }
 
@@ -741,35 +800,86 @@ private fun RouteRow(
     onDeleteClick: () -> Unit
 ) {
     val rowInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    ListItem(
-        headlineContent = { Text(route.name) },
-        supportingContent = {
-            val km = route.distanceMeters / 1000.0
-            val gain = route.elevationGainM?.roundToInt()
-            Text(
-                buildString {
-                    append("%.1f km".format(km))
-                    if (gain != null) append(" - ↑${gain} m")
-                    append(" - ${route.waypointCount} waypoints")
-                }
-            )
-        },
-        trailingContent = {
-            Row {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                IconButton(onClick = { shareRouteFile(context, route) }) {
-                    Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share_gpx_cd))
-                }
-                IconButton(onClick = onDeleteClick) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_route_cd))
-                }
-            }
-        },
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Satu baris meta, dipisah titik tengah — bukan tiga potongan dengan strip
+    // seperti sebelumnya, yang terbaca sebagai kalimat acak di baris sempit.
+    val distanceText = "%.1f km".format(route.distanceMeters / 1000.0)
+    val gainText = route.elevationGainM?.roundToInt()?.let { "↑$it m" }
+    val waypointText = stringResource(R.string.waypoints, route.waypointCount)
+    val meta = listOfNotNull(distanceText, gainText, waypointText).joinToString(" · ")
+
+    // Kartu, bukan ListItem: tile ikon rounded-square + judul + meta adalah
+    // anatomi yang sama dengan kartu aktivitas di History, jadi membuka
+    // pustaka rute dari Home terasa sebagai layar yang sama, bukan dialog
+    // Material generik.
+    Surface(
+        shape = RoundedCornerShape(NyasarRadius.md),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
             .pressScale(rowInteraction)
             .clickable(interactionSource = rowInteraction, indication = null, onClick = onClick)
-    )
+    ) {
+        Row(
+            Modifier.padding(
+                start = NyasarSpacing.md,
+                end = NyasarSpacing.xs,
+                top = NyasarSpacing.md,
+                bottom = NyasarSpacing.md
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(NyasarRadius.sm),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Hiking,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.width(NyasarSpacing.md))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    route.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    meta,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = { shareRouteFile(context, route) }) {
+                Icon(
+                    Icons.Default.Share,
+                    contentDescription = stringResource(R.string.share_gpx_cd),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.delete_route_cd),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
 }
 
 /** Route Library "Export/Share" action (spec section 15). File already

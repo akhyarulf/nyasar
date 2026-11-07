@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloseFullscreen
@@ -205,6 +206,35 @@ fun RecordingScreen(
     val gateContext = androidx.compose.ui.platform.LocalContext.current
     var pendingBatteryGateStartRoute by remember { mutableStateOf<String?>(null) }
     var showBatteryOnboarding by remember { mutableStateOf(false) }
+    // Battery SAVER gate — beda dari gate pengecualian optimasi di atas:
+    // mode hemat daya adalah toggle milik user yang membuat Android menahan
+    // pembaruan lokasi, jadi percobaan mulai ditahan dulu di sini.
+    var pendingBatterySaverStartRoute by remember { mutableStateOf<String?>(null) }
+    var showBatterySaverDialog by remember { mutableStateOf(false) }
+    // Status live mode hemat daya — dipakai banner selama sesi berjalan.
+    // Dibaca ulang saat broadcast sistem masuk, bukan polling.
+    var batterySaverActive by remember { mutableStateOf(false) }
+
+    DisposableEffect(gateContext) {
+        batterySaverActive =
+            gateContext.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+                batterySaverActive =
+                    gateContext.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+            }
+        }
+        // Broadcast sistem (bukan dari app lain): RECEIVER_NOT_EXPORTED is
+        // the correct choice on API 33+, and ContextCompat keeps it working
+        // below that without a version branch here.
+        androidx.core.content.ContextCompat.registerReceiver(
+            gateContext,
+            receiver,
+            android.content.IntentFilter(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose { runCatching { gateContext.unregisterReceiver(receiver) } }
+    }
     var pendingLocationGateStartRoute by remember { mutableStateOf<String?>(null) }
     var showLocationOnboarding by remember { mutableStateOf(false) }
     var showLocationServicesOffDialog by remember { mutableStateOf(false) }
@@ -232,6 +262,24 @@ fun RecordingScreen(
         }
     }
 
+    // Battery SAVER gate — dijalankan SEBELUM gate pengecualian optimasi.
+    // Mode hemat daya bukan sekadar "background dibatasi": Android sendiri
+    // menahan frekuensi pembaruan lokasi, jadi jejak GPS bisa bolong dan
+    // jarak terhitung kurang. Percobaan mulai ditahan, dialog menjelaskan:
+    //  - "Buka Pengaturan" -> kembali ke sini dan lanjut (banner di layar
+    //    rekam yang mengingatkan kalau mode masih hidup),
+    //  - "Batal"/tap luar -> percobaan dibatalkan, tidak ada sesi yang
+    //    dimulai diam-diam (kontrak held-attempt yang sama dengan gate lain).
+    fun advanceToBatterySaverGate(startRouteId: String?) {
+        val saverOn = gateContext.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+        if (saverOn) {
+            pendingBatterySaverStartRoute = startRouteId
+            showBatterySaverDialog = true
+        } else {
+            advanceToBatteryGate(startRouteId)
+        }
+    }
+
     // Location gate (Gap 1 fix) — startLocationCollection() silently returns
     // without ACCESS_FINE_LOCATION (RecordingService), which used to leave a
     // "RECORDING" session with a ticking timer and a foreground notification
@@ -252,7 +300,7 @@ fun RecordingScreen(
             pendingLocationGateStartRoute = startRouteId
             showLocationServicesOffDialog = true
         } else {
-            advanceToBatteryGate(startRouteId)
+            advanceToBatterySaverGate(startRouteId)
         }
     }
 
@@ -263,6 +311,44 @@ fun RecordingScreen(
         } else {
             advanceToLocationGate(startRouteId)
         }
+    }
+
+    // Battery SAVER settings launcher — pola yang sama dengan sheet
+    // pengecualian optimasi di bawah: dinaikkan lewat launcher supaya start
+    // yang tertahan dilanjutkan setelah activity kembali foreground (bukan
+    // saat sheet sistem masih menutupi). Kalau user kembali dengan mode hemat
+    // masih hidup, sesi tetap dilanjutkan: aplikasi hiking tidak boleh
+    // memaksa ubah pengaturan sistem untuk bisa mulai — banner di layar rekam
+    // yang menjaga state tetap jujur.
+    val batterySaverSettings = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        pendingBatterySaverStartRoute?.let { heldRouteId ->
+            pendingBatterySaverStartRoute = null
+            advanceToBatteryGate(heldRouteId)
+        }
+    }
+    fun launchBatterySaverSettings(): Boolean {
+        // ACTION_BATTERY_SAVER_SETTINGS = halaman toggle hemat daya; fallback
+        // ke halaman Settings utama untuk ROM yang mencopot intent itu.
+        val intents = listOf(
+            android.content.Intent(android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS),
+            android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+        )
+        for (intent in intents) {
+            try {
+                batterySaverSettings.launch(intent)
+                return true
+            } catch (_: Exception) { /* try the next intent */ }
+        }
+        return false
+    }
+    fun resolveBatterySaver(openSettings: Boolean) {
+        showBatterySaverDialog = false
+        if (openSettings && launchBatterySaverSettings()) return // lanjut dari result callback
+        // Batal (atau tidak ada halaman pengaturan yang bisa dibuka): drop
+        // percobaan mulai yang tertahan.
+        pendingBatterySaverStartRoute = null
     }
 
     // Battery-optimization explainer resolution. The system sheet is raised
@@ -332,7 +418,7 @@ fun RecordingScreen(
             // merely clear the banner, never start a recording.
             pendingLocationGateStartRoute?.let { heldRouteId ->
                 pendingLocationGateStartRoute = null
-                advanceToBatteryGate(heldRouteId)
+                advanceToBatterySaverGate(heldRouteId)
             }
         } else {
             // Denied (or "don't ask again" — the system popup will never
@@ -580,25 +666,33 @@ fun RecordingScreen(
     // explainer above — same SettingsRepository singleton-per-context over
     // the same DataStore file; a second declaration here is a Kotlin
     // "Conflicting declarations" compile error, not a separate instance.
-    val keepScreenOn by settingsRepository.settings
-        .map { it.keepScreenOnWhileRecording }
-        .collectAsState(initial = true)
-    val speedUnit by settingsRepository.settings
-        .map { it.speedUnit }
-        .collectAsState(initial = "kmh")
+    // Each `.map {}` is hoisted into `remember`: calling a Flow operator
+    // directly in composition allocates a new Flow on every recomposition
+    // (lint: FlowOperatorInvokedInComposition). Same shape as
+    // rememberDefaultPublishVisibility().
+    val keepScreenOnFlow = remember(settingsRepository) {
+        settingsRepository.settings.map { it.keepScreenOnWhileRecording }
+    }
+    val keepScreenOn by keepScreenOnFlow.collectAsState(initial = true)
+    val speedUnitFlow = remember(settingsRepository) {
+        settingsRepository.settings.map { it.speedUnit }
+    }
+    val speedUnit by speedUnitFlow.collectAsState(initial = "kmh")
     // Recording options sheet (gear, top-end): the three switches that change
     // what happens DURING a session, reachable from the map instead of only
     // from Settings. Same DataStore flow, so flipping one here is the same
     // write the Settings screen performs.
-    val autoPauseEnabled by settingsRepository.settings
-        .map { it.autoPauseEnabled }
-        .collectAsState(initial = true)
+    val autoPauseFlow = remember(settingsRepository) {
+        settingsRepository.settings.map { it.autoPauseEnabled }
+    }
+    val autoPauseEnabled by autoPauseFlow.collectAsState(initial = true)
     // Opt-in: `initial = false` matches SettingsRepository's own default, so
     // the first frame before DataStore emits can never flash a hint the user
     // has not asked for.
-    val offRouteAlertsEnabled by settingsRepository.settings
-        .map { it.offRouteAlertsEnabled }
-        .collectAsState(initial = false)
+    val offRouteAlertsFlow = remember(settingsRepository) {
+        settingsRepository.settings.map { it.offRouteAlertsEnabled }
+    }
+    val offRouteAlertsEnabled by offRouteAlertsFlow.collectAsState(initial = false)
     val optionsScope = rememberCoroutineScope()
     var showOptionsSheet by remember { mutableStateOf(false) }
     val view = androidx.compose.ui.platform.LocalView.current
@@ -673,7 +767,9 @@ fun RecordingScreen(
         // While any gate-explainer dialog is up, the user hasn't had a
         // chance to start anything yet — the watchdog must not "retry"
         // into the gate chain again or flip startStuck behind the modal.
-        if (showNotifOnboarding || showLocationOnboarding || showBatteryOnboarding) return@LaunchedEffect
+        if (showNotifOnboarding || showLocationOnboarding || showBatteryOnboarding ||
+            showBatterySaverDialog
+        ) return@LaunchedEffect
         if (state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED) {
             // One retry — covers the case where the first startRecording()
             // call landed on a service instance that hadn't finished
@@ -682,6 +778,7 @@ fun RecordingScreen(
             gateAutoStart(routeId)
             kotlinx.coroutines.delay(6_000L)
             if (!showNotifOnboarding && !showLocationOnboarding && !showBatteryOnboarding &&
+                !showBatterySaverDialog &&
                 (state.status == RecordingStatus.IDLE || state.status == RecordingStatus.STOPPED)
             ) {
                 startStuck = true
@@ -781,6 +878,22 @@ fun RecordingScreen(
                     Text(stringResource(R.string.cancel))
                 }
             }
+        )
+    }
+
+    // Battery SAVER explainer (gate sebelum gate optimasi) — kartu mengambang
+    // bergaya referensi (Strava): judul tebal, isi mengalir, dua aksi teks
+    // rata kanan. Kontrak held-attempt sama persis dengan gate lain: dialog
+    // ini hanya bisa lanjut kalau ada percobaan mulai yang benar-benar
+    // tertahan di pendingBatterySaverStartRoute.
+    if (showBatterySaverDialog) {
+        com.nyasar.app.ui.components.BatterySaverDialog(
+            title = stringResource(R.string.battery_saver_dialog_title),
+            body = stringResource(R.string.battery_saver_dialog_body),
+            confirmText = stringResource(R.string.battery_saver_dialog_open),
+            dismissText = stringResource(R.string.cancel),
+            onConfirm = { resolveBatterySaver(openSettings = true) },
+            onDismiss = { resolveBatterySaver(openSettings = false) }
         )
     }
 
@@ -1099,6 +1212,46 @@ fun RecordingScreen(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium
                     )
+                }
+            }
+        }
+
+        // Banner mode hemat daya SELAMA sesi live — satu-satunya tempat yang
+        // tersisa untuk memberi tahu kenapa jejak bisa bolong saat Android
+        // menahan pembaruan lokasi. Lane yang sama dengan banner lain (72dp),
+        // dan hanya dirender kalau lane itu tidak dipakai banner lain.
+        if (batterySaverActive && recordingInProgress && !state.storageError &&
+            !showLocationDeniedBanner && viewModel.hasLocationServicesEnabled()
+        ) {
+            com.nyasar.app.ui.components.AnimatedAppear(
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.BatteryAlert,
+                            contentDescription = null,
+                            tint = com.nyasar.app.ui.theme.WarningAmber,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(R.string.battery_saver_banner),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             }
         }

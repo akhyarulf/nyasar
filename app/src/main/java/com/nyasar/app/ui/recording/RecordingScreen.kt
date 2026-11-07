@@ -1075,15 +1075,10 @@ fun RecordingScreen(
             }
         }
 
-        Surface(
-            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 12.dp),
-            shape = MaterialTheme.shapes.small,
-            tonalElevation = 3.dp,
-            shadowElevation = 2.dp
-        ) {
-            // RecordingStatusText: theme-aware StatusChip (dark-mode contrast fix).
-            RecordingStatusText(effectiveStatus, state.isAutoPaused, state.gpsHealth, state.gpsAccuracyMeters, state.gpsProvider)
-        }
+        // Chip status (SIAP / MEREKAM · ±5 m · GPS) TIDAK lagi melayang di
+        // atas peta — dipindah ke header kartu statistik di bawah (lihat
+        // RecordingStatusText di dalam kartu), jadi bagian atas layar hanya
+        // berisi tombol back + gear + kompas dan pandangan peta tetap lega.
 
         // v0.9.3 battery heads-up — shown ONLY on the IDLE screen (while the
         // user is still deciding to start): the recorder runs off the main
@@ -1104,17 +1099,21 @@ fun RecordingScreen(
             )
             (sticky?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
         }
-        // Shares the 72dp banner lane with storageError / location banners —
-        // only rendered here when none of those is active, so the lane never
-        // visually stacks two banners on top of each other.
+        // Berbagi SATU lane banner (kini di bawah: melayang tepat di atas
+        // kartu statistik) dengan storageError / banner lokasi — dirender
+        // hanya saat tidak ada banner lain yang aktif, jadi lane itu tidak
+        // pernah menumpuk dua pesan.
         if (state.status == RecordingStatus.IDLE && lowBatteryPct != null && !phonePluggedIn &&
             !state.storageError && !showLocationDeniedBanner && viewModel.hasLocationServicesEnabled()
         ) {
             com.nyasar.app.ui.components.AnimatedAppear(
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
+                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
+                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
+                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,
@@ -1135,7 +1134,7 @@ fun RecordingScreen(
         // lengkap. Semantik complete+bounds yang sama dengan overlay
         // hijau/abu di peta — banner tidak pernah bertentangan dengan yang
         // dilihat user di peta. Advisory, bukan gate (filosofi sama dengan
-        // banner baterai), dan memakai lane 72dp yang sama: dirender hanya
+        // banner baterai), dan memakai lane banner bawah yang sama: dirender hanya
         // saat tidak ada banner lain yang memilikinya. CTA langsung ke
         // Offline Maps untuk mengunduh sebelum mulai.
         val routeStartUncovered = remember(state.status, previewTrack, offlineAreas) {
@@ -1155,10 +1154,13 @@ fun RecordingScreen(
             viewModel.hasLocationServicesEnabled() && !(lowBatteryPct != null && !phonePluggedIn)
         ) {
             com.nyasar.app.ui.components.AnimatedAppear(
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
+                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
+                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
+                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.tertiaryContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,
@@ -1189,20 +1191,24 @@ fun RecordingScreen(
         if (state.storageError) {
             // Appears with the shared fade-and-rise (AnimatedAppear starts
             // invisible and animates in — same family as Home banners)
-            // instead of popping in mid-recording. Its lane sits BELOW the
-            // top control row (back button + status chip, +12→+56dp) — an
-            // earlier flat top=56 overlapped the button on inset devices.
+            // instead of popping in mid-recording. Lane-nya sekarang di
+            // BAWAH (melayang di atas kartu statistik) — dulu di bawah baris
+            // kontrol atas, dan sempat menimpa tombol back di perangkat
+            // ber-inset.
             com.nyasar.app.ui.components.AnimatedAppear(
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    // Top-overlay lane: status bar + 72dp — a clear 16dp
-                    // gap below the back button/status-chip row (which spans
-                    // status bar +12→+56dp). The old +56 lane sat flush at
-                    // the button's bottom edge, so the banner's rounded
-                    // corner + shadow visually covered it (2026-09 report).
-                    // Banner text grows downward, so the lane never moves.
-                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    // Lane bawah: melayang 8dp di atas kartu statistik, jadi
+                    // pesan ini duduk dekat dengan statistik yang sedang
+                    // dibaca (pola notifikasi bawah Strava) dan tidak lagi
+                    // berebut ruang dengan tombol back / chip status di atas.
+                    // Tingginya mengikuti statBarHeight, jadi saat kartu
+                    // berubah tinggi bannernya ikut menyesuaikan.
+                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
+                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
+                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
+                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,
@@ -1220,18 +1226,18 @@ fun RecordingScreen(
 
         // Banner mode hemat daya SELAMA sesi live — satu-satunya tempat yang
         // tersisa untuk memberi tahu kenapa jejak bisa bolong saat Android
-        // menahan pembaruan lokasi. Lane yang sama dengan banner lain (72dp),
-        // dan hanya dirender kalau lane itu tidak dipakai banner lain.
+        // menahan pembaruan lokasi. Lane yang sama dengan banner lain (bawah,
+        // di atas kartu statistik), dan hanya dirender kalau lane itu tidak
+        // dipakai banner lain.
         if (batterySaverActive && recordingInProgress && !state.storageError &&
             !showLocationDeniedBanner && viewModel.hasLocationServicesEnabled()
         ) {
             com.nyasar.app.ui.components.AnimatedAppear(
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
                     modifier = Modifier
-                        .statusBarsPadding()
-                        .padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                        .padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,
@@ -1274,14 +1280,15 @@ fun RecordingScreen(
         // without any manual dismiss. Same styling/persistence philosophy.
         if (!showLocationDeniedBanner && !viewModel.hasLocationServicesEnabled()) {
             com.nyasar.app.ui.components.AnimatedAppear(
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    // Same top-overlay lane as the other banners: status
-                    // bar + 72dp — see the storage-error banner above for
-                    // the lane history (the old +56 flush lane visually
-                    // covered the back button's bottom edge).
-                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    // Lane banner bawah yang sama dengan banner lain — lihat
+                    // komentar di banner storage-error untuk riwayat lane-nya.
+                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
+                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
+                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
+                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,
@@ -1311,12 +1318,15 @@ fun RecordingScreen(
 
         if (showLocationDeniedBanner) {
             com.nyasar.app.ui.components.AnimatedAppear(
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    // Same top-overlay lane as the other banners: status
-                    // bar + 72dp — see the storage-error banner above.
-                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    // Lane banner bawah yang sama dengan banner lain — lihat
+                    // komentar di banner storage-error.
+                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
+                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
+                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
+                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm),
                     tonalElevation = 3.dp,
@@ -1352,7 +1362,9 @@ fun RecordingScreen(
         }
 
         // Kompas: murni "kembali ke utara". Heading-up hanya bisa dicapai
-        // lewat siklus 3-status tombol recenter di bawah.
+        // lewat siklus 3-status tombol recenter di bawah. Ditaruh DI BAWAH
+        // gear (top 12 + 44 + 8) — susunan kolom kanan yang sama dengan
+        // referensi: pengaturan paling atas, dial kompas menempel di bawahnya.
         CompassButton(
             bearingDeg = mapBearing,
             onClick = {
@@ -1369,11 +1381,11 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .safeDrawingPadding()
-                .padding(top = 12.dp, end = 12.dp)
+                .padding(top = 64.dp, end = 12.dp)
         )
 
-        // Recording options — gear under the compass (same corner the
-        // reference app parks it in). Deliberately NOT a new row inside the
+        // Recording options — gear paling atas di kolom kanan (posisi yang
+        // sama dengan referensi), kompas menempel di bawahnya. Deliberately NOT a new row inside the
         // stat card: the card already owns an expand affordance, and a second
         // control there fought it. Same map-control recipe as the buttons
         // below (theme surface, shared elevation tokens, press spring).
@@ -1387,7 +1399,7 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .safeDrawingPadding()
-                .padding(top = 68.dp, end = 12.dp)
+                .padding(top = 12.dp, end = 12.dp)
                 .size(44.dp)
                 .pressScale(optionsInteraction)
         ) {
@@ -1411,12 +1423,16 @@ fun RecordingScreen(
             offRouteMeters != null && offRouteMeters > OFF_ROUTE_THRESHOLD_METERS
         if (showOffRouteHint) {
             com.nyasar.app.ui.components.AnimatedAppear(
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Surface(
-                    // Same top-overlay lane as the error banners (status bar
-                    // + 72dp) — guarded above so it never lands on top of one.
-                    modifier = Modifier.statusBarsPadding().padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    // Lane banner bawah yang sama dengan banner error
+                    // (melayang di atas kartu statistik) — dijaga di atas
+                    // supaya tidak menimpa banner lain.
+                    // end=72dp: kolom tombol peta (recenter/layers/waypoint,
+                    // 48dp + margin) menempati tepi kanan tepat di atas kartu —
+                    // banner berhenti sebelum kolom itu supaya tidak menimpanya.
+                    modifier = Modifier.padding(start = 16.dp, end = 72.dp, bottom = bottomClearance + 8.dp),
                     // tertiaryContainer, not errorContainer: straying from a
                     // route is advice, not a failure — errors stay red.
                     color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -1615,35 +1631,65 @@ fun RecordingScreen(
         // expanded state instead of always shown, keeping the collapsed
         // card matching the reference design.
         var statsExpanded by remember { mutableStateOf(false) }
-        Surface(
+        // Kartu statistik MELAYANG + sheet kontrol terpisah (anatomi Strava):
+        // kartu gelap dengan keempat sudut membulat, mengambang 16dp dari tepi
+        // layar, lalu sheet kontrol selebar layar di bawahnya. Sebelumnya
+        // keduanya satu Surface yang menempel ke tepi bawah dengan hanya
+        // sudut-atas membulat — hasilnya terbaca sebagai panel aplikasi yang
+        // menempel, bukan overlay di atas peta.
+        //
+        // navigationBarsPadding() pindah ke DALAM sheet kontrol supaya latar
+        // sheet tetap menyentuh tepi bawah layar (tidak ada pita kosong),
+        // tapi isi tombol tetap tidak tertutup gesture bar — bug lama "baris
+        // stat terakhir terpotong" tetap tertangani.
+        //
+        // onSizeChanged ada di Column pembungkus: bottomClearance (tombol peta
+        // di kanan) harus mengukur SELURUH tumpukan kartu+sheet, bukan salah
+        // satunya, kalau tidak tombol recenter/layers akan tumpang tindih.
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                // Bug fix: card had no bottom safe-area padding at all, so
-                // the last stat row (and the controls below it) got cut off
-                // by the system navigation bar on devices with a gesture
-                // bar/nav buttons — visible in the reported screenshot as
-                // "Elevation gain (m)" being sliced off at the bottom edge.
-                // Compass/Recenter already had .safeDrawingPadding(); this
-                // card just never got the same treatment.
-                .navigationBarsPadding()
                 .onSizeChanged { size ->
                     statBarHeight = with(density) { size.height.toDp() }
-                },
-            shape = RoundedCornerShape(topStart = NyasarRadius.xl, topEnd = NyasarRadius.xl),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            contentColor = MaterialTheme.colorScheme.onSurface
+                }
         ) {
-            Column(Modifier.padding(20.dp)) {
+            // ── Kartu statistik (melayang, tidak menempel tepi) ──
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(NyasarRadius.xl),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 4.dp,
+                shadowElevation = 6.dp
+            ) {
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 14.dp)) {
                 // Expand affordance: compact 36dp button (was a full-height
                 // icon row that wasted vertical space) with press feedback,
                 // and the icon itself crossfade+zooms on toggle so the
                 // state change is felt, not hard-swapped.
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Header kartu = status sesi, meniru header "Acquiring GPS"
+                    // Strava: status menempel pada statistik yang sedang dibaca
+                    // alih-alih jadi chip terpisah di langit-langit layar.
+                    // weight(1f): label status bisa panjang ("MEREKAM · ±12 m ·
+                    // GPS") — tanpa bobot, teks itu bisa mendesak tombol
+                    // expand keluar baris.
+                    Box(Modifier.weight(1f)) {
+                        RecordingStatusText(
+                            effectiveStatus,
+                            state.isAutoPaused,
+                            state.gpsHealth,
+                            state.gpsAccuracyMeters,
+                            state.gpsProvider
+                        )
+                    }
                     val expandInteraction = remember { MutableInteractionSource() }
                     IconButton(
                         onClick = { statsExpanded = true },
@@ -1682,7 +1728,23 @@ fun RecordingScreen(
                     )
                 }
 
-                Spacer(Modifier.height(24.dp))
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Sheet kontrol (selebar layar, latar menyentuh tepi bawah) ──
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(topStart = NyasarRadius.xl, topEnd = NyasarRadius.xl),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
+                Column(
+                    Modifier
+                        .navigationBarsPadding()
+                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp)
+                ) {
                 RecordingControls(
                     status = effectiveStatus,
                     routeName = previewRouteName,
@@ -1705,6 +1767,7 @@ fun RecordingScreen(
                 onSportSelected = { type -> viewModel.selectSportType(type) },
                 onShowSportFilter = { showSportFilterSheet = true }
                 )
+                }
             }
         }
 

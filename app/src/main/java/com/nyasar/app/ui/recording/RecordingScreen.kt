@@ -1444,8 +1444,11 @@ fun RecordingScreen(
 
         // Kompas: murni "kembali ke utara". Heading-up hanya bisa dicapai
         // lewat siklus 3-status tombol recenter di bawah. Ditaruh DI BAWAH
-        // gear (top 12 + 44 + 8) — susunan kolom kanan yang sama dengan
+        // gear (top 12 + 52 + 8 = 72) — susunan kolom kanan yang sama dengan
         // referensi: pengaturan paling atas, dial kompas menempel di bawahnya.
+        // Semua tombol di kolom kanan kini 52dp (dulu 44/48): satu ukuran
+        // untuk seluruh kolom supaya tepi kanannya rata, dan target sentuh
+        // lebih besar untuk dipakai sambil berjalan.
         CompassButton(
             bearingDeg = mapBearing,
             onClick = {
@@ -1462,7 +1465,8 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .safeDrawingPadding()
-                .padding(top = 64.dp, end = 12.dp)
+                .padding(top = 72.dp, end = 12.dp),
+            diameter = 52.dp
         )
 
         // Recording options — gear paling atas di kolom kanan (posisi yang
@@ -1481,14 +1485,14 @@ fun RecordingScreen(
                 .align(Alignment.TopEnd)
                 .safeDrawingPadding()
                 .padding(top = 12.dp, end = 12.dp)
-                .size(44.dp)
+                .size(52.dp)
                 .pressScale(optionsInteraction)
         ) {
             Icon(
                 Icons.Default.Settings,
                 contentDescription = stringResource(R.string.rec_options_cd),
                 tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(10.dp)
+                modifier = Modifier.padding(14.dp)
             )
         }
 
@@ -1581,7 +1585,7 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
-                .padding(end = 12.dp, bottom = mapButtonsBottom + 120.dp)
+                .padding(end = 12.dp, bottom = mapButtonsBottom + 124.dp)
         ) {
             Surface(
                 onClick = { showCrosshair = true },
@@ -1590,14 +1594,16 @@ fun RecordingScreen(
                 tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
                 shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(52.dp)
                     .pressScale(addWaypointInteraction)
             ) {
                 Icon(
                     Icons.Default.Place,
                     contentDescription = stringResource(R.string.add_waypoint_cd),
                     tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(12.dp)
+                    // padding 14dp = ikon tetap 24dp: yang bertambah hanya
+                    // area sentuh, bukan bobot visual ikonnya.
+                    modifier = Modifier.padding(14.dp)
                 )
             }
         }
@@ -1610,7 +1616,7 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
-                .padding(end = 12.dp, bottom = mapButtonsBottom + 60.dp)
+                .padding(end = 12.dp, bottom = mapButtonsBottom + 62.dp)
         ) {
             Surface(
                 onClick = { showBasemapSheet = true },
@@ -1619,14 +1625,14 @@ fun RecordingScreen(
                 tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
                 shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(52.dp)
                     .pressScale(layersInteraction)
             ) {
                 Icon(
                     Icons.Default.Layers,
                     contentDescription = stringResource(R.string.map_layer_cd),
                     tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(12.dp)
+                    modifier = Modifier.padding(14.dp)
                 )
             }
         }
@@ -1645,7 +1651,7 @@ fun RecordingScreen(
                 .align(Alignment.BottomEnd)
                 .safeDrawingPadding()
                 .padding(end = 12.dp, bottom = mapButtonsBottom)
-                .size(48.dp)
+                .size(52.dp)
         ) {
             Icon(
                 when (cameraMode) {
@@ -1742,7 +1748,11 @@ fun RecordingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(NyasarRadius.xl),
+                // Radius 16dp, bukan 28dp: kartu ini mengambang 16dp dari
+                // tepi layar, jadi sudut yang terlalu bulat membuatnya
+                // terbaca seperti toast melayang, bukan panel data. 16dp juga
+                // menyamakan sudutnya dengan banner yang lewat di atasnya.
+                shape = RoundedCornerShape(NyasarRadius.md),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 contentColor = MaterialTheme.colorScheme.onSurface,
                 tonalElevation = 4.dp,
@@ -1846,7 +1856,7 @@ fun RecordingScreen(
             // ── Sheet kontrol (selebar layar, latar menyentuh tepi bawah) ──
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(topStart = NyasarRadius.xl, topEnd = NyasarRadius.xl),
+                shape = RoundedCornerShape(topStart = NyasarRadius.md, topEnd = NyasarRadius.md),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {

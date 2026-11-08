@@ -24,6 +24,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nyasar.app.ui.theme.NyasarElevation
@@ -39,7 +40,7 @@ import com.nyasar.app.ui.theme.NyasarElevation
  * - huruf N tegak di tengah sebagai label arah — rotasi hanya berlaku untuk
  *   jarum, jadi huruf tidak pernah terbaca terbalik saat peta diputar 180°;
  * - jarum utara merah ramping + ekor selatan yang lebih tenang, di dalam
- *   cincin supaya proporsinya tetap rapi di ukuran 44dp.
+ *   cincin supaya proporsinya tetap rapi di ukuran 44–52dp.
  *
  * Selalu terlihat (versi sebelumnya menghilang begitu peta utara-up, sehingga
  * kontrol di kolom kanan tiba-tiba berpindah tempat); saat utara-up ia hanya
@@ -54,7 +55,12 @@ fun CompassButton(
     bearingDeg: Float,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Default 44dp: Home memakai ukuran lama. Layar rekam memakai 52dp agar
+    // satu kolom dengan gear dan tombol peta di bawahnya. Nama `diameter`
+    // dipakai — bukan `size` — karena `size` di dalam Canvas adalah ukuran
+    // gambar, dan parameter bernama sama akan menutupinya.
+    diameter: Dp = 44.dp
 ) {
     val normalized = ((bearingDeg % 360f) + 360f) % 360f
     val facingNorth = normalized < 1f || normalized > 359f
@@ -87,7 +93,7 @@ fun CompassButton(
         tonalElevation = NyasarElevation.mapControlTonal,
         shadowElevation = NyasarElevation.mapControlShadow,
         modifier = modifier
-            .size(44.dp)
+            .size(diameter)
             .alpha(contentAlpha)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {

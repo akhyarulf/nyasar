@@ -1043,6 +1043,30 @@ fun RecordingScreen(
             }
         )
 
+        // Selubung peta — "peta mundur, UI maju". Di referensi, peta sengaja
+        // diredupkan supaya kartu gelap dan tombol oranye jadi satu-satunya
+        // yang menyala; di app ini peta krem penuh saturasi bersaing dengan
+        // UI di atasnya.
+        //
+        // Kenapa selubung, bukan style peta kustom: app punya 9 basemap
+        // (vector MapTiler/OpenFreeMap + raster + satelit) dengan skema warna
+        // yang tidak seragam. Merombak paint property per layer rapuh dan
+        // hanya berlaku untuk satu gaya; lapisan netral semi-transparan
+        // bekerja sama untuk semuanya, termasuk basemap yang nanti
+        // ditambahkan. Efeknya menurunkan kontras seluruh peta (bukan sekadar
+        // menggelapkan), jadi warna krem dan biru laut ikut pudar.
+        //
+        // Konsekuensi yang disengaja: garis jejak rekam (digambar di dalam
+        // peta) ikut sedikit meredup. Alpha dipegang di 0.18/0.22 supaya
+        // jejak tetap jelas terbaca — kalau tidak, ini mengorbankan data
+        // demi gaya.
+        val mapVeil = if (androidx.compose.foundation.isSystemInDarkTheme()) {
+            Color(0xFF0B0C0B).copy(alpha = 0.22f)
+        } else {
+            Color(0xFF8A877E).copy(alpha = 0.18f)
+        }
+        Box(Modifier.fillMaxSize().background(mapVeil))
+
         // Floating back/minimize button (Strava-style) with semi-transparent
         // circular background and proper status bar inset. Sits over live
         // map tiles either way, so its dark scrim stays theme-independent.
@@ -1775,8 +1799,14 @@ fun RecordingScreen(
                     Modifier
                         .fillMaxWidth()
                         .background(bandColor)
-                        .heightIn(min = 44.dp)
-                        .padding(start = 16.dp, end = 4.dp),
+                        // Pita tipis 40dp (dulu 44dp): sebagai keterangan
+                        // status, ia harus lebih ringan dari baris angka di
+                        // bawahnya — 44dp terbaca seperti baris judul dan
+                        // memakan tinggi kartu yang seharusnya milik angka.
+                        // 40dp menyisakan 2dp di atas/bawah tombol expand
+                        // 36dp, jadi tidak ada tombol yang mentok tepi.
+                        .heightIn(min = 40.dp)
+                        .padding(start = 14.dp, end = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (acquiringGps) {
@@ -1784,13 +1814,17 @@ fun RecordingScreen(
                             Icons.Outlined.LocationSearching,
                             contentDescription = null,
                             tint = bandContent,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text(
                             stringResource(R.string.gps_searching),
                             color = bandContent,
-                            style = MaterialTheme.typography.labelLarge,
+                            // labelMedium (12sp), bukan labelLarge: satu
+                            // tingkat dengan RecordingStatusText di pita
+                            // yang sama, jadi lebar teks tidak berubah-
+                            // ubah antara "mencari GPS" dan status sesi.
+                            style = MaterialTheme.typography.labelMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -1863,7 +1897,10 @@ fun RecordingScreen(
                 Column(
                     Modifier
                         .navigationBarsPadding()
-                        .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp)
+                        // Rapat ke atas dan ke bawah: jarak bawaan 10/12dp
+                        // menambah tinggi sheet tanpa menambah keterbacaan,
+                        // dan setiap dp di sini memakan peta di belakangnya.
+                        .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 8.dp)
                 ) {
                 // Handle geser ala bottom sheet Strava — penanda visual bahwa
                 // panel ini adalah lapisan terpisah dari kartu di atasnya.
@@ -1875,7 +1912,7 @@ fun RecordingScreen(
                         .clip(RoundedCornerShape(2.dp))
                         .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 RecordingControls(
                     status = effectiveStatus,
                     routeName = previewRouteName,
@@ -2368,7 +2405,11 @@ private fun BigStatBlock(
             // Label huruf kapital + tracking lebar: baris label jadi tipis dan
             // seragam, jadi bobot visual hanya dimiliki angka.
             label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.9.sp),
+            // Tracking 0.6sp (dari 0.9): "ELEVATION GAIN (M)" adalah label
+            // terpanjang di baris ini, dan di 11sp + 0.9sp ia nyaris selebar
+            // kolomnya — di layar 320dp atau font scale besar ia akan
+            // terpotong elipsis.
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.6.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -2574,8 +2615,11 @@ private fun RecordingControls(
                             .clip(CircleShape)
                             // Tint tipis, bukan solid 80%: bobotnya jadi
                             // setara tombol sisi kanan dan tidak bersaing
-                            // dengan tombol utama di tengah.
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                            // dengan tombol utama di tengah. Alpha 0.10
+                            // (dulu 0.16): di screenshot perangkat, dua
+                            // tombol samping masih terbaca lebih terang dari
+                            // hero, padahal hanya hero yang boleh menonjol.
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
                         contentAlignment = Alignment.Center
                     ) {
                         AnimatedContent(
@@ -2598,7 +2642,7 @@ private fun RecordingControls(
                                 if (animatedSport == com.nyasar.app.recording.SportType.UNSPECIFIED) Icons.Default.Add
                                 else animatedSport.icon,
                                 contentDescription = stringResource(R.string.select_sport_cd),
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
                                 modifier = Modifier.size(26.dp)
                             )
                         }
@@ -2651,13 +2695,17 @@ private fun RecordingControls(
                             .size(64.dp)
                             .pressScale(addRouteInteraction)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                            // Nada redup (permukaan tertinggi dengan alpha 0.55,
+                            // ikon onSurfaceVariant): sebelumnya lingkaran ini
+                            // hampir seterang tombol rekam sehingga layar punya
+                            // dua pusat perhatian.
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Route,
                             contentDescription = stringResource(R.string.pick_route_cd),
-                            tint = MaterialTheme.colorScheme.onSurface,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(26.dp)
                         )
                     }

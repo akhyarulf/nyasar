@@ -86,8 +86,12 @@ fun RecordingStatusText(
         Text(
             animatedLabel,
             color = color,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelLarge
+            // Tanpa padding samping: teks ini kini duduk langsung di pita
+            // kepala kartu (padding horizontal diatur pita), bukan lagi chip
+            // yang berdiri sendiri — 14dp samping membuatnya menjorok 28dp
+            // dari tepi kartu dan tidak sejajar dengan judul lain.
+            modifier = Modifier.padding(vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium
         )
     }
 }

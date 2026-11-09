@@ -44,7 +44,8 @@ import com.nyasar.app.ui.theme.NyasarElevation
  *
  * Selalu terlihat (versi sebelumnya menghilang begitu peta utara-up, sehingga
  * kontrol di kolom kanan tiba-tiba berpindah tempat); saat utara-up ia hanya
- * meredup sebagai tanda "tidak ada yang perlu direset".
+ * meredup sebagai tanda "tidak ada yang perlu direset" — 0.8, bukan 0.55:
+ * redup 0.55 terbaca seperti tombol nonaktif di samping gear yang pekat.
  *
  * bearingDeg adalah bearing KAMERA (derajat searah jarum jam dari utara
  * sejati), bukan arah hadap GPS user.
@@ -71,7 +72,7 @@ fun CompassButton(
     val labelColor = MaterialTheme.colorScheme.onSurface
 
     val contentAlpha by animateFloatAsState(
-        targetValue = if (facingNorth) 0.55f else 1f,
+        targetValue = if (facingNorth) 0.8f else 1f,
         label = "compassAlpha"
     )
 

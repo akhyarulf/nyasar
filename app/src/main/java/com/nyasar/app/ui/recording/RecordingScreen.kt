@@ -1057,19 +1057,25 @@ fun RecordingScreen(
         // menggelapkan), jadi warna krem dan biru laut ikut pudar.
         //
         // Konsekuensi yang disengaja: garis jejak rekam (digambar di dalam
-        // peta) ikut sedikit meredup. Alpha dipegang di 0.18/0.22 supaya
-        // jejak tetap jelas terbaca — kalau tidak, ini mengorbankan data
-        // demi gaya.
+        // peta) ikut sedikit meredup. Alpha dipegang rendah (0.10 terang /
+        // 0.16 gelap) supaya peta tetap TAJAM: percobaan 18/22% membuat garis
+        // pantai, nama kota, dan tepi jalan ikut pudar — hasilnya terbaca
+        // seperti kaca berembun, bukan peta yang tenang. Nadanya netral-dingin
+        // (#6F7370), bukan abu-hangat yang membuat krem basemap makin
+        // kecoklatan.
         val mapVeil = if (androidx.compose.foundation.isSystemInDarkTheme()) {
-            Color(0xFF0B0C0B).copy(alpha = 0.22f)
+            Color(0xFF0B0C0B).copy(alpha = 0.16f)
         } else {
-            Color(0xFF8A877E).copy(alpha = 0.18f)
+            Color(0xFF6F7370).copy(alpha = 0.10f)
         }
         Box(Modifier.fillMaxSize().background(mapVeil))
 
-        // Floating back/minimize button (Strava-style) with semi-transparent
-        // circular background and proper status bar inset. Sits over live
-        // map tiles either way, so its dark scrim stays theme-independent.
+        // Floating back/minimize button (Strava-style). Resepnya SAMA dengan
+        // gear/kompas/pin/layers: permukaan tema solid 52dp + elevation token
+        // bersama. Versi lama memakai hitam transparan 60% berukuran 44dp,
+        // sehingga peta tembus lewat tombol ini dan ia terlihat pucat di
+        // samping tetangganya yang pekat — dua bahasa visual di satu kolom.
+        val backInteraction = remember { MutableInteractionSource() }
         Surface(
             onClick = {
                 if (recordingInProgress) showExitConfirm = true else onExit()
@@ -1077,16 +1083,20 @@ fun RecordingScreen(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
-                .padding(start = 16.dp, top = 12.dp),
+                .padding(start = 12.dp, top = 12.dp)
+                .size(52.dp)
+                .pressScale(backInteraction),
             shape = CircleShape,
-            color = Color.Black.copy(alpha = 0.6f)
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
+            shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow
         ) {
-            Box {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.exit),
-                    tint = Color.White,
-                    modifier = Modifier.padding(10.dp)
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp)
                 )
                 // v0.9.3 affordance: while the session is live the back
                 // button asks first (exit-confirmation dialog below) — the
@@ -1099,7 +1109,7 @@ fun RecordingScreen(
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 2.dp, end = 6.dp)
+                            .padding(top = 4.dp, end = 8.dp)
                     )
                 }
             }
@@ -1665,11 +1675,17 @@ fun RecordingScreen(
         // di atas) -> ikut posisi + arah hadap.
         FilledIconButton(
             onClick = viewModel::recenter,
+            // Kontainer tetap satu keluarga dengan pin/layers/gear (permukaan
+            // tema). Versi sebelumnya menyalakan kontainer dengan `primary`
+            // saat mengikuti posisi — di atas peta krem tombol sage pucat itu
+            // justru terbaca nonaktif, dan ia satu-satunya lingkaran berwarna
+            // di kolom. Status sekarang dibawa oleh WARNA IKON (sage saat
+            // mengikuti, abu saat lepas) dan bentuk ikonnya, bukan oleh blok
+            // warna kedua.
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = if (cameraMode != CameraFollowMode.FREE) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surface,
-                contentColor = if (cameraMode != CameraFollowMode.FREE) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = if (cameraMode != CameraFollowMode.FREE) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
             ),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -1791,9 +1807,14 @@ fun RecordingScreen(
                 // duduk di ujung kanan pita, bukan baris terpisah — jadi
                 // tidak ada lagi teks kecil menggantung sendirian.
                 val acquiringGps = userLatLng == null && !startStuck
-                val bandColor = if (acquiringGps) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceContainerHighest
-                val bandContent = if (acquiringGps) MaterialTheme.colorScheme.onPrimaryContainer
+                // Pita TIDAK lagi hijau penuh saat mencari sinyal: blok
+                // `primaryContainer` adalah bidang paling keras di layar
+                // padahal pesannya paling sekunder ("mencari…"), sehingga
+                // mata jatuh ke kepala kartu alih-alih ke angka. Sekarang
+                // latarnya selalu permukaan tertinggi (tipis saja di atas
+                // badan kartu) dan status "mencari" dibawa ikon + teks sage.
+                val bandColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                val bandContent = if (acquiringGps) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurface
                 Row(
                     Modifier
@@ -2615,11 +2636,11 @@ private fun RecordingControls(
                             .clip(CircleShape)
                             // Tint tipis, bukan solid 80%: bobotnya jadi
                             // setara tombol sisi kanan dan tidak bersaing
-                            // dengan tombol utama di tengah. Alpha 0.10
-                            // (dulu 0.16): di screenshot perangkat, dua
-                            // tombol samping masih terbaca lebih terang dari
-                            // hero, padahal hanya hero yang boleh menonjol.
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+                            // dengan tombol utama di tengah. Alpha 0.13:
+                            // 0.10 membuat tombol ini terbaca *disabled*,
+                            // bukan sekunder — ikonnya kini `primary` penuh
+                            // supaya afinitas "pilih olahraga" kembali.
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)),
                         contentAlignment = Alignment.Center
                     ) {
                         AnimatedContent(
@@ -2642,7 +2663,7 @@ private fun RecordingControls(
                                 if (animatedSport == com.nyasar.app.recording.SportType.UNSPECIFIED) Icons.Default.Add
                                 else animatedSport.icon,
                                 contentDescription = stringResource(R.string.select_sport_cd),
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(26.dp)
                             )
                         }

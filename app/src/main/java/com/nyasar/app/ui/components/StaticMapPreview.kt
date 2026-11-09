@@ -31,6 +31,8 @@ import com.nyasar.app.gpx.model.TrackPoint
 import com.nyasar.app.ui.browse.trackPath
 import com.nyasar.app.ui.theme.NyasarTrackGreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.maplibre.android.camera.CameraPosition
@@ -211,10 +213,11 @@ internal const val SRC_OPENTOPOMAP = 2
 
 /** Small in-memory cache so fling-scrolling the LazyColumn doesn't refetch
  *  tiles for cards that just left the viewport. Sized by BYTES (bitmap
- *  memory), capped at 12MB — bounded and tiny next to the real map screens,
- *  and it can never hold more regardless of preview dimensions. */
+ *  memory) and still bounded, but 24MB rather than 12MB: a 1:1 card bitmap
+ *  is ~2.5MB, so 12MB covered only ~4 cards and switching tabs back to
+ *  Explore re-rendered almost every visible card from scratch. */
 private object StaticTileCache {
-    val lru = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+    val lru = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 }
@@ -327,9 +330,11 @@ fun StaticMapPreview(
     val apiKey = BuildConfig.MAPTILER_API_KEY
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Snapshot at up to 2x for crisp high-dpi cards (bitmap drawn back down
-    // 1:1 by the Canvas below).
-    val pixelRatio = remember { minOf(2f, density.density.coerceAtLeast(1f)) }
+    // Snapshot 1:1 dengan pixel view. Dulu 2x lalu diperkecil lagi oleh
+    // Canvas di bawah — padahal Canvas sudah menggambar dalam pixel fisik,
+    // jadi 2x tidak menambah ketajaman sama sekali: hasilnya hanya bitmap
+    // ~10 MB per kartu (4x memori, 4x kerja GL, plus resample saat gambar).
+    val pixelRatio = 1f
 
     var canvasW by remember { mutableStateOf(0f) }
     var canvasH by remember { mutableStateOf(0f) }
@@ -339,63 +344,92 @@ fun StaticMapPreview(
         val w = canvasW
         val h = canvasH
         var snapshotter: MapSnapshotter? = null
+        var startJob: Job? = null
         if (points.size >= 2 && w >= 8f && h >= 8f) {
             val key = "ofm-${points.hashCode()}-${w.toInt()}x${h.toInt()}-${traceColor.toArgbCompat()}"
             val cached = StaticTileCache.lru.get(key)
             if (cached != null) {
                 rendered = cached
             } else {
-                // Primary engine: MapLibre MapSnapshotter with the SAME
-                // keyless OpenFreeMap Liberty style the app's real map
-                // screens use (proven reachable from devices). No API key,
-                // no per-tile HTTP, no throttle placeholders.
-                val camera = snapshotCameraFor(points, w, h, maxZoom)
-                snapshotter = MapSnapshotter(
-                    context,
-                    MapSnapshotter.Options(w.toInt(), h.toInt())
-                        .withStyleBuilder(Style.Builder().fromUri(SNAPSHOT_STYLE_URL))
-                        .withCameraPosition(camera)
-                        .withPixelRatio(pixelRatio)
-                ).also { snap ->
-                    snap.start(
-                        { snapshot ->
-                            try {
-                                drawTraceOnSnapshot(
-                                    base = snapshot.bitmap,
-                                    points = points,
-                                    ratio = pixelRatio,
-                                    // Ground truth from the engine: ask the
-                                    // snapshot where each point landed.
-                                    toBitmapPx = { p -> snapshot.pixelForLatLng(LatLng(p.lat, p.lon)) },
-                                    strokeViewPx = strokeViewPx,
-                                    traceColorArgb = traceColor.copy(alpha = 1f).toArgbCompat()
-                                )
-                            } catch (_: Exception) {
-                                null
-                            }?.let { bmp ->
-                                StaticTileCache.lru.put(key, bmp)
-                                rendered = bmp
-                            }
-                        },
-                        { _ ->
-                            // Snapshotter failed (offline first launch, style
-                            // unreachable): fall back to the direct raster
-                            // tile chain, then the plain polyline canvas.
-                            scope.launch {
-                                val bmp = withContext(Dispatchers.IO) {
-                                    renderRasterFallback(points, w, h, maxZoom, apiKey, strokeViewPx, traceColor)
+                // Snapshotter baru dimulai setelah jeda singkat. Membuat
+                // MapSnapshotter berarti mem-boot renderer native MapLibre +
+                // konteks GL di main thread; dulu kartu-kartu pertama Explore
+                // memulainya satu per kartu pada frame yang sama dengan
+                // transisi tab dari Map — itu sumber tersendat yang paling
+                // terasa. Jeda ini juga membuat kartu yang hanya melintas saat
+                // scroll cepat tidak pernah memulai snapshotter sama sekali,
+                // karena job-nya dibatalkan begitu kartu keluar komposisi.
+                startJob = scope.launch {
+                    delay(SNAPSHOT_START_DELAY_MS)
+                    // Primary engine: MapLibre MapSnapshotter with the SAME
+                    // keyless OpenFreeMap Liberty style the app's real map
+                    // screens use (proven reachable from devices). No API key,
+                    // no per-tile HTTP, no throttle placeholders.
+                    val camera = snapshotCameraFor(points, w, h, maxZoom)
+                    snapshotter = MapSnapshotter(
+                        context,
+                        MapSnapshotter.Options(w.toInt(), h.toInt())
+                            .withStyleBuilder(Style.Builder().fromUri(SNAPSHOT_STYLE_URL))
+                            .withCameraPosition(camera)
+                            .withPixelRatio(pixelRatio)
+                    ).also { snap ->
+                        snap.start(
+                            { snapshot ->
+                                // Proyeksi titik di thread callback (murah:
+                                // hanya trig, O(n)), lalu copy bitmap + gambar
+                                // trace di Dispatchers.Default. base.copy()
+                                // untuk kartu full-width itu beberapa MB —
+                                // dulu seluruh rangkaian ini jalan di main
+                                // thread dan memblok frame transisi.
+                                val projected = FloatArray(points.size * 2)
+                                points.forEachIndexed { i, p ->
+                                    val px = snapshot.pixelForLatLng(LatLng(p.lat, p.lon))
+                                    projected[i * 2] = px.x
+                                    projected[i * 2 + 1] = px.y
                                 }
-                                if (bmp != null) {
-                                    StaticTileCache.lru.put(key, bmp)
-                                    rendered = bmp
+                                scope.launch {
+                                    val bmp = withContext(Dispatchers.Default) {
+                                        try {
+                                            drawTraceOnSnapshot(
+                                                base = snapshot.bitmap,
+                                                projectedPx = projected,
+                                                ratio = pixelRatio,
+                                                strokeViewPx = strokeViewPx,
+                                                traceColorArgb = traceColor.copy(alpha = 1f).toArgbCompat()
+                                            )
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+                                    }
+                                    if (bmp != null) {
+                                        StaticTileCache.lru.put(key, bmp)
+                                        rendered = bmp
+                                    }
+                                }
+                            },
+                            { _ ->
+                                // Snapshotter failed (offline first launch, style
+                                // unreachable): fall back to the direct raster
+                                // tile chain, then the plain polyline canvas.
+                                scope.launch {
+                                    val bmp = withContext(Dispatchers.IO) {
+                                        renderRasterFallback(points, w, h, maxZoom, apiKey, strokeViewPx, traceColor)
+                                    }
+                                    if (bmp != null) {
+                                        StaticTileCache.lru.put(key, bmp)
+                                        rendered = bmp
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
-        onDispose { snapshotter?.cancel() }
+        onDispose {
+            startJob?.cancel()
+            snapshotter?.cancel()
+        }
     }
 
     Canvas(
@@ -429,6 +463,13 @@ fun StaticMapPreview(
 /** OpenFreeMap Liberty — keyless, unlimited (see BasemapCatalog), and the
  *  same style the app's interactive map screens already load successfully. */
 private const val SNAPSHOT_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+
+/** Jeda sebelum snapshotter sebuah kartu dimulai. 240ms > durasi transisi tab
+ *  (NyasarMotion.BASE_MS = 220): boot renderer native + konteks GL tidak
+ *  pernah jatuh di frame yang sama dengan animasi masuk Explore, dan kartu
+ *  yang cuma melintas saat scroll cepat tidak pernah memulainya sama sekali.
+ *  Selama jeda ini kartu tetap menampilkan fallback polyline, bukan kosong. */
+private const val SNAPSHOT_START_DELAY_MS = 240L
 
 /** Camera fitting [points]' bbox into a w×h view with a small margin.
  *
@@ -482,33 +523,39 @@ private const val SNAPSHOT_WORLD_PX = 512.0
 /** Copies the snapshotter's base map and draws the route trace + start/end
  *  dots on top with the same casing/stroke look the raster path uses.
  *
- *  Pixel positions come from [toBitmapPx] — production passes
- *  MapSnapshot.pixelForLatLng, i.e. the engine's own projection. No local
- *  world-pixel math is involved anymore, so the trace CANNOT drift off the
- *  rendered basemap (the old recomputed-projection approach relied on
- *  matching the native renderer's conventions exactly). */
+ *  [projectedPx] holds x,y pixel positions interleaved, already projected by
+ *  the engine (production passes MapSnapshot.pixelForLatLng results). No
+ *  local world-pixel math is involved, so the trace CANNOT drift off the
+ *  rendered basemap; projection stays on the caller's thread and only this
+ *  bitmap copy + draw is meant to run off it. Must not be called on the main
+ *  thread: [base] is a multi-MB ARGB_8888 copy. */
 internal fun drawTraceOnSnapshot(
     base: Bitmap,
-    points: List<TrackPoint>,
+    projectedPx: FloatArray,
     ratio: Float,
-    toBitmapPx: (TrackPoint) -> android.graphics.PointF,
     strokeViewPx: Float,
     traceColorArgb: Int
 ): Bitmap? {
-    if (points.size < 2) return null
+    if (projectedPx.size < 4) return null
     val out = base.copy(Bitmap.Config.ARGB_8888, true) ?: return null
     val canvas = AndroidCanvas(out)
     val trace = AndroidPath()
-    points.forEachIndexed { i, p ->
-        val pf = toBitmapPx(p)
-        if (i == 0) trace.moveTo(pf.x, pf.y) else trace.lineTo(pf.x, pf.y)
+    var i = 0
+    while (i < projectedPx.size) {
+        if (i == 0) trace.moveTo(projectedPx[i], projectedPx[i + 1])
+        else trace.lineTo(projectedPx[i], projectedPx[i + 1])
+        i += 2
     }
     val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
         style = AndroidPaint.Style.STROKE
         strokeJoin = AndroidPaint.Join.ROUND
         strokeCap = AndroidPaint.Cap.ROUND
     }
-    val stroke = (strokeViewPx * ratio).coerceIn(3f, 10f)
+    // Batas atas 5f, bukan 10f: dengan snapshot 1:1 (ratio 1) bitmap px ==
+    // view px, sedangkan dulu ratio 2 membuat cap 10 bitmap px hanya ~5 px di
+    // layar. Menjaga cap di 5 membuat ketebalan trace di kartu tidak berubah
+    // saat snapshot diperkecil ke resolusi asli.
+    val stroke = (strokeViewPx * ratio).coerceIn(3f, 5f)
     // Dark casing under the colored trace = readable on any basemap. Near-
     // opaque and tighter than before: the old 67%-alpha halo turned into a
     // grey smudge around the line on light terrain instead of separating it.
@@ -520,12 +567,13 @@ internal fun drawTraceOnSnapshot(
     canvas.drawPath(trace, paint)
     // Start/end dots.
     paint.style = AndroidPaint.Style.FILL
-    listOf(points.first(), points.last()).forEach { p ->
-        val pf = toBitmapPx(p)
+    listOf(0, projectedPx.size - 2).forEach { idx ->
+        val x = projectedPx[idx]
+        val y = projectedPx[idx + 1]
         paint.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(pf.x, pf.y, stroke * 1.5f, paint)
+        canvas.drawCircle(x, y, stroke * 1.5f, paint)
         paint.color = traceColorArgb
-        canvas.drawCircle(pf.x, pf.y, stroke * 0.8f, paint)
+        canvas.drawCircle(x, y, stroke * 0.8f, paint)
     }
     return out
 }

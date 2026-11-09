@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 // Pull-to-refresh (2026-09 fix): material3 1.2.1 (BOM 2024.06) TIDAK punya
@@ -43,6 +44,7 @@ import android.content.Context
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -63,6 +65,7 @@ import com.nyasar.app.recording.SportType
 import com.nyasar.app.ui.components.AuthorAvatar
 import com.nyasar.app.ui.components.DifficultyChip
 import com.nyasar.app.ui.components.EmptyState
+import com.nyasar.app.ui.components.LocalFeedScrollState
 import com.nyasar.app.ui.components.NyasarTabHeader
 import com.nyasar.app.ui.components.StaticMapPreview
 import com.nyasar.app.ui.components.TrailTypeChip
@@ -275,6 +278,13 @@ fun BrowseScreen(
                             modifier = Modifier.align(Alignment.Center)
                         )
                     } else {
+                        // List state dibagikan ke kartu lewat
+                        // LocalFeedScrollState: kartu menunggu daftar diam
+                        // sebelum mem-boot MapSnapshotter (lihat
+                        // StaticMapPreview), jadi renderer native tidak
+                        // pernah menyala di tengah gestur scroll.
+                        val feedListState = rememberLazyListState()
+                        CompositionLocalProvider(LocalFeedScrollState provides feedListState) {
                         LazyColumn(
                             // Full-bleed feed rows: the map and the hairlines
                             // run edge to edge, so the list itself carries no
@@ -282,6 +292,7 @@ fun BrowseScreen(
                             contentPadding = PaddingValues(bottom = 16.dp),
                             // Filter chips row scrolls its own context; list
                             // items animate in with the shared stagger.
+                            state = feedListState,
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(s.routes, key = { it.id }) { route ->
@@ -299,6 +310,7 @@ fun BrowseScreen(
                                     onClick = { onOpenRoute(route.id) }
                                 )
                             }
+                        }
                         }
                     }
                 }
@@ -764,10 +776,17 @@ fun trackPath(points: List<com.nyasar.app.gpx.model.TrackPoint>, width: Float, h
 fun MiniTrackPreview(polyline: String, modifier: Modifier = Modifier) {
     val points = remember(polyline) { BrowseRepository.decodeTrack(polyline) }
     val lineColor = MaterialTheme.colorScheme.primary
-    androidx.compose.foundation.Canvas(modifier = modifier) {
-        val path = trackPath(points, size.width, size.height)
-        drawPath(path, lineColor, style = Stroke(width = 3f))
-    }
+    // drawWithCache: path hanya dibangun ulang saat ukuran berubah, bukan
+    // tiap frame. Signature ini dipakai di list yang di-scroll (dan di sheet
+    // pratinjau), jadi biaya O(n) per frame tidak perlu dibayar sama sekali.
+    androidx.compose.foundation.Canvas(
+        modifier = modifier.drawWithCache {
+            val path = trackPath(points, size.width, size.height)
+            onDrawBehind {
+                drawPath(path, lineColor, style = Stroke(width = 3f))
+            }
+        }
+    ) { }
 }
 
 /**

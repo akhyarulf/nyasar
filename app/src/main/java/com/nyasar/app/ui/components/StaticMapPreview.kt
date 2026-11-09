@@ -7,15 +7,20 @@ import android.graphics.Paint as AndroidPaint
 import android.graphics.Path as AndroidPath
 import android.util.LruCache
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -33,6 +38,7 @@ import com.nyasar.app.ui.theme.NyasarTrackGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.maplibre.android.camera.CameraPosition
@@ -311,6 +317,18 @@ internal fun renderStaticMap(
     return out
 }
 
+/**
+ * State daftar tempat kartu ini hidup (Explore, Saved), atau null kalau kartu
+ * berdiri sendiri (detail rute). Dipakai untuk menunda boot MapSnapshotter
+ * selama daftar masih bergerak: mem-boot renderer native di tengah gestur
+ * scroll adalah tersendat yang paling terasa, dan kartu yang cuma melintas
+ * memang tidak perlu peta sama sekali.
+ *
+ * compositionLocalOf (bukan static): host cukup mengisi sekali per layar dan
+ * pembacanya tetap tidak ikut merekomposisi saat nilainya berubah.
+ */
+val LocalFeedScrollState = compositionLocalOf<LazyListState?> { null }
+
 @Composable
 fun StaticMapPreview(
     polyline: String,
@@ -330,6 +348,7 @@ fun StaticMapPreview(
     val apiKey = BuildConfig.MAPTILER_API_KEY
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val feedListState = LocalFeedScrollState.current
     // Snapshot 1:1 dengan pixel view. Dulu 2x lalu diperkecil lagi oleh
     // Canvas di bawah — padahal Canvas sudah menggambar dalam pixel fisik,
     // jadi 2x tidak menambah ketajaman sama sekali: hasilnya hanya bitmap
@@ -360,6 +379,14 @@ fun StaticMapPreview(
                 // scroll cepat tidak pernah memulai snapshotter sama sekali,
                 // karena job-nya dibatalkan begitu kartu keluar komposisi.
                 startJob = scope.launch {
+                    // Tunggu sampai daftar diam dulu. snapshotFlow membaca
+                    // isScrollInProgress di luar komposisi, jadi menunggunya
+                    // tidak membuat kartu (atau daftar) merekomposisi; job
+                    // ini ikut batal kalau kartu keluar viewport sebelum
+                    // daftar berhenti.
+                    feedListState?.let { state ->
+                        snapshotFlow { state.isScrollInProgress }.first { !it }
+                    }
                     delay(SNAPSHOT_START_DELAY_MS)
                     // Primary engine: MapLibre MapSnapshotter with the SAME
                     // keyless OpenFreeMap Liberty style the app's real map
@@ -432,32 +459,49 @@ fun StaticMapPreview(
         }
     }
 
+    // Bitmap dibungkus SEKALI per snapshot, bukan per frame: asImageBitmap()
+    // di dalam blok Canvas dulu mengalokasikan objek baru setiap kali kartu
+    // digambar, dan kartu digambar ulang tiap frame selama scroll.
+    val renderedImage = remember(rendered) { rendered?.asImageBitmap() }
+
     Canvas(
-        modifier = modifier.onSizeChanged {
-            canvasW = it.width.toFloat()
-            canvasH = it.height.toFloat()
-        }
-    ) {
-        // Fallback (also the loading state): tinted canvas + polyline —
-        // the previous card look, so the list is never blank while the
-        // map renders or when there is no signal.
-        drawRect(fallbackBg)
-        val path = trackPath(points, size.width, size.height)
-        if (!path.isEmpty) {
-            drawPath(path, traceColor, style = Stroke(width = strokeViewPx))
-        }
-        // Map ready → draw the composed snapshot over the fallback, 1:1.
-        rendered?.let { bmp ->
-            drawImage(
-                image = bmp.asImageBitmap(),
-                srcOffset = IntOffset.Zero,
-                srcSize = IntSize(bmp.width, bmp.height),
-                dstOffset = IntOffset.Zero,
-                dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-                filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium
-            )
-        }
-    }
+        modifier = modifier
+            .onSizeChanged {
+                canvasW = it.width.toFloat()
+                canvasH = it.height.toFloat()
+            }
+            // Path polyline dibangun di drawWithCache, bukan di draw: hasilnya
+            // dipakai ulang sampai ukuran kartu berubah. Scroll dulu
+            // membangun ulang path O(n) untuk setiap kartu yang terlihat pada
+            // setiap frame.
+            .drawWithCache {
+                val path = trackPath(points, size.width, size.height)
+                val dstSize = IntSize(size.width.toInt(), size.height.toInt())
+                val image = renderedImage
+                onDrawBehind {
+                    // Fallback (also the loading state): tinted canvas +
+                    // polyline — the previous card look, so the list is never
+                    // blank while the map renders or when there is no signal.
+                    drawRect(fallbackBg)
+                    if (!path.isEmpty) {
+                        drawPath(path, traceColor, style = Stroke(width = strokeViewPx))
+                    }
+                    // Map ready → draw the composed snapshot over the fallback.
+                    // FilterQuality.None: bitmap-nya sudah dibuat seukuran
+                    // canvas, jadi resample hanya membuang waktu per frame.
+                    image?.let { bmp ->
+                        drawImage(
+                            image = bmp,
+                            srcOffset = IntOffset.Zero,
+                            srcSize = IntSize(bmp.width, bmp.height),
+                            dstOffset = IntOffset.Zero,
+                            dstSize = dstSize,
+                            filterQuality = FilterQuality.None
+                        )
+                    }
+                }
+            }
+    ) { }
 }
 
 /** OpenFreeMap Liberty — keyless, unlimited (see BasemapCatalog), and the

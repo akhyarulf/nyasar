@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
@@ -18,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -30,6 +32,7 @@ import com.nyasar.app.R
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.ui.browse.PublicRouteCard
 import com.nyasar.app.ui.browse.shareRoute
+import com.nyasar.app.ui.components.LocalFeedScrollState
 import com.nyasar.app.ui.theme.NyasarSpacing
 
 /**
@@ -82,8 +85,13 @@ fun SavedEmbedded(
                     // Same full-bleed feed rows as Jelajah (the card is
                     // shared), so the list carries no side padding — the row
                     // itself owns its 16dp text inset and its hairlines.
+                    // Kartu memakai state ini untuk menunda boot snapshotter
+                    // selama daftar masih di-scroll — sama seperti Explore.
+                    val feedListState = rememberLazyListState()
+                    CompositionLocalProvider(LocalFeedScrollState provides feedListState) {
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = NyasarSpacing.lg),
+                        state = feedListState,
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(s.routes, key = { it.id }) { route ->
@@ -101,6 +109,7 @@ fun SavedEmbedded(
                                 onClick = { onOpenRoute(route.id) }
                             )
                         }
+                    }
                     }
                 }
             }

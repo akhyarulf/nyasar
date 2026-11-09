@@ -47,7 +47,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.nyasar.app.map.StyleVariant
 import com.nyasar.app.recording.RecordingService
 import com.nyasar.app.recording.RecordingStatus
@@ -68,7 +71,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarMotion
@@ -983,12 +986,25 @@ fun RecordingScreen(
     val cameraMode by viewModel.cameraMode.collectAsState()
     val followMode by viewModel.followMode.collectAsState()
     val headingUp by viewModel.headingUp.collectAsState()
-    val displayHeadingDeg by viewModel.displayHeadingDeg.collectAsState()
+    // Heading sensor datang ~16 Hz. Dulu nilainya dibaca langsung (`by`) di
+    // body layar ini, jadi SELURUH layar rekam — peta, stat bar, kartu, enam
+    // cek layanan lokasi — merekomposisi 16x/detik hanya untuk memutar panah
+    // penanda dan bearing kamera. Sekarang yang dibaca di sini hanya nilai
+    // yang sudah dibulatkan 5°, jadi recomposition turun ke beberapa kali per
+    // detik saat berbelok dan nol saat diam. 5° tidak terlihat: panah penanda
+    // kecil dan kamera sudah di-throttle 300ms.
+    val headingFlowState = viewModel.displayHeadingDeg.collectAsState()
+    val displayHeadingDeg by remember(headingFlowState) {
+        derivedStateOf { (kotlin.math.round(headingFlowState.value / 5f) * 5f) % 360f }
+    }
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }
     // Ukur tinggi asli stat bar, bukan menebak offset dp tetap untuk tombol
     // di atasnya.
     val density = androidx.compose.ui.platform.LocalDensity.current
+    // Master switch layanan lokasi: satu pembacaan per layar-fokus, bukan
+    // per recomposition (dulu 6x di body → ~100 binder call/detik).
+    val locationServicesEnabled = rememberLocationServicesEnabled(viewModel::hasLocationServicesEnabled)
     var statBarHeight by remember { mutableStateOf(180.dp) }
     val bottomClearance = statBarHeight + 12.dp
 
@@ -1144,7 +1160,7 @@ fun RecordingScreen(
         // hanya saat tidak ada banner lain yang aktif, jadi lane itu tidak
         // pernah menumpuk dua pesan.
         if (state.status == RecordingStatus.IDLE && lowBatteryPct != null && !phonePluggedIn &&
-            !state.storageError && !showLocationDeniedBanner && viewModel.hasLocationServicesEnabled()
+            !state.storageError && !showLocationDeniedBanner && locationServicesEnabled
         ) {
             com.nyasar.app.ui.components.AnimatedAppear(
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -1203,7 +1219,7 @@ fun RecordingScreen(
             }
         }
         if (routeStartUncovered && !state.storageError && !showLocationDeniedBanner &&
-            viewModel.hasLocationServicesEnabled() && !(lowBatteryPct != null && !phonePluggedIn)
+            locationServicesEnabled && !(lowBatteryPct != null && !phonePluggedIn)
         ) {
             com.nyasar.app.ui.components.AnimatedAppear(
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -1295,7 +1311,7 @@ fun RecordingScreen(
         // di atas kartu statistik), dan hanya dirender kalau lane itu tidak
         // dipakai banner lain.
         if (batterySaverActive && recordingInProgress && !state.storageError &&
-            !showLocationDeniedBanner && viewModel.hasLocationServicesEnabled()
+            !showLocationDeniedBanner && locationServicesEnabled
         ) {
             com.nyasar.app.ui.components.AnimatedAppear(
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -1344,7 +1360,7 @@ fun RecordingScreen(
         // granted, device master switch off). Recomputed each entry/return
         // from Settings so toggling location on and coming back clears it
         // without any manual dismiss. Same styling/persistence philosophy.
-        if (!showLocationDeniedBanner && !viewModel.hasLocationServicesEnabled()) {
+        if (!showLocationDeniedBanner && !locationServicesEnabled) {
             com.nyasar.app.ui.components.AnimatedAppear(
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
@@ -1536,7 +1552,7 @@ fun RecordingScreen(
         // (storage/GPS banners are mutually exclusive conditions); this one
         // joins the same rotation instead of stacking on top of them.
         val otherTopBanner = state.storageError || showLocationDeniedBanner ||
-            !viewModel.hasLocationServicesEnabled()
+            !locationServicesEnabled
         val showOffRouteHint = offRouteAlertsEnabled && routeMatcher != null &&
             effectiveStatus == RecordingStatus.RECORDING && !otherTopBanner &&
             offRouteMeters != null && offRouteMeters > OFF_ROUTE_THRESHOLD_METERS
@@ -1599,7 +1615,7 @@ fun RecordingScreen(
         // gerak layar ini.
         val bannerLaneActive = state.storageError ||
             showLocationDeniedBanner ||
-            !viewModel.hasLocationServicesEnabled() ||
+            !locationServicesEnabled ||
             (batterySaverActive && recordingInProgress) ||
             routeStartUncovered ||
             showOffRouteHint ||
@@ -2500,7 +2516,10 @@ private fun HeroControl(
     // Transisi dibuat tanpa syarat (bukan `if (pulse)`) supaya urutan
     // komposisi tetap stabil saat flag berubah; saat pulse=false target
     // sama dengan nilai awal sehingga tidak ada gerak.
-    val pulseScale by androidx.compose.animation.core.rememberInfiniteTransition(label = "heroPulse").animateFloat(
+    // State-nya sengaja TIDAK dibaca lewat `by` di body: nilainya dibaca di
+    // graphicsLayer (fase draw), jadi animasi 900ms tetap jalan mulus tanpa
+    // merekomposisi tombol ini tiap frame.
+    val pulseScale = androidx.compose.animation.core.rememberInfiniteTransition(label = "heroPulse").animateFloat(
         initialValue = 1f,
         targetValue = if (pulse) 1.03f else 1f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
@@ -2520,7 +2539,10 @@ private fun HeroControl(
                 // Bayangan dilepas dari tombol lain: aksen oranye ini harus
                 // terbaca "melayang" di atas sheet, bukan menempel rata.
                 .shadow(elevation = 10.dp, shape = CircleShape)
-                .scale(pulseScale)
+                .graphicsLayer {
+                    scaleX = pulseScale.value
+                    scaleY = pulseScale.value
+                }
                 .pressScale(interaction, pressedScale = 0.92f),
             interactionSource = interaction,
             colors = IconButtonDefaults.filledIconButtonColors(
@@ -3121,6 +3143,27 @@ private const val OFF_ROUTE_THRESHOLD_METERS = 60.0
 private fun formatOffRouteDistance(meters: Double): String =
     if (meters < 1000.0) "${((meters / 10.0).roundToInt() * 10)} m"
     else "%.1f km".format(meters / 1000.0)
+
+/**
+ * Master switch layanan lokasi sebagai state, bukan panggilan sistem yang
+ * diulang: dibaca sekali saat pertama tampil, lalu disegarkan setiap layar
+ * kembali fokus — persis momen user pulang dari Settings setelah menyalakan
+ * lokasi. Sebelumnya dicek di body composable, yang berarti 6 binder call per
+ * recomposition (dan layar ini sempat merekomposisi 16x/detik karena heading).
+ */
+@Composable
+private fun rememberLocationServicesEnabled(check: () -> Boolean): Boolean {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val enabled = remember { mutableStateOf(check()) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) enabled.value = check()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return enabled.value
+}
 
 private fun formatDuration(ms: Long): String {
     val totalSeconds = ms / 1000

@@ -995,7 +995,11 @@ fun RecordingScreen(
     // kecil dan kamera sudah di-throttle 300ms.
     val headingFlowState = viewModel.displayHeadingDeg.collectAsState()
     val displayHeadingDeg by remember(headingFlowState) {
-        derivedStateOf { (kotlin.math.round(headingFlowState.value / 5f) * 5f) % 360f }
+        derivedStateOf {
+            // Nullable: belum ada heading (GPS baru dapat posisi) harus tetap
+            // null, bukan 0° — 0° berarti "menghadap utara" bagi peta.
+            headingFlowState.value?.let { (kotlin.math.round(it / 5f) * 5f) % 360f }
+        }
     }
     var mapInstance by remember { mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
     var mapBearing by remember { mutableStateOf(0f) }

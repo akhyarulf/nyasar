@@ -981,7 +981,10 @@ private fun NyasarNavHost(
                 pendingSelectedRouteId = pendingSelectedRouteId,
                 onSelectedRouteConsumed = { pendingSelectedRouteId = null },
                 onRecordingActiveChanged = { recordingActive = it },
-                onOpenOfflineMaps = { navController.navigate("offline-maps") }
+                onOpenOfflineMaps = { navController.navigate("offline-maps") },
+                // Baris "Pengaturan" di panel opsi sheet kontrol — rute yang
+                // sama dengan layar lain yang punya pintasan Settings.
+                onOpenSettings = { navController.navigate("settings") }
             )
         }
         composable("preview/{routeId}") { backStackEntry ->
@@ -1028,7 +1031,8 @@ private fun NyasarNavHost(
                 pendingSelectedRouteId = pendingSelectedRouteId,
                 onSelectedRouteConsumed = { pendingSelectedRouteId = null },
                 onOpenOfflineMaps = { navController.navigate("offline-maps") },
-                onRecordingActiveChanged = { recordingActive = it }
+                onRecordingActiveChanged = { recordingActive = it },
+                onOpenSettings = { navController.navigate("settings") }
             )
         }
         composable("offline-download/{routeId}") { backStackEntry ->

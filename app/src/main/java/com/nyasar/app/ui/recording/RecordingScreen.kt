@@ -70,7 +70,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.nyasar.app.ui.components.pressScale
@@ -145,7 +149,10 @@ fun RecordingScreen(
     // v0.9.3 poin 5: CTA dari banner "rute belum tercakup area offline"
     // (IDLE + route terpasang + titik awal di luar area lengkap) — menuju
     // daftar area offline untuk mengunduh sebelum mulai merekam.
-    onOpenOfflineMaps: () -> Unit = {}
+    onOpenOfflineMaps: () -> Unit = {},
+    // Baris "Pengaturan" di panel opsi sheet kontrol — rute Settings yang
+    // sama dengan layar lain (bukan sheet baru di dalam layar ini).
+    onOpenSettings: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val recoveryCandidate by viewModel.recoveryCandidate.collectAsState()
@@ -705,7 +712,13 @@ fun RecordingScreen(
     }
     val offRouteAlertsEnabled by offRouteAlertsFlow.collectAsState(initial = false)
     val optionsScope = rememberCoroutineScope()
-    var showOptionsSheet by remember { mutableStateOf(false) }
+    // Panel opsi sesi (jeda otomatis, layar nyala, peringatan menyimpang,
+    // Pengaturan) dibuka DI DALAM sheet kontrol, bukan sheet modal terpisah.
+    // Handle sheet dan ikon gear di atas peta sama-sama men-toggle state ini:
+    // dua jalan masuk, satu permukaan — pola yang sama dengan aplikasi
+    // referensi, dan peta tidak lagi tertutup modal hanya untuk ganti satu
+    // switch.
+    var controlsExpanded by remember { mutableStateOf(false) }
     val view = androidx.compose.ui.platform.LocalView.current
     DisposableEffect(keepScreenOn, state.status) {
         val shouldKeepOn = keepScreenOn && state.status != RecordingStatus.STOPPED
@@ -1528,9 +1541,11 @@ fun RecordingScreen(
         // stat card: the card already owns an expand affordance, and a second
         // control there fought it. Same map-control recipe as the buttons
         // below (theme surface, shared elevation tokens, press spring).
+        // Fungsi sama dengan menggeser/mengetuk handle sheet kontrol di bawah:
+        // keduanya membuka panel opsi sesi yang sama.
         val optionsInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         Surface(
-            onClick = { showOptionsSheet = true },
+            onClick = { controlsExpanded = !controlsExpanded },
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
@@ -1935,9 +1950,12 @@ fun RecordingScreen(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {
+                // Inset horizontal pindah ke blok kontrol di dalam: panel opsi
+                // yang bisa di-expand memakai 20dp per barisnya sendiri dan
+                // perlu menggambar garis pemisah sampai tepi sheet.
+                Column(Modifier.navigationBarsPadding()) {
                 Column(
                     Modifier
-                        .navigationBarsPadding()
                         // Rapat ke atas dan ke bawah: jarak bawaan 10/12dp
                         // menambah tinggi sheet tanpa menambah keterbacaan,
                         // dan setiap dp di sini memakan peta di belakangnya.
@@ -1945,14 +1963,42 @@ fun RecordingScreen(
                 ) {
                 // Handle geser ala bottom sheet Strava — penanda visual bahwa
                 // panel ini adalah lapisan terpisah dari kartu di atasnya.
+                // Sekarang juga affordance: ketuk atau geser naik membuka panel
+                // opsi sesi, geser turun menutupnya. Ikon gear di atas peta
+                // memanggil state yang sama, jadi keduanya tidak bisa berbeda
+                // hasil.
+                val handleInteraction = remember { MutableInteractionSource() }
                 Box(
-                    Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .width(36.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
-                )
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Bar 4dp terlalu kecil untuk jari: target sentuhnya 24dp.
+                        .height(24.dp)
+                        .pointerInput(Unit) {
+                            var dragTotal = 0f
+                            detectVerticalDragGestures(
+                                onDragStart = { dragTotal = 0f },
+                                onVerticalDrag = { _, dy -> dragTotal += dy },
+                                onDragEnd = {
+                                    if (dragTotal < -20f) controlsExpanded = true
+                                    else if (dragTotal > 20f) controlsExpanded = false
+                                }
+                            )
+                        }
+                        .clickable(
+                            interactionSource = handleInteraction,
+                            indication = null,
+                            onClickLabel = stringResource(R.string.rec_options_cd)
+                        ) { controlsExpanded = !controlsExpanded },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 RecordingControls(
                     status = effectiveStatus,
@@ -1976,6 +2022,33 @@ fun RecordingScreen(
                 onSportSelected = { type -> viewModel.selectSportType(type) },
                 onShowSportFilter = { showSportFilterSheet = true }
                 )
+                }
+                // Panel opsi sesi: tumbuh dari bawah sheet, tetap di dalam
+                // permukaan yang sama (peta tidak tertutup modal).
+                AnimatedVisibility(
+                    visible = controlsExpanded,
+                    enter = expandVertically(animationSpec = NyasarMotion.enter()) +
+                        fadeIn(animationSpec = NyasarMotion.enter()),
+                    exit = shrinkVertically(animationSpec = NyasarMotion.exit()) +
+                        fadeOut(animationSpec = NyasarMotion.exit())
+                ) {
+                    RecordingOptionsPanel(
+                        autoPauseEnabled = autoPauseEnabled,
+                        onAutoPauseChange = { enabled ->
+                            optionsScope.launch { settingsRepository.setAutoPauseEnabled(enabled) }
+                        },
+                        keepScreenOn = keepScreenOn,
+                        onKeepScreenOnChange = { enabled ->
+                            optionsScope.launch { settingsRepository.setKeepScreenOnWhileRecording(enabled) }
+                        },
+                        offRouteAlertsEnabled = offRouteAlertsEnabled,
+                        onOffRouteAlertsChange = { enabled ->
+                            optionsScope.launch { settingsRepository.setOffRouteAlertsEnabled(enabled) }
+                        },
+                        onOpenSettings = onOpenSettings,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
                 }
             }
         }
@@ -2167,24 +2240,6 @@ fun RecordingScreen(
                 showSportFilterSheet = false
             },
             onDismiss = { showSportFilterSheet = false }
-        )
-    }
-
-    if (showOptionsSheet) {
-        RecordingOptionsSheet(
-            autoPauseEnabled = autoPauseEnabled,
-            onAutoPauseChange = { enabled ->
-                optionsScope.launch { settingsRepository.setAutoPauseEnabled(enabled) }
-            },
-            keepScreenOn = keepScreenOn,
-            onKeepScreenOnChange = { enabled ->
-                optionsScope.launch { settingsRepository.setKeepScreenOnWhileRecording(enabled) }
-            },
-            offRouteAlertsEnabled = offRouteAlertsEnabled,
-            onOffRouteAlertsChange = { enabled ->
-                optionsScope.launch { settingsRepository.setOffRouteAlertsEnabled(enabled) }
-            },
-            onDismiss = { showOptionsSheet = false }
         )
     }
 

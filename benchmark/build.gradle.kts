@@ -27,6 +27,17 @@ android {
     targetProjectPath = ":app"
     experimentalProperties["android.experimental.self-instrumenting"] = true
 
+    // Harus sama dengan :app (Java 17). Kalau tidak, Kotlin (default 17 di
+    // JDK 17) dan javac (default 1.8) bentrok dan build berhenti dengan
+    // "Inconsistent JVM-target compatibility".
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     buildTypes {
         // Satu-satunya varian yang masuk akal diukur: non-debuggable, sama
         // seperti build release yang dirilis (debug build punya overhead

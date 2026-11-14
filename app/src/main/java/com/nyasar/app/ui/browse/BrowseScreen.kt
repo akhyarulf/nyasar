@@ -295,7 +295,10 @@ fun BrowseScreen(
                             state = feedListState,
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(s.routes, key = { it.id }) { route ->
+                            // contentType: semua baris di feed ini sejenis, jadi
+                            // Compose boleh memakai ulang slot subkomposisinya
+                            // saat scroll alih-alih membangun ulang tiap baris.
+                            items(s.routes, key = { it.id }, contentType = { "route" }) { route ->
                                 PublicRouteCard(
                                     route = route,
                     liked = route.id in likedIds,

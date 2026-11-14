@@ -94,7 +94,7 @@ fun SavedEmbedded(
                         state = feedListState,
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(s.routes, key = { it.id }) { route ->
+                        items(s.routes, key = { it.id }, contentType = { "route" }) { route ->
                             PublicRouteCard(
                                 route = route,
                                 liked = route.id in likedIds,

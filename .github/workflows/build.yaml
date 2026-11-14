@@ -13,6 +13,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Paritas string ID/EN adalah aturan proyek (824/824), tapi selama ini
+      # dijaga manual — gampang terlupa saat menambah satu teks baru. Gerbang
+      # ini membandingkan daftar <string name> di kedua locale, bukan
+      # jumlahnya saja, jadi string yang hanya ada di satu sisi langsung
+      # menggagalkan build dengan nama yang jelas.
+      - name: String parity (values vs values-en)
+        run: |
+          set -euo pipefail
+          base=app/src/main/res/values/strings.xml
+          en=app/src/main/res/values-en/strings.xml
+          names() { grep -o '<string name="[^"]*"' "$1" | sed 's/.*name="//; s/"$//' | sort -u; }
+          names "$base" > /tmp/id.txt
+          names "$en" > /tmp/en.txt
+          missing_en=$(comm -23 /tmp/id.txt /tmp/en.txt || true)
+          missing_id=$(comm -13 /tmp/id.txt /tmp/en.txt || true)
+          if [ -n "$missing_en" ] || [ -n "$missing_id" ]; then
+            echo "::error::Paritas string ID/EN rusak."
+            if [ -n "$missing_en" ]; then
+              echo "Ada di values, belum ada di values-en:"
+              echo "$missing_en"
+            fi
+            if [ -n "$missing_id" ]; then
+              echo "Ada di values-en, belum ada di values:"
+              echo "$missing_id"
+            fi
+            exit 1
+          fi
+          echo "OK: $(wc -l < /tmp/id.txt) string unik di kedua locale."
+
       # Debug builds are normally signed with an auto-generated
       # ~/.config/.android/debug.keystore, which GitHub's ubuntu-latest
       # runners regenerate on every fresh run — so its SHA-1 changed every

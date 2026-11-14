@@ -1,5 +1,6 @@
 package com.nyasar.app.ui.components
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas as AndroidCanvas
@@ -39,12 +40,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.Style
 import org.maplibre.android.snapshotter.MapSnapshotter
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.abs
@@ -217,6 +220,97 @@ internal const val SRC_MAPTILER = 0
 internal const val SRC_OSM = 1
 internal const val SRC_OPENTOPOMAP = 2
 
+/**
+ * Antrean boot renderer native untuk kartu Explore.
+ *
+ * Menunggu daftar diam saja belum cukup: begitu scroll berhenti, SEMUA kartu
+ * yang baru masuk viewport lolos gerbang itu pada saat yang sama dan
+ * mem-boot beberapa konteks GL sekaligus — beban yang sama besar dengan dulu,
+ * hanya bergeser beberapa ratus milidetik. Semaphore ini membuat renderer
+ * hidup satu per satu; hasil akhir di layar sama, tapi frame yang dikorbankan
+ * per boot tidak bertumpuk.
+ *
+ * Izin dilepas lewat [releaseOnce] karena callback snapshot bisa datang lebih
+ * dari sekali (sukses/gagal) dan kartu juga bisa dibuang dari komposisi di
+ * tengah jalan.
+ */
+private object ExploreSnapshotQueue {
+    private val permits = kotlinx.coroutines.sync.Semaphore(1)
+
+    suspend fun acquire(): Unit = permits.acquire()
+
+    fun releaseOnce(token: java.util.concurrent.atomic.AtomicBoolean) {
+        if (token.compareAndSet(false, true)) permits.release()
+    }
+}
+
+/**
+ * Cache disk untuk snapshot kartu Explore — level dua di bawah
+ * [StaticTileCache] yang hanya di memori.
+ *
+ * Tanpa ini, setiap app dibuka ulang semua peta kartu dirender dari nol
+ * padahal isinya tidak berubah: GL boot + unduh tile + gambar trace. Dengan
+ * ini pembukaan kedua hampir instan, dan kuota tile tidak terbuang.
+ *
+ * Semua method di sini IO-blocking — panggil HANYA dari Dispatchers.IO.
+ * Kuncinya hash penuh dari [key] (bukan hashCode): tabrakan hash di sini
+ * berarti kartu menampilkan peta rute yang salah, bukan sekadar cache miss.
+ */
+private object ExploreSnapshotDiskCache {
+    private const val DIR = "explore_previews"
+    private const val VERSION = 1
+    private const val MAX_FILES = 80
+    private const val PRUNE_TO = 60
+
+    fun read(context: Context, key: String): Bitmap? = try {
+        val file = fileFor(context, key)
+        if (!file.exists()) {
+            null
+        } else {
+            BitmapFactory.decodeFile(file.absolutePath)?.also {
+                // Sentuh waktu akses: prune di bawah membuang yang paling lama
+                // tidak dipakai, bukan yang paling dulu ditulis.
+                file.setLastModified(System.currentTimeMillis())
+            }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    fun write(context: Context, key: String, bitmap: Bitmap) {
+        try {
+            val file = fileFor(context, key)
+            file.outputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+            file.setLastModified(System.currentTimeMillis())
+            prune(context)
+        } catch (_: Exception) {
+            // Cache adalah optimisasi: gagal menulis tidak boleh menjatuhkan
+            // kartu yang sudah berhasil dirender.
+        }
+    }
+
+    private fun dir(context: Context): File = File(context.cacheDir, DIR).also { it.mkdirs() }
+
+    private fun fileFor(context: Context, key: String): File =
+        File(dir(context), "${key.hash()}.v$VERSION.png")
+
+    /** Simpan maksimal [MAX_FILES] file, buang yang paling lama tak dipakai. */
+    private fun prune(context: Context) {
+        val files = dir(context).listFiles() ?: return
+        if (files.size <= MAX_FILES) return
+        files.sortedBy { it.lastModified() }
+            .take(files.size - PRUNE_TO)
+            .forEach { it.delete() }
+    }
+
+    /** Hash deterministik 128-bit dari string (MD5) sebagai nama file. */
+    private fun String.hash(): String {
+        val digest = java.security.MessageDigest.getInstance("MD5")
+            .digest(toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+}
+
 /** Small in-memory cache so fling-scrolling the LazyColumn doesn't refetch
  *  tiles for cards that just left the viewport. Sized by BYTES (bitmap
  *  memory) and still bounded, but 24MB rather than 12MB: a 1:1 card bitmap
@@ -364,6 +458,9 @@ fun StaticMapPreview(
         val h = canvasH
         var snapshotter: MapSnapshotter? = null
         var startJob: Job? = null
+        // Izin antrean harus dilepas juga saat kartu dibuang dari komposisi
+        // (snapshotter di-cancel tanpa callback sukses/gagal).
+        var queueToken: java.util.concurrent.atomic.AtomicBoolean? = null
         if (points.size >= 2 && w >= 8f && h >= 8f) {
             val key = "ofm-${points.hashCode()}-${w.toInt()}x${h.toInt()}-${traceColor.toArgbCompat()}"
             val cached = StaticTileCache.lru.get(key)
@@ -388,6 +485,31 @@ fun StaticMapPreview(
                         snapshotFlow { state.isScrollInProgress }.first { !it }
                     }
                     delay(SNAPSHOT_START_DELAY_MS)
+
+                    // Level dua: cache disk. Dibaca SEBELUM menyentuh renderer,
+                    // supaya pembukaan app berikutnya tidak perlu GL maupun
+                    // unduh tile sama sekali untuk kartu yang sama.
+                    val fromDisk = withContext(Dispatchers.IO) {
+                        ExploreSnapshotDiskCache.read(context, key)
+                    }
+                    if (fromDisk != null) {
+                        StaticTileCache.lru.put(key, fromDisk)
+                        rendered = fromDisk
+                        return@launch
+                    }
+
+                    // Satu renderer hidup pada satu waktu (lihat
+                    // ExploreSnapshotQueue). acquire() suspending dan
+                    // cancellable: kartu yang sudah keluar viewport tidak
+                    // pernah ikut memegang giliran.
+                    ExploreSnapshotQueue.acquire()
+                    val token = java.util.concurrent.atomic.AtomicBoolean(false)
+                    queueToken = token
+                    if (!isActive) {
+                        ExploreSnapshotQueue.releaseOnce(token)
+                        return@launch
+                    }
+
                     // Primary engine: MapLibre MapSnapshotter with the SAME
                     // keyless OpenFreeMap Liberty style the app's real map
                     // screens use (proven reachable from devices). No API key,
@@ -431,7 +553,12 @@ fun StaticMapPreview(
                                     if (bmp != null) {
                                         StaticTileCache.lru.put(key, bmp)
                                         rendered = bmp
+                                        withContext(Dispatchers.IO) {
+                                            ExploreSnapshotDiskCache.write(context, key, bmp)
+                                        }
                                     }
+                                    // Render selesai → giliran renderer berikutnya.
+                                    ExploreSnapshotQueue.releaseOnce(token)
                                 }
                             },
                             { _ ->
@@ -445,7 +572,13 @@ fun StaticMapPreview(
                                     if (bmp != null) {
                                         StaticTileCache.lru.put(key, bmp)
                                         rendered = bmp
+                                        withContext(Dispatchers.IO) {
+                                            ExploreSnapshotDiskCache.write(context, key, bmp)
+                                        }
                                     }
+                                    // Gagal render juga mengembalikan giliran,
+                                    // kalau tidak antrean berhenti selamanya.
+                                    ExploreSnapshotQueue.releaseOnce(token)
                                 }
                             }
                         )
@@ -456,6 +589,7 @@ fun StaticMapPreview(
         onDispose {
             startJob?.cancel()
             snapshotter?.cancel()
+            queueToken?.let { ExploreSnapshotQueue.releaseOnce(it) }
         }
     }
 

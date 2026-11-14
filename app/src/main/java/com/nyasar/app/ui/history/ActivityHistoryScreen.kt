@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -252,13 +252,24 @@ private fun ActivityHistoryContent(
                                 contentPadding = PaddingValues(vertical = 12.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                            items(state.activities, key = { it.id }) { activity ->
+                            // itemsIndexed: indeks sudah tersedia, jadi delay
+                            // stagger tidak perlu dicari ulang. Dulu tiap kartu
+                            // memanggil indexOfFirst atas seluruh daftar di
+                            // dalam items — biayanya tumbuh kuadratik per daftar.
+                            // contentType memberi tahu Compose bahwa semua item
+                            // di sini sejenis, sehingga slot subkomposisi bisa
+                            // dipakai ulang saat scroll.
+                            itemsIndexed(
+                                items = state.activities,
+                                key = { _, activity -> activity.id },
+                                contentType = { _, _ -> "activity" }
+                            ) { index, activity ->
                                 // Staggered entrance — each card fades+rises
                                 // slightly after the previous one (capped so
                                 // long lists don't wait), the app-wide list
                                 // entrance.
                                 com.nyasar.app.ui.components.AnimatedAppear(
-                                    delayMs = com.nyasar.app.ui.components.Stagger.forIndex(state.activities.indexOfFirst { it.id == activity.id })
+                                    delayMs = com.nyasar.app.ui.components.Stagger.forIndex(index)
                                 ) {
                                     ActivityCard(
                                         activity = activity,

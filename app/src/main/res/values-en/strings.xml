@@ -669,6 +669,8 @@
     <!-- Settings > GPS > battery row -->
     <string name="battery_optimization_title">Battery Exemption</string>
     <string name="battery_optimization_hint">Tap to request a battery exemption — so recording is not killed by your phone\'s battery saver</string>
+    <string name="background_location_title">Background location</string>
+    <string name="background_location_hint">Tap to allow background location — required so recording resumes automatically after a phone restart</string>
 
     <!-- ═══ Account / Authentication (Phase 1) ═══ -->
     <string name="account_section">Account</string>

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.ScreenLockPortrait
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -267,6 +269,56 @@ internal fun SettingsContent(
                             }
                         }
                     )
+                    // Auto-resume setelah reboot butuh izin lokasi latar
+                    // belakang: foreground service bertipe `location` tidak
+                    // boleh dimulai dari background tanpanya (Android 10+).
+                    // Sejak Android 11 izin ini TIDAK punya dialog runtime —
+                    // satu-satunya jalur resmi adalah halaman Settings
+                    // aplikasi, jadi baris ini menampilkan status + membuka
+                    // halaman itu. Status dibaca ulang saat activity kembali
+                    // (ON_RESUME), bukan disimpan sebagai preferensi.
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        val backgroundContext = LocalContext.current
+                        var backgroundGranted by remember {
+                            mutableStateOf(
+                                com.nyasar.app.location.BackgroundLocationPermission
+                                    .isGranted(backgroundContext)
+                            )
+                        }
+                        val settingsLifecycleOwner = LocalLifecycleOwner.current
+                        DisposableEffect(settingsLifecycleOwner) {
+                            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                                    backgroundGranted =
+                                        com.nyasar.app.location.BackgroundLocationPermission
+                                            .isGranted(backgroundContext)
+                                }
+                            }
+                            settingsLifecycleOwner.lifecycle.addObserver(observer)
+                            onDispose { settingsLifecycleOwner.lifecycle.removeObserver(observer) }
+                        }
+                        val backgroundLauncher = rememberLauncherForActivityResult(
+                            ActivityResultContracts.StartActivityForResult()
+                        ) { _ ->
+                            backgroundGranted =
+                                com.nyasar.app.location.BackgroundLocationPermission
+                                    .isGranted(backgroundContext)
+                        }
+                        SettingRow(
+                            icon = Icons.Default.MyLocation,
+                            iconTint = if (backgroundGranted) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.error,
+                            title = stringResource(R.string.background_location_title),
+                            subtitle = if (backgroundGranted) stringResource(R.string.ready_to_use)
+                            else stringResource(R.string.background_location_hint),
+                            onClick = {
+                                backgroundLauncher.launch(
+                                    com.nyasar.app.location.BackgroundLocationPermission
+                                        .settingsIntent(backgroundContext)
+                                )
+                            }
+                        )
+                    }
                 }
 
                 SettingsSection(stringResource(R.string.offline_section)) {

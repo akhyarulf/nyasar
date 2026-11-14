@@ -671,6 +671,8 @@
     <!-- Settings > GPS > battery row -->
     <string name="battery_optimization_title">Pengecualian Baterai</string>
     <string name="battery_optimization_hint">Ketuk untuk minta pengecualian baterai — supaya recording tidak dimatikan oleh penghemat baterai HP</string>
+    <string name="background_location_title">Lokasi sepanjang waktu</string>
+    <string name="background_location_hint">Ketuk untuk mengizinkan lokasi sepanjang waktu — syarat agar rekaman lanjut otomatis setelah HP restart</string>
 
     <!-- ═══ Akun / Autentikasi (Fase 1) ═══ -->
     <string name="account_section">Akun</string>

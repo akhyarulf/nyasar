@@ -58,6 +58,17 @@ class BootCompletedReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val appContext = context.applicationContext
+                // FGS bertipe `location` tidak boleh dimulai dari background
+                // tanpa ACCESS_BACKGROUND_LOCATION (Android 10+). Tanpa guard
+                // ini startForegroundService selalu melempar SecurityException
+                // dan auto-resume gagal tanpa jejak yang terlihat pengguna.
+                if (!com.nyasar.app.location.BackgroundLocationPermission.isGranted(appContext)) {
+                    android.util.Log.w(
+                        TAG,
+                        "Auto-resume dilewati: izin lokasi sepanjang waktu belum diberikan"
+                    )
+                    return@launch
+                }
                 val active = AppDatabase.get(appContext).activityDao().getActiveOrNull()
                 if (active != null &&
                     System.currentTimeMillis() - active.startedAtEpochMs <= MAX_AUTO_RESUME_AGE_MS

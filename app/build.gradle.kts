@@ -191,7 +191,13 @@ dependencies {
     // MapLibre GL Native SDK for Android — the map engine.
     // Provider (MapTiler / OpenFreeMap / other) is injected as a style URL,
     // MapLibre itself has no vendor lock-in.
-    implementation("org.maplibre.gl:android-sdk:12.0.1")
+    //
+    // 12.3.1 (bukan 12.0.1): libmaplibre.so arm64 di 12.0.1 masih di-align
+    // 4 KB (LOAD 0x1000), sehingga gagal dimuat di perangkat Android 15+
+    // yang memakai 16 KB page size — aplikasi crash begitu peta dibuka.
+    // Mulai 12.3.1 segmen arm64 sudah 0x4000. Jangan turunkan tanpa
+    // memeriksa ulang: `readelf -lW libmaplibre.so | grep LOAD`.
+    implementation("org.maplibre.gl:android-sdk:12.3.1")
 
     // Explicit OkHttp: MapLibre 12.0.1 publishes okhttp 4.12.0 only on its
     // runtimeElements (not apiElements), so app code cannot reference

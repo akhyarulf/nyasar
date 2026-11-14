@@ -23,3 +23,11 @@ keystore/*
 # commit it. CI writes its own local.properties from GitHub secrets
 # (.github/workflows/build.yaml + release.yaml).
 local.properties
+
+# Build output & artefak lokal — bukan sumber. Tanpa ini `git add -A` bisa
+# ikut memasukkan ratusan MB (app/build, .gradle) atau APK hasil build lokal.
+build/
+.gradle/
+artifacts/
+*.apk
+.idea/

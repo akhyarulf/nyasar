@@ -26,9 +26,15 @@
          Deklarasi manifest-group saja — tidak butuh grant runtime. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- allowBackup="false" (2026-11): Auto Backup Android mengunggah data
+         lokal (Room: rute/aktivitas/waypoint, file GPX di files/routes,
+         DataStore) ke Google Drive pengguna. Itu bertentangan dengan janji
+         "data tetap di HP-mu" di README dan dengan privacy policy yang
+         hanya menyebut Supabase untuk backup. Backup tetap tersedia lewat
+         akun Supabase (otomatis) dan ekspor GPX manual tetap jalan. -->
     <application
         android:name=".NyasarApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.Nyasar"

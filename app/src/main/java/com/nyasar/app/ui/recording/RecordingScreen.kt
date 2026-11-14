@@ -37,6 +37,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.outlined.LocationSearching
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -718,7 +719,22 @@ fun RecordingScreen(
     // dua jalan masuk, satu permukaan — pola yang sama dengan aplikasi
     // referensi, dan peta tidak lagi tertutup modal hanya untuk ganti satu
     // switch.
-    var controlsExpanded by remember { mutableStateOf(false) }
+    // rememberSaveable: baris "Pengaturan" di panel ini MENINGGALKAN layar.
+    // Tanpa ini, user kembali dari Settings dan mendapati panel yang baru ia
+    // pakai sudah tertutup lagi.
+    var controlsExpanded by rememberSaveable { mutableStateOf(false) }
+    val panelHaptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    // Satu jalur untuk handle sheet DAN ikon gear: keduanya memanggil ini,
+    // jadi isyarat getar dan hasilnya tidak mungkin berbeda.
+    fun setPanelExpanded(open: Boolean) {
+        if (controlsExpanded == open) return
+        controlsExpanded = open
+        panelHaptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+    }
+    // Didaftarkan SETELAH BackHandler(recordingInProgress) di atas supaya back
+    // menutup panel opsi dulu — satu langkah mundur yang wajar untuk lapisan
+    // yang baru dibuka — baru setelah itu berfungsi seperti biasa.
+    BackHandler(enabled = controlsExpanded) { setPanelExpanded(false) }
     val view = androidx.compose.ui.platform.LocalView.current
     DisposableEffect(keepScreenOn, state.status) {
         val shouldKeepOn = keepScreenOn && state.status != RecordingStatus.STOPPED
@@ -1545,7 +1561,7 @@ fun RecordingScreen(
         // keduanya membuka panel opsi sesi yang sama.
         val optionsInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         Surface(
-            onClick = { controlsExpanded = !controlsExpanded },
+            onClick = { setPanelExpanded(!controlsExpanded) },
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
@@ -1979,8 +1995,8 @@ fun RecordingScreen(
                                 onDragStart = { dragTotal = 0f },
                                 onVerticalDrag = { _, dy -> dragTotal += dy },
                                 onDragEnd = {
-                                    if (dragTotal < -20f) controlsExpanded = true
-                                    else if (dragTotal > 20f) controlsExpanded = false
+                                    if (dragTotal < -20f) setPanelExpanded(true)
+                                    else if (dragTotal > 20f) setPanelExpanded(false)
                                 }
                             )
                         }
@@ -1988,7 +2004,7 @@ fun RecordingScreen(
                             interactionSource = handleInteraction,
                             indication = null,
                             onClickLabel = stringResource(R.string.rec_options_cd)
-                        ) { controlsExpanded = !controlsExpanded },
+                        ) { setPanelExpanded(!controlsExpanded) },
                     contentAlignment = Alignment.Center
                 ) {
                     Box(

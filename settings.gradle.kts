@@ -18,3 +18,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Nyasar"
 include(":app")
+// Modul ukur performa (Macrobenchmark). Bukan bagian APK: hanya APK test
+// yang dijalankan di perangkat lewat :benchmark:connectedBenchmarkAndroidTest.
+include(":benchmark")

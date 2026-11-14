@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,7 +23,9 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
@@ -58,6 +62,8 @@ import com.nyasar.app.R
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.ui.components.EmptyState
+import com.nyasar.app.ui.components.LocalFeedScrollState
+import kotlinx.coroutines.flow.first
 import com.nyasar.app.ui.components.pressScale
 import com.nyasar.app.ui.theme.NyasarSpacing
 import com.nyasar.app.ui.theme.NyasarStatValue
@@ -230,11 +236,19 @@ private fun ActivityHistoryContent(
                                 )
                             }
                         } else {
+                            // State daftar dibagikan ke kartu lewat
+                            // LocalFeedScrollState: kartu menunda pembuatan
+                            // snapshot peta selama daftar bergerak, jadi
+                            // snapshotter native tidak pernah boot di tengah
+                            // gestur scroll (pola yang sama dengan Explore).
+                            val feedListState = rememberLazyListState()
+                            CompositionLocalProvider(LocalFeedScrollState provides feedListState) {
                             LazyColumn(
                                 Modifier.weight(1f),
                                 // No horizontal padding: the feed rows are
                                 // full-bleed now (map included), separated by
                                 // hairlines instead of floating in a margin.
+                                state = feedListState,
                                 contentPadding = PaddingValues(vertical = 12.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
@@ -257,6 +271,7 @@ private fun ActivityHistoryContent(
                                 }
                             }
                         }                        // LazyColumn close
+                        }                        // LocalFeedScrollState provider close
                     }                            // else (list non-empty) close
                     }                            // Column (filter bar + list) close
                 }                                // LOADED branch close
@@ -566,9 +581,16 @@ private fun ActivityCard(
     val context = LocalContext.current
     val provider = remember { TileProviderFactory.default() }
     var mapSnapshotResult by remember { mutableStateOf<MapSnapshotResult?>(null) }
+    val feedListState = LocalFeedScrollState.current
     LaunchedEffect(activity.id, thumbnail) {
         val track = thumbnail ?: return@LaunchedEffect
         if (track.size < 2) return@LaunchedEffect
+        // Tunggu daftar diam dulu: boot renderer native saat jari masih
+        // menggeser adalah tersendat yang paling terasa, dan kartu yang cuma
+        // melintas memang tidak perlu snapshot sama sekali.
+        feedListState?.let { state ->
+            snapshotFlow { state.isScrollInProgress }.first { !it }
+        }
         mapSnapshotResult = MapSnapshotHelper.getOrGenerate(
             context = context,
             activityId = activity.id,
@@ -719,8 +741,12 @@ private fun ActivityCard(
                         // Show real map snapshot if available, else fallback to grid
                         val snapshotResult = mapSnapshotResult
                         if (snapshotResult != null) {
+                            // Dibungkus sekali per snapshot, bukan per draw.
+                            val snapshotImage = remember(snapshotResult) {
+                                snapshotResult.bitmap.asImageBitmap()
+                            }
                             Image(
-                                bitmap = snapshotResult.bitmap.asImageBitmap(),
+                                bitmap = snapshotImage,
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.FillBounds
@@ -746,63 +772,54 @@ private fun ActivityCard(
                         // MaterialTheme.colorScheme is a composable read and may
                         // not be called inside the DrawScope lambda.
                         val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-                        Canvas(Modifier.fillMaxSize()) {
-                            val canvasWidth = size.width
-                            val canvasHeight = size.height
-
-                            // Fallback grid if no snapshot
-                            if (snapshotResult == null) {
-                                val gridSpacing = 40.dp.toPx()
-                                var gx = 0f
-                                while (gx <= canvasWidth) {
-                                    drawLine(gridColor, Offset(gx, 0f), Offset(gx, canvasHeight), strokeWidth = 0.5.dp.toPx())
-                                    gx += gridSpacing
+                        // drawWithCache: proyeksi jalur + angka grid dihitung
+                        // SEKALI per ukuran kartu. Dulu semuanya dikerjakan di
+                        // fase draw, jadi setiap frame scroll memproyeksikan
+                        // ulang seluruh titik GPS untuk setiap kartu History
+                        // yang terlihat — biaya yang sama yang sudah dibuang
+                        // dari kartu Explore.
+                        Canvas(
+                            Modifier
+                                .fillMaxSize()
+                                .drawWithCache {
+                                    val canvasWidth = size.width
+                                    val canvasHeight = size.height
+                                    val gridSpacing = 40.dp.toPx()
+                                    val gridStroke = 0.5.dp.toPx()
+                                    val bounds = snapshotResult?.bounds
+                                    // Snapshot ready → pakai bounds-nya supaya
+                                    // garis menempel di tile; belum ada
+                                    // snapshot → pas di tengah kanvas.
+                                    val routePath = if (bounds != null) {
+                                        MapSnapshotHelper.trackPath(
+                                            trackPoints = thumbnail,
+                                            bounds = bounds,
+                                            widthPx = canvasWidth,
+                                            heightPx = canvasHeight
+                                        )
+                                    } else {
+                                        fitPathInCenter(thumbnail, canvasWidth, canvasHeight)
+                                    }
+                                    onDrawBehind {
+                                        // Fallback grid if no snapshot
+                                        if (snapshotResult == null) {
+                                            var gx = 0f
+                                            while (gx <= canvasWidth) {
+                                                drawLine(gridColor, Offset(gx, 0f), Offset(gx, canvasHeight), strokeWidth = gridStroke)
+                                                gx += gridSpacing
+                                            }
+                                            var gy = 0f
+                                            while (gy <= canvasHeight) {
+                                                drawLine(gridColor, Offset(0f, gy), Offset(canvasWidth, gy), strokeWidth = gridStroke)
+                                                gy += gridSpacing
+                                            }
+                                        }
+                                        routePath?.let {
+                                            drawPath(it, color = routeLineColor, style = Stroke(width = 6f))
+                                        }
+                                    }
                                 }
-                                var gy = 0f
-                                while (gy <= canvasHeight) {
-                                    drawLine(gridColor, Offset(0f, gy), Offset(canvasWidth, gy), strokeWidth = 0.5.dp.toPx())
-                                    gy += gridSpacing
-                                }
-                            }
-
-                            // Route line — use snapshot bounds if available (so it
-                            // aligns with map tiles), otherwise fallback to fit-in-center
-                            val bounds = snapshotResult?.bounds
-                            if (bounds != null) {
-                                MapSnapshotHelper.drawTrackOnCanvas(
-                                    canvas = this,
-                                    trackPoints = thumbnail,
-                                    bounds = bounds,
-                                    strokeWidth = 6f,
-                                    color = routeLineColor
-                                )
-                            } else {
-                                // No snapshot bounds — compute local bounds and center
-                                val lons = thumbnail.map { it.first }
-                                val lats = thumbnail.map { it.second }
-                                val minLon = lons.min(); val maxLon = lons.max()
-                                val minLat = lats.min(); val maxLat = lats.max()
-                                val lonSpan = (maxLon - minLon).takeIf { it > 0.0 } ?: 1.0
-                                val latSpan = (maxLat - minLat).takeIf { it > 0.0 } ?: 1.0
-                                val cosLat = cos(Math.toRadians((minLat + maxLat) / 2.0)).toFloat()
-                                val lonDegWidth = (lonSpan * cosLat).toFloat()
-                                val latDegHeight = latSpan.toFloat()
-                                val maxDimen = maxOf(lonDegWidth, latDegHeight)
-                                val targetSize = min(canvasWidth, canvasHeight) * 0.8f
-                                val scale = if (maxDimen > 0f) targetSize / maxDimen else 1f
-                                val routeWidth = lonDegWidth * scale
-                                val routeHeight = latDegHeight * scale
-                                val offsetX = (canvasWidth - routeWidth) / 2f
-                                val offsetY = (canvasHeight - routeHeight) / 2f
-                                val path = Path()
-                                thumbnail.forEachIndexed { index, (lon, lat) ->
-                                    val x = offsetX + ((lon - minLon).toFloat() * cosLat) * scale
-                                    val y = offsetY + routeHeight - ((lat - minLat).toFloat() * scale)
-                                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                                }
-                                drawPath(path, color = routeLineColor, style = Stroke(width = 6f))
-                            }
-                        }
+                        ) { }
                     }
                 }
             }
@@ -872,6 +889,40 @@ private fun StatColumn(
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+/** Jalur rute tanpa bounds snapshot: dipaskan ke tengah kanvas, 80% dari
+ *  sisi terpendek. Dipisah dari DrawScope supaya bisa di-cache per ukuran
+ *  (lihat drawWithCache di ActivityCard). */
+private fun fitPathInCenter(
+    points: List<Pair<Double, Double>>,
+    canvasWidth: Float,
+    canvasHeight: Float
+): Path? {
+    if (points.size < 2) return null
+    val lons = points.map { it.first }
+    val lats = points.map { it.second }
+    val minLon = lons.min(); val maxLon = lons.max()
+    val minLat = lats.min(); val maxLat = lats.max()
+    val lonSpan = (maxLon - minLon).takeIf { it > 0.0 } ?: 1.0
+    val latSpan = (maxLat - minLat).takeIf { it > 0.0 } ?: 1.0
+    val cosLat = cos(Math.toRadians((minLat + maxLat) / 2.0)).toFloat()
+    val lonDegWidth = (lonSpan * cosLat).toFloat()
+    val latDegHeight = latSpan.toFloat()
+    val maxDimen = maxOf(lonDegWidth, latDegHeight)
+    val targetSize = min(canvasWidth, canvasHeight) * 0.8f
+    val scale = if (maxDimen > 0f) targetSize / maxDimen else 1f
+    val routeWidth = lonDegWidth * scale
+    val routeHeight = latDegHeight * scale
+    val offsetX = (canvasWidth - routeWidth) / 2f
+    val offsetY = (canvasHeight - routeHeight) / 2f
+    val path = Path()
+    points.forEachIndexed { index, (lon, lat) ->
+        val x = offsetX + ((lon - minLon).toFloat() * cosLat) * scale
+        val y = offsetY + routeHeight - ((lat - minLat).toFloat() * scale)
+        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    return path
 }
 
 private fun formatDuration(ms: Long): String {

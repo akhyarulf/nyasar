@@ -126,6 +126,15 @@ android {
                 signingConfig = signingConfigs.getByName("sharedDebug")
             }
         }
+        // Varian ukur untuk Macrobenchmark (:benchmark). Sama seperti release
+        // (minify + R8) karena angka dari build yang lebih ringan/lebih berat
+        // dari APK rilis tidak berarti apa-apa, tapi TIDAK memakai signing
+        // release — tidak ada alasan APK ukur bisa dipasang sebagai "rilis".
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("sharedDebug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     buildFeatures {

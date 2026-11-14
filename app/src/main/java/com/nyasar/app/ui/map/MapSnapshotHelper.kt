@@ -101,8 +101,15 @@ object MapSnapshotHelper {
     ): MapSnapshotResult? {
         if (trackPoints.size < 2) return null
 
-        // Check disk cache first
-        val cached = loadFromDisk(context, activityId, widthPx, heightPx)
+        // Cache baca/tulis DI LUAR main thread. Dulu fungsi ini dipanggil dari
+        // LaunchedEffect kartu History, artinya decode PNG 1080x640 dan
+        // compress saat menyimpan berjalan di main thread — satu kartu yang
+        // baru masuk viewport bisa memblok frame lebih lama daripada render
+        // petanya sendiri. Snapshotter-nya memang harus di main thread, tapi
+        // itu satu-satunya bagian yang perlu.
+        val cached = withContext(Dispatchers.IO) {
+            loadFromDisk(context, activityId, widthPx, heightPx)
+        }
         if (cached != null) return MapSnapshotResult(cached, computeBounds(trackPoints, widthPx, heightPx))
 
         // Generate via MapSnapshotter (must run on UI thread)
@@ -110,17 +117,19 @@ object MapSnapshotHelper {
             generateSnapshot(context, trackPoints, widthPx, heightPx, styleUrl)
         }
 
-        // Save to disk cache
         if (result != null) {
-            saveToDisk(context, activityId, widthPx, heightPx, result.bitmap)
+            withContext(Dispatchers.IO) {
+                saveToDisk(context, activityId, widthPx, heightPx, result.bitmap)
+            }
         }
 
         return result
     }
 
     /**
-     * Generate a snapshot synchronously (call from IO dispatcher).
-     * Used by ShareCardGenerator on a background thread.
+     * Generate a snapshot synchronously. Aman dipanggil dari dispatcher mana
+     * pun: cache disk pindah ke IO sendiri, dan snapshotter tetap dipin ke
+     * main thread di dalam — dipakai ShareCardGenerator dari background.
      */
     suspend fun generateSync(
         context: Context,
@@ -133,7 +142,9 @@ object MapSnapshotHelper {
     ): MapSnapshotResult? {
         if (trackPoints.size < 2) return null
 
-        val cached = loadFromDisk(context, activityId, widthPx, heightPx)
+        val cached = withContext(Dispatchers.IO) {
+            loadFromDisk(context, activityId, widthPx, heightPx)
+        }
         if (cached != null) return MapSnapshotResult(cached, computeBounds(trackPoints, widthPx, heightPx, verticalOffsetFraction))
 
         val result = withContext(Dispatchers.Main) {
@@ -141,7 +152,9 @@ object MapSnapshotHelper {
         }
 
         if (result != null) {
-            saveToDisk(context, activityId, widthPx, heightPx, result.bitmap)
+            withContext(Dispatchers.IO) {
+                saveToDisk(context, activityId, widthPx, heightPx, result.bitmap)
+            }
         }
         return result
     }
@@ -404,6 +417,38 @@ object MapSnapshotHelper {
         }
     }
 
+    /**
+     * Versi path-only dari [drawTrackOnCanvas]: proyeksikan titik ke dalam
+     * bounds snapshot TANPA menggambar. Dipakai layar yang memakai
+     * `drawWithCache`, supaya jalur rute (yang bisa ribuan titik) dihitung
+     * sekali per ukuran kartu, bukan di setiap frame saat daftar di-scroll.
+     */
+    fun trackPath(
+        trackPoints: List<Pair<Double, Double>>, // Pair(lat, lon)
+        bounds: LatLngBounds,
+        widthPx: Float,
+        heightPx: Float
+    ): androidx.compose.ui.graphics.Path? {
+        if (trackPoints.size < 2 || widthPx <= 0f || heightPx <= 0f) return null
+
+        val north = bounds.northEast.latitude
+        val south = bounds.southWest.latitude
+        val east = bounds.northEast.longitude
+        val west = bounds.southWest.longitude
+        val latSpan = north - south
+        val lonSpan = east - west
+        if (latSpan <= 0.0 || lonSpan <= 0.0) return null
+
+        val path = androidx.compose.ui.graphics.Path()
+        trackPoints.forEachIndexed { i, (lat, lon) ->
+            val nx = ((lon - west) / lonSpan).toFloat()
+            val ny = 1f - ((lat - south) / latSpan).toFloat()
+            if (i == 0) path.moveTo(nx * widthPx, ny * heightPx)
+            else path.lineTo(nx * widthPx, ny * heightPx)
+        }
+        return path
+    }
+
     // ── Fallback: gradient + grid (when snapshot fails) ──
 
     private fun generateFallbackBitmap(widthPx: Int, heightPx: Int): Bitmap? {
@@ -507,7 +552,9 @@ object MapSnapshotHelper {
         widthPx: Int,
         heightPx: Int
     ): Bitmap? {
-        val cached = loadFromDisk(context, cacheKey, widthPx, heightPx, BASEMAP_PREVIEW_CACHE_VERSION)
+        val cached = withContext(Dispatchers.IO) {
+            loadFromDisk(context, cacheKey, widthPx, heightPx, BASEMAP_PREVIEW_CACHE_VERSION)
+        }
         if (cached != null) return cached
 
         // Slopes of Gunung Lawu — has enough hillshade/contour/vegetation
@@ -527,7 +574,11 @@ object MapSnapshotHelper {
         // paths at once.
         val bitmap = renderSnapshotBitmap(context, bounds, styleUrl, widthPx, heightPx)
 
-        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it, BASEMAP_PREVIEW_CACHE_VERSION) }
+        bitmap?.let { bmp ->
+            withContext(Dispatchers.IO) {
+                saveToDisk(context, cacheKey, widthPx, heightPx, bmp, BASEMAP_PREVIEW_CACHE_VERSION)
+            }
+        }
         return bitmap
     }
 
@@ -566,11 +617,17 @@ object MapSnapshotHelper {
             paddingFraction = paddingFraction
         )
 
-        val cached = loadFromDisk(context, cacheKey, widthPx, heightPx, REGION_PREVIEW_CACHE_VERSION)
+        val cached = withContext(Dispatchers.IO) {
+            loadFromDisk(context, cacheKey, widthPx, heightPx, REGION_PREVIEW_CACHE_VERSION)
+        }
         if (cached != null) return MapSnapshotResult(cached, renderedBounds)
 
         val bitmap = renderSnapshotBitmap(context, renderedBounds, styleUrl, widthPx, heightPx)
-        bitmap?.let { saveToDisk(context, cacheKey, widthPx, heightPx, it, REGION_PREVIEW_CACHE_VERSION) }
+        bitmap?.let { bmp ->
+            withContext(Dispatchers.IO) {
+                saveToDisk(context, cacheKey, widthPx, heightPx, bmp, REGION_PREVIEW_CACHE_VERSION)
+            }
+        }
         return bitmap?.let { MapSnapshotResult(it, renderedBounds) }
     }
 

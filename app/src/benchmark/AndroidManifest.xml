@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Hanya varian `benchmark` (dipakai Macrobenchmark), bukan APK yang
+         dirilis: Macrobenchmark butuh shell bisa memprofil aplikasi
+         non-debuggable. Manifest utama sengaja tidak membawa tag ini. -->
+    <application>
+        <profileable
+            android:shell="true"
+            tools:targetApi="29" />
+    </application>
+
+</manifest>

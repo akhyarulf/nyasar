@@ -259,6 +259,61 @@ fun RecordingScreen(
     var showLocationServicesOffDialog by remember { mutableStateOf(false) }
     var showLocationDeniedBanner by remember { mutableStateOf(false) }
 
+    // Background-location gate — ADVISORY, bukan syarat start. Auto-resume
+    // setelah reboot butuh ACCESS_BACKGROUND_LOCATION (FGS bertipe location
+    // tidak boleh dimulai dari background tanpanya), tapi rekaman sendiri
+    // tetap jalan tanpa izin itu. Karena itu gate ini TIDAK pernah membatalkan
+    // percobaan start: "Nanti saja" langsung memulai, "Buka pengaturan"
+    // membuka halaman yang tepat lalu melanjutkan start dari result callback.
+    // Android 11+ tidak punya dialog runtime untuk izin ini, jadi satu-satunya
+    // jalur adalah Settings aplikasi (BackgroundLocationPermission).
+    var pendingBackgroundGateStartRoute by remember { mutableStateOf<String?>(null) }
+    var showBackgroundOnboarding by remember { mutableStateOf(false) }
+
+    fun startHeldRecording(routeId: String?) {
+        pendingBackgroundGateStartRoute = null
+        viewModel.startRecording(
+            routeId,
+            if (backtrackGuideCleared) null else backtrackActivityId
+        )
+    }
+
+    fun advanceToBackgroundLocationGate(startRouteId: String?) {
+        val needed = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
+            !com.nyasar.app.location.BackgroundLocationPermission.isGranted(gateContext) &&
+            settingsForNotif?.backgroundLocationOnboardingShown == false
+        if (needed) {
+            pendingBackgroundGateStartRoute = startRouteId
+            showBackgroundOnboarding = true
+        } else {
+            startHeldRecording(startRouteId)
+        }
+    }
+
+    val backgroundLocationSettings = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        gateScope.launch { settingsRepository.setBackgroundLocationOnboardingShown() }
+        pendingBackgroundGateStartRoute?.let { startHeldRecording(it) }
+    }
+
+    fun resolveBackgroundOnboarding(openSettings: Boolean) {
+        showBackgroundOnboarding = false
+        gateScope.launch { settingsRepository.setBackgroundLocationOnboardingShown() }
+        if (openSettings) {
+            try {
+                backgroundLocationSettings.launch(
+                    com.nyasar.app.location.BackgroundLocationPermission.settingsIntent(gateContext)
+                )
+                return // lanjut dari result callback saat activity kembali
+            } catch (_: Exception) {
+                // Tidak ada halaman Settings yang bisa dibuka: perlakukan
+                // seperti skip supaya percobaan start tidak menggantung.
+            }
+        }
+        pendingBackgroundGateStartRoute?.let { startHeldRecording(it) }
+    }
+
     fun advanceToBatteryGate(startRouteId: String?) {
         // Battery-optimization gate (Gap 2) — advisory only: recording works
         // without the exemption, vendor battery savers (MIUI/Samsung/etc.)
@@ -271,13 +326,9 @@ fun RecordingScreen(
             pendingBatteryGateStartRoute = startRouteId
             showBatteryOnboarding = true
         } else {
-            // Backtrack: activity id ditangkap langsung dari composable (bukan
-            // lewat gate chain) karena layar ini memang milik satu aktivitas —
-            // beda dengan routeId yang bisa berubah karena "Pilih Jalur".
-            viewModel.startRecording(
-                startRouteId,
-                if (backtrackGuideCleared) null else backtrackActivityId
-            )
+            // Gate terakhir (advisory): tawarkan izin lokasi sepanjang waktu
+            // sekali saja, lalu mulai. Lihat advanceToBackgroundLocationGate.
+            advanceToBackgroundLocationGate(startRouteId)
         }
     }
 
@@ -381,12 +432,10 @@ fun RecordingScreen(
         // Allow or deny both land here; isIgnoringBatteryOptimizations()
         // says which, but recording proceeds either way — the exemption is
         // optional. This is the last gate: continue the held attempt now.
-        pendingBatteryGateStartRoute?.let { heldRouteId ->
+        // Sheet baterai selesai — gate background-location masih tersisa.
+        pendingBatteryGateStartRoute?.let { held ->
             pendingBatteryGateStartRoute = null
-            viewModel.startRecording(
-                heldRouteId,
-                if (backtrackGuideCleared) null else backtrackActivityId
-            )
+            advanceToBackgroundLocationGate(held)
         }
     }
     fun launchBatterySheet(): Boolean {
@@ -409,12 +458,11 @@ fun RecordingScreen(
         showBatteryOnboarding = false
         gateScope.launch { settingsRepository.setBatteryOptimizationOnboardingShown() }
         if (allow && launchBatterySheet()) return // continues from the sheet's result callback
-        pendingBatteryGateStartRoute?.let { heldRouteId ->
+        // "Nanti saja" pada gate baterai: lanjut ke gate terakhir, jangan
+        // langsung start (kalau tidak, gate background-location terlewat).
+        pendingBatteryGateStartRoute?.let { held ->
             pendingBatteryGateStartRoute = null
-            viewModel.startRecording(
-                heldRouteId,
-                if (backtrackGuideCleared) null else backtrackActivityId
-            )
+            advanceToBackgroundLocationGate(held)
         }
     }
 
@@ -934,6 +982,29 @@ fun RecordingScreen(
             dismissText = stringResource(R.string.cancel),
             onConfirm = { resolveBatterySaver(openSettings = true) },
             onDismiss = { resolveBatterySaver(openSettings = false) }
+        )
+    }
+
+    // Background-location explainer (gate terakhir, advisory). Kedua aksi
+    // memulai rekaman; bedanya hanya apakah halaman Settings dibuka dulu.
+    if (showBackgroundOnboarding) {
+        AlertDialog(
+            onDismissRequest = {
+                showBackgroundOnboarding = false
+                pendingBackgroundGateStartRoute?.let { startHeldRecording(it) }
+            },
+            title = { Text(stringResource(R.string.background_location_gate_title)) },
+            text = { Text(stringResource(R.string.background_location_gate_body)) },
+            confirmButton = {
+                TextButton(onClick = { resolveBackgroundOnboarding(openSettings = true) }) {
+                    Text(stringResource(R.string.background_location_gate_open))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { resolveBackgroundOnboarding(openSettings = false) }) {
+                    Text(stringResource(R.string.onboarding_skip))
+                }
+            }
         )
     }
 

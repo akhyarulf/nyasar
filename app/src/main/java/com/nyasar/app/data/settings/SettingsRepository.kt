@@ -86,6 +86,12 @@ data class AppSettings(
      *  never raises it again — manual access stays available via the
      *  Settings screen row, which opens the same system sheet on demand. */
     val batteryOptimizationOnboardingShown: Boolean = false,
+    /** One-time explainer for ACCESS_BACKGROUND_LOCATION, raised on the first
+     *  start attempt. Android 11+ has no runtime dialog for this permission,
+     *  so the explainer only points at the Settings page where it can be
+     *  granted — and the start always proceeds either way (auto-resume after
+     *  a reboot is a bonus, never a requirement for recording). */
+    val backgroundLocationOnboardingShown: Boolean = false,
     /** Default visibility for a NEW publish (Wikiloc 2-level): true = Semua
      *  orang, false = Hanya saya. Only a DEFAULT — the publish form still
      *  shows both options and whatever the user picks there wins. Opt-in
@@ -126,6 +132,7 @@ class SettingsRepository(private val context: Context) {
         val LOCATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("location_onboarding_shown")
         val NOTIFICATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("notification_onboarding_shown")
         val BATTERY_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("battery_optimization_onboarding_shown")
+        val BACKGROUND_LOCATION_ONBOARDING = androidx.datastore.preferences.core.booleanPreferencesKey("background_location_onboarding_shown")
         val DEFAULT_ROUTE_VISIBILITY = androidx.datastore.preferences.core.booleanPreferencesKey("default_route_visibility_public")
         val BACKTRACK_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("backtrack_enabled")
         val ETA_SUN_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("eta_sun_enabled")
@@ -148,6 +155,7 @@ class SettingsRepository(private val context: Context) {
             locationOnboardingShown = prefs[Keys.LOCATION_ONBOARDING] ?: false,
             notificationOnboardingShown = prefs[Keys.NOTIFICATION_ONBOARDING] ?: false,
             batteryOptimizationOnboardingShown = prefs[Keys.BATTERY_ONBOARDING] ?: false,
+            backgroundLocationOnboardingShown = prefs[Keys.BACKGROUND_LOCATION_ONBOARDING] ?: false,
             defaultRouteVisibilityPublic = prefs[Keys.DEFAULT_ROUTE_VISIBILITY] ?: true,
             backtrackEnabled = prefs[Keys.BACKTRACK_ENABLED] ?: false,
             etaSunEnabled = prefs[Keys.ETA_SUN_ENABLED] ?: false
@@ -174,6 +182,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setBatteryOptimizationOnboardingShown() {
         context.dataStore.edit { it[Keys.BATTERY_ONBOARDING] = true }
+    }
+
+    suspend fun setBackgroundLocationOnboardingShown() {
+        context.dataStore.edit { it[Keys.BACKGROUND_LOCATION_ONBOARDING] = true }
     }
 
     suspend fun setProvider(providerId: String) {

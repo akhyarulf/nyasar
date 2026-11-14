@@ -671,6 +671,11 @@
     <string name="battery_optimization_hint">Tap to request a battery exemption — so recording is not killed by your phone\'s battery saver</string>
     <string name="background_location_title">Background location</string>
     <string name="background_location_hint">Tap to allow background location — required so recording resumes automatically after a phone restart</string>
+    <string name="background_location_gate_title">Resume recording after a restart?</string>
+    <string name="background_location_gate_body">If your phone dies or restarts mid-hike, Nyasar can pick the recording back up on its own — but that needs the \"All the time\" location permission. You can still start recording without it; it just will not resume automatically. The permission lives on the app's system settings page, because Android no longer shows a dialog for it.</string>
+    <string name="background_location_gate_open">Open settings</string>
+    <string name="browse_near_me">Near me</string>
+    <string name="browse_near_me_failed">Couldn\'t get your location. Try again outdoors.</string>
 
     <!-- ═══ Account / Authentication (Phase 1) ═══ -->
     <string name="account_section">Account</string>

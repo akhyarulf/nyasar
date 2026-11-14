@@ -3,6 +3,8 @@ package com.nyasar.app.ui.browse
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nyasar.app.R
+import com.nyasar.app.data.supabase.BrowseBbox
+import com.nyasar.app.data.supabase.BrowsePaging
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.data.supabase.CloudSyncSignals
 import com.nyasar.app.data.supabase.SharedSocialState
@@ -46,7 +48,12 @@ class BrowseViewModel : ViewModel() {
             val fromSearch: Boolean,
             /** Pull-to-refresh in flight — the list stays visible, the
              *  screen only shows the M3 refresh indicator while true. */
-            val isRefreshing: Boolean = false
+            val isRefreshing: Boolean = false,
+            /** Halaman berikutnya sedang dimuat (footer spinner). */
+            val isLoadingMore: Boolean = false,
+            /** False = server sudah tidak mengembalikan satu halaman penuh,
+             *  jadi scroll tidak perlu meminta halaman lagi. */
+            val hasMore: Boolean = true
         ) : BrowseState()
         data class Error(val error: BrowseUiError) : BrowseState()
     }
@@ -68,6 +75,74 @@ class BrowseViewModel : ViewModel() {
     private val _appliedCount = MutableStateFlow(0)
     val appliedCount = _appliedCount.asStateFlow()
     private var sort: BrowseRepository.SortOrder = BrowseRepository.SortOrder.NEWEST
+
+    // ── "Dekat saya" + pagination ──
+    //
+    // nearMeBbox = null berarti Jelajah global (perilaku lama). Saat aktif,
+    // setiap browse/loadMore membawa bbox di sekitar posisi pengguna; posisi
+    // itu sendiri TIDAK disimpan dan tidak dikirim selain sebagai kotak.
+    private var nearMeBbox: BrowseBbox? = null
+    private val _nearMeEnabled = MutableStateFlow(false)
+    val nearMeEnabled = _nearMeEnabled.asStateFlow()
+
+    fun enableNearMe(latitude: Double, longitude: Double) {
+        nearMeBbox = BrowseBbox.around(latitude, longitude, NEAR_ME_RADIUS_KM)
+        _nearMeEnabled.value = true
+        browse(_query.value)
+    }
+
+    fun disableNearMe() {
+        if (nearMeBbox == null) return
+        nearMeBbox = null
+        _nearMeEnabled.value = false
+        browse(_query.value)
+    }
+
+    /**
+     * Halaman berikutnya. Offset = jumlah baris yang sudah tampil, jadi
+     * hasilnya menyambung tepat di baris terakhir yang dilihat pengguna.
+     * Realtime bisa menyisipkan baris baru saat scroll, jadi hasil digabung
+     * dengan dedupe id — tanpa itu satu rute bisa muncul dua kali.
+     */
+    fun loadMore() {
+        val current = _state.value as? BrowseState.Loaded ?: return
+        if (current.isLoadingMore || !current.hasMore) return
+        if (!SupabaseClientProvider.isConfigured) return
+        val offset = current.routes.size
+        _state.value = current.copy(isLoadingMore = true)
+        viewModelScope.launch {
+            when (val outcome = repository.browse(
+                client = SupabaseClientProvider.client,
+                query = _query.value,
+                filters = appliedFilters,
+                sort = sort,
+                offset = offset,
+                bbox = nearMeBbox
+            )) {
+                is BrowseRepository.Outcome.Success -> {
+                    val seen = current.routes.mapTo(HashSet()) { it.id }
+                    val appended = outcome.routes.filterNot { it.id in seen }
+                    _state.value = BrowseState.Loaded(
+                        routes = current.routes + appended,
+                        fromSearch = current.fromSearch,
+                        isLoadingMore = false,
+                        hasMore = outcome.routes.size >= BrowsePaging.DEFAULT_PAGE_SIZE
+                    )
+                }
+                is BrowseRepository.Outcome.Failure -> {
+                    // Stop sampai refresh berikutnya; jangan biarkan scroll
+                    // memicu request yang gagal berulang-ulang.
+                    _state.value = current.copy(isLoadingMore = false, hasMore = false)
+                }
+            }
+        }
+    }
+
+    private companion object {
+        /** Radius "dekat saya": 25 km cukup untuk "gunung di sekitar saya"
+         *  tanpa menarik setengah pulau. */
+        const val NEAR_ME_RADIUS_KM = 25.0
+    }
 
     /** Liked/bookmarked ids come from the PROCESS-WIDE [SharedSocialState]
      *  (realtime: a toggle on Saved/Route Detail updates these cards in the
@@ -165,12 +240,14 @@ class BrowseViewModel : ViewModel() {
                 client = SupabaseClientProvider.client,
                 query = _query.value,
                 filters = appliedFilters,
-                sort = sort
+                sort = sort,
+                bbox = nearMeBbox
             )) {
                 is BrowseRepository.Outcome.Success -> _state.value = BrowseState.Loaded(
                     routes = outcome.routes,
                     fromSearch = _query.value.isNotBlank(),
-                    isRefreshing = false
+                    isRefreshing = false,
+                    hasMore = outcome.routes.size >= BrowsePaging.DEFAULT_PAGE_SIZE
                 )
                 is BrowseRepository.Outcome.Failure -> {
                     (_state.value as? BrowseState.Loaded)?.let { s ->
@@ -268,11 +345,13 @@ class BrowseViewModel : ViewModel() {
                 client = SupabaseClientProvider.client,
                 query = query,
                 filters = appliedFilters,
-                sort = sort
+                sort = sort,
+                bbox = nearMeBbox
             )) {
                 is BrowseRepository.Outcome.Success -> _state.value = BrowseState.Loaded(
                     routes = outcome.routes,
-                    fromSearch = query.isNotBlank()
+                    fromSearch = query.isNotBlank(),
+                    hasMore = outcome.routes.size >= BrowsePaging.DEFAULT_PAGE_SIZE
                 )
                 is BrowseRepository.Outcome.Failure -> _state.value = BrowseState.Error(
                     BrowseUiError(errorResFor(outcome.error))

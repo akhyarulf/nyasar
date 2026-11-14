@@ -214,7 +214,15 @@ class BrowseRepository {
         query: String = "",
         filters: BrowseFilters = BrowseFilters(),
         sort: SortOrder = SortOrder.NEWEST,
-        limit: Int = 50
+        limit: Int = BrowsePaging.DEFAULT_PAGE_SIZE,
+        /** Jumlah baris yang SUDAH dimuat klien — halaman berikutnya mulai
+         *  dari sini. Selalu dihitung dari jumlah baris yang benar-benar
+         *  tampil (setelah dedupe), bukan dari nomor halaman. */
+        offset: Int = 0,
+        /** Kotak "Dekat saya" / area peta. null = Jelajah global seperti
+         *  sebelumnya; bbox yang tidak masuk akal diabaikan (lihat
+         *  BrowseBbox.isUsable) alih-alih menghasilkan query kosong. */
+        bbox: BrowseBbox? = null
     ): Outcome {
         if (!SupabaseClientProvider.isConfigured) {
             return Outcome.Failure(BrowseError.NOT_CONFIGURED)
@@ -280,14 +288,36 @@ class BrowseRepository {
                                 ilike("name", "%$safe%")
                             }
                         }
+                        // "Dekat saya" / area peta: bbox pada titik AWAL rute
+                        // (start_lat/start_lng, diisi saat publish). Rute
+                        // tanpa titik awal tidak akan cocok — itu benar:
+                        // NULL tidak boleh lolos sebagai "dekat".
+                        if (bbox != null) {
+                            val box = bbox.normalized()
+                            if (box.isUsable) {
+                                gte("start_lat", box.minLat)
+                                lte("start_lat", box.maxLat)
+                                gte("start_lng", box.minLng)
+                                lte("start_lng", box.maxLng)
+                            }
+                        }
                     }
-                    limit(limit.toLong())
+                    // Pagination: PostgREST range inklusif, jadi page(offset,
+                    // limit) mengembalikan tepat `limit` baris (atau kurang di
+                    // halaman terakhir). Tanpa range, limit() selalu memulai
+                    // dari baris pertama.
+                    val page = BrowsePaging.page(offset = offset, limit = limit)
+                    range(page.first, page.last)
                     when (sort) {
                         SortOrder.NEWEST -> order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
                         SortOrder.MOST_LIKED -> order("likes_count", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
                         SortOrder.DISTANCE_ASC -> order("distance_meters", io.github.jan.supabase.postgrest.query.Order.ASCENDING)
                         SortOrder.DISTANCE_DESC -> order("distance_meters", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
                     }
+                    // Tiebreaker unik: dua baris dengan nilai sort yang sama
+                    // (mis. dua rute likes_count identik) bisa muncul dua kali
+                    // atau terlewat di batas halaman tanpa urutan kedua ini.
+                    order("id", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
                 }
                 .decodeList<PublicRoute>()
             Outcome.Success(result)

@@ -40,7 +40,16 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.filled.MyLocation
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,6 +109,37 @@ fun BrowseScreen(
     val savedIds by viewModel.savedIds.collectAsState()
     val savePending by viewModel.savePending.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val nearMeEnabled by viewModel.nearMeEnabled.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    /**
+     * Ambil satu fix GPS lalu aktifkan Jelajah "dekat saya" (bbox ±25 km).
+     * Izin dicek pemanggil; di sini hanya soal mendapatkan posisi. Tanpa fix
+     * dalam 8 detik (di dalam ruangan, GPS belum lock) pengguna diberi tahu
+     * alih-alih melihat daftar kosong tanpa penjelasan.
+     */
+    fun enableNearMe() {
+        scope.launch {
+            val fix = withTimeoutOrNull(8_000) {
+                com.nyasar.app.location.LocationRepository(context).observeLocation().first()
+            }
+            if (fix != null) {
+                viewModel.enableNearMe(fix.lat, fix.lon)
+            } else {
+                Toast.makeText(context, R.string.browse_near_me_failed, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val locationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            enableNearMe()
+        } else {
+            Toast.makeText(context, R.string.browse_near_me_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Filter + sort live in the header as icon-only actions (reference feed
     // anatomy: a title with a row of glyphs, no control bar eating the first
@@ -132,6 +172,31 @@ fun BrowseScreen(
                 // Subtitle dihapus (feedback user 2026-09): tagline tidak
                 // menambah informasi, header cukup judul + aksi saja.
                 actions = {
+                    // "Dekat saya": satu tombol toggle. Menyalakan meminta
+                    // izin lokasi bila belum ada, lalu memakai satu fix GPS
+                    // untuk menghitung bbox ±25 km. Posisi tidak disimpan —
+                    // yang dikirim ke server hanya kotak wilayahnya.
+                    IconButton(onClick = {
+                        if (nearMeEnabled) {
+                            viewModel.disableNearMe()
+                        } else if (
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            enableNearMe()
+                        } else {
+                            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.MyLocation,
+                            contentDescription = stringResource(R.string.browse_near_me),
+                            tint = if (nearMeEnabled) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     // Search, then refine: glyph order mirrors how the feed is
                     // narrowed. Search stays lit while the field is open.
                     IconButton(onClick = {
@@ -284,6 +349,23 @@ fun BrowseScreen(
                         // StaticMapPreview), jadi renderer native tidak
                         // pernah menyala di tengah gestur scroll.
                         val feedListState = rememberLazyListState()
+                        // Infinite scroll: minta halaman berikutnya begitu
+                        // tiga kartu terakhir mulai terlihat. derivedStateOf
+                        // supaya recomposition hanya terjadi saat ambang itu
+                        // berubah, bukan setiap frame scroll.
+                        val shouldLoadMore by remember(
+                            feedListState, s.routes.size, s.hasMore, s.isLoadingMore
+                        ) {
+                            derivedStateOf {
+                                val lastVisible =
+                                    feedListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+                                s.hasMore && !s.isLoadingMore && s.routes.isNotEmpty() &&
+                                    lastVisible >= s.routes.size - 3
+                            }
+                        }
+                        LaunchedEffect(shouldLoadMore) {
+                            if (shouldLoadMore) viewModel.loadMore()
+                        }
                         CompositionLocalProvider(LocalFeedScrollState provides feedListState) {
                         LazyColumn(
                             // Full-bleed feed rows: the map and the hairlines
@@ -312,6 +394,21 @@ fun BrowseScreen(
                                     onShare = { shareRoute(context, route) },
                                     onClick = { onOpenRoute(route.id) }
                                 )
+                            }
+                            // Footer: satu-satunya penanda bahwa daftar masih
+                            // bertambah saat pengguna scroll.
+                            if (s.isLoadingMore) {
+                                item(key = "loading-more") {
+                                    Box(
+                                        Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    }
+                                }
                             }
                         }
                         }

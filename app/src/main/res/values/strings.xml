@@ -673,6 +673,11 @@
     <string name="battery_optimization_hint">Ketuk untuk minta pengecualian baterai — supaya recording tidak dimatikan oleh penghemat baterai HP</string>
     <string name="background_location_title">Lokasi sepanjang waktu</string>
     <string name="background_location_hint">Ketuk untuk mengizinkan lokasi sepanjang waktu — syarat agar rekaman lanjut otomatis setelah HP restart</string>
+    <string name="background_location_gate_title">Lanjutkan rekaman setelah HP restart?</string>
+    <string name="background_location_gate_body">Kalau HP mati atau restart di tengah perjalanan, Nyasar bisa melanjutkan rekaman sendiri — tapi itu butuh izin lokasi \"Sepanjang waktu\". Rekaman tetap bisa dimulai tanpa izin ini, hanya tidak akan lanjut otomatis. Izin diatur di halaman pengaturan aplikasi, karena Android tidak lagi menampilkan dialognya.</string>
+    <string name="background_location_gate_open">Buka pengaturan</string>
+    <string name="browse_near_me">Dekat saya</string>
+    <string name="browse_near_me_failed">Lokasi belum didapat. Coba lagi di area terbuka.</string>
 
     <!-- ═══ Akun / Autentikasi (Fase 1) ═══ -->
     <string name="account_section">Akun</string>

@@ -92,7 +92,13 @@ object SharedMapHolder {
         val onWaypointClick: (GpxWaypoint) -> Unit = {},
         val onUserWaypointClick: (String) -> Unit = {},
         val onUserGesture: () -> Unit = {},
-        val onBearingChanged: (Float) -> Unit = {}
+        val onBearingChanged: (Float) -> Unit = {},
+        /** Camera came to rest (drag/pinch/zoom finished). Carries the
+         *  visible bounds so the host can fetch public routes for exactly
+         *  the area now on screen ("jelajah peta"). */
+        val onCameraIdle: (org.maplibre.android.geometry.LatLngBounds) -> Unit = { _ -> },
+        /** Tap on a public-route line drawn by the Explore overlay. */
+        val onExploreRouteClick: (String) -> Unit = {}
     )
 
     @Volatile
@@ -126,6 +132,24 @@ object SharedMapHolder {
     /** Called right after registering the physical camera listeners. */
     fun markCameraListenersInstalled() {
         synchronized(this) { cameraListenersInstalled = true }
+    }
+
+    // Camera-IDLE is a THIRD one-time group, with its own flag for the same
+    // reason the first two are separate: it is installed from the AndroidView
+    // factory (tap path) while bearing/gesture listeners are installed from
+    // the style-load path, and either can run first. Sharing a flag would let
+    // the first one mark the group installed and silently drop the other.
+    @Volatile
+    private var cameraIdleListenerInstalled = false
+
+    /** True while the one-time camera-idle listener still needs registering
+     *  on the shared instance. */
+    fun needsCameraIdleListenerInstall(): Boolean =
+        synchronized(this) { !cameraIdleListenerInstalled }
+
+    /** Called right after registering the camera-idle listener. */
+    fun markCameraIdleListenerInstalled() {
+        synchronized(this) { cameraIdleListenerInstalled = true }
     }
 
     fun get(context: Context): MapView {

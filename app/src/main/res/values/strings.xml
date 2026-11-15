@@ -678,6 +678,14 @@
     <string name="background_location_gate_open">Buka pengaturan</string>
     <string name="browse_near_me">Dekat saya</string>
     <string name="browse_near_me_failed">Lokasi belum didapat. Coba lagi di area terbuka.</string>
+    <!-- Jelajah peta: rute publik di area kamera (konsep Strava). -->
+    <string name="explore_map_cd">Jelajah rute publik</string>
+    <string name="explore_empty">Tidak ada rute publik di area ini</string>
+    <string name="explore_zoom_in">Perbesar peta untuk melihat rute</string>
+    <string name="explore_failed">Gagal memuat rute di area ini</string>
+    <string name="explore_loading">Mencari rute…</string>
+    <string name="explore_open_detail">Lihat</string>
+    <string name="explore_close_cd">Tutup</string>
 
     <!-- ═══ Akun / Autentikasi (Fase 1) ═══ -->
     <string name="account_section">Akun</string>

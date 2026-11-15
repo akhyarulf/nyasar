@@ -676,6 +676,14 @@
     <string name="background_location_gate_open">Open settings</string>
     <string name="browse_near_me">Near me</string>
     <string name="browse_near_me_failed">Couldn\'t get your location. Try again outdoors.</string>
+    <!-- Map explore: public routes in the current camera area (Strava-like). -->
+    <string name="explore_map_cd">Explore public routes</string>
+    <string name="explore_empty">No public routes in this area</string>
+    <string name="explore_zoom_in">Zoom in to see routes</string>
+    <string name="explore_failed">Could not load routes in this area</string>
+    <string name="explore_loading">Finding routes…</string>
+    <string name="explore_open_detail">View</string>
+    <string name="explore_close_cd">Close</string>
 
     <!-- ═══ Account / Authentication (Phase 1) ═══ -->
     <string name="account_section">Account</string>

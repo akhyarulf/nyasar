@@ -7,6 +7,10 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.nyasar.app.data.repository.RouteRepository
 import com.nyasar.app.data.settings.SettingsRepository
+import com.nyasar.app.data.supabase.BrowseBbox
+import com.nyasar.app.data.supabase.BrowseRepository
+import com.nyasar.app.data.supabase.SupabaseClientProvider
+import com.nyasar.app.map.MyRouteLine
 import com.nyasar.app.gpx.GpxParseException
 import com.nyasar.app.location.LocationRepository
 import com.nyasar.app.map.BasemapEntry
@@ -24,7 +28,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * P3: map is now the home screen (spec Section 10), so this ViewModel owns
@@ -159,6 +167,57 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // ── Jelajah peta (rute PUBLIK di area yang sedang dilihat) ──
+    //
+    // Konsep Strava: yang jadi acuan adalah AREA PETA, bukan posisi pengguna,
+    // dan hasilnya tampil sebagai garis di peta — bukan daftar. Kotak yang
+    // dikirim = batas kamera yang dikembangkan 25%, jadi posisi pengguna
+    // tidak pernah ikut terkirim dan tidak disimpan di mana pun.
+    //
+    // Tiga penjaga egress (kuota Supabase free tier): debounce 500 ms saat
+    // kamera berhenti, cache per-kotak 60 detik (maks 20 entri), dan batas
+    // 60 rute per permintaan. Tanpa itu, pan bolak-balik akan mengunduh
+    // ratusan KB polyline berkali-kali per menit.
+    private val browseRepository = BrowseRepository()
+
+    private val _exploreEnabled = MutableStateFlow(false)
+    val exploreEnabled: StateFlow<Boolean> = _exploreEnabled.asStateFlow()
+
+    private val _exploreRoutes = MutableStateFlow<List<MyRouteLine>>(emptyList())
+    val exploreRoutes: StateFlow<List<MyRouteLine>> = _exploreRoutes.asStateFlow()
+
+    /** Naik setiap hasil explore BARU diterapkan. Dipakai sebagai kunci
+     *  redraw overlay peta: membandingkan daftar track (60 × ~1500 titik)
+     *  sebagai key Compose berarti puluhan ribu perbandingan per
+     *  recomposition, sedangkan Int gratis. */
+    private val _exploreRevision = MutableStateFlow(0)
+    val exploreRevision: StateFlow<Int> = _exploreRevision.asStateFlow()
+
+    private val _exploreSelectedId = MutableStateFlow<String?>(null)
+    val exploreSelectedId: StateFlow<String?> = _exploreSelectedId.asStateFlow()
+
+    /** Full row of the tapped route (name/stats/difficulty for the card) —
+     *  kept from the SAME fetch that drew the line, so opening the card never
+     *  costs a second request. */
+    private val _exploreDetail = MutableStateFlow<BrowseRepository.PublicRoute?>(null)
+    val exploreDetail: StateFlow<BrowseRepository.PublicRoute?> = _exploreDetail.asStateFlow()
+
+    private val _exploreLoading = MutableStateFlow(false)
+    val exploreLoading: StateFlow<Boolean> = _exploreLoading.asStateFlow()
+
+    /** One-shot status message (string res): area kosong / gagal / zoom
+     *  terlalu jauh. Null = nothing to say. */
+    private val _exploreNotice = MutableStateFlow<Int?>(null)
+    val exploreNotice: StateFlow<Int?> = _exploreNotice.asStateFlow()
+
+    private var exploreRows: List<BrowseRepository.PublicRoute> = emptyList()
+    private var exploreJob: Job? = null
+    private var lastExploreKey: String? = null
+
+    /** LRU (accessOrder = true) — the 20 most recently viewed areas. */
+    private val exploreCache = object : LinkedHashMap<String, List<BrowseRepository.PublicRoute>>(8, 0.75f, true) {}
+    private val exploreCacheAt = HashMap<String, Long>()
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -261,5 +320,170 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      *  removed. */
     fun deleteRoute(route: com.nyasar.app.data.db.RouteEntity) {
         viewModelScope.launch { repository.delete(route) }
+    }
+
+    // ── Jelajah peta: API untuk HomeScreen ──
+
+    fun toggleExplore() {
+        if (_exploreEnabled.value) disableExplore() else enableExplore()
+    }
+
+    private fun enableExplore() {
+        if (!SupabaseClientProvider.isConfigured) {
+            // Sama seperti Browse/Jelajah: tanpa kunci Supabase tidak ada
+            // yang bisa diambil. Katakan apa adanya, jangan peta kosong
+            // tanpa penjelasan.
+            _exploreNotice.value = com.nyasar.app.R.string.explore_failed
+            return
+        }
+        _exploreEnabled.value = true
+        _exploreNotice.value = null
+        lastExploreKey = null
+    }
+
+    fun disableExplore() {
+        exploreJob?.cancel()
+        _exploreEnabled.value = false
+        _exploreRoutes.value = emptyList()
+        _exploreRevision.value = _exploreRevision.value + 1
+        _exploreSelectedId.value = null
+        _exploreDetail.value = null
+        exploreRows = emptyList()
+        _exploreNotice.value = null
+        lastExploreKey = null
+    }
+
+    /**
+     * Dipanggil NyasarMapView setiap kamera BERHENTI bergerak (bukan tiap
+     * frame). Kotak dari batas kamera → debounce → cache → fetch.
+     */
+    fun onMapCameraIdle(bounds: org.maplibre.android.geometry.LatLngBounds) {
+        if (!_exploreEnabled.value) return
+        val box = exploreBoxFor(bounds)
+        if (box == null) {
+            exploreJob?.cancel()
+            exploreJob = null
+            lastExploreKey = null
+            _exploreLoading.value = false
+            _exploreRoutes.value = emptyList()
+            _exploreSelectedId.value = null
+            _exploreDetail.value = null
+            _exploreNotice.value = com.nyasar.app.R.string.explore_zoom_in
+            return
+        }
+        val key = "%.4f|%.4f|%.4f|%.4f".format(box.minLat, box.minLng, box.maxLat, box.maxLng)
+        // Kamera berhenti di tempat yang sama (mis. setelah memilih rute) —
+        // jangan fetch ulang.
+        if (key == lastExploreKey) return
+        lastExploreKey = key
+        exploreJob?.cancel()
+        exploreJob = viewModelScope.launch {
+            delay(EXPLORE_DEBOUNCE_MS)
+            val cachedAt = exploreCacheAt[key] ?: 0L
+            val cached = exploreCache[key]
+                ?.takeIf { System.currentTimeMillis() - cachedAt < EXPLORE_CACHE_TTL_MS }
+            if (cached != null) {
+                applyExplore(cached)
+                return@launch
+            }
+            _exploreLoading.value = true
+            _exploreNotice.value = null
+            when (val outcome = browseRepository.browse(
+                client = SupabaseClientProvider.client,
+                bbox = box,
+                limit = EXPLORE_LIMIT
+            )) {
+                is BrowseRepository.Outcome.Success -> {
+                    exploreCache[key] = outcome.routes
+                    exploreCacheAt[key] = System.currentTimeMillis()
+                    trimExploreCache()
+                    applyExplore(outcome.routes)
+                }
+                is BrowseRepository.Outcome.Failure -> {
+                    _exploreLoading.value = false
+                    _exploreNotice.value = com.nyasar.app.R.string.explore_failed
+                }
+            }
+        }
+    }
+
+    /**
+     * Batas kamera → kotak query. Dikembangkan 25% karena filter server
+     * memakai titik AWAL rute: tanpa mengembang, rute yang mulai sedikit di
+     * luar layar tapi garisnya melintasi layar tidak akan muncul. Zoom yang
+     * terlalu jauh ditolak (null) — itu permintaan se-provinsi, bukan
+     * "jelajah area ini".
+     */
+    private fun exploreBoxFor(bounds: org.maplibre.android.geometry.LatLngBounds): BrowseBbox? {
+        val latSpan = bounds.latitudeNorth - bounds.latitudeSouth
+        val lngSpan = bounds.longitudeEast - bounds.longitudeWest
+        if (latSpan <= 0.0 && lngSpan <= 0.0) return null
+        if (latSpan > MAX_EXPLORE_SPAN_DEGREES || lngSpan > MAX_EXPLORE_SPAN_DEGREES) return null
+        val padLat = latSpan * 0.25
+        val padLng = lngSpan * 0.25
+        return BrowseBbox(
+            minLat = bounds.latitudeSouth - padLat,
+            minLng = bounds.longitudeWest - padLng,
+            maxLat = bounds.latitudeNorth + padLat,
+            maxLng = bounds.longitudeEast + padLng
+        ).normalized().takeIf { it.isUsable }
+    }
+
+    /** Decode polyline → garis peta. Decimation memakai batas vertex yang
+     *  sudah dipakai "Jalur Saya" (1500/rute), jadi 60 rute tetap ringan
+     *  bagi MapLibre. Dijalankan di Default, bukan main thread. */
+    private suspend fun applyExplore(rows: List<BrowseRepository.PublicRoute>) {
+        val lines = withContext(Dispatchers.Default) {
+            rows.mapNotNull { row ->
+                val points = BrowseRepository.decodeTrack(row.trackPolyline)
+                if (points.size < 2) null
+                else MyRouteLine(row.id, row.name, MyRouteLine.decimate(points))
+            }
+        }
+        exploreRows = rows
+        _exploreRoutes.value = lines
+        _exploreRevision.value = _exploreRevision.value + 1
+        _exploreLoading.value = false
+        _exploreNotice.value = if (lines.isEmpty()) com.nyasar.app.R.string.explore_empty else null
+        // Card yang terbuka bisa menunjuk rute di area sebelumnya.
+        val selected = _exploreSelectedId.value
+        if (selected != null && lines.none { it.routeId == selected }) {
+            _exploreSelectedId.value = null
+            _exploreDetail.value = null
+        }
+    }
+
+    fun selectExploreRoute(id: String) {
+        _exploreSelectedId.value = id
+        _exploreDetail.value = exploreRows.firstOrNull { it.id == id }
+    }
+
+    fun clearExploreSelection() {
+        _exploreSelectedId.value = null
+        _exploreDetail.value = null
+    }
+
+    private fun trimExploreCache() {
+        if (exploreCache.size <= EXPLORE_CACHE_MAX) return
+        val it = exploreCache.keys.iterator()
+        while (exploreCache.size > EXPLORE_CACHE_MAX && it.hasNext()) {
+            val oldest = it.next()
+            it.remove()
+            exploreCacheAt.remove(oldest)
+        }
+    }
+
+    private companion object {
+        /** Batas atas per permintaan — 60 rute × ~8 KB masih di bawah 1 MB. */
+        const val EXPLORE_LIMIT = 60
+
+        /** Lebar kamera maksimum (derajat). Kotak akhirnya dikali 1,25 dan
+         *  harus lolos [BrowseBbox.isUsable] (maks 2°), jadi ~1,3° di sini
+         *  adalah batas zoom-out praktis. */
+        const val MAX_EXPLORE_SPAN_DEGREES = 1.3
+
+        const val EXPLORE_DEBOUNCE_MS = 500L
+        const val EXPLORE_CACHE_TTL_MS = 60_000L
+        const val EXPLORE_CACHE_MAX = 20
     }
 }

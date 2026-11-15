@@ -876,7 +876,10 @@ private fun NyasarNavHost(
                 onStartRecording = { navController.navigate("recording?autoStart=true") },
                 onResumeRecording = { navController.navigate("recording?autoStart=false") },
                 onOpenHistory = { navController.navigate("profile?tab=history") },
-                onOpenDrawRoute = { navController.navigate("draw-route") }
+                onOpenDrawRoute = { navController.navigate("draw-route") },
+                // Kartu "jelajah peta" menuju Route Detail PUBLIK — destinasinya
+                // sudah ada (dipakai tab Jelajah), sekadar disambungkan dari peta.
+                onOpenPublicRoute = { routeId -> navController.navigate("route/$routeId") }
             )
         }
         // IA rework 2026 (rev2): History + Saved are merged behind the

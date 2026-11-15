@@ -18,7 +18,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.Hiking
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Place
@@ -87,7 +89,11 @@ fun HomeScreen(
     onStartRecording: () -> Unit = {},
     onResumeRecording: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
-    onOpenDrawRoute: () -> Unit = {}
+    onOpenDrawRoute: () -> Unit = {},
+    /** Buka Route Detail PUBLIK (rute milik orang lain) — dipakai kartu
+     *  "jelajah peta". Berbeda dari [onOpenRoute], yang membuka preview rute
+     *  LOKAL di Library. */
+    onOpenPublicRoute: (String) -> Unit = {}
 ) {
     val routes by viewModel.routes.collectAsState(initial = emptyList())
     val importError by viewModel.importError.collectAsState()
@@ -148,6 +154,15 @@ fun HomeScreen(
     // Data-section toggles (picker sheet) — waypoint pins gate, app-wide.
     val waypointsVisible by viewModel.waypointsVisible.collectAsState()
     val myRouteLines by viewModel.myRouteLines.collectAsState()
+    // "Jelajah peta": rute PUBLIK di area kamera (konsep Strava). Acuannya
+    // peta yang sedang dilihat, bukan posisi pengguna — lihat HomeViewModel.
+    val exploreEnabled by viewModel.exploreEnabled.collectAsState()
+    val exploreLines by viewModel.exploreRoutes.collectAsState()
+    val exploreSelectedId by viewModel.exploreSelectedId.collectAsState()
+    val exploreRevision by viewModel.exploreRevision.collectAsState()
+    val exploreDetail by viewModel.exploreDetail.collectAsState()
+    val exploreNotice by viewModel.exploreNotice.collectAsState()
+    val exploreLoading by viewModel.exploreLoading.collectAsState()
 
     val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.importGpx(it) }
@@ -219,6 +234,12 @@ fun HomeScreen(
             // line data; no active route on Home, so every line renders
             // inactive (gray/dashed).
             myRoutes = myRouteLines,
+            // Rute publik di area ini — garis oranye, biru saat dipilih.
+            exploreRoutes = exploreLines,
+            exploreRevision = exploreRevision,
+            exploreSelectedId = exploreSelectedId,
+            onExploreRouteClick = { id -> viewModel.selectExploreRoute(id) },
+            onCameraIdle = viewModel::onMapCameraIdle,
             // Downloaded-areas overlay (Settings → Offline): green = complete
             // for the active basemap's style, gray = still downloading.
             offlineAreas = if (offlineOverlayEnabled) offlineAreas else emptyList(),
@@ -379,6 +400,25 @@ fun HomeScreen(
         ) {
             // (entrance animation lives on each RoundIconButton below —
             // staggered fade-and-rise, same family as banners/cards)
+            // Jelajah peta ON/OFF. Menyalakannya langsung memakai kamera yang
+            // sedang terlihat — camera-idle hanya terpicu saat peta DIGERAKKAN,
+            // jadi tanpa dorongan awal ini peta akan kosong sampai pengguna
+            // pan/zoom, padahal dia baru saja menekan tombolnya.
+            RoundIconButton(
+                icon = Icons.Default.Explore,
+                contentDescription = stringResource(R.string.explore_map_cd),
+                tint = if (exploreEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                onClick = {
+                    viewModel.toggleExplore()
+                    if (!exploreEnabled) {
+                        mapInstance?.let { map ->
+                            runCatching { map.projection.visibleRegion.latLngBounds }
+                                .getOrNull()
+                                ?.let { viewModel.onMapCameraIdle(it) }
+                        }
+                    }
+                }
+            )
             Box {
                 RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
                     showBasemapSheet = true
@@ -416,6 +456,93 @@ fun HomeScreen(
                 .padding(end = 12.dp, top = 62.dp)
                 .size(48.dp)
         )
+
+        // --- Status jelajah peta (memuat / kosong / gagal / zoom terlalu
+        // jauh). Satu chip di atas bottom bar; tidak menutupi tombol kanan. ---
+        if (exploreEnabled && (exploreLoading || exploreNotice != null)) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 84.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(NyasarRadius.pill),
+                tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (exploreLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    Text(
+                        stringResource(exploreNotice ?: R.string.explore_loading),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // --- Kartu rute yang diketuk di peta. Datanya berasal dari fetch yang
+        // sama dengan garisnya, jadi membuka kartu tidak memanggil server. ---
+        exploreDetail?.let { route ->
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 84.dp)
+                    .fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(NyasarRadius.md),
+                shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow
+            ) {
+                Row(
+                    Modifier.padding(start = NyasarSpacing.md, top = NyasarSpacing.md, bottom = NyasarSpacing.md, end = NyasarSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            route.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        val gain = route.elevationGainM?.roundToInt()
+                        val difficulty = com.nyasar.app.data.supabase.BrowseRepository.DifficultyFilter
+                            .fromWire(route.difficulty ?: "")
+                        val meta = listOfNotNull(
+                            "%.1f km".format(route.distanceMeters / 1000.0),
+                            gain?.let { "↑$it m" },
+                            difficulty?.let { stringResource(it.labelRes) }
+                        ).joinToString(" · ")
+                        Text(
+                            meta,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    TextButton(onClick = { onOpenPublicRoute(route.id) }) {
+                        Text(stringResource(R.string.explore_open_detail))
+                    }
+                    IconButton(onClick = { viewModel.clearExploreSelection() }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.explore_close_cd),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
 
         // Zoom +/- removed per feedback — recenter + pinch-to-zoom cover
         // this, the buttons were just extra clutter.

@@ -89,6 +89,16 @@ private const val LAYER_HIGHLIGHT_OUTLINE = "nyasar-highlight-outline-layer"
 private const val SOURCE_MY_ROUTES = "nyasar-my-routes-source"
 private const val LAYER_MY_ROUTES = "nyasar-my-routes-layer"
 private const val LAYER_MY_ROUTES_ACTIVE = "nyasar-my-routes-active-layer"
+// Explore overlay ("jelajah peta"): PUBLIC routes from Supabase for the area
+// currently on screen. Deliberately a SEPARATE source/layer pair from
+// "Jalur Saya" above — different data owner (server, not local GPX),
+// different palette, and its own tap target — so neither overlay can ever
+// steal the other's geometry or hit-testing. Same two-layer split though:
+// base = every route, active = the selected id, expressed by FILTER so
+// selecting never re-uploads geometry.
+private const val SOURCE_EXPLORE = "nyasar-explore-source"
+private const val LAYER_EXPLORE = "nyasar-explore-layer"
+private const val LAYER_EXPLORE_ACTIVE = "nyasar-explore-active-layer"
 
 /**
  * The map is the center of the app (spec section 21/6) — this composable
@@ -135,6 +145,28 @@ fun NyasarMapView(
      *  rendered solid accent, all other [myRoutes] gray/dashed. Null: no
      *  route is active, every line renders inactive. */
     activeRouteId: String? = null,
+    /** Public routes for the area on screen (Explore / "jelajah peta",
+     *  Strava-style). Same [com.nyasar.app.map.MyRouteLine] shape as
+     *  [myRoutes] — id + name + already-decimated points — because the
+     *  rendering job is identical; only the data owner and the palette
+     *  differ. Empty (the default) leaves the map untouched. */
+    exploreRoutes: List<com.nyasar.app.map.MyRouteLine> = emptyList(),
+    /** Explore route id to accent (the one whose card is open). */
+    exploreSelectedId: String? = null,
+    /** Counter bumped by the host every time a NEW explore result is applied.
+     *  Used as this overlay's redraw key instead of [exploreRoutes] itself:
+     *  comparing two lists of decimated tracks as LaunchedEffect keys would
+     *  mean ~90k point comparisons on every recomposition of this composable
+     *  (bearing updates alone trigger those), where an Int is O(1). */
+    exploreRevision: Int = 0,
+    /** Fires when the user taps an explore line — the host opens that
+     *  route's card. Checked BEFORE the plain map-tap fallthrough, so
+     *  tapping a line never reads as "tapped empty map". */
+    onExploreRouteClick: (String) -> Unit = {},
+    /** Camera came to rest (drag/pinch/zoom finished) with the visible
+     *  bounds. Viewshed-fetch hook for the Explore overlay: fires only when
+     *  the camera stops, never on every frame of a pan. */
+    onCameraIdle: (org.maplibre.android.geometry.LatLngBounds) -> Unit = {},
     track: List<TrackPoint>,
     /** Explicit color for the [track] line. Null (default) = legacy
      *  heuristic — green when [actualTrack] is empty ("this list is the
@@ -344,7 +376,9 @@ fun NyasarMapView(
             onWaypointClick = onWaypointClick,
             onUserWaypointClick = onUserWaypointClick,
             onUserGesture = onUserGesture,
-            onBearingChanged = onBearingChanged
+            onBearingChanged = onBearingChanged,
+            onCameraIdle = onCameraIdle,
+            onExploreRouteClick = onExploreRouteClick
         )
     }
 
@@ -513,6 +547,67 @@ fun NyasarMapView(
                     style.getLayer(LAYER_TRACK) != null -> {
                         style.addLayerBelow(baseLayer, LAYER_TRACK)
                         style.addLayerAbove(activeLayer, LAYER_MY_ROUTES)
+                    }
+                    else -> {
+                        style.addLayer(baseLayer)
+                        style.addLayer(activeLayer)
+                    }
+                }
+            }
+        }
+    }
+
+    // Explore overlay (public routes, "jelajah peta"). Mirror of the "Jalur
+    // Saya" effect directly above — same reasons for being its own effect
+    // (a data refresh must never reload the basemap), same styleGeneration
+    // re-key (survives a basemap switch), same two-layer/filter split. Colors
+    // differ on purpose: orange = "other people's routes", app blue = the one
+    // whose card is open, matching the blue that already means "the route
+    // I'm looking at" elsewhere. Editing the layer set is safe here because
+    // both layers are removed and rebuilt on each run, and this effect never
+    // fires per frame — only when the fetched set or the selection changes.
+    LaunchedEffect(exploreRevision, exploreSelectedId, basemapEntry, provider.id, styleVariant, styleGeneration) {
+        mapView.getMapAsync { map ->
+            map.getStyle { style ->
+                val features = exploreRoutes.filter { it.points.size >= 2 }.map { it.toFeature() }
+                val source = style.getSourceAs<GeoJsonSource>(SOURCE_EXPLORE)
+                    ?: GeoJsonSource(SOURCE_EXPLORE).also { style.addSource(it) }
+                source.setGeoJson(FeatureCollection.fromFeatures(features))
+                try { style.removeLayer(LAYER_EXPLORE_ACTIVE) } catch (_: Exception) {}
+                try { style.removeLayer(LAYER_EXPLORE) } catch (_: Exception) {}
+                val idProp = com.nyasar.app.map.MyRouteLine.PROP_ROUTE_ID
+                val selected = exploreSelectedId ?: ""
+                val baseLayer = LineLayer(LAYER_EXPLORE, SOURCE_EXPLORE)
+                    .withProperties(
+                        PropertyFactory.lineColor("#F57C00"),
+                        PropertyFactory.lineWidth(3f),
+                        PropertyFactory.lineCap("round"),
+                        PropertyFactory.lineJoin("round")
+                    )
+                val activeLayer = LineLayer(LAYER_EXPLORE_ACTIVE, SOURCE_EXPLORE)
+                    .withFilter(
+                        org.maplibre.android.style.expressions.Expression.eq(
+                            org.maplibre.android.style.expressions.Expression.get(idProp),
+                            org.maplibre.android.style.expressions.Expression.literal(selected)
+                        )
+                    )
+                    .withProperties(
+                        PropertyFactory.lineColor("#42A5F5"),
+                        PropertyFactory.lineWidth(5.5f),
+                        PropertyFactory.lineCap("round"),
+                        PropertyFactory.lineJoin("round")
+                    )
+                // Below the planned/actual track so a route the user is
+                // actively following is never hidden by a browsed one;
+                // above Waymarked/offline layers so it reads over the map.
+                when {
+                    style.getLayer(LAYER_TRACK) != null -> {
+                        style.addLayerBelow(baseLayer, LAYER_TRACK)
+                        style.addLayerBelow(activeLayer, LAYER_TRACK)
+                    }
+                    style.getLayer(LAYER_MY_ROUTES) != null -> {
+                        style.addLayerAbove(baseLayer, LAYER_MY_ROUTES)
+                        style.addLayerAbove(activeLayer, LAYER_EXPLORE)
                     }
                     else -> {
                         style.addLayer(baseLayer)
@@ -1323,6 +1418,8 @@ fun NyasarMapView(
     val currentOnUserWaypointClick by rememberUpdatedState(onUserWaypointClick)
     val currentOnMapClick by rememberUpdatedState(onMapClick)
     val currentOnMapLongPress by rememberUpdatedState(onMapLongPress)
+    val currentOnExploreRouteClick by rememberUpdatedState(onExploreRouteClick)
+    val currentOnCameraIdle by rememberUpdatedState(onCameraIdle)
 
     AndroidView(
         factory = {
@@ -1356,7 +1453,9 @@ fun NyasarMapView(
                         onMapClick = { lat, lon -> currentOnMapClick(lat, lon) },
                         onMapLongPress = { lat, lon -> currentOnMapLongPress(lat, lon) },
                         onWaypointClick = { currentOnWaypointClick(it) },
-                        onUserWaypointClick = { currentOnUserWaypointClick(it) }
+                        onUserWaypointClick = { currentOnUserWaypointClick(it) },
+                        onExploreRouteClick = { currentOnExploreRouteClick(it) },
+                        onCameraIdle = { currentOnCameraIdle(it) }
                     )
                     map.addOnMapClickListener { point ->
                         handleMapTap(map, point, map.projection.toScreenLocation(point), privateHandlers)
@@ -1365,6 +1464,28 @@ fun NyasarMapView(
                     map.addOnMapLongClickListener { point ->
                         currentOnMapLongPress(point.latitude, point.longitude)
                         true
+                    }
+                }
+                // Explore ("jelajah peta") camera-idle listener. Same stacking
+                // rule as the tap listeners above: MapLibre's addOn*Listener is
+                // additive with no remove API, so a SHARED map installs exactly
+                // once per process and forwards through the holder's slot (which
+                // every host re-points at its own handler), while a PRIVATE map
+                // installs once per owned instance from this factory.
+                if (shared) {
+                    if (SharedMapHolder.needsCameraIdleListenerInstall()) {
+                        map.addOnCameraIdleListener {
+                            runCatching { map.projection.visibleRegion.latLngBounds }
+                                .getOrNull()
+                                ?.let { SharedMapHolder.tapHandlers.onCameraIdle(it) }
+                        }
+                        SharedMapHolder.markCameraIdleListenerInstalled()
+                    }
+                } else {
+                    map.addOnCameraIdleListener {
+                        runCatching { map.projection.visibleRegion.latLngBounds }
+                            .getOrNull()
+                            ?.let { currentOnCameraIdle(it) }
                     }
                 }
             }
@@ -1613,6 +1734,33 @@ private fun handleMapTap(
         val id = userHit.getStringProperty(PROP_UWP_ID)
         if (id != null) {
             handlers.onUserWaypointClick(id)
+            return true
+        }
+    }
+
+    // Explore lines: checked BEFORE the plain-tap fallthrough (that case did
+    // nothing at all before), so tapping a public route opens its card
+    // instead of being swallowed as "tapped empty map". Wrapped in
+    // runCatching because the layer does not exist until the first explore
+    // fetch lands (and is absent on every screen that never enables it).
+    // A rect, not a single pixel: a 3dp line is a fiddly touch target, and
+    // "tap the line, nothing happens" is the worst possible answer here.
+    // ~24px around the finger is still small enough never to steal a tap from
+    // a pin (pins are hit-tested first, above).
+    val exploreHit = runCatching {
+        val pad = 24f
+        map.queryRenderedFeatures(
+            android.graphics.RectF(
+                screenPoint.x - pad, screenPoint.y - pad,
+                screenPoint.x + pad, screenPoint.y + pad
+            ),
+            LAYER_EXPLORE
+        ).firstOrNull()
+    }.getOrNull()
+    if (exploreHit != null) {
+        val exploreId = exploreHit.getStringProperty(com.nyasar.app.map.MyRouteLine.PROP_ROUTE_ID)
+        if (exploreId != null) {
+            handlers.onExploreRouteClick(exploreId)
             return true
         }
     }

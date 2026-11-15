@@ -444,16 +444,24 @@ fun HomeScreen(
             )
         }
 
-        // Compass — top-end, just below the header bar (status-bar inset +
-        // the bar's own height) so it sits beside the GPS banner lane without
-        // overlapping the header's search action.
+        // Compass — top-end, BELOW the header bar and on the same end lane as
+        // the right-hand control column.
+        //
+        // Two off-by-a-few-dp values used to make it read as clipped against
+        // the screen edge (reported from a device screenshot): top = 62.dp put
+        // its top edge on the header's hairline, so the dark circle vanished
+        // into the dark bar and looked cut off, and end = 12.dp sat 4dp closer
+        // to the edge than the four round buttons below it (which use 16.dp),
+        // so it looked pressed against the glass. 72.dp matches the banner lane
+        // (banners now stop 72dp short of the end, so they cannot collide) and
+        // 16.dp matches the control column.
         com.nyasar.app.ui.components.CompassButton(
             bearingDeg = mapBearing,
             onClick = { mapInstance?.let { it.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.bearingTo(0.0)) } },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPaddingCompat()
-                .padding(end = 12.dp, top = 62.dp)
+                .padding(end = 16.dp, top = 72.dp)
                 .size(48.dp)
         )
 

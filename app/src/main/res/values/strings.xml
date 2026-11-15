@@ -836,6 +836,10 @@
     <string name="nav_profile">Profil</string>
     <string name="profile_title">Profil</string>
     <string name="profile_tab_history">Riwayat</string>
+    <!-- Ringkasan angka di atas daftar Riwayat -->
+    <string name="profile_stats_activities">Aktivitas</string>
+    <string name="profile_stats_this_year">Tahun ini</string>
+    <string name="profile_stats_all_time">Seumur hidup</string>
     <string name="profile_sign_in_title">Masuk / Daftar</string>
     <string name="profile_sign_in_subtitle">Amankan rekamanmu selamanya</string>
     <string name="browse_title">Jelajah Rute</string>

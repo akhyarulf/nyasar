@@ -205,9 +205,13 @@ class BrowseRepository {
     }
 
     /**
-     * Browse/search public routes. [query] matches the route `name` via
-     * PostgREST ilike (search-by-name only — see the data-class note above:
-     * mountain_name/region are scheduled for removal, migration 0004).
+     * Browse/search public routes. [query] matches the route `name` OR its
+     * `description` via PostgREST ilike, grouped in one OR block so the other
+     * filters stay AND-ed. Searching the description matters because the most
+     * common query is a mountain ("sumbing") while the most common route name
+     * is its trailhead ("Jalur Pendakian via Kaliwungu") — name-only search
+     * silently missed exactly those. mountain_name/region are gone (Keputusan
+     * baru, migration 0004), so name/description are the only text columns.
      */
     suspend fun browse(
         client: SupabaseClient,
@@ -276,16 +280,20 @@ class BrowseRepository {
                         if (filters.gainMaxM < BrowseFilters.MAX_GAIN_M) {
                             lte("elevation_gain_m", filters.gainMaxM.toDouble())
                         }
-                        // Search matches the route name only (case-insensitive
-                        // ilike — must live INSIDE the filter scope). Strip
-                        // PostgREST pattern delimiters so a typed query can't
-                        // inject filter clauses. mountain_name/region are gone
-                        // (Keputusan baru, migration 0004) and were never valid
-                        // search targets in this layer.
+                        // Search matches the route name OR its description
+                        // (case-insensitive ilike — must live INSIDE the filter
+                        // scope). The OR group is its own block so it stays a
+                        // single clause AND-ed with every filter above; two
+                        // plain ilike() calls here would AND them and match
+                        // nothing. Strip PostgREST pattern delimiters so a typed
+                        // query can't inject filter clauses.
                         if (query.isNotBlank()) {
                             val safe = query.trim().replace(",", "").replace("(", "").replace(")", "")
                             if (safe.isNotBlank()) {
-                                ilike("name", "%$safe%")
+                                or {
+                                    ilike("name", "%$safe%")
+                                    ilike("description", "%$safe%")
+                                }
                             }
                         }
                         // "Dekat saya" / area peta: bbox pada titik AWAL rute

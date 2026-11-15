@@ -834,6 +834,10 @@
     <string name="nav_profile">Profile</string>
     <string name="profile_title">Profile</string>
     <string name="profile_tab_history">History</string>
+    <!-- Totals summary above the History list -->
+    <string name="profile_stats_activities">Activities</string>
+    <string name="profile_stats_this_year">This year</string>
+    <string name="profile_stats_all_time">All time</string>
     <string name="profile_sign_in_title">Sign in / Register</string>
     <string name="profile_sign_in_subtitle">Keep your recordings safe forever</string>
     <string name="browse_title">Explore Routes</string>

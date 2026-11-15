@@ -290,13 +290,19 @@ private fun ProfileHistoryPane(
     onShareGpx: (String) -> Unit,
     onGoToRecord: () -> Unit
 ) {
-    Box(Modifier.fillMaxSize()) {
-        com.nyasar.app.ui.history.ActivityHistoryEmbedded(
-            onOpenActivity = onOpenActivity,
-            onShareActivity = onShareActivity,
-            onShareGpx = onShareGpx,
-            emptyCta = onGoToRecord
-        )
+    // Totals strip sits ABOVE the list, not inside it: the History pane is a
+    // separate LazyColumn component, and the numbers are the reason people
+    // open this tab at all. It stays put while the list scrolls under it.
+    Column(Modifier.fillMaxSize()) {
+        ProfileStatsStrip()
+        Box(Modifier.weight(1f)) {
+            com.nyasar.app.ui.history.ActivityHistoryEmbedded(
+                onOpenActivity = onOpenActivity,
+                onShareActivity = onShareActivity,
+                onShareGpx = onShareGpx,
+                emptyCta = onGoToRecord
+            )
+        }
     }
 }
 

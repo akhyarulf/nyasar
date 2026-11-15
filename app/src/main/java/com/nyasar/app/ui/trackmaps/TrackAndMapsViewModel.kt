@@ -86,7 +86,7 @@ class TrackAndMapsViewModel(private val app: Application) : AndroidViewModel(app
             val rows = withContext(Dispatchers.IO) {
                 routes.map { route ->
                     val bounds = routeBounds(route)
-                    val covered = bounds?.let { rb -> regions.any { it.overlaps(rb) } }
+                    val covered = bounds?.let { rb -> regions.any { it.containsAll(rb) } }
                     TrackRowUi(route, hasOfflineCoverage = covered, publishState = publishBadge(route.id))
                 }
             }
@@ -193,23 +193,24 @@ class TrackAndMapsViewModel(private val app: Application) : AndroidViewModel(app
     }
 
     private data class RegionBoundsInfo(val name: String, val bounds: LatLngBounds) {
-        /** Plain axis-aligned overlap test using LatLngBounds' own
-         *  north/south/east/west accessors (the same accessors
-         *  OfflineDownloadViewModel already reads elsewhere in this
-         *  codebase, so they're confirmed present on this exact class).
-         *  Not using LatLngBounds' own intersects(), if it has one —
-         *  couldn't confirm its exact signature/behavior without network
-         *  access to the library sources in this environment, and a wrong
-         *  guess there fails to compile; this formula is unambiguous and
-         *  needs nothing beyond what's already used in this codebase. This
-         *  is a coverage *badge*, not a precision measurement, so the
-         *  bounding-box (rather than true polygon) approximation is
-         *  intentional and sufficient. */
-        fun overlaps(other: LatLngBounds): Boolean =
-            bounds.longitudeWest <= other.longitudeEast &&
-                bounds.longitudeEast >= other.longitudeWest &&
-                bounds.latitudeSouth <= other.latitudeNorth &&
-                bounds.latitudeNorth >= other.latitudeSouth
+        /** Apakah region ini MENCAKUP SELURUH [other] — bukan sekadar
+         *  bersinggungan.
+         *
+         *  Sebelumnya badge memakai uji overlap, sehingga satu rute 20 km yang
+         *  hanya tersentuh sudut tile offline tetap tampil "Siap dipakai
+         *  offline". Itu kebohongan yang baru ketahuan di jalur tanpa sinyal:
+         *  pendaki mengandalkan centang itu, lalu peta kosong di tengah rute.
+         *  Region dan rute sama-sama kotak sejajar sumbu, jadi uji cakupan
+         *  (contains) di sini tepat, bukan perkiraan.
+         *
+         *  Memakai accessor north/south/east/west yang sudah dipakai juga di
+         *  OfflineRegionMetadata.covers dan OfflineDownloadViewModel, jadi
+         *  tidak bergantung pada API baru yang belum tentu ada. */
+        fun containsAll(other: LatLngBounds): Boolean =
+            bounds.latitudeSouth <= other.latitudeSouth &&
+                bounds.latitudeNorth >= other.latitudeNorth &&
+                bounds.longitudeWest <= other.longitudeWest &&
+                bounds.longitudeEast >= other.longitudeEast
     }
 
     private suspend fun suspendListRegionsBounds(): List<RegionBoundsInfo> =

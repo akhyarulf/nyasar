@@ -382,6 +382,7 @@
     <string name="draw_route_cd">Gambar rute</string>
     <string name="share_gpx_cd">Bagikan GPX</string>
     <string name="delete_route_cd">Hapus route</string>
+    <string name="detach_route_cd">Lepas jalur dari sesi</string>
     <string name="share_route_intent">Bagikan route: %s</string>
 
     <!-- Navigation additional -->

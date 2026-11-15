@@ -2749,35 +2749,62 @@ private fun RecordingControls(
         // Jalur" is how you attach one, not something that disappears
         // once you have. No Stop/Pause/Resume/third button here at all.
         RecordingStatus.IDLE -> {
-            // Nama rute di ATAS baris kontrol: sebelumnya ia menumpuk di
-            // kolom tengah dan mendorong tombol Start turun, sehingga ketiga
-            // lingkaran tidak duduk sebaris.
+            // Kolom eksplisit: content lambda AnimatedContent itu BoxScope, jadi
+            // dua saudara (baris nama jalur + baris tombol) MENUMPUK di tengah.
+            // Itulah sebabnya nama jalur panjang tergambar di belakang tombol
+            // Start dan terbaca terpotong dua bagian ("argo kelam k...dal tok")
+            // padahal teksnya utuh satu baris. Column ini yang menegakkan
+            // urutan nama -> jeda -> tombol.
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+            // Nama jalur sebagai pill: lebar dibatasi 92% sheet dan teks
+            // di-ellipsis DI DALAMNYA, jadi nama panjang tidak pernah menyentuh
+            // tombol samping dan batas potongnya terlihat disengaja.
             routeName?.let { name ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(NyasarRadius.pill),
+                    modifier = Modifier.fillMaxWidth(0.92f)
                 ) {
-                    Text(
-                        name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (onClearRoute != null) {
+                    Row(
+                        modifier = Modifier.padding(
+                            start = 12.dp,
+                            end = if (onClearRoute != null) 2.dp else 12.dp,
+                            top = 6.dp,
+                            bottom = 6.dp
+                        ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Route,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
-                        IconButton(onClick = onClearRoute, modifier = Modifier.size(20.dp)) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = stringResource(R.string.delete_route_cd),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
+                        Text(
+                            name,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (onClearRoute != null) {
+                            IconButton(onClick = onClearRoute, modifier = Modifier.size(28.dp)) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.detach_route_cd),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
             }
             // Tiga kolom: jenis olahraga | Start | tambah rute.
             Row(
@@ -2905,6 +2932,7 @@ private fun RecordingControls(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
             }
         }
         // Spec PART 3 STATE 2: ONLY Pause. Stop is deliberately absent

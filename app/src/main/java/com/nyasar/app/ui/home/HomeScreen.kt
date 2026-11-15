@@ -294,7 +294,7 @@ fun HomeScreen(
                     // (header = status-bar inset + 40dp chip + 10+10 padding
                     // + 1dp hairline; +8dp breathing gap).
                     modifier = Modifier
-                        .padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                        .padding(top = 72.dp, start = 16.dp, end = MapTopBannerEndPadding),
                     color = MaterialTheme.colorScheme.errorContainer,
                     shape = RoundedCornerShape(com.nyasar.app.ui.theme.NyasarRadius.sm)
                 ) {
@@ -325,7 +325,7 @@ fun HomeScreen(
                     // Below the header bar (header ~64dp + gap): no overlap
                     // with the header, and nothing else floats here anymore.
                     modifier = Modifier
-                        .padding(top = 72.dp, start = 16.dp, end = 16.dp)
+                        .padding(top = 72.dp, start = 16.dp, end = MapTopBannerEndPadding)
                         .pressScale(bannerInteraction)
                         .clickable(
                             interactionSource = bannerInteraction,
@@ -359,7 +359,7 @@ fun HomeScreen(
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 72.dp, start = 16.dp, end = 16.dp),
+                    .padding(top = 72.dp, start = 16.dp, end = MapTopBannerEndPadding),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(NyasarRadius.sm)
             ) {
@@ -516,11 +516,18 @@ fun HomeScreen(
                         val gain = route.elevationGainM?.roundToInt()
                         val difficulty = com.nyasar.app.data.supabase.BrowseRepository.DifficultyFilter
                             .fromWire(route.difficulty ?: "")
+                        // Bentuk jalur ikut ditampilkan supaya kartu tetap berisi
+                        // saat rute belum punya elevasi/kesulitan: sebelumnya
+                        // kartu hanya berbunyi "4,3 km" dan terbaca seperti data
+                        // yang gagal dimuat, padahal kedua kolomnya memang null.
+                        val trailShape = com.nyasar.app.data.supabase.BrowseRepository.TrailTypeFilter
+                            .fromWire(route.trailType ?: "")
                         val meta = listOfNotNull(
                             "%.1f km".format(route.distanceMeters / 1000.0),
-                            gain?.let { "↑$it m" },
-                            difficulty?.let { stringResource(it.labelRes) }
-                        ).joinToString(" · ")
+                            gain?.let { "\u2191 $it m" },
+                            difficulty?.let { stringResource(it.labelRes) },
+                            trailShape?.let { stringResource(it.labelRes) }
+                        ).joinToString(" \u00b7 ")
                         Text(
                             meta,
                             style = MaterialTheme.typography.bodySmall,
@@ -1088,3 +1095,16 @@ private fun RecordingPulseDot(color: Color, active: Boolean, modifier: Modifier 
  *  final terlalu kompleks dulu"); true insets handling can follow later. */
 @Composable
 private fun Modifier.statusBarsPaddingCompat(): Modifier = this.windowInsetsPadding(WindowInsets.statusBars)
+
+/**
+ * End inset for the floating banners pinned under the header (import error,
+ * "location permission missing", "searching for GPS").
+ *
+ * The compass control occupies the top-end corner at end = 12.dp with a 48dp
+ * footprint, and it is composed AFTER these banners — so a banner padding only
+ * 16.dp on the end runs underneath it and the compass glyph eats the last
+ * words of the sentence (seen on a device: "...menampilkan po… Anda di
+ * peta."). 12 + 48 + 12dp breathing room = 72dp keeps every banner readable
+ * without moving the compass out of thumb reach.
+ */
+private val MapTopBannerEndPadding = 72.dp

@@ -59,6 +59,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.roundToInt
 import com.nyasar.app.R
+import com.nyasar.app.ui.components.cappedWidth
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.nyasar.app.ui.components.EmptyState
@@ -244,7 +245,10 @@ private fun ActivityHistoryContent(
                             val feedListState = rememberLazyListState()
                             CompositionLocalProvider(LocalFeedScrollState provides feedListState) {
                             LazyColumn(
-                                Modifier.weight(1f),
+                                Modifier
+                                    .weight(1f)
+                                    .cappedWidth()
+                                    .align(Alignment.CenterHorizontally),
                                 // No horizontal padding: the feed rows are
                                 // full-bleed now (map included), separated by
                                 // hairlines instead of floating in a margin.

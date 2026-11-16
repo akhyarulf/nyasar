@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.widthIn
@@ -1058,8 +1059,15 @@ private fun RoundIconButton(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlTonal,
             shadowElevation = com.nyasar.app.ui.theme.NyasarElevation.mapControlShadow,
+            // Garis rambut: di tema terang tombol dan basemap sama-sama terang,
+            // dan shadow 2dp saja tidak cukup memisahkan keduanya di layar
+            // ber-pantulan tinggi.
+            border = BorderStroke(
+                com.nyasar.app.ui.theme.NyasarControl.hairline,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+            ),
             modifier = Modifier
-                .size(48.dp)
+                .size(com.nyasar.app.ui.theme.NyasarControl.mapButton)
                 .pressScale(interaction)
         ) {
             IconButton(

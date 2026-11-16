@@ -2637,7 +2637,10 @@ private fun ControlCircle(
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 104.dp)
             )
         }
     }
@@ -2705,7 +2708,10 @@ private fun HeroControl(
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 104.dp)
             )
         }
     }
@@ -2793,12 +2799,12 @@ private fun RecordingControls(
                             modifier = Modifier.weight(1f)
                         )
                         if (onClearRoute != null) {
-                            IconButton(onClick = onClearRoute, modifier = Modifier.size(28.dp)) {
+                            IconButton(onClick = onClearRoute, modifier = Modifier.size(36.dp)) {
                                 Icon(
                                     Icons.Default.Close,
                                     contentDescription = stringResource(R.string.detach_route_cd),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -2875,7 +2881,10 @@ private fun RecordingControls(
                         Text(
                             stringResource(animatedSport.labelRes),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 104.dp)
                         )
                     }
                 }
@@ -2929,7 +2938,10 @@ private fun RecordingControls(
                     Text(
                         stringResource(R.string.add_route_label),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 104.dp)
                     )
                 }
             }

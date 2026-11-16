@@ -34,12 +34,22 @@ import androidx.compose.runtime.staticCompositionLocalOf
 /** False when the Android animator duration scale is set to zero. */
 val LocalNyasarMotionEnabled = staticCompositionLocalOf { true }
 
+/**
+ * Skala sudut aplikasi. Menaikkan satu angka di sini mengubah SEMUA
+ * permukaan yang memakainya (banner, chip, kartu, sheet, klaster kontrol
+ * peta) sekaligus — itulah alasannya token ini ada: perubahan bentuk global
+ * tidak boleh berarti menyunting puluhan file.
+ *
+ * Skala 2026-11: dinaikkan satu tingkat (8/12/16/20/28 -> 10/14/18/24/32)
+ * karena sudut lama terbaca "kotak" di layar modern yang sudutnya lebih
+ * membulat; jarak antar tingkat tetap ~4dp supaya hierarki tetap terbaca.
+ */
 object NyasarRadius {
-    val xs: Dp = 8.dp
-    val sm: Dp = 12.dp
-    val md: Dp = 16.dp
-    val lg: Dp = 20.dp
-    val xl: Dp = 28.dp
+    val xs: Dp = 10.dp
+    val sm: Dp = 14.dp
+    val md: Dp = 18.dp
+    val lg: Dp = 24.dp
+    val xl: Dp = 32.dp
 
     /** Stadium-shaped containers (search bar, status pills) — half-height
      *  rounding at typical control heights. Distinct from CircleShape, which

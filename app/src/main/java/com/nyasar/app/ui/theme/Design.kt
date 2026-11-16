@@ -66,21 +66,6 @@ object NyasarElevation {
     val floatingShadow: Dp = 4.dp
 }
 
-/**
- * Geometri kontrol interaktif. Dikumpulkan di sini supaya tombol peta,
- * tombol rekam, dan target sentuh kecil tidak lagi berbeda 4-8dp antar
- * layar: selisih sekecil itu tidak bisa ditunjuk dengan jari, tapi terbaca
- * sebagai "kurang rapi" saat beberapa kontrol berdampingan.
- */
-object NyasarControl {
-    /** Target sentuh minimum (Material). */
-    val touchMin: Dp = 48.dp
-    /** Diameter tombol bundar yang mengambang di atas peta. */
-    val mapButton: Dp = 48.dp
-    /** Garis rambut pemisah kontrol mengambang dari basemap terang. */
-    val hairline: Dp = 1.dp
-}
-
 object NyasarMotion {
     // Durations (ms) — fast for micro-interactions, base for entrances,
     // slow for full-screen transitions.

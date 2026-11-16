@@ -29,7 +29,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
-import com.nyasar.app.ui.components.cappedWidth
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.ui.browse.PublicRouteCard
 import com.nyasar.app.ui.browse.shareRoute
@@ -93,10 +92,7 @@ fun SavedEmbedded(
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = NyasarSpacing.lg),
                         state = feedListState,
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .cappedWidth()
-                            .align(Alignment.TopCenter)
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         items(s.routes, key = { it.id }, contentType = { "route" }) { route ->
                             PublicRouteCard(

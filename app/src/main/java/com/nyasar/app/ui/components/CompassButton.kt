@@ -1,7 +1,6 @@
 package com.nyasar.app.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -28,7 +27,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.nyasar.app.ui.theme.NyasarControl
 import com.nyasar.app.ui.theme.NyasarElevation
 
 /**
@@ -95,12 +93,6 @@ fun CompassButton(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = NyasarElevation.mapControlTonal,
         shadowElevation = NyasarElevation.mapControlShadow,
-        // Garis rambut yang sama dengan tombol peta lain: di tema terang
-        // kompas dan basemap sama-sama terang, dan shadow saja tidak cukup.
-        border = BorderStroke(
-            NyasarControl.hairline,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-        ),
         modifier = modifier
             .size(diameter)
             .alpha(contentAlpha)

@@ -68,7 +68,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nyasar.app.R
-import com.nyasar.app.ui.components.cappedWidth
 import com.nyasar.app.data.supabase.BrowseRepository
 import com.nyasar.app.data.supabase.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.auth
@@ -377,14 +376,7 @@ fun BrowseScreen(
                             // Filter chips row scrolls its own context; list
                             // items animate in with the shared stagger.
                             state = feedListState,
-                            // Di tablet, feed selebar 1000dp membuat satu kartu
-                            // jadi raksasa dan baris teks terlalu panjang untuk
-                            // dibaca. Kolom dibatasi dan dipusatkan; di HP tidak
-                            // ada efeknya sama sekali.
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .cappedWidth()
-                                .align(Alignment.TopCenter)
+                            modifier = Modifier.fillMaxSize()
                         ) {
                             // contentType: semua baris di feed ini sejenis, jadi
                             // Compose boleh memakai ulang slot subkomposisinya

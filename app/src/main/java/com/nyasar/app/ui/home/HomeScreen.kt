@@ -420,29 +420,38 @@ fun HomeScreen(
                     }
                 }
             )
-            Box {
-                RoundIconButton(icon = Icons.Default.Layers, contentDescription = stringResource(R.string.map_layer_cd)) {
-                    showBasemapSheet = true
-                }
+            // Empat aksi sekunder jadi SATU klaster: satu permukaan membulat
+            // dengan pemisah rambut, bukan empat lingkaran yang masing-masing
+            // membawa shadow sendiri. Explore tetap terpisah di atasnya karena
+            // ia menunjukkan keadaan (aktif/tidak), bukan sekadar aksi.
+            com.nyasar.app.ui.components.MapControlCluster {
+                com.nyasar.app.ui.components.MapControlItem(
+                    icon = Icons.Default.Layers,
+                    contentDescription = stringResource(R.string.map_layer_cd),
+                    onClick = { showBasemapSheet = true }
+                )
+                com.nyasar.app.ui.components.MapControlDivider()
+                com.nyasar.app.ui.components.MapControlItem(
+                    icon = if (rotateWithHeading) Icons.Default.Navigation else Icons.Default.MyLocation,
+                    contentDescription = if (rotateWithHeading) stringResource(R.string.heading_up_mode_cd) else stringResource(R.string.go_to_location_cd),
+                    tint = if (followMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    onClick = { viewModel.centerOnLocation() }
+                )
+                com.nyasar.app.ui.components.MapControlDivider()
+                com.nyasar.app.ui.components.MapControlItem(
+                    icon = Icons.Default.Edit,
+                    contentDescription = stringResource(R.string.draw_route_cd),
+                    onClick = onOpenDrawRoute
+                )
+                com.nyasar.app.ui.components.MapControlDivider()
+                // v7: crosshair waypoint picker — Home context = independent
+                // pin (no route/activity to link to from here).
+                com.nyasar.app.ui.components.MapControlItem(
+                    icon = Icons.Default.Place,
+                    contentDescription = stringResource(R.string.add_waypoint_cd),
+                    onClick = { showCrosshair = true }
+                )
             }
-            RoundIconButton(
-                icon = if (rotateWithHeading) Icons.Default.Navigation else Icons.Default.MyLocation,
-                contentDescription = if (rotateWithHeading) stringResource(R.string.heading_up_mode_cd) else stringResource(R.string.go_to_location_cd),
-                tint = if (followMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                onClick = { viewModel.centerOnLocation() }
-            )
-            RoundIconButton(
-                icon = Icons.Default.Edit,
-                contentDescription = stringResource(R.string.draw_route_cd),
-                onClick = onOpenDrawRoute
-            )
-            // v7: crosshair waypoint picker — Home context = independent pin
-            // (no route/activity to link to from here).
-            RoundIconButton(
-                icon = Icons.Default.Place,
-                contentDescription = stringResource(R.string.add_waypoint_cd),
-                onClick = { showCrosshair = true }
-            )
         }
 
         // Compass — top-end, BELOW the header bar and on the same end lane as

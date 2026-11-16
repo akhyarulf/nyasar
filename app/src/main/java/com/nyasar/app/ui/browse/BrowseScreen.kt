@@ -80,6 +80,7 @@ import com.nyasar.app.ui.components.NyasarTabHeader
 import com.nyasar.app.ui.components.StaticMapPreview
 import com.nyasar.app.ui.components.TrailTypeChip
 import com.nyasar.app.ui.components.pressScale
+import com.nyasar.app.ui.theme.NyasarControl
 import com.nyasar.app.ui.theme.NyasarElevation
 import com.nyasar.app.ui.theme.NyasarRadius
 import com.nyasar.app.ui.theme.NyasarSpacing
@@ -344,6 +345,29 @@ fun BrowseScreen(
                             modifier = Modifier.align(Alignment.Center)
                         )
                     } else {
+                        // Strip penyempitan: jumlah hasil + chip keadaan yang
+                        // sedang aktif. Sebelumnya filter/urutan/"dekat saya"
+                        // hanya dikodekan lewat warna ikon, jadi feed bisa
+                        // memendek tanpa sebab yang terbaca — pengguna tidak
+                        // tahu apakah datanya sedikit atau filternya menyala.
+                        Column(Modifier.fillMaxSize()) {
+                        BrowseNarrowingStrip(
+                            resultCount = s.routes.size,
+                            hasMore = s.hasMore,
+                            query = query,
+                            nearMeEnabled = nearMeEnabled,
+                            activeFilters = activeFilters,
+                            sortLabel = currentSort
+                                .takeIf { it != BrowseRepository.SortOrder.NEWEST }
+                                ?.let { stringResource(it.labelRes) },
+                            onClear = {
+                                viewModel.clearAllFilters()
+                                if (nearMeEnabled) viewModel.disableNearMe()
+                                viewModel.onSortSelected(BrowseRepository.SortOrder.NEWEST)
+                                if (query.isNotEmpty()) viewModel.onQueryChanged("")
+                                searchOpen = false
+                            }
+                        )
                         // List state dibagikan ke kartu lewat
                         // LocalFeedScrollState: kartu menunggu daftar diam
                         // sebelum mem-boot MapSnapshotter (lihat
@@ -376,7 +400,9 @@ fun BrowseScreen(
                             // Filter chips row scrolls its own context; list
                             // items animate in with the shared stagger.
                             state = feedListState,
-                            modifier = Modifier.fillMaxSize()
+                            // weight(1f): feed mengisi sisa tinggi SETELAH
+                            // strip, jadi strip tetap di tempat saat scroll.
+                            modifier = Modifier.fillMaxWidth().weight(1f)
                         ) {
                             // contentType: semua baris di feed ini sejenis, jadi
                             // Compose boleh memakai ulang slot subkomposisinya
@@ -413,6 +439,7 @@ fun BrowseScreen(
                             }
                         }
                         }
+                        }
                     }
                 }
             }
@@ -426,6 +453,97 @@ fun BrowseScreen(
     }
 }
 
+
+/**
+ * Baris status di atas feed: "N rute" + satu chip per keadaan yang sedang
+ * menyempitkan daftar, lalu "Hapus semua" bila ada yang bisa dihapus.
+ *
+ * Ada selalu (bukan hanya saat menyempit) karena jumlah hasil sendiri sudah
+ * informasi: pengguna tahu feed punya 12 atau 400 rute, dan tahu kapan
+ * daftarnya berhenti di halaman pertama (tanda "+").
+ */
+@Composable
+private fun BrowseNarrowingStrip(
+    resultCount: Int,
+    hasMore: Boolean,
+    query: String,
+    nearMeEnabled: Boolean,
+    activeFilters: Int,
+    sortLabel: String?,
+    onClear: () -> Unit
+) {
+    val isNarrowed = query.isNotBlank() || nearMeEnabled || activeFilters > 0 || sortLabel != null
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(
+                    start = NyasarSpacing.lg,
+                    end = NyasarSpacing.sm,
+                    top = NyasarSpacing.sm,
+                    bottom = NyasarSpacing.sm
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(NyasarSpacing.sm)
+        ) {
+            Text(
+                stringResource(R.string.browse_result_count, resultCount) +
+                    if (hasMore) "+" else "",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            if (query.isNotBlank()) {
+                NarrowingChip("\u201C$query\u201D")
+            }
+            if (nearMeEnabled) {
+                NarrowingChip(stringResource(R.string.browse_near_me))
+            }
+            if (activeFilters > 0) {
+                NarrowingChip(
+                    stringResource(R.string.browse_filter_filters) + " \u00B7 " + activeFilters
+                )
+            }
+            sortLabel?.let { NarrowingChip(it) }
+            if (isNarrowed) {
+                TextButton(
+                    onClick = onClear,
+                    contentPadding = PaddingValues(horizontal = NyasarSpacing.sm),
+                    modifier = Modifier.heightIn(min = 32.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.browse_filter_clear_all),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    }
+}
+
+/** Chip keadaan: tenang, tanpa aksen — hanya menjelaskan mengapa feed pendek. */
+@Composable
+private fun NarrowingChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(NyasarRadius.pill),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = androidx.compose.foundation.BorderStroke(
+            NyasarControl.hairline,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        ),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
+    }
+}
 
 @Composable
 /** Shared with the Profile → Saved tab (same card everywhere a bookmarked

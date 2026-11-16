@@ -1006,4 +1006,5 @@
     <string name="nav_eta_label">ETA</string>
     <string name="nav_sunset_label">Sunset</string>
     <string name="nav_after_dark_warning">Estimated arrival is after sunset</string>
+    <string name="browse_result_count">%1$d routes</string>
 </resources>

@@ -1008,4 +1008,5 @@
     <string name="nav_eta_label">Perkiraan tiba</string>
     <string name="nav_sunset_label">Terbenam</string>
     <string name="nav_after_dark_warning">Perkiraan tiba setelah matahari terbenam</string>
+    <string name="browse_result_count">%1$d rute</string>
 </resources>

@@ -98,7 +98,6 @@ import kotlin.math.roundToInt
  * back gesture must exit the app, not pop the tab.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowseScreen(
     viewModel: BrowseViewModel = viewModel(),

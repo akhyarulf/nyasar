@@ -88,8 +88,19 @@ jobs:
         with:
           gradle-version: 8.7
 
+      # Log mentah job Actions hanya bisa dibaca admin, jadi kegagalan build
+      # dulu cuma tampil sebagai "exit code 1" di anotasi — tanpa pesan
+      # compiler sama sekali. Langkah ini menyalin baris error Kotlin/Gradle
+      # ke anotasi, yang bisa dibaca siapa pun yang melihat commit.
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build-output.log || {
+            while IFS= read -r line; do
+              echo "::error::${line}"
+            done < <(grep -E '^e: |^> Task .*FAILED$|^FAILURE: ' build-output.log | head -20)
+            exit 1
+          }
 
       - name: Unit tests (JVM)
         run: gradle testDebugUnitTest --no-daemon --stacktrace

@@ -2,6 +2,7 @@
 
 package com.nyasar.app.ui.browse
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

@@ -462,7 +462,10 @@ fun StaticMapPreview(
         // (snapshotter di-cancel tanpa callback sukses/gagal).
         var queueToken: java.util.concurrent.atomic.AtomicBoolean? = null
         if (points.size >= 2 && w >= 8f && h >= 8f) {
-            val key = "ofm-${points.hashCode()}-${w.toInt()}x${h.toInt()}-${traceColor.toArgbCompat()}"
+            // awalan "ofm2-": bitmaps lama dirender dengan plafon zoom 16,
+            // jadi tanpa awalan baru kartu yang sudah pernah dilihat tetap
+            // menampilkan rute kecil sebagai titik walau kodenya sudah benar.
+            val key = "ofm2-${points.hashCode()}-${w.toInt()}x${h.toInt()}-${traceColor.toArgbCompat()}"
             val cached = StaticTileCache.lru.get(key)
             if (cached != null) {
                 rendered = cached
@@ -673,8 +676,14 @@ internal fun snapshotCameraFor(
     val lonSpan = (maxLon - minLon).takeIf { it > 1e-9 } ?: 1e-4
     val latSpanMerc = abs(mercY(maxLat) - mercY(minLat)).takeIf { it > 1e-12 } ?: 1e-5
     // Largest integer zoom where the bbox still FITS inside the view.
+    //
+    // Pencarian TIDAK berhenti di plafon tile pemanggil (maxZoom + 2, default
+    // 16): snapshot di sini memakai style vektor yang tetap merender detail
+    // jalan jauh melewati z16. Berhenti di 16 itulah sebabnya satu putaran
+    // 4 km keliling lapangan tampil sebagai kotak ~20px, bukan sebagai loop
+    // (screenshot perangkat 2026-11). Di z19 putaran yang sama memenuhi kartu.
     var zoom = 3
-    for (z in 3..maxZoom + 2) {
+    for (z in 3..maxOf(maxZoom + 2, SNAPSHOT_FIT_MAX_ZOOM)) {
         val wPx = lonSpan / 360.0 * (1 shl z) * SNAPSHOT_WORLD_PX
         val hPx = latSpanMerc * (1 shl z) * SNAPSHOT_WORLD_PX
         if (wPx > viewW || hPx > viewH) break
@@ -691,12 +700,25 @@ internal fun snapshotCameraFor(
     val fitted = zoom - if (smallBbox) 0.15 else 0.45
     return CameraPosition.Builder()
         .target(LatLng((minLat + maxLat) / 2.0, (minLon + maxLon) / 2.0))
-        .zoom(fitted.coerceAtMost(if (smallBbox) 17.0 else 16.0))
+        .zoom(
+            fitted.coerceAtMost(
+                if (smallBbox) SNAPSHOT_FIT_MAX_ZOOM.toDouble() else 16.0
+            )
+        )
         .build()
 }
 
 /** World pixels per zoom-0 tile in the GL/Mercator model used for the fit. */
 private const val SNAPSHOT_WORLD_PX = 512.0
+
+/** Plafon zoom untuk kamera snapshot.
+ *
+ *  Tile vektor di-overzoom dengan baik melewati z14, dan rute yang benar-benar
+ *  kecil (satu lapangan, satu blok) baru terbaca sebagai bentuk di sekitar
+ *  z19. Nilai ini hanya dipakai jalur snapshot vektor; jalur raster tetap
+ *  memakai plafon tile pemanggil karena sumber tile-nya memang berhenti di
+ *  sana. */
+private const val SNAPSHOT_FIT_MAX_ZOOM = 19
 
 /** Copies the snapshotter's base map and draws the route trace + start/end
  *  dots on top with the same casing/stroke look the raster path uses.

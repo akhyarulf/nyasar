@@ -1020,7 +1020,7 @@ fun MiniTrackPreview(polyline: String, modifier: Modifier = Modifier) {
  * deliberately NOT reproduced — see the filter draft decision in
  * PROJECT_CONTEXT.md.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun BrowseFilterSheet(
     viewModel: BrowseViewModel,
@@ -1051,9 +1051,14 @@ private fun BrowseFilterSheet(
             Spacer(Modifier.height(NyasarSpacing.sm))
             // Reuse SportType labels/icons — the exact vocabulary routes are
             // published with (the schema CHECK copies these enum names).
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // FlowRow, bukan Row yang digulir horizontal: dengan empat jenis
+            // olahraga di layar 360dp, chip terakhir selalu terpotong di tepi
+            // dan pengguna tidak tahu masih ada pilihan di kanan (terlihat di
+            // screenshot 2026-11). Membungkus ke baris berikutnya membuat
+            // SEMUA pilihan terlihat sekaligus tanpa gestur tersembunyi.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SportType.entries.forEach { sport ->
                     FilterChip(
@@ -1108,9 +1113,11 @@ private fun BrowseFilterSheet(
             Spacer(Modifier.height(NyasarSpacing.sm))
             // Multi-select buttons (Wikiloc) — wire values are the schema's
             // CHECK set; labels reused from the publish form.
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Alasan sama dengan chip olahraga: di layar sempit / font besar,
+            // "Sangat sulit" terpotong. FlowRow membungkusnya utuh.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 BrowseRepository.DifficultyFilter.entries.forEach { d ->
                     FilterChip(

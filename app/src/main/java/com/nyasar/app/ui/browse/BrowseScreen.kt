@@ -98,6 +98,7 @@ import kotlin.math.roundToInt
  * back gesture must exit the app, not pop the tab.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowseScreen(
     viewModel: BrowseViewModel = viewModel(),
@@ -143,12 +144,31 @@ fun BrowseScreen(
         }
     }
 
+    // "Dekat saya" pindah dari header ke strip status, karena ia KEADAAN
+    // (radius menyala/tidak), bukan aksi sekali tekan. Logikanya di-hoist di
+    // sini supaya chip di strip bisa memanggilnya tanpa menduplikasi izin.
+    val onToggleNearMe: () -> Unit = {
+        if (nearMeEnabled) {
+            viewModel.disableNearMe()
+        } else if (
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            enableNearMe()
+        } else {
+            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     // Filter + sort live in the header as icon-only actions (reference feed
     // anatomy: a title with a row of glyphs, no control bar eating the first
     // 60dp of the list). Filter is green only while it is applied — colour as
     // state, not decoration. Hoisted here because both the header and the
     // sheet need them.
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
+    var showSortSheet by rememberSaveable { mutableStateOf(false) }
     val activeFilters by viewModel.appliedCount.collectAsState()
     val currentSort = viewModel.currentSort()
 
@@ -174,32 +194,9 @@ fun BrowseScreen(
                 // Subtitle dihapus (feedback user 2026-09): tagline tidak
                 // menambah informasi, header cukup judul + aksi saja.
                 actions = {
-                    // "Dekat saya": satu tombol toggle. Menyalakan meminta
-                    // izin lokasi bila belum ada, lalu memakai satu fix GPS
-                    // untuk menghitung bbox ±25 km. Posisi tidak disimpan —
-                    // yang dikirim ke server hanya kotak wilayahnya.
-                    IconButton(onClick = {
-                        if (nearMeEnabled) {
-                            viewModel.disableNearMe()
-                        } else if (
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.ACCESS_FINE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED
-                        ) {
-                            enableNearMe()
-                        } else {
-                            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                        }
-                    }) {
-                        Icon(
-                            Icons.Default.MyLocation,
-                            contentDescription = stringResource(R.string.browse_near_me),
-                            tint = if (nearMeEnabled) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    // Search, then refine: glyph order mirrors how the feed is
+                    // "Dekat saya" TIDAK lagi di header: ia keadaan, bukan
+                    // aksi, dan sekarang tinggal di strip status di atas feed.
+                    // Search, lalu refine: glyph order mirrors how the feed is
                     // narrowed. Search stays lit while the field is open.
                     IconButton(onClick = {
                         if (searchOpen) {
@@ -217,39 +214,35 @@ fun BrowseScreen(
                                    else MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    var sortMenu by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { sortMenu = true }) {
+                    IconButton(onClick = { showSortSheet = true }) {
+                        Icon(
+                            Icons.Default.SwapVert,
+                            contentDescription = stringResource(R.string.browse_sort_cd),
+                            // Same rule as the filter glyph: green means
+                            // "not the default state", so an active sort
+                            // is visible without a label.
+                            tint = if (currentSort != BrowseRepository.SortOrder.NEWEST)
+                                       MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    IconButton(onClick = { showFilterSheet = true }) {
+                        // Angka, bukan hanya warna: badge memberi tahu BERAPA
+                        // filter aktif tanpa perlu membuka sheet-nya dulu.
+                        BadgedBox(
+                            badge = {
+                                if (activeFilters > 0) {
+                                    Badge { Text(activeFilters.toString()) }
+                                }
+                            }
+                        ) {
                             Icon(
-                                Icons.Default.SwapVert,
-                                contentDescription = stringResource(R.string.browse_sort_cd),
-                                // Same rule as the filter glyph: green means
-                                // "not the default state", so an active sort
-                                // is visible without a label.
-                                tint = if (currentSort != BrowseRepository.SortOrder.NEWEST)
-                                           MaterialTheme.colorScheme.primary
+                                Icons.Default.Tune,
+                                contentDescription = stringResource(R.string.history_filter_button),
+                                tint = if (activeFilters > 0) MaterialTheme.colorScheme.primary
                                        else MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                            BrowseRepository.SortOrder.entries.forEach { s ->
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(s.labelRes)) },
-                                    onClick = {
-                                        viewModel.onSortSelected(s)
-                                        sortMenu = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    IconButton(onClick = { showFilterSheet = true }) {
-                        Icon(
-                            Icons.Default.Tune,
-                            contentDescription = stringResource(R.string.history_filter_button),
-                            tint = if (activeFilters > 0) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurface
-                        )
                     }
                 }
             )
@@ -300,6 +293,19 @@ fun BrowseScreen(
                 )
             }
 
+            // Urutan: sheet dengan centang, bukan dropdown buta yang hanya
+            // memberi isyarat lewat warna ikon.
+            if (showSortSheet) {
+                BrowseSortSheet(
+                    current = currentSort,
+                    onSelect = {
+                        viewModel.onSortSelected(it)
+                        showSortSheet = false
+                    },
+                    onDismiss = { showSortSheet = false }
+                )
+            }
+
             // Pull-to-refresh (M2 pullRefresh — lihat catatan import):
             // tarik ke bawah re-browse tanpa mengosongkan layar — list tetap
             // terlihat, hanya indicator yang muncul. Gesture hanya aktif saat
@@ -314,9 +320,7 @@ fun BrowseScreen(
             Box(Modifier.fillMaxSize().pullRefresh(pullState)) {
                 when (val s = state) {
                 BrowseViewModel.BrowseState.Idle, BrowseViewModel.BrowseState.Loading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                    BrowseFeedSkeleton()
                 }
                 is BrowseViewModel.BrowseState.Error -> {
                     Column(
@@ -356,6 +360,7 @@ fun BrowseScreen(
                             hasMore = s.hasMore,
                             query = query,
                             nearMeEnabled = nearMeEnabled,
+                            onToggleNearMe = onToggleNearMe,
                             activeFilters = activeFilters,
                             sortLabel = currentSort
                                 .takeIf { it != BrowseRepository.SortOrder.NEWEST }
@@ -468,6 +473,7 @@ private fun BrowseNarrowingStrip(
     hasMore: Boolean,
     query: String,
     nearMeEnabled: Boolean,
+    onToggleNearMe: () -> Unit,
     activeFilters: Int,
     sortLabel: String?,
     onClear: () -> Unit
@@ -498,9 +504,15 @@ private fun BrowseNarrowingStrip(
             if (query.isNotBlank()) {
                 NarrowingChip("\u201C$query\u201D")
             }
-            if (nearMeEnabled) {
-                NarrowingChip(stringResource(R.string.browse_near_me))
-            }
+            // Toggle, bukan penanda: "Dekat saya" adalah satu-satunya chip
+            // yang bisa dinyalakan dari sini, dan karena itu ia satu-satunya
+            // yang memakai aksen (primaryContainer) ketika aktif.
+            NarrowingChip(
+                text = stringResource(R.string.browse_near_me),
+                selected = nearMeEnabled,
+                icon = Icons.Default.MyLocation,
+                onClick = onToggleNearMe
+            )
             if (activeFilters > 0) {
                 NarrowingChip(
                     stringResource(R.string.browse_filter_filters) + " \u00B7 " + activeFilters
@@ -524,25 +536,123 @@ private fun BrowseNarrowingStrip(
     }
 }
 
-/** Chip keadaan: tenang, tanpa aksen — hanya menjelaskan mengapa feed pendek. */
+/** Chip keadaan: tenang saat pasif, beraksen saat dipilih (hanya toggle
+ *  "Dekat saya" yang bisa dipilih). */
 @Composable
-private fun NarrowingChip(text: String) {
+private fun NarrowingChip(
+    text: String,
+    selected: Boolean = false,
+    icon: ImageVector? = null,
+    onClick: (() -> Unit)? = null
+) {
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         shape = RoundedCornerShape(NyasarRadius.pill),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = androidx.compose.foundation.BorderStroke(
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                       else MaterialTheme.colorScheme.onSurfaceVariant,
+        border = if (selected) null else androidx.compose.foundation.BorderStroke(
             NyasarControl.hairline,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
         ),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        modifier = if (onClick != null) {
+            Modifier
+                .pressScale(interaction)
+                .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+        } else Modifier
     ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-        )
+        Row(
+            Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            icon?.let {
+                Icon(it, contentDescription = null, modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(text, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
     }
+}
+
+/** Kerangka kartu saat feed pertama kali dimuat.
+ *
+ *  Menggantikan spinner di tengah layar kosong: bentuk blok mengikuti anatomi
+ *  kartu asli (byline, judul, stat, peta), jadi saat data datang tata letaknya
+ *  tidak "melompat" dari kosong ke kartu setinggi ~700dp. */
+@Composable
+private fun BrowseFeedSkeleton() {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "feedSkeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.75f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(durationMillis = 900),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "feedSkeletonAlpha"
+    )
+    Column(Modifier.fillMaxSize()) {
+        repeat(3) { FeedSkeletonCard(alpha) }
+    }
+}
+
+@Composable
+private fun FeedSkeletonCard(alpha: Float) {
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        Row(
+            Modifier.padding(NyasarSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SkeletonShape(Modifier.size(40.dp), CircleShape, alpha)
+            Spacer(Modifier.width(NyasarSpacing.md))
+            Column {
+                SkeletonShape(Modifier.width(120.dp).height(12.dp), RoundedCornerShape(NyasarRadius.xs), alpha)
+                Spacer(Modifier.height(6.dp))
+                SkeletonShape(Modifier.width(72.dp).height(10.dp), RoundedCornerShape(NyasarRadius.xs), alpha)
+            }
+        }
+        SkeletonShape(
+            Modifier.padding(horizontal = NyasarSpacing.lg).fillMaxWidth().height(20.dp),
+            RoundedCornerShape(NyasarRadius.xs),
+            alpha
+        )
+        Spacer(Modifier.height(NyasarSpacing.md))
+        Row(
+            Modifier.padding(horizontal = NyasarSpacing.lg).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(NyasarSpacing.md)
+        ) {
+            repeat(3) {
+                Column(Modifier.weight(1f)) {
+                    SkeletonShape(Modifier.width(48.dp).height(9.dp), RoundedCornerShape(NyasarRadius.xs), alpha)
+                    Spacer(Modifier.height(6.dp))
+                    SkeletonShape(Modifier.fillMaxWidth(0.7f).height(16.dp), RoundedCornerShape(NyasarRadius.xs), alpha)
+                }
+            }
+        }
+        Spacer(Modifier.height(NyasarSpacing.md))
+        SkeletonShape(
+            Modifier.fillMaxWidth().aspectRatio(1080f / 640f),
+            RoundedCornerShape(0.dp),
+            alpha
+        )
+        Spacer(Modifier.height(NyasarSpacing.md))
+    }
+}
+
+@Composable
+private fun SkeletonShape(
+    modifier: Modifier,
+    shape: androidx.compose.ui.graphics.Shape,
+    alpha: Float
+) {
+    Box(
+        modifier.background(
+            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = alpha),
+            shape
+        )
+    )
 }
 
 @Composable
@@ -759,7 +869,7 @@ internal fun PublicRouteCard(
             //     stay beside their glyph so the number is still visible.
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                Modifier.fillMaxWidth().padding(horizontal = NyasarSpacing.md, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FeedActionSlot(
@@ -774,21 +884,24 @@ internal fun PublicRouteCard(
                     },
                     tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     label = route.likesCount.takeIf { it > 0 }?.toString(),
-                    enabled = !likePending,
-                    modifier = Modifier.weight(1f)
+                    enabled = !likePending
                 )
+                Spacer(Modifier.width(NyasarSpacing.lg))
                 FeedActionSlot(
                     icon = Icons.AutoMirrored.Outlined.Chat,
                     contentDescription = stringResource(R.string.browse_comment),
                     onClick = onOpenComments,
-                    label = route.commentsCount.takeIf { it > 0 }?.toString(),
-                    modifier = Modifier.weight(1f)
+                    label = route.commentsCount.takeIf { it > 0 }?.toString()
                 )
+                // Bagikan didorong ke ujung kanan: ia aksi paling jarang
+                // dipakai, jadi tidak lagi mendapat sepertiga lebar yang sama
+                // dengan suka. Like dan komentar berbagi sisi kiri sebagai
+                // "respons", bagikan berdiri sendiri sebagai "sebarkan".
+                Spacer(Modifier.weight(1f))
                 FeedActionSlot(
                     icon = Icons.Default.Share,
                     contentDescription = stringResource(R.string.browse_share_route),
-                    onClick = onShare,
-                    modifier = Modifier.weight(1f)
+                    onClick = onShare
                 )
             }
         }
@@ -1006,6 +1119,60 @@ fun MiniTrackPreview(polyline: String, modifier: Modifier = Modifier) {
             }
         }
     ) { }
+}
+
+/**
+ * Sheet urutan feed. Menggantikan `DropdownMenu` kecil yang hanya memberi
+ * isyarat lewat warna ikon: di sini setiap pilihan terlihat, dan yang aktif
+ * ditandai centang radio.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BrowseSortSheet(
+    current: BrowseRepository.SortOrder,
+    onSelect: (BrowseRepository.SortOrder) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            Modifier
+                .navigationBarsPadding()
+                .padding(bottom = NyasarSpacing.lg)
+        ) {
+            Text(
+                stringResource(R.string.browse_sort_cd),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    bottom = NyasarSpacing.sm
+                )
+            )
+            BrowseRepository.SortOrder.entries.forEach { order ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(order) }
+                        .padding(horizontal = 24.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = order == current,
+                        onClick = { onSelect(order) }
+                    )
+                    Spacer(Modifier.width(NyasarSpacing.md))
+                    Text(
+                        stringResource(order.labelRes),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**
